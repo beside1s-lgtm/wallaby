@@ -57,10 +57,10 @@ const prompt = ai.definePrompt({
 분석 데이터:
 - 전체 학생 평균 기록: {{json averageMeasurements}}
 - 기록이 있는 총 학생 수: {{totalStudentCount}}
-{{#if (Object.keys studentRankings).length}}- 조회 학생의 종목별 등수: {{json studentRankings}}{{/if}}
+{{#if studentRankings}}- 조회 학생의 종목별 등수: {{json studentRankings}}{{/if}}
 
 결과 형식:
-- 브리핑: 전체 학생들의 평균적인 강점과 약점을 요약합니다. {{#if (Object.keys studentRankings).length}}조회된 학생의 등수 정보를 포함하여 현재 위치를 알려주세요.{{/if}}
+- 브리핑: 전체 학생들의 평균적인 강점과 약점을 요약합니다. {{#if studentRankings}}조회된 학생의 등수 정보를 포함하여 현재 위치를 알려주세요.{{/if}}
 - 조언: 분석 결과를 바탕으로 학생들의 성과를 향상시킬 수 있는 구체적이고 실행 가능한 수업 전략이나 활동을 제안합니다.
 
 결과는 반드시 한국어로 작성해주세요.
