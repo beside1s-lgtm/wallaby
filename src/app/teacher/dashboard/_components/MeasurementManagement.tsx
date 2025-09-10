@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { getItems, setItems, addItem, deleteItem } from '@/lib/store';
+import { getItems, addItem, deleteItem } from '@/lib/store';
 import {
   Card,
   CardContent,
