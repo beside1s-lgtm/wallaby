@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { getRecords, getStudents } from '@/lib/store';
+import { getRecords, getStudents, getItems } from '@/lib/store';
 import { getTeacherDashboardBriefing } from '@/ai/flows/teacher-ai-dashboard';
 import {
   Dialog,
@@ -19,8 +19,10 @@ import {
   XAxis,
   YAxis,
   Tooltip,
+  Legend
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { getPapsGrade, papsStandards } from '@/lib/paps';
 
 type BriefingData = {
   briefing: string;
@@ -33,6 +35,59 @@ export default function AiWelcome() {
   const [isLoading, setIsLoading] = useState(true);
   const [briefingData, setBriefingData] = useState<BriefingData | null>(null);
 
+  const { chartData, performanceInsights } = useMemo(() => {
+    if (!school) return { chartData: [], performanceInsights: {} };
+
+    const allRecords = getRecords(school);
+    const allStudents = getStudents(school);
+    const allItems = getItems(school);
+    const studentMap = new Map(allStudents.map(s => [s.id, s]));
+
+    if (allRecords.length === 0) return { chartData: [], performanceInsights: {} };
+
+    const insights: Record<string, { type: 'grade' | 'percentage'; value: number, count: number }> = {};
+    const perfInsightsForAI: Record<string, { type: 'grade' | 'percentage'; value: number }> = {};
+
+    for (const record of allRecords) {
+      const itemInfo = allItems.find(i => i.name === record.item);
+      const student = studentMap.get(record.studentId);
+      if (!itemInfo || !student) continue;
+
+      if (!insights[record.item]) {
+        insights[record.item] = { type: 'grade', value: 0, count: 0 };
+      }
+
+      if (papsStandards[record.item]) {
+        const grade = getPapsGrade(record.item, student.gender, record.value);
+        if (grade !== null) {
+          insights[record.item].type = 'grade';
+          insights[record.item].value += grade;
+          insights[record.item].count++;
+        }
+      } else if (itemInfo.goal && itemInfo.recordType !== 'time') {
+        const percentage = Math.min(100, (record.value / itemInfo.goal) * 100);
+        insights[record.item].type = 'percentage';
+        insights[record.item].value += percentage;
+        insights[record.item].count++;
+      }
+    }
+
+    const finalChartData = Object.entries(insights)
+      .filter(([, data]) => data.count > 0)
+      .map(([name, data]) => {
+        const average = parseFloat((data.value / data.count).toFixed(2));
+        perfInsightsForAI[name] = { type: data.type, value: average };
+        return {
+          name,
+          paps: data.type === 'grade' ? average : null,
+          custom: data.type === 'percentage' ? average : null,
+        };
+      });
+
+    return { chartData: finalChartData, performanceInsights: perfInsightsForAI };
+  }, [school]);
+
+
   useEffect(() => {
     const welcomeShown = sessionStorage.getItem('welcomeShown');
     if (!welcomeShown && school) {
@@ -40,11 +95,11 @@ export default function AiWelcome() {
       sessionStorage.setItem('welcomeShown', 'true');
 
       const fetchBriefing = async () => {
+        setIsLoading(true);
         try {
-          const allRecords = getRecords(school);
           const allStudents = getStudents(school);
           
-          if (allRecords.length === 0) {
+          if (Object.keys(performanceInsights).length === 0) {
             setBriefingData({
               briefing: '기록된 데이터가 없습니다.',
               advice: '학생들의 기록을 입력하여 분석을 시작해보세요.',
@@ -52,26 +107,9 @@ export default function AiWelcome() {
             return;
           }
 
-          const averageMeasurements: Record<string, number> = {};
-          const recordCounts: Record<string, number> = {};
-          
-          allRecords.forEach(record => {
-            if (!averageMeasurements[record.item]) {
-              averageMeasurements[record.item] = 0;
-              recordCounts[record.item] = 0;
-            }
-            averageMeasurements[record.item] += record.value;
-            recordCounts[record.item]++;
-          });
-
-          for (const item in averageMeasurements) {
-            averageMeasurements[item] /= recordCounts[item];
-            averageMeasurements[item] = parseFloat(averageMeasurements[item].toFixed(2));
-          }
-
           const result = await getTeacherDashboardBriefing({
             school,
-            averageMeasurements,
+            performanceInsights: performanceInsights,
             totalStudentCount: allStudents.length,
             studentRankings: {},
           });
@@ -91,27 +129,7 @@ export default function AiWelcome() {
     } else {
         setIsLoading(false);
     }
-  }, [school]);
-
-  const chartData = useMemo(() => {
-    if (!briefingData || !school) return [];
-    const allRecords = getRecords(school);
-    if(allRecords.length === 0) return [];
-
-    const averages = allRecords.reduce((acc, record) => {
-        if (!acc[record.item]) {
-            acc[record.item] = { sum: 0, count: 0 };
-        }
-        acc[record.item].sum += record.value;
-        acc[record.item].count++;
-        return acc;
-    }, {} as Record<string, { sum: number, count: number }>);
-    
-    return Object.entries(averages).map(([name, {sum, count}]) => ({
-        name,
-        average: parseFloat((sum / count).toFixed(2)),
-    }));
-  }, [briefingData, school]);
+  }, [school, performanceInsights]);
 
   if (!isOpen || !school) return null;
 
@@ -136,18 +154,26 @@ export default function AiWelcome() {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <BarChart2 className="w-5 h-5 text-primary" />
-                        종목별 평균 기록
+                        종목별 평균 등급 / 달성률
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={250}>
                       <BarChart data={chartData}>
                         <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                        <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                        <YAxis yAxisId="left" orientation="left" stroke="hsl(var(--chart-1))" domain={[1, 5]} reversed={true} ticks={[1,2,3,4,5]} tickCount={5} />
+                        <YAxis yAxisId="right" orientation="right" stroke="hsl(var(--chart-2))" domain={[0, 100]} unit="%" />
                         <Tooltip
                             contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}
+                            formatter={(value, name) => {
+                                if (name === 'paps') return [`${value} 등급`, '평균 등급'];
+                                if (name === 'custom') return [`${value} %`, '평균 달성률'];
+                                return [value, name];
+                            }}
                         />
-                        <Bar dataKey="average" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                        <Legend />
+                        <Bar yAxisId="left" dataKey="paps" name="PAPS 등급" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
+                        <Bar yAxisId="right" dataKey="custom" name="목표 달성률" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </CardContent>

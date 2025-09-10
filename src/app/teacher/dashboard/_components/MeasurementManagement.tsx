@@ -77,7 +77,7 @@ export default function MeasurementManagement() {
     <Card>
       <CardHeader>
         <CardTitle>측정 종목 관리</CardTitle>
-        <CardDescription>측정할 종목을 추가하거나 삭제합니다. 이름, 단위, 기록 유형을 설정할 수 있습니다.</CardDescription>
+        <CardDescription>측정할 종목을 추가하거나 삭제합니다. 이름, 단위, 기록 유형, 목표(선택)를 설정할 수 있습니다.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex w-full max-w-sm items-center space-x-2">
@@ -91,7 +91,7 @@ export default function MeasurementManagement() {
                       <li key={item.id} className="flex items-center justify-between p-2 bg-secondary rounded-md text-sm">
                           <div>
                               <span className="font-semibold">{item.name}</span>
-                              <span className="text-muted-foreground ml-2">({item.unit}, {item.recordType})</span>
+                              <span className="text-muted-foreground ml-2">({item.unit}, {item.recordType}{item.goal ? `, 목표:${item.goal}`: ''})</span>
                           </div>
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteItem(item)}>
                              <X className="h-4 w-4" />
@@ -112,17 +112,23 @@ function AddMeasurementItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measur
   const [name, setName] = useState('');
   const [unit, setUnit] = useState('');
   const [recordType, setRecordType] = useState<RecordType | ''>('');
+  const [goal, setGoal] = useState('');
   const { toast } = useToast();
 
   const handleSubmit = () => {
     if (!name || !unit || !recordType) {
-      toast({ variant: 'destructive', title: '입력 오류', description: '모든 필드를 입력해주세요.' });
+      toast({ variant: 'destructive', title: '입력 오류', description: '이름, 단위, 기록 유형은 필수입니다.' });
       return;
     }
-    onAddItem({ name, unit, recordType });
+    const newItem: Omit<MeasurementItem, 'id'> = { name, unit, recordType };
+    if (goal) {
+        newItem.goal = parseFloat(goal);
+    }
+    onAddItem(newItem);
     setName('');
     setUnit('');
     setRecordType('');
+    setGoal('');
     document.getElementById('add-item-dialog-close')?.click();
   };
 
@@ -158,6 +164,19 @@ function AddMeasurementItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measur
                 </SelectContent>
             </Select>
           </div>
+           {recordType && recordType !== 'time' && (
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="goal" className="text-right">목표값(선택)</Label>
+              <Input
+                id="goal"
+                type="number"
+                value={goal}
+                onChange={(e) => setGoal(e.target.value)}
+                className="col-span-3"
+                placeholder="예: 100 (PAPS 외 종목)"
+              />
+            </div>
+          )}
         </div>
         <DialogFooter>
           <DialogClose asChild>

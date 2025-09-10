@@ -15,10 +15,13 @@ import {z} from 'genkit';
 
 const TeacherDashboardBriefingInputSchema = z.object({
   school: z.string().describe('The school for which the briefing is generated.'),
-  averageMeasurements: z
-    .record(z.number())
+  performanceInsights: z
+    .record(z.object({
+        type: z.enum(['grade', 'percentage']),
+        value: z.number()
+    }))
     .describe(
-      'A record of average measurement results for all students, where keys are the measurement types and values are the average scores.'
+      'A record of performance insights. Keys are measurement types. Values indicate average grade for PAPS items or average achievement percentage for non-PAPS items.'
     ),
    totalStudentCount: z.number().describe('The total number of students with records.'),
    studentRankings: z.record(z.object({
@@ -52,10 +55,10 @@ const prompt = ai.definePrompt({
   name: 'teacherDashboardBriefingPrompt',
   input: {schema: TeacherDashboardBriefingInputSchema},
   output: {schema: TeacherDashboardBriefingOutputSchema},
-  prompt: `당신은 {{school}}의 체육 선생님을 위한 AI 조수입니다. 학생들의 평균 기록 데이터를 분석하여 종합 브리핑과 수업 조언을 한국어로 제공해주세요.
+  prompt: `당신은 {{school}}의 체육 선생님을 위한 AI 조수입니다. 학생들의 평균 데이터를 분석하여 종합 브리핑과 수업 조언을 한국어로 제공해주세요.
 
 분석 데이터:
-- 전체 학생 평균 기록: {{json averageMeasurements}}
+- 전체 학생 평균 성취도: {{json performanceInsights}} (PAPS 종목은 평균 등급, 그 외는 평균 목표 달성률(%) 입니다. 등급은 1등급이 가장 높습니다.)
 - 기록이 있는 총 학생 수: {{totalStudentCount}}
 {{#if studentRankings}}- 조회 학생의 종목별 등수: {{json studentRankings}}{{/if}}
 
