@@ -3,6 +3,7 @@ import type { Student, MeasurementItem, MeasurementRecord, StudentLogin, RecordT
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { initialItems, initialStudents, initialRecords } from './initial-data';
+import { papsStandards } from './paps';
 
 const getKey = (school: string, key: string) => `${school}_${key}`;
 
@@ -87,15 +88,13 @@ export const deleteStudents = (school: string, ids: string[]) => {
 export const getItems = (school: string): MeasurementItem[] => {
     initializeData(school);
     const key = getKey(school, 'measurementItems');
-    const items = getLocalStorage(key, []);
+    let items = getLocalStorage<MeasurementItem[]>(key, []);
 
-    // Data migration logic for old string-based items
-    if (items.length > 0 && typeof items[0] === 'string') {
-        const migratedItems: MeasurementItem[] = initialItems.map((item) => ({
-             id: uuidv4(),
-             name: item.name,
-             unit: item.unit,
-             recordType: item.recordType,
+    // Data migration logic for old items without isPaps
+    if (items.length > 0 && typeof items[0].isPaps === 'undefined') {
+        const migratedItems = items.map((item) => ({
+            ...item,
+            isPaps: !!papsStandards[item.name as keyof typeof papsStandards],
         }));
         setLocalStorage(key, migratedItems);
         return migratedItems;

@@ -31,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { papsStandards } from '@/lib/paps';
 
 export default function MeasurementManagement() {
   const { school } = useAuth();
@@ -77,11 +78,12 @@ export default function MeasurementManagement() {
     <Card>
       <CardHeader>
         <CardTitle>측정 종목 관리</CardTitle>
-        <CardDescription>측정할 종목을 추가하거나 삭제합니다. 이름, 단위, 기록 유형, 목표(선택)를 설정할 수 있습니다.</CardDescription>
+        <CardDescription>측정할 종목을 추가하거나 삭제합니다. PAPS 종목 또는 직접 생성한 기타 종목을 관리할 수 있습니다.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex w-full max-w-sm items-center space-x-2">
-            <AddMeasurementItemDialog onAddItem={handleAddItem} />
+        <div className="flex w-full items-center space-x-2">
+            <AddPapsItemDialog onAddItem={handleAddItem} currentItems={items} />
+            <AddCustomItemDialog onAddItem={handleAddItem} />
         </div>
         <div className="border rounded-md p-4 space-y-2">
             <h3 className="font-semibold">현재 종목 목록</h3>
@@ -108,7 +110,70 @@ export default function MeasurementManagement() {
   );
 }
 
-function AddMeasurementItemDialog({ onAddItem }: { onAddItem: (item: Omit<MeasurementItem, 'id'>) => void }) {
+function AddPapsItemDialog({ onAddItem, currentItems }: { onAddItem: (item: Omit<MeasurementItem, 'id'>) => void, currentItems: MeasurementItem[] }) {
+    const [selectedItemName, setSelectedItemName] = useState('');
+    const { toast } = useToast();
+
+    const availablePapsItems = Object.keys(papsStandards).filter(
+        papsItemName => !currentItems.some(item => item.name === papsItemName)
+    );
+
+    const handleSubmit = () => {
+        if (!selectedItemName) {
+            toast({ variant: 'destructive', title: '선택 오류', description: '추가할 PAPS 종목을 선택해주세요.' });
+            return;
+        }
+        const standard = papsStandards[selectedItemName as keyof typeof papsStandards];
+        const newItem: Omit<MeasurementItem, 'id'> = {
+            name: selectedItemName,
+            unit: standard.unit,
+            recordType: standard.type,
+            isPaps: true,
+        };
+        onAddItem(newItem);
+        setSelectedItemName('');
+        document.getElementById('add-paps-item-dialog-close')?.click();
+    };
+
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button variant="outline"><Plus className="mr-2 h-4 w-4" /> PAPS 종목 추가</Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>PAPS 종목 추가</DialogTitle>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <Label htmlFor="paps-item">추가할 종목</Label>
+                    <Select onValueChange={setSelectedItemName} value={selectedItemName}>
+                        <SelectTrigger id="paps-item">
+                            <SelectValue placeholder="PAPS 종목 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {availablePapsItems.length > 0 ? (
+                                availablePapsItems.map(name => (
+                                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                                ))
+                            ) : (
+                                <SelectItem value="none" disabled>추가할 수 있는 PAPS 종목이 없습니다.</SelectItem>
+                            )}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild>
+                        <Button id="add-paps-item-dialog-close" variant="outline">취소</Button>
+                    </DialogClose>
+                    <Button onClick={handleSubmit} disabled={availablePapsItems.length === 0}>추가</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+
+function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<MeasurementItem, 'id'>) => void }) {
   const [name, setName] = useState('');
   const [unit, setUnit] = useState('');
   const [recordType, setRecordType] = useState<RecordType | ''>('');
@@ -120,7 +185,7 @@ function AddMeasurementItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measur
       toast({ variant: 'destructive', title: '입력 오류', description: '이름, 단위, 기록 유형은 필수입니다.' });
       return;
     }
-    const newItem: Omit<MeasurementItem, 'id'> = { name, unit, recordType };
+    const newItem: Omit<MeasurementItem, 'id'> = { name, unit, recordType, isPaps: false };
     if (goal) {
         newItem.goal = parseFloat(goal);
     }
@@ -129,26 +194,27 @@ function AddMeasurementItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measur
     setUnit('');
     setRecordType('');
     setGoal('');
-    document.getElementById('add-item-dialog-close')?.click();
+    document.getElementById('add-custom-item-dialog-close')?.click();
   };
 
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button><Plus className="mr-2 h-4 w-4" /> 새 종목 추가</Button>
+        <Button><Plus className="mr-2 h-4 w-4" /> 기타 종목 추가</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>새 측정 종목 추가</DialogTitle>
+          <DialogTitle>기타 종목 추가</DialogTitle>
+           <CardDescription>PAPS에 해당하지 않는 새로운 측정 종목을 만듭니다.</CardDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="name" className="text-right">종목명</Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" placeholder="예: 50m 달리기" />
+            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" placeholder="예: 농구 자유투" />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="unit" className="text-right">단위</Label>
-            <Input id="unit" value={unit} onChange={(e) => setUnit(e.target.value)} className="col-span-3" placeholder="예: 초, cm, 회, kg" />
+            <Input id="unit" value={unit} onChange={(e) => setUnit(e.target.value)} className="col-span-3" placeholder="예: 성공, 개, 점수" />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="recordType" className="text-right">기록 유형</Label>
@@ -173,14 +239,14 @@ function AddMeasurementItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measur
                 value={goal}
                 onChange={(e) => setGoal(e.target.value)}
                 className="col-span-3"
-                placeholder="예: 100 (PAPS 외 종목)"
+                placeholder="예: 10 (달성률 계산에 사용)"
               />
             </div>
           )}
         </div>
         <DialogFooter>
           <DialogClose asChild>
-            <Button id="add-item-dialog-close" variant="outline">취소</Button>
+            <Button id="add-custom-item-dialog-close" variant="outline">취소</Button>
           </DialogClose>
           <Button onClick={handleSubmit}>추가</Button>
         </DialogFooter>
