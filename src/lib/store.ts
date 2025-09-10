@@ -89,17 +89,19 @@ export const addStudent = (student: Omit<Student, 'id'>) => {
   return newStudent;
 };
 export const getStudent = (loginInfo: StudentLogin): Student | undefined => {
-  const allSchools = Object.keys(localStorage)
-    .filter(k => k.endsWith('_students'))
-    .map(k => k.replace('_students', ''));
-  
-  const targetSchool = allSchools.find(s => s.includes(loginInfo.school));
+  // `initializeData` ensures that if there's sample data for this school, it's loaded.
+  initializeData(loginInfo.school);
 
-  if (!targetSchool) return undefined;
+  // Now, directly get the students for the specific school.
+  const students = getStudents(loginInfo.school);
   
-  initializeData(targetSchool);
-  const students = getStudents(targetSchool);
-  return students.find(s => s.grade === loginInfo.grade && s.classNum === loginInfo.classNum && s.studentNum === loginInfo.studentNum && s.name === loginInfo.name);
+  // Find the student that matches all the login criteria.
+  return students.find(s => 
+    s.grade === loginInfo.grade && 
+    s.classNum === loginInfo.classNum && 
+    s.studentNum === loginInfo.studentNum && 
+    s.name === loginInfo.name
+  );
 };
 export const deleteStudents = (school: string, ids: string[]) => {
   const students = getStudents(school);
