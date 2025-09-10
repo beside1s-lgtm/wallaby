@@ -85,6 +85,7 @@ export const deleteStudents = (school: string, ids: string[]) => {
 
 // Measurement Items
 export const getItems = (school: string): MeasurementItem[] => {
+    initializeData(school);
     const key = getKey(school, 'measurementItems');
     const items = getLocalStorage(key, []);
 
@@ -122,7 +123,10 @@ export const deleteItem = (school: string, itemId: string) => {
 };
 
 // Records
-export const getRecords = (school: string): MeasurementRecord[] => getLocalStorage(getKey(school, 'records'), []);
+export const getRecords = (school: string): MeasurementRecord[] => {
+    initializeData(school);
+    return getLocalStorage(getKey(school, 'records'), []);
+}
 export const setRecords = (school: string, records: MeasurementRecord[]) => setLocalStorage(getKey(school, 'records'), records);
 export const addOrUpdateRecord = (record: Omit<MeasurementRecord, 'id' | 'date'> & { date?: string }) => {
   const records = getRecords(record.school);
