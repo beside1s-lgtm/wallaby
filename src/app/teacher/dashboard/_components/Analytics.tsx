@@ -23,13 +23,13 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  ChartConfig,
 } from '@/components/ui/chart';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { analyzeStudentPerformance } from '@/ai/flows/teacher-ai-assistant';
 import { Button } from '@/components/ui/button';
 import { Loader2, Search, Wand2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { getPapsGrade } from '@/lib/paps';
 
 type AiAnalysis = {
   strengths: string;
@@ -55,10 +55,11 @@ export default function Analytics() {
   useEffect(() => {
     if (school) {
         const items = getItems(school);
-        setAllItems(items);
+        const papsItems = items.filter(i => getPapsGrade(i.name, '남', 0) !== null);
+        setAllItems(papsItems);
         setAllRecords(getRecords(school));
-        if (items.length > 0) {
-            setProgressChartItem(items[0].name);
+        if (papsItems.length > 0) {
+            setProgressChartItem(papsItems[0].name);
         }
     }
   }, [school]);
@@ -70,9 +71,6 @@ export default function Analytics() {
       setSelectedStudent(student);
       const studentRecs = allRecords.filter(r => r.studentId === student.id);
       setStudentRecords(studentRecs);
-      if (allItems.length > 0 && !progressChartItem) {
-        setProgressChartItem(allItems[0].name || '');
-      }
       setAiAnalysis(null);
     } else {
       setSelectedStudent(null);
@@ -112,42 +110,64 @@ export default function Analytics() {
   };
 
   const comparisonData = useMemo(() => {
-    if (!selectedStudent || studentRecords.length === 0 || allRecords.length === 0) return [];
+    if (!selectedStudent || allRecords.length === 0) return [];
     
-    const latestStudentRecords: Record<string, MeasurementRecord> = {};
-    studentRecords.forEach(record => {
-      if (!latestStudentRecords[record.item] || new Date(record.date) > new Date(latestStudentRecords[record.item].date)) {
-        latestStudentRecords[record.item] = record;
+    const studentLatestGrades: Record<string, number> = {};
+    const studentRecordsForComparison = allRecords.filter(r => r.studentId === selectedStudent.id);
+    
+    allItems.forEach(item => {
+      const recordsForItem = studentRecordsForComparison
+        .filter(r => r.item === item.name)
+        .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      
+      if (recordsForItem.length > 0) {
+        const grade = getPapsGrade(item.name, selectedStudent.gender, recordsForItem[0].value);
+        if (grade !== null) {
+          studentLatestGrades[item.name] = grade;
+        }
       }
     });
 
-    const averageRecords: Record<string, { sum: number, count: number }> = {};
-    allRecords.forEach(record => {
-      if (!averageRecords[record.item]) {
-        averageRecords[record.item] = { sum: 0, count: 0 };
+    const averageGrades: Record<string, number> = {};
+    allItems.forEach(item => {
+      const itemRecords = allRecords.filter(r => r.item === item.name);
+      if (itemRecords.length > 0) {
+        const totalGrades = itemRecords.reduce((sum, record) => {
+          const student = students.find(s => s.id === record.studentId);
+          if (student) {
+            const grade = getPapsGrade(item.name, student.gender, record.value);
+            if (grade !== null) return sum + grade;
+          }
+          return sum;
+        }, 0);
+        averageGrades[item.name] = parseFloat((totalGrades / itemRecords.length).toFixed(2));
       }
-      averageRecords[record.item].sum += record.value;
-      averageRecords[record.item].count++;
     });
 
     return allItems.map(item => ({
       name: item.name,
-      student: latestStudentRecords[item.name]?.value || 0,
-      average: averageRecords[item.name] ? parseFloat((averageRecords[item.name].sum / averageRecords[item.name].count).toFixed(2)) : 0,
-    }));
-  }, [selectedStudent, studentRecords, allRecords, allItems]);
+      student: studentLatestGrades[item.name] || 0,
+      average: averageGrades[item.name] || 0,
+    })).filter(d => d.student > 0 || d.average > 0);
+
+  }, [selectedStudent, allRecords, allItems, students]);
   
   const progressData = useMemo(() => {
-    if (!progressChartItem) return [];
+    if (!progressChartItem || !selectedStudent) return [];
     return studentRecords
       .filter(r => r.item === progressChartItem)
+      .map(r => ({
+          date: r.date,
+          value: getPapsGrade(r.item, selectedStudent.gender, r.value)
+      }))
+      .filter(r => r.value !== null)
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [studentRecords, progressChartItem]);
+  }, [studentRecords, progressChartItem, selectedStudent]);
   
   const comparisonChartConfig = {
       student: { label: selectedStudent?.name || '학생', color: 'hsl(var(--chart-1))' },
       average: { label: '전체 평균', color: 'hsl(var(--chart-2))' },
-  } satisfies ChartConfig;
+  };
 
   if (!school) return null;
 
@@ -175,14 +195,15 @@ export default function Analytics() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
               <Card>
                 <CardHeader>
-                  <CardTitle>기록 비교 (학생 vs 전체 평균)</CardTitle>
+                  <CardTitle>PAPS 등급 비교 (학생 vs 전체 평균)</CardTitle>
+                  <CardDescription>1등급이 가장 높음</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ChartContainer config={comparisonChartConfig} className="h-[300px] w-full">
                     <BarChart data={comparisonData}>
                       <CartesianGrid vertical={false} />
-                      <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} angle={-45} textAnchor="end" height={60} />
-                      <YAxis />
+                      <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} angle={-45} textAnchor="end" height={80} interval={0} />
+                      <YAxis reversed={true} domain={[1, 5]} ticks={[1,2,3,4,5]} tickCount={5} />
                       <ChartTooltip content={<ChartTooltipContent />} />
                       <Legend />
                       <Bar dataKey="student" fill="var(--color-student)" radius={4} />
@@ -194,7 +215,7 @@ export default function Analytics() {
               <Card>
                 <CardHeader>
                   <div className="flex justify-between items-center">
-                    <CardTitle>회차별 기록 변화</CardTitle>
+                    <CardTitle>회차별 등급 변화</CardTitle>
                     <Select value={progressChartItem} onValueChange={setProgressChartItem}>
                       <SelectTrigger className="w-[180px]">
                         <SelectValue placeholder="종목 선택" />
@@ -204,13 +225,14 @@ export default function Analytics() {
                       </SelectContent>
                     </Select>
                   </div>
+                   <CardDescription>1등급이 가장 높음</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ChartContainer config={{}} className="h-[300px] w-full">
                     <LineChart data={progressData}>
                       <CartesianGrid vertical={false} />
                       <XAxis dataKey="date" />
-                      <YAxis />
+                      <YAxis reversed={true} domain={[1, 5]} ticks={[1,2,3,4,5]} tickCount={5} />
                       <Tooltip />
                       <Legend />
                       <Line type="monotone" dataKey="value" name={progressChartItem} stroke="hsl(var(--primary))" strokeWidth={2} />

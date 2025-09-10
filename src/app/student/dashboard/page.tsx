@@ -26,7 +26,6 @@ import {
   ChartTooltipContent,
   ChartLegend,
   ChartLegendContent,
-  ChartConfig,
 } from '@/components/ui/chart';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { getStudentFeedback } from '@/ai/flows/student-ai-feedback';
@@ -193,7 +192,7 @@ export default function StudentDashboardPage() {
         if (!itemInfo) return;
 
         const grade = getPapsGrade(record.item, fullStudent.gender, record.value);
-        if (grade === null) return; // PAPS 등급 기준이 없는 종목은 건너뜀
+        if (grade === null) return;
 
         if (!dataByDate[record.date]) {
             dataByDate[record.date] = { date: record.date, originalRecord: {} };
@@ -204,7 +203,7 @@ export default function StudentDashboardPage() {
     
     const uniqueItems = [...new Set(Object.values(dataByDate).flatMap(d => Object.keys(d).filter(k => k !== 'date' && k !== 'originalRecord')))];
 
-    const config: ChartConfig = {};
+    const config: Record<string, any> = {};
     uniqueItems.forEach((itemName, index) => {
       config[itemName] = {
         label: `${itemName}`,
@@ -302,7 +301,7 @@ export default function StudentDashboardPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">모든 종목</SelectItem>
-                {measurementItems.map(item => (
+                {measurementItems.filter(item => getPapsGrade(item.name, fullStudent.gender, 0) !== null).map(item => (
                   <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
                 ))}
               </SelectContent>

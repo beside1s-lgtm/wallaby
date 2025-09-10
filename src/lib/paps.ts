@@ -1,24 +1,35 @@
-export const papsStandards = {
+// 초등학교 5학년 PAPS 기준표 (예시)
+export const papsStandards: Record<string, { male: number[], female: number[], type: 'time' | 'count' | 'distance' | 'weight' }> = {
   '50m 달리기': {
-    남: [8.3, 8.9, 9.5, 10.1],
-    여: [8.8, 9.4, 10.0, 10.6],
+    male: [8.4, 9.0, 9.6, 10.2],
+    female: [9.0, 9.6, 10.2, 10.8],
     type: 'time'
-  },
-  '윗몸 일으키기': {
-    남: [45, 38, 30, 23],
-    여: [38, 31, 24, 17],
-    type: 'count'
   },
   '제자리 멀리뛰기': {
-    남: [200, 180, 160, 140],
-    여: [180, 160, 140, 120],
+    male: [185, 170, 155, 140],
+    female: [175, 160, 145, 130],
     type: 'distance'
   },
-  '오래달리기': {
-    남: [200, 220, 240, 260],
-    여: [230, 250, 270, 290],
-    type: 'time'
-  }
+  '윗몸 말아올리기': {
+    male: [40, 32, 24, 16],
+    female: [35, 27, 19, 11],
+    type: 'count'
+  },
+  '왕복오래달리기': {
+    male: [60, 45, 30, 15],
+    female: [50, 35, 20, 10],
+    type: 'count'
+  },
+  '앉아윗몸앞으로굽히기': {
+    male: [15, 10, 5, 0],
+    female: [18, 13, 8, 3],
+    type: 'distance'
+  },
+  '악력': {
+    male: [25, 20, 15, 10],
+    female: [20, 15, 10, 5],
+    type: 'weight'
+  },
 };
 
 type ItemName = keyof typeof papsStandards;
@@ -27,8 +38,8 @@ export function getPapsGrade(item: string, gender: '남' | '여', value: number)
   const standard = papsStandards[item as ItemName];
   if (!standard) return null;
 
-  const thresholds = standard[gender];
-  if (!thresholds) return null; // thresholds가 없을 경우를 대비한 안전 장치
+  const thresholds = gender === '남' ? standard.male : standard.female;
+  if (!thresholds) return null;
 
   const type = standard.type;
 
@@ -38,7 +49,7 @@ export function getPapsGrade(item: string, gender: '남' | '여', value: number)
     if (value <= thresholds[2]) return 3;
     if (value <= thresholds[3]) return 4;
     return 5;
-  } else { // 높을수록 좋음
+  } else { // 높을수록 좋음 (count, distance, weight)
     if (value >= thresholds[0]) return 1;
     if (value >= thresholds[1]) return 2;
     if (value >= thresholds[2]) return 3;
