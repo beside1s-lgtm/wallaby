@@ -29,6 +29,7 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { analyzeStudentPerformance } from '@/ai/flows/teacher-ai-assistant';
 import { Button } from '@/components/ui/button';
 import { Loader2, Search, Wand2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 type AiAnalysis = {
   strengths: string;
@@ -38,6 +39,7 @@ type AiAnalysis = {
 
 export default function Analytics() {
   const { school } = useAuth();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [studentRecords, setStudentRecords] = useState<MeasurementRecord[]>([]);
@@ -64,11 +66,18 @@ export default function Analytics() {
       setSelectedStudent(student);
       const studentRecs = allRecords.filter(r => r.studentId === student.id);
       setStudentRecords(studentRecs);
-      setProgressChartItem(allItems[0] || '');
+      if (allItems.length > 0) {
+        setProgressChartItem(allItems[0] || '');
+      }
       setAiAnalysis(null);
     } else {
       setSelectedStudent(null);
       setStudentRecords([]);
+      toast({
+        variant: 'destructive',
+        title: '검색 실패',
+        description: '해당 학생을 찾을 수 없습니다.'
+      })
     }
   };
 
@@ -76,7 +85,7 @@ export default function Analytics() {
     if (!selectedStudent || studentRecords.length === 0 || !school) return;
     setIsAiLoading(true);
     try {
-      const performanceData = JSON.stringify(studentRecords.map(r => ({ item: r.item, value: r.value, date: r.date })));
+      const performanceData = JSON.stringify(studentRecords.map(r => ({ item: r.item, value: r.value, date: r.date, recordType: r.recordType })));
       const result = await analyzeStudentPerformance({
         school,
         studentName: selectedStudent.name,
@@ -85,6 +94,11 @@ export default function Analytics() {
       setAiAnalysis(result);
     } catch (error) {
       console.error('AI analysis failed:', error);
+       toast({
+        variant: 'destructive',
+        title: 'AI 분석 실패',
+        description: 'AI 분석 중 오류가 발생했습니다. 나중에 다시 시도해주세요.'
+      })
     } finally {
       setIsAiLoading(false);
     }

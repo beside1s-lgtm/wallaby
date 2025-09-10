@@ -9,6 +9,8 @@ export type Student = {
 
 export type MeasurementItem = string;
 
+export type RecordType = 'time' | 'count' | 'distance';
+
 export type MeasurementRecord = {
   id: string;
   studentId: string;
@@ -16,6 +18,7 @@ export type MeasurementRecord = {
   item: MeasurementItem;
   value: number;
   date: string; // YYYY-MM-DD
+  recordType: RecordType;
 };
 
 export type StudentLogin = Omit<Student, 'id'>;

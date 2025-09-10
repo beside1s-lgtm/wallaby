@@ -41,17 +41,22 @@ const analyzeStudentPerformancePrompt = ai.definePrompt({
   name: 'analyzeStudentPerformancePrompt',
   input: {schema: AnalyzeStudentPerformanceInputSchema},
   output: {schema: AnalyzeStudentPerformanceOutputSchema},
-  prompt: `You are an AI assistant for a physical education teacher at {{school}}. Your task is to analyze a student's strengths and weaknesses based on their performance data, and suggest training methods to improve their performance.
+  prompt: `당신은 {{school}}의 체육 교사를 위한 AI 조수입니다. 학생의 경기력 데이터를 바탕으로 강점과 약점을 분석하고, 경기력 향상을 위한 훈련 방법을 제안하는 임무를 맡고 있습니다.
 
-Student Name: {{{studentName}}}
-Performance Data: {{{performanceData}}}
+학생 이름: {{{studentName}}}
+경기력 데이터: {{{performanceData}}}
 
-Analyze the student's performance data and provide the following:
-- Strengths: Identify the student's strengths in various sports.
-- Weaknesses: Identify the student's weaknesses in various sports.
-- Suggested Training Methods: Suggest training methods to improve the student's overall performance, focusing on addressing their weaknesses.
+경기력 데이터에는 'recordType' 필드가 포함되어 있으며, 이는 기록의 유형을 나타냅니다:
+- 'time': 기록이 짧을수록 좋습니다(예: 달리기).
+- 'distance': 기록이 길수록 좋습니다(예: 멀리뛰기).
+- 'count': 기록이 많을수록 좋습니다(예: 윗몸 일으키기).
 
-Make sure the suggested training methods are concrete and actionable.
+학생의 경기력 데이터를 분석하여 다음을 한국어로 제공하세요:
+- 강점: 학생의 다양한 스포츠에서의 강점을 파악하세요.
+- 약점: 학생의 다양한 스포츠에서의 약점을 파악하세요.
+- 추천 훈련 방법: 약점을 보완하고 전반적인 경기력을 향상시키기 위한 구체적이고 실행 가능한 훈련 방법을 제안하세요.
+
+제안된 훈련 방법은 구체적이고 실행 가능해야 합니다. 모든 답변은 한국어로 작성해주세요.
 `,
 });
 
