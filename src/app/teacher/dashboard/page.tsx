@@ -3,14 +3,31 @@ import StudentManagement from './_components/StudentManagement';
 import MeasurementManagement from './_components/MeasurementManagement';
 import Analytics from './_components/Analytics';
 import AiWelcome from './_components/AiWelcome';
-import { Users, ClipboardList, BarChart3 } from 'lucide-react';
+import { Users, ClipboardList, BarChart3, Bot } from 'lucide-react';
 import { DashboardHeaderContents } from '@/components/DashboardHeader';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+
 
 export default function TeacherDashboardPage() {
   return (
     <>
       <div className="container mx-auto p-4 md:p-6 lg:p-8">
         <DashboardHeaderContents />
+        
+        <Card className="mb-6">
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <Bot />
+                    AI 수업 브리핑
+                </CardTitle>
+                <CardDescription>PAPS 종목 또는 기타 종목의 전체 평균 데이터를 기반으로 AI가 생성한 요약 및 조언을 확인하세요.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex gap-4">
+                <AiWelcome itemType='paps' title="PAPS 종목 브리핑" />
+                <AiWelcome itemType='custom' title="기타 종목 브리핑" />
+            </CardContent>
+        </Card>
+
         <Tabs defaultValue="analytics" className="w-full">
           <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 mb-6">
             <TabsTrigger value="analytics">
@@ -40,7 +57,6 @@ export default function TeacherDashboardPage() {
           </TabsContent>
         </Tabs>
       </div>
-      <AiWelcome />
     </>
   );
 }

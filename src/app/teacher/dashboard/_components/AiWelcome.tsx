@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Loader2, Lightbulb, BarChart2 } from 'lucide-react';
@@ -29,26 +30,36 @@ type BriefingData = {
   advice: string;
 };
 
-export default function AiWelcome() {
+type AiWelcomeProps = {
+    itemType: 'paps' | 'custom';
+    title: string;
+}
+
+export default function AiWelcome({ itemType, title }: AiWelcomeProps) {
   const { school } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [briefingData, setBriefingData] = useState<BriefingData | null>(null);
 
-  const { chartData, performanceInsights } = useMemo(() => {
-    if (!school) return { chartData: [], performanceInsights: {} };
+  const { chartData, performanceInsights, hasData } = useMemo(() => {
+    if (!school) return { chartData: [], performanceInsights: {}, hasData: false };
 
     const allRecords = getRecords(school);
     const allStudents = getStudents(school);
-    const allItems = getItems(school);
-    const studentMap = new Map(allStudents.map(s => [s.id, s]));
+    const allItems = getItems(school).filter(item => itemType === 'paps' ? item.isPaps : !item.isPaps);
+    
+    const records = allRecords.filter(record => allItems.some(item => item.name === record.item));
 
-    if (allRecords.length === 0) return { chartData: [], performanceInsights: {} };
+    if (records.length === 0 || allItems.length === 0) {
+      return { chartData: [], performanceInsights: {}, hasData: false };
+    }
+
+    const studentMap = new Map(allStudents.map(s => [s.id, s]));
 
     const insights: Record<string, { type: 'grade' | 'percentage'; value: number, count: number }> = {};
     const perfInsightsForAI: Record<string, { type: 'grade' | 'percentage'; value: number }> = {};
 
-    for (const record of allRecords) {
+    for (const record of records) {
       const itemInfo = allItems.find(i => i.name === record.item);
       const student = studentMap.get(record.studentId);
       if (!itemInfo || !student) continue;
@@ -57,7 +68,7 @@ export default function AiWelcome() {
         insights[record.item] = { type: 'grade', value: 0, count: 0 };
       }
 
-      if (papsStandards[record.item]) {
+      if (itemInfo.isPaps) {
         const grade = getPapsGrade(record.item, student.gender, record.value);
         if (grade !== null) {
           insights[record.item].type = 'grade';
@@ -84,62 +95,51 @@ export default function AiWelcome() {
         };
       });
 
-    return { chartData: finalChartData, performanceInsights: perfInsightsForAI };
-  }, [school]);
+    return { chartData: finalChartData, performanceInsights: perfInsightsForAI, hasData: true };
+  }, [school, itemType]);
 
-
-  useEffect(() => {
-    const welcomeShown = sessionStorage.getItem('welcomeShown');
-    if (!welcomeShown && school) {
-      setIsOpen(true);
-      sessionStorage.setItem('welcomeShown', 'true');
-
-      const fetchBriefing = async () => {
-        setIsLoading(true);
-        try {
-          const allStudents = getStudents(school);
-          
-          if (Object.keys(performanceInsights).length === 0) {
-            setBriefingData({
-              briefing: '기록된 데이터가 없습니다.',
-              advice: '학생들의 기록을 입력하여 분석을 시작해보세요.',
-            });
-            return;
-          }
-
-          const result = await getTeacherDashboardBriefing({
-            school,
-            performanceInsights: performanceInsights,
-            totalStudentCount: allStudents.length,
-            studentRankings: {},
-          });
-          setBriefingData(result);
-        } catch (error) {
-          console.error('Failed to get AI briefing:', error);
-          setBriefingData({
-            briefing: 'AI 브리핑을 불러오는 데 실패했습니다.',
-            advice: '네트워크 연결을 확인하거나 나중에 다시 시도해주세요.',
-          });
-        } finally {
-          setIsLoading(false);
-        }
-      };
-
-      fetchBriefing();
-    } else {
-        setIsLoading(false);
+  const fetchBriefing = async () => {
+    if (!school || !hasData) return;
+    
+    setIsLoading(true);
+    try {
+      const allStudents = getStudents(school);
+      
+      const result = await getTeacherDashboardBriefing({
+        school,
+        performanceInsights: performanceInsights,
+        totalStudentCount: allStudents.length,
+        studentRankings: {},
+      });
+      setBriefingData(result);
+    } catch (error) {
+      console.error('Failed to get AI briefing:', error);
+      setBriefingData({
+        briefing: 'AI 브리핑을 불러오는 데 실패했습니다.',
+        advice: '네트워크 연결을 확인하거나 나중에 다시 시도해주세요.',
+      });
+    } finally {
+      setIsLoading(false);
     }
-  }, [school, performanceInsights]);
+  };
+  
+  useEffect(() => {
+    if (isOpen && !briefingData) {
+        fetchBriefing();
+    }
+  }, [isOpen]);
 
-  if (!isOpen || !school) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button disabled={!hasData} variant="outline">{title}</Button>
+      </DialogTrigger>
       <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold font-headline">{school} AI 수업 브리핑</DialogTitle>
+          <DialogTitle className="text-2xl font-bold font-headline">{school} AI {title}</DialogTitle>
           <DialogDescription>
-            전체 학생의 평균 데이터를 기반으로 AI가 생성한 요약 및 조언입니다.
+            {itemType === 'paps' ? 'PAPS' : '기타'} 종목의 평균 데이터를 기반으로 AI가 생성한 요약 및 조언입니다.
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto pr-2 space-y-6">
@@ -205,7 +205,11 @@ export default function AiWelcome() {
               </Card>
 
             </div>
-          ) : null}
+          ) : (
+             <div className="flex items-center justify-center h-full">
+                <p>표시할 데이터가 없습니다.</p>
+            </div>
+          )}
         </div>
         <div className="mt-4 flex justify-end">
           <Button onClick={() => setIsOpen(false)}>닫기</Button>

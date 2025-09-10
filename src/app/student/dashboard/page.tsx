@@ -67,7 +67,8 @@ export default function StudentDashboardPage() {
   const [aiFeedback, setAiFeedback] = useState('');
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
 
-  const [chartFilter, setChartFilter] = useState('all');
+  const [chartFilter, setChartFilter] = useState<'all' | 'paps' | 'custom'>('all');
+  const [chartItemFilter, setChartItemFilter] = useState('all');
 
   const fullStudent = useMemo(() => {
     if (student?.id && school) {
@@ -178,12 +179,20 @@ export default function StudentDashboardPage() {
     }
   };
 
-  const { chartData, chartConfig } = useMemo(() => {
-    if (!fullStudent) return { chartData: [], chartConfig: {} };
+  const { chartData, chartConfig, availableItems } = useMemo(() => {
+    if (!fullStudent) return { chartData: [], chartConfig: {}, availableItems: [] };
     
-    const filteredRecords = chartFilter === 'all' 
-      ? records 
-      : records.filter(r => r.item === chartFilter);
+    const itemsToShow = measurementItems.filter(item => {
+        if (chartFilter === 'paps') return item.isPaps;
+        if (chartFilter === 'custom') return !item.isPaps;
+        return true; // 'all'
+    });
+
+    const recordsToShow = records.filter(r => itemsToShow.some(item => item.name === r.item));
+
+    const filteredRecords = chartItemFilter === 'all' 
+      ? recordsToShow 
+      : recordsToShow.filter(r => r.item === chartItemFilter);
     
     const dataByDate: Record<string, { date: string, originalRecord: Record<string, {value: number, unit: string}> } & Record<string, number>> = {};
 
@@ -213,8 +222,8 @@ export default function StudentDashboardPage() {
 
     const data = Object.values(dataByDate).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     
-    return { chartData: data, chartConfig: config };
-  }, [records, chartFilter, measurementItems, fullStudent]);
+    return { chartData: data, chartConfig: config, availableItems: itemsToShow.filter(item => getPapsGrade(item.name, fullStudent.gender, 0) !== null) };
+  }, [records, chartFilter, chartItemFilter, measurementItems, fullStudent]);
 
   if (!fullStudent || !school) {
     return null;
@@ -295,17 +304,24 @@ export default function StudentDashboardPage() {
                 <CardTitle>나의 성장 기록 (PAPS 등급)</CardTitle>
                 <CardDescription>지금까지의 측정 결과 변화를 등급으로 확인해보세요. (1등급이 가장 높음)</CardDescription>
             </div>
-            <Select onValueChange={setChartFilter} value={chartFilter}>
-              <SelectTrigger className="w-full sm:w-[200px]">
-                <SelectValue placeholder="종목 필터" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">모든 종목</SelectItem>
-                {measurementItems.filter(item => getPapsGrade(item.name, fullStudent.gender, 0) !== null).map(item => (
-                  <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
+                <div className="grid grid-cols-3 gap-1 rounded-md bg-muted p-1 w-full sm:w-auto">
+                    <Button variant={chartFilter === 'all' ? 'outline-active' : 'ghost'} size="sm" onClick={() => setChartFilter('all')} className="bg-background data-[active]:bg-primary data-[active]:text-primary-foreground">전체</Button>
+                    <Button variant={chartFilter === 'paps' ? 'outline-active' : 'ghost'} size="sm" onClick={() => setChartFilter('paps')} className="bg-background data-[active]:bg-primary data-[active]:text-primary-foreground">PAPS</Button>
+                    <Button variant={chartFilter === 'custom' ? 'outline-active' : 'ghost'} size="sm" onClick={() => setChartFilter('custom')} className="bg-background data-[active]:bg-primary data-[active]:text-primary-foreground">기타</Button>
+                </div>
+                 <Select onValueChange={setChartItemFilter} value={chartItemFilter}>
+                  <SelectTrigger className="w-full sm:w-[200px]">
+                    <SelectValue placeholder="종목 필터" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">모든 종목</SelectItem>
+                    {availableItems.map(item => (
+                      <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
