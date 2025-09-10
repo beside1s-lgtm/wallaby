@@ -104,11 +104,11 @@ export default function StudentManagement() {
       reader.onload = (e) => {
         const text = e.target?.result as string;
         try {
-          const newStudents = parseCsv<Omit<StudentLogin, 'school'>>(text);
+          const newStudents = parseCsv<StudentLogin>(text);
           let count = 0;
           newStudents.forEach(student => {
-            if (student.grade && student.classNum && student.studentNum && student.name) {
-              addStudent({ ...student, school });
+            if (student.school && student.grade && student.classNum && student.studentNum && student.name) {
+              addStudent(student);
               count++;
             }
           });

@@ -11,18 +11,19 @@ export function parseCsv<T>(csvText: string): T[] {
 
   const header = lines[0].split(',').map(h => h.trim());
   
+  const keyMap: Record<string, string> = {
+      '학교': 'school',
+      '학년': 'grade',
+      '반': 'classNum',
+      '번호': 'studentNum',
+      '이름': 'name'
+  };
+
   return lines.slice(1).map(line => {
     const values = line.split(',').map(v => v.trim());
     return header.reduce((obj, key, index) => {
-      // Simple transform from Korean to expected keys
-      let newKey = key;
-      if (key === '학교') newKey = 'school';
-      if (key === '학년') newKey = 'grade';
-      if (key === '반') newKey = 'classNum';
-      if (key === '번호') newKey = 'studentNum';
-      if (key === '이름') newKey = 'name';
-
-      obj[newKey as keyof T] = values[index] as any;
+      const newKey = keyMap[key] || key;
+      (obj as any)[newKey] = values[index];
       return obj;
     }, {} as T);
   }).filter(obj => (obj as any).name); // Ensure there's at least a name
