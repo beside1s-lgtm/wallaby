@@ -20,6 +20,11 @@ const TeacherDashboardBriefingInputSchema = z.object({
     .describe(
       'A record of average measurement results for all students, where keys are the measurement types and values are the average scores.'
     ),
+   totalStudentCount: z.number().describe('The total number of students with records.'),
+   studentRankings: z.record(z.object({
+       rank: z.number(),
+       total: z.number()
+   })).describe('An object containing the rank of the student for each measurement type.')
 });
 export type TeacherDashboardBriefingInput = z.infer<
   typeof TeacherDashboardBriefingInputSchema
@@ -47,14 +52,19 @@ const prompt = ai.definePrompt({
   name: 'teacherDashboardBriefingPrompt',
   input: {schema: TeacherDashboardBriefingInputSchema},
   output: {schema: TeacherDashboardBriefingOutputSchema},
-  prompt: `You are an AI assistant providing insights and advice to a physical education teacher for {{school}} based on the average measurement results of their students.
+  prompt: `당신은 {{school}}의 체육 선생님을 위한 AI 조수입니다. 학생들의 평균 기록 데이터를 분석하여 종합 브리핑과 수업 조언을 한국어로 제공해주세요.
 
-  Analyze the following average measurement data and provide a briefing summarizing the overall student performance. Also provide specific advice to the teacher on how to improve student performance based on these averages.
+분석 데이터:
+- 전체 학생 평균 기록: {{averageMeasurements}}
+- 기록이 있는 총 학생 수: {{totalStudentCount}}
+- 조회 학생의 종목별 등수: {{studentRankings}}
 
-  Average Measurements: {{{averageMeasurements}}}
+결과 형식:
+- 브리핑: 전체 학생들의 평균적인 강점과 약점을 요약합니다. 조회된 학생의 등수 정보를 포함하여 현재 위치를 알려주세요.
+- 조언: 분석 결과를 바탕으로 학생들의 성과를 향상시킬 수 있는 구체적이고 실행 가능한 수업 전략이나 활동을 제안합니다.
 
-  Briefing:
-  Advice: `,
+결과는 반드시 한국어로 작성해주세요.
+`,
 });
 
 const teacherDashboardBriefingFlow = ai.defineFlow(

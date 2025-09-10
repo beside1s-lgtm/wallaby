@@ -35,6 +35,13 @@ import type { Student, MeasurementRecord } from '@/lib/types';
 
 const chartColors = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
+const getItemUnit = (item: string) => {
+  if (item.includes('달리기')) return '초';
+  if (item.includes('멀리뛰기')) return 'cm';
+  if (item.includes('일으키기') || item.includes('턱걸이')) return '회';
+  return '점';
+};
+
 export default function StudentDashboardPage() {
   const { user, school } = useAuth();
   const { toast } = useToast();
@@ -58,6 +65,12 @@ export default function StudentDashboardPage() {
       setRecords(getRecordsByStudent(school, student.id));
     }
   }, [student, school]);
+  
+  const inputPlaceholder = useMemo(() => {
+    if (!selectedItem) return "측정 결과 (숫자만 입력)";
+    return `결과 (${getItemUnit(selectedItem)})`;
+  }, [selectedItem]);
+
 
   const handleSubmit = () => {
     if (!selectedItem || !value || !school) {
@@ -94,7 +107,7 @@ export default function StudentDashboardPage() {
     
     toast({
       title: '기록 저장 완료',
-      description: `${selectedItem} 기록이 ${numericValue}으로 저장/업데이트되었습니다.`,
+      description: `${selectedItem} 기록이 ${numericValue}${getItemUnit(selectedItem)}으로 저장/업데이트되었습니다.`,
     });
     
     setValue('');
@@ -138,7 +151,7 @@ export default function StudentDashboardPage() {
     const config: ChartConfig = {};
     uniqueItems.forEach((item, index) => {
       config[item] = {
-        label: item,
+        label: `${item} (${getItemUnit(item)})`,
         color: chartColors[index % chartColors.length],
       };
     });
@@ -184,7 +197,7 @@ export default function StudentDashboardPage() {
               </SelectContent>
             </Select>
             <Input
-              placeholder="측정 결과 (숫자만 입력)"
+              placeholder={inputPlaceholder}
               value={value}
               onChange={e => setValue(e.target.value)}
               type="number"

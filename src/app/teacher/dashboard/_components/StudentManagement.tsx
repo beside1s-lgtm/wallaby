@@ -137,7 +137,7 @@ export default function StudentManagement() {
     const dataToExport = allRecords.map(record => {
         const student = studentMap.get(record.studentId);
         return {
-            학교: school,
+            학교: record.school,
             학년: student?.grade || '',
             반: student?.classNum || '',
             번호: student?.studentNum || '',
