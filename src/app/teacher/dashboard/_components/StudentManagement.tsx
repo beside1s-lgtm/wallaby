@@ -7,6 +7,7 @@ import {
   getRecords,
   setRecords,
   addStudent,
+  getStudentsBySchool,
 } from '@/lib/store';
 import type { Student, StudentLogin } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -104,12 +105,23 @@ export default function StudentManagement() {
       reader.onload = (e) => {
         const text = e.target?.result as string;
         try {
-          const newStudents = parseCsv<StudentLogin>(text);
+          const newStudents = parseCsv<Omit<Student, 'id'>>(text);
           let count = 0;
           newStudents.forEach(student => {
             if (student.school && student.grade && student.classNum && student.studentNum && student.name) {
-              addStudent(student);
-              count++;
+              const studentSchool = student.school;
+              const existingStudents = getStudentsBySchool(studentSchool);
+              const studentExists = existingStudents.some(s => 
+                s.grade === student.grade &&
+                s.classNum === student.classNum &&
+                s.studentNum === student.studentNum &&
+                s.name === student.name
+              );
+              
+              if (!studentExists) {
+                  addStudent(student);
+                  count++;
+              }
             }
           });
           setStudentsState(getStudents(school));

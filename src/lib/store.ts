@@ -70,16 +70,30 @@ export const initializeData = (school: string) => {
 
 // Students
 export const getStudents = (school: string): Student[] => getLocalStorage(getKey(school, 'students'), []);
+export const getStudentsBySchool = (school: string): Student[] => {
+    initializeData(school);
+    return getStudents(school);
+}
 export const setStudents = (school: string, students: Student[]) => setLocalStorage(getKey(school, 'students'), students);
 export const addStudent = (student: Omit<Student, 'id'>) => {
+  initializeData(student.school);
   const students = getStudents(student.school);
   const newStudent = { ...student, id: uuidv4() };
   setStudents(student.school, [...students, newStudent]);
   return newStudent;
 };
 export const getStudent = (loginInfo: StudentLogin): Student | undefined => {
-  const students = getStudents(loginInfo.school);
-  return students.find(s => s.grade === loginInfo.grade && s.classNum === loginInfo.classNum && s.studentNum === loginInfo.studentNum && s.name === loginInfo.name && s.school === loginInfo.school);
+  const allSchools = Object.keys(localStorage)
+    .filter(k => k.endsWith('_students'))
+    .map(k => k.replace('_students', ''));
+  
+  const targetSchool = allSchools.find(s => s.includes(loginInfo.school));
+
+  if (!targetSchool) return undefined;
+  
+  initializeData(targetSchool);
+  const students = getStudents(targetSchool);
+  return students.find(s => s.grade === loginInfo.grade && s.classNum === loginInfo.classNum && s.studentNum === loginInfo.studentNum && s.name === loginInfo.name);
 };
 export const deleteStudents = (school: string, ids: string[]) => {
   const students = getStudents(school);
