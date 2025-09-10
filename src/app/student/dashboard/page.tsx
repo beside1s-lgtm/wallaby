@@ -125,7 +125,7 @@ export default function StudentDashboardPage() {
       const performanceResults = records
         .map(r => {
             const itemInfo = measurementItems.find(item => item.name === r.item);
-            return `${r.item}: ${r.value}${itemInfo?.unit || ''} (측정일: ${r.date})`;
+            return `${r.item}: ${r.value}${itemInfo?.unit || ''}`;
         })
         .join('\n');
 
