@@ -10,15 +10,15 @@ import {
 } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Student } from '@/lib/types';
-import { initializeData } from '@/lib/store';
 
-type User = Student | { name: string };
+type User = (Student & { school: string }) | { name: string; school: string };
 type Role = 'teacher' | 'student' | null;
 
 interface AuthContextType {
   user: User | null;
   role: Role;
-  login: (role: 'teacher' | 'student', userData: User) => void;
+  school: string | null;
+  login: (role: 'teacher' | 'student', userData: User, school: string) => void;
   logout: () => void;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -29,18 +29,20 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<Role>(null);
+  const [school, setSchool] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
     try {
-      initializeData();
       const storedRole = localStorage.getItem('userRole') as Role;
-      if (storedRole) {
+      const storedSchool = localStorage.getItem('userSchool');
+
+      if (storedRole && storedSchool) {
         let storedUser: User | null = null;
         if (storedRole === 'teacher') {
-          storedUser = { name: '교사' };
+          storedUser = { name: '교사', school: storedSchool };
         } else if (storedRole === 'student') {
           const studentInfo = localStorage.getItem('loggedInStudent');
           if (studentInfo) {
@@ -51,10 +53,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (storedUser) {
           setUser(storedUser);
           setRole(storedRole);
+          setSchool(storedSchool);
         } else {
           // Data inconsistency, clear auth state
           localStorage.removeItem('userRole');
           localStorage.removeItem('loggedInStudent');
+          localStorage.removeItem('userSchool');
         }
       }
     } catch (error) {
@@ -80,27 +84,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   }, [role, pathname, router, isLoading]);
 
-  const login = useCallback((role: 'teacher' | 'student', userData: User) => {
+  const login = useCallback((role: 'teacher' | 'student', userData: User, school: string) => {
     localStorage.setItem('userRole', role);
+    localStorage.setItem('userSchool', school);
     if (role === 'student') {
       localStorage.setItem('loggedInStudent', JSON.stringify(userData));
     }
     setUser(userData);
     setRole(role);
+    setSchool(school);
   }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem('userRole');
     localStorage.removeItem('loggedInStudent');
-    localStorage.removeItem('welcomeShown');
+    localStorage.removeItem('userSchool');
+    sessionStorage.removeItem('welcomeShown');
     setUser(null);
     setRole(null);
+    setSchool(null);
     router.push('/');
   }, [router]);
 
   const value = {
     user,
     role,
+    school,
     login,
     logout,
     isAuthenticated: !!user,

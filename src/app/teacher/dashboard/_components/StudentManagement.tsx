@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
+import { useAuth } from '@/hooks/use-auth';
 import {
   getStudents,
   setStudents,
@@ -41,35 +42,40 @@ import { parseCsv, exportToCsv } from '@/lib/utils';
 import { UserPlus, Trash2, FileUp, FileDown } from 'lucide-react';
 
 export default function StudentManagement() {
+  const { school } = useAuth();
   const [students, setStudentsState] = useState<Student[]>([]);
   const [selection, setSelection] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
 
   useEffect(() => {
-    setStudentsState(getStudents());
-  }, []);
+    if (school) {
+      setStudentsState(getStudents(school));
+    }
+  }, [school]);
 
   const selectedIds = useMemo(
     () => Object.keys(selection).filter((id) => selection[id]),
     [selection]
   );
 
-  const handleAddStudent = (studentData: StudentLogin) => {
-    addStudent(studentData);
-    setStudentsState(getStudents());
+  const handleAddStudent = (studentData: Omit<Student, 'id' | 'school'>) => {
+    if (!school) return;
+    addStudent({ ...studentData, school });
+    setStudentsState(getStudents(school));
     toast({ title: '학생 추가 완료', description: `${studentData.name} 학생을 등록했습니다.` });
   };
 
   const handleDeleteSelected = () => {
-    const studentsToDelete = getStudents().filter(s => selectedIds.includes(s.id));
+    if (!school) return;
+    const studentsToDelete = getStudents(school).filter(s => selectedIds.includes(s.id));
     const studentNames = studentsToDelete.map(s => s.name).join(', ');
 
-    const currentStudents = getStudents().filter(s => !selectedIds.includes(s.id));
-    setStudents(currentStudents);
+    const currentStudents = getStudents(school).filter(s => !selectedIds.includes(s.id));
+    setStudents(school, currentStudents);
     setStudentsState(currentStudents);
 
-    const currentRecords = getRecords().filter(r => !selectedIds.includes(r.studentId));
-    setRecords(currentRecords);
+    const currentRecords = getRecords(school).filter(r => !selectedIds.includes(r.studentId));
+    setRecords(school, currentRecords);
 
     setSelection({});
     toast({
@@ -93,20 +99,20 @@ export default function StudentManagement() {
 
   const handleCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
+    if (file && school) {
       const reader = new FileReader();
       reader.onload = (e) => {
         const text = e.target?.result as string;
         try {
-          const newStudents = parseCsv<StudentLogin>(text);
+          const newStudents = parseCsv<Omit<StudentLogin, 'school'>>(text);
           let count = 0;
           newStudents.forEach(student => {
             if (student.grade && student.classNum && student.studentNum && student.name) {
-              addStudent(student);
+              addStudent({ ...student, school });
               count++;
             }
           });
-          setStudentsState(getStudents());
+          setStudentsState(getStudents(school));
           toast({ title: '일괄 등록 완료', description: `${count}명의 학생을 등록했습니다.` });
         } catch (error) {
           toast({ variant: 'destructive', title: 'CSV 파싱 오류', description: '파일 형식이 올바르지 않습니다.' });
@@ -118,8 +124,9 @@ export default function StudentManagement() {
   };
   
   const handleDownloadAllRecords = () => {
-    const allRecords = getRecords();
-    const allStudents = getStudents();
+    if (!school) return;
+    const allRecords = getRecords(school);
+    const allStudents = getStudents(school);
     if(allRecords.length === 0){
         toast({variant: 'destructive', title: '데이터 없음', description: '다운로드할 기록이 없습니다.'})
         return;
@@ -130,6 +137,7 @@ export default function StudentManagement() {
     const dataToExport = allRecords.map(record => {
         const student = studentMap.get(record.studentId);
         return {
+            학교: school,
             학년: student?.grade || '',
             반: student?.classNum || '',
             번호: student?.studentNum || '',
@@ -140,9 +148,11 @@ export default function StudentManagement() {
         }
     });
     
-    exportToCsv('all_student_records.csv', dataToExport);
+    exportToCsv(`${school}_전체_학생_기록.csv`, dataToExport);
     toast({ title: '다운로드 시작', description: '전체 학생 기록을 CSV 파일로 다운로드합니다.'});
   }
+
+  if (!school) return null;
 
   return (
     <Card>
@@ -222,7 +232,7 @@ export default function StudentManagement() {
 }
 
 
-function AddStudentDialog({ onAddStudent }: { onAddStudent: (data: StudentLogin) => void }) {
+function AddStudentDialog({ onAddStudent }: { onAddStudent: (data: Omit<Student, 'id' | 'school'>) => void }) {
   const [grade, setGrade] = useState('');
   const [classNum, setClassNum] = useState('');
   const [studentNum, setStudentNum] = useState('');

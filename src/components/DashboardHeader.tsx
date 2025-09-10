@@ -7,6 +7,13 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useTheme } from 'next-themes';
 
+export function DashboardHeaderContents() {
+    const { school } = useAuth();
+    return (
+        <h1 className="text-3xl font-bold mb-6 text-primary font-headline">{school} 교사 대시보드</h1>
+    );
+}
+
 export function DashboardHeader() {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();

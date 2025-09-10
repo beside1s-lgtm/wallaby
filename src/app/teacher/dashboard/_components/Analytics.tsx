@@ -1,5 +1,6 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useAuth } from '@/hooks/use-auth';
 import { getStudents, getRecords, getItems } from '@/lib/store';
 import { Student, MeasurementRecord } from '@/lib/types';
 import { Input } from '@/components/ui/input';
@@ -36,31 +37,34 @@ type AiAnalysis = {
 };
 
 export default function Analytics() {
+  const { school } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [studentRecords, setStudentRecords] = useState<MeasurementRecord[]>([]);
   const [allRecords, setAllRecords] = useState<MeasurementRecord[]>([]);
   const [allItems, setAllItems] = useState<string[]>([]);
-  const [progressChartItem, setProgressChartItem] = useState<string>('');
+  const [progressChartItem, setProgressChartItem] useState<string>('');
   
   const [aiAnalysis, setAiAnalysis] = useState<AiAnalysis | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
 
-  const students = useMemo(() => getStudents(), []);
+  const students = useMemo(() => school ? getStudents(school) : [], [school]);
+
+  useEffect(() => {
+    if (school) {
+        setAllItems(getItems(school));
+        setAllRecords(getRecords(school));
+    }
+  }, [school]);
 
   const handleSearch = () => {
+    if (!school) return;
     const student = students.find(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
     if (student) {
-      const records = getRecords();
       setSelectedStudent(student);
-      setAllRecords(records);
-      const studentRecs = records.filter(r => r.studentId === student.id);
+      const studentRecs = allRecords.filter(r => r.studentId === student.id);
       setStudentRecords(studentRecs);
-      
-      const items = getItems();
-      setAllItems(items);
-      setProgressChartItem(items[0] || '');
-
+      setProgressChartItem(allItems[0] || '');
       setAiAnalysis(null);
     } else {
       setSelectedStudent(null);
@@ -69,11 +73,12 @@ export default function Analytics() {
   };
 
   const handleAiAnalysis = async () => {
-    if (!selectedStudent || studentRecords.length === 0) return;
+    if (!selectedStudent || studentRecords.length === 0 || !school) return;
     setIsAiLoading(true);
     try {
       const performanceData = JSON.stringify(studentRecords.map(r => ({ item: r.item, value: r.value, date: r.date })));
       const result = await analyzeStudentPerformance({
+        school,
         studentName: selectedStudent.name,
         performanceData,
       });
@@ -86,7 +91,7 @@ export default function Analytics() {
   };
 
   const comparisonData = useMemo(() => {
-    if (!selectedStudent || studentRecords.length === 0) return [];
+    if (!selectedStudent || studentRecords.length === 0 || allRecords.length === 0) return [];
     
     const latestStudentRecords: Record<string, MeasurementRecord> = {};
     studentRecords.forEach(record => {
@@ -122,6 +127,8 @@ export default function Analytics() {
       student: { label: selectedStudent?.name || '학생', color: 'hsl(var(--chart-1))' },
       average: { label: '전체 평균', color: 'hsl(var(--chart-2))' },
   } satisfies ChartConfig;
+
+  if (!school) return null;
 
   return (
     <Card>

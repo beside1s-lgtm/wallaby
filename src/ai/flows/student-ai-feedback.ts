@@ -12,6 +12,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const StudentFeedbackInputSchema = z.object({
+  school: z.string().describe('The school of the student.'),
   studentName: z.string().describe('The name of the student.'),
   exerciseType: z.string().describe('The type of exercise performed.'),
   performanceResults: z
@@ -36,7 +37,7 @@ const prompt = ai.definePrompt({
   name: 'studentFeedbackPrompt',
   input: {schema: StudentFeedbackInputSchema},
   output: {schema: StudentFeedbackOutputSchema},
-  prompt: `You are an AI assistant providing feedback to a student named {{studentName}} in grade {{grade}}, class {{classNumber}}, and number {{studentNumber}} based on their exercise performance.
+  prompt: `You are an AI assistant providing feedback to a student named {{studentName}} from {{school}} school, in grade {{grade}}, class {{classNumber}}, and number {{studentNumber}} based on their exercise performance.
 
   Exercise Type: {{exerciseType}}
   Performance Results: {{performanceResults}}

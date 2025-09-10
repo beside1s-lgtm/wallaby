@@ -36,7 +36,7 @@ import type { Student, MeasurementRecord } from '@/lib/types';
 const chartColors = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
 export default function StudentDashboardPage() {
-  const { user } = useAuth();
+  const { user, school } = useAuth();
   const { toast } = useToast();
   const student = user as Student;
 
@@ -53,14 +53,14 @@ export default function StudentDashboardPage() {
   const [chartFilter, setChartFilter] = useState('all');
 
   useEffect(() => {
-    if (student?.id) {
-      setMeasurementItems(getItems());
-      setRecords(getRecordsByStudent(student.id));
+    if (student?.id && school) {
+      setMeasurementItems(getItems(school));
+      setRecords(getRecordsByStudent(school, student.id));
     }
-  }, [student]);
+  }, [student, school]);
 
   const handleSubmit = () => {
-    if (!selectedItem || !value) {
+    if (!selectedItem || !value || !school) {
       toast({
         variant: 'destructive',
         title: '입력 오류',
@@ -83,11 +83,12 @@ export default function StudentDashboardPage() {
     
     const newRecord = addOrUpdateRecord({
       studentId: student.id,
+      school: school,
       item: selectedItem,
       value: numericValue,
     });
 
-    setRecords(getRecordsByStudent(student.id));
+    setRecords(getRecordsByStudent(school, student.id));
     setLastSubmittedRecord({ item: selectedItem, value: String(numericValue) });
     setAiFeedback('');
     
@@ -101,11 +102,12 @@ export default function StudentDashboardPage() {
   };
   
   const handleGetFeedback = async () => {
-    if (!lastSubmittedRecord) return;
+    if (!lastSubmittedRecord || !school) return;
     
     setIsFeedbackLoading(true);
     try {
       const feedbackInput = {
+        school: school,
         studentName: student.name,
         grade: student.grade,
         classNumber: student.classNum,
@@ -154,14 +156,14 @@ export default function StudentDashboardPage() {
     return { chartData: data, chartConfig: config };
   }, [records, chartFilter]);
 
-  if (!student) {
+  if (!student || !school) {
     return null;
   }
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
       <h1 className="text-3xl font-bold text-primary font-headline">
-        {student.name} 학생 대시보드
+        {school} {student.name} 학생 대시보드
       </h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

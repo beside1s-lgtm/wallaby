@@ -6,7 +6,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function parseCsv<T>(csvText: string): T[] {
-  const lines = csvText.trim().split('\n');
+  const lines = csvText.trim().split(/\r\n|\n/); // Handles both windows and unix line endings
   if (lines.length < 2) return [];
 
   const header = lines[0].split(',').map(h => h.trim());
@@ -16,6 +16,7 @@ export function parseCsv<T>(csvText: string): T[] {
     return header.reduce((obj, key, index) => {
       // Simple transform from Korean to expected keys
       let newKey = key;
+      if (key === '학교') newKey = 'school';
       if (key === '학년') newKey = 'grade';
       if (key === '반') newKey = 'classNum';
       if (key === '번호') newKey = 'studentNum';
@@ -34,7 +35,13 @@ export function exportToCsv(filename: string, rows: object[]) {
   const header = Object.keys(rows[0]);
   const csv = [
     header.join(','),
-    ...rows.map(row => header.map(fieldName => JSON.stringify(row[fieldName])).join(','))
+    ...rows.map(row => header.map(fieldName => {
+        const value = (row as any)[fieldName];
+        if (typeof value === 'string' && value.includes(',')) {
+            return `"${value}"`;
+        }
+        return value;
+    }).join(','))
   ].join('\r\n');
 
   const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });

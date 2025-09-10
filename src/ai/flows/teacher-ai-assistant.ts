@@ -12,6 +12,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const AnalyzeStudentPerformanceInputSchema = z.object({
+  school: z.string().describe('The school of the student.'),
   studentName: z.string().describe('The name of the student to analyze.'),
   performanceData: z.string().describe('The student performance data in all sports. Represented as a JSON string.'),
 });
@@ -40,7 +41,7 @@ const analyzeStudentPerformancePrompt = ai.definePrompt({
   name: 'analyzeStudentPerformancePrompt',
   input: {schema: AnalyzeStudentPerformanceInputSchema},
   output: {schema: AnalyzeStudentPerformanceOutputSchema},
-  prompt: `You are an AI assistant for a physical education teacher. Your task is to analyze a student's strengths and weaknesses based on their performance data, and suggest training methods to improve their performance.
+  prompt: `You are an AI assistant for a physical education teacher at {{school}}. Your task is to analyze a student's strengths and weaknesses based on their performance data, and suggest training methods to improve their performance.
 
 Student Name: {{{studentName}}}
 Performance Data: {{{performanceData}}}

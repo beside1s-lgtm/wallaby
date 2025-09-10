@@ -1,5 +1,6 @@
 export type Student = {
   id: string;
+  school: string;
   grade: string;
   classNum: string;
   studentNum: string;
@@ -11,6 +12,7 @@ export type MeasurementItem = string;
 export type MeasurementRecord = {
   id: string;
   studentId: string;
+  school: string;
   item: MeasurementItem;
   value: number;
   date: string; // YYYY-MM-DD

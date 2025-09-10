@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
+import { useAuth } from '@/hooks/use-auth';
 import { getRecords } from '@/lib/store';
 import { getTeacherDashboardBriefing } from '@/ai/flows/teacher-ai-dashboard';
 import {
@@ -27,19 +28,20 @@ type BriefingData = {
 };
 
 export default function AiWelcome() {
+  const { school } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [briefingData, setBriefingData] = useState<BriefingData | null>(null);
 
   useEffect(() => {
     const welcomeShown = sessionStorage.getItem('welcomeShown');
-    if (!welcomeShown) {
+    if (!welcomeShown && school) {
       setIsOpen(true);
       sessionStorage.setItem('welcomeShown', 'true');
 
       const fetchBriefing = async () => {
         try {
-          const allRecords = getRecords();
+          const allRecords = getRecords(school);
           if (allRecords.length === 0) {
             setBriefingData({
               briefing: '기록된 데이터가 없습니다.',
@@ -65,7 +67,7 @@ export default function AiWelcome() {
             averageMeasurements[item] = parseFloat(averageMeasurements[item].toFixed(2));
           }
 
-          const result = await getTeacherDashboardBriefing({ averageMeasurements });
+          const result = await getTeacherDashboardBriefing({ school, averageMeasurements });
           setBriefingData(result);
         } catch (error) {
           console.error('Failed to get AI briefing:', error);
@@ -82,11 +84,11 @@ export default function AiWelcome() {
     } else {
         setIsLoading(false);
     }
-  }, []);
+  }, [school]);
 
   const chartData = useMemo(() => {
-    if (!briefingData) return [];
-    const allRecords = getRecords();
+    if (!briefingData || !school) return [];
+    const allRecords = getRecords(school);
     if(allRecords.length === 0) return [];
 
     const averages = allRecords.reduce((acc, record) => {
@@ -102,15 +104,15 @@ export default function AiWelcome() {
         name,
         average: parseFloat((sum / count).toFixed(2)),
     }));
-  }, [briefingData]);
+  }, [briefingData, school]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !school) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold font-headline">AI 수업 브리핑</DialogTitle>
+          <DialogTitle className="text-2xl font-bold font-headline">{school} AI 수업 브리핑</DialogTitle>
           <DialogDescription>
             전체 학생의 평균 데이터를 기반으로 AI가 생성한 요약 및 조언입니다.
           </DialogDescription>

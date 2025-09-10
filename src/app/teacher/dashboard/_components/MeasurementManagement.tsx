@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/use-auth';
 import { getItems, addItem, deleteItem } from '@/lib/store';
 import {
   Card,
@@ -14,16 +15,19 @@ import { useToast } from '@/hooks/use-toast';
 import { X, Plus } from 'lucide-react';
 
 export default function MeasurementManagement() {
+  const { school } = useAuth();
   const [items, setItems] = useState<string[]>([]);
   const [newItem, setNewItem] = useState('');
   const { toast } = useToast();
 
   useEffect(() => {
-    setItems(getItems());
-  }, []);
+    if (school) {
+      setItems(getItems(school));
+    }
+  }, [school]);
 
   const handleAddItem = () => {
-    if (newItem.trim() === '') {
+    if (newItem.trim() === '' || !school) {
       toast({
         variant: 'destructive',
         title: '입력 오류',
@@ -31,8 +35,8 @@ export default function MeasurementManagement() {
       });
       return;
     }
-    addItem(newItem);
-    setItems(getItems());
+    addItem(school, newItem);
+    setItems(getItems(school));
     setNewItem('');
     toast({
       title: '추가 완료',
@@ -41,14 +45,17 @@ export default function MeasurementManagement() {
   };
 
   const handleDeleteItem = (itemToDelete: string) => {
-    deleteItem(itemToDelete);
-    setItems(getItems());
+    if (!school) return;
+    deleteItem(school, itemToDelete);
+    setItems(getItems(school));
     toast({
       variant: 'destructive',
       title: '삭제 완료',
       description: `"${itemToDelete}" 종목이 삭제되었습니다.`,
     });
   };
+
+  if (!school) return null;
 
   return (
     <Card>

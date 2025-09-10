@@ -4,12 +4,13 @@ import MeasurementManagement from './_components/MeasurementManagement';
 import Analytics from './_components/Analytics';
 import AiWelcome from './_components/AiWelcome';
 import { Users, ClipboardList, BarChart3 } from 'lucide-react';
+import { DashboardHeaderContents } from '@/components/DashboardHeader';
 
 export default function TeacherDashboardPage() {
   return (
     <>
       <div className="container mx-auto p-4 md:p-6 lg:p-8">
-        <h1 className="text-3xl font-bold mb-6 text-primary font-headline">교사 대시보드</h1>
+        <DashboardHeaderContents />
         <Tabs defaultValue="analytics" className="w-full">
           <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 mb-6">
             <TabsTrigger value="analytics">

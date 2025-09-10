@@ -14,6 +14,7 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const TeacherDashboardBriefingInputSchema = z.object({
+  school: z.string().describe('The school for which the briefing is generated.'),
   averageMeasurements: z
     .record(z.number())
     .describe(
@@ -46,7 +47,7 @@ const prompt = ai.definePrompt({
   name: 'teacherDashboardBriefingPrompt',
   input: {schema: TeacherDashboardBriefingInputSchema},
   output: {schema: TeacherDashboardBriefingOutputSchema},
-  prompt: `You are an AI assistant providing insights and advice to a physical education teacher based on the average measurement results of their students.
+  prompt: `You are an AI assistant providing insights and advice to a physical education teacher for {{school}} based on the average measurement results of their students.
 
   Analyze the following average measurement data and provide a briefing summarizing the overall student performance. Also provide specific advice to the teacher on how to improve student performance based on these averages.
 
@@ -64,6 +65,6 @@ const teacherDashboardBriefingFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await prompt(input);
-    return output!;
+return output!;
   }
 );
