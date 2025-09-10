@@ -43,7 +43,7 @@ export default function Analytics() {
   const [studentRecords, setStudentRecords] = useState<MeasurementRecord[]>([]);
   const [allRecords, setAllRecords] = useState<MeasurementRecord[]>([]);
   const [allItems, setAllItems] = useState<string[]>([]);
-  const [progressChartItem, setProgressChartItem] useState<string>('');
+  const [progressChartItem, setProgressChartItem] = useState<string>('');
   
   const [aiAnalysis, setAiAnalysis] = useState<AiAnalysis | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
