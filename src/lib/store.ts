@@ -103,8 +103,26 @@ export const deleteStudents = (school: string, ids: string[]) => {
 };
 
 // Measurement Items
-export const getItems = (school: string): MeasurementItem[] => getLocalStorage(getKey(school, 'measurementItems'), []);
+export const getItems = (school: string): MeasurementItem[] => {
+    const key = getKey(school, 'measurementItems');
+    const items = getLocalStorage(key, []);
+
+    // Data migration logic for old string-based items
+    if (items.length > 0 && typeof items[0] === 'string') {
+        const migratedItems: MeasurementItem[] = initialItems.map((item, index) => ({
+             id: uuidv4(),
+             name: item.name,
+             unit: item.unit,
+             recordType: item.recordType,
+        }));
+        setLocalStorage(key, migratedItems);
+        return migratedItems;
+    }
+    return items;
+};
+
 export const setItems = (school: string, items: MeasurementItem[]) => setLocalStorage(getKey(school, 'measurementItems'), items);
+
 export const addItem = (school: string, item: Omit<MeasurementItem, 'id'>) => {
   const items = getItems(school);
   const newItem = { ...item, id: uuidv4() };

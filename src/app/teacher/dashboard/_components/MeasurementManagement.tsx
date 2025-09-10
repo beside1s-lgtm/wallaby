@@ -88,15 +88,15 @@ export default function MeasurementManagement() {
             {items.length > 0 ? (
                 <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                     {items.map((item) => (
-                    <li key={item.id} className="flex items-center justify-between p-2 bg-secondary rounded-md text-sm">
-                        <div>
-                            <span className="font-semibold">{item.name}</span>
-                            <span className="text-muted-foreground ml-2">({item.unit}, {item.recordType})</span>
-                        </div>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteItem(item)}>
-                           <X className="h-4 w-4" />
-                        </Button>
-                    </li>
+                      <li key={item.id} className="flex items-center justify-between p-2 bg-secondary rounded-md text-sm">
+                          <div>
+                              <span className="font-semibold">{item.name}</span>
+                              <span className="text-muted-foreground ml-2">({item.unit}, {item.recordType})</span>
+                          </div>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteItem(item)}>
+                             <X className="h-4 w-4" />
+                          </Button>
+                      </li>
                     ))}
                 </ul>
             ) : (
