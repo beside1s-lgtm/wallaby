@@ -186,16 +186,6 @@ export default function StudentDashboardPage() {
       ? records 
       : records.filter(r => r.item === chartFilter);
     
-    const uniqueItems = [...new Set(filteredRecords.map(r => r.item))];
-    const config: ChartConfig = {};
-    uniqueItems.forEach((itemName, index) => {
-      const itemInfo = measurementItems.find(item => item.name === itemName);
-      config[itemName] = {
-        label: `${itemName}`,
-        color: chartColors[index % chartColors.length],
-      };
-    });
-
     const dataByDate: Record<string, { date: string, originalRecord: Record<string, {value: number, unit: string}> } & Record<string, number>> = {};
 
     filteredRecords.forEach(record => {
@@ -203,13 +193,23 @@ export default function StudentDashboardPage() {
         if (!itemInfo) return;
 
         const grade = getPapsGrade(record.item, fullStudent.gender, record.value);
-        if (grade === null) return;
+        if (grade === null) return; // PAPS 등급 기준이 없는 종목은 건너뜀
 
         if (!dataByDate[record.date]) {
             dataByDate[record.date] = { date: record.date, originalRecord: {} };
         }
         dataByDate[record.date][record.item] = grade;
         dataByDate[record.date].originalRecord[record.item] = { value: record.value, unit: itemInfo.unit };
+    });
+    
+    const uniqueItems = [...new Set(Object.values(dataByDate).flatMap(d => Object.keys(d).filter(k => k !== 'date' && k !== 'originalRecord')))];
+
+    const config: ChartConfig = {};
+    uniqueItems.forEach((itemName, index) => {
+      config[itemName] = {
+        label: `${itemName}`,
+        color: chartColors[index % chartColors.length],
+      };
     });
 
     const data = Object.values(dataByDate).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
