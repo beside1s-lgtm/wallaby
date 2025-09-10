@@ -55,7 +55,6 @@ export default function StudentDashboardPage() {
   
   const [aiFeedback, setAiFeedback] = useState('');
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
-  const [lastSubmittedRecord, setLastSubmittedRecord] = useState<{item: string, value: string} | null>(null);
 
   const [chartFilter, setChartFilter] = useState('all');
 
@@ -94,7 +93,7 @@ export default function StudentDashboardPage() {
       return;
     }
     
-    const newRecord = addOrUpdateRecord({
+    addOrUpdateRecord({
       studentId: student.id,
       school: school,
       item: selectedItem,
@@ -102,7 +101,6 @@ export default function StudentDashboardPage() {
     });
 
     setRecords(getRecordsByStudent(school, student.id));
-    setLastSubmittedRecord({ item: selectedItem, value: String(numericValue) });
     setAiFeedback('');
     
     toast({
@@ -111,22 +109,35 @@ export default function StudentDashboardPage() {
     });
     
     setValue('');
+    setSelectedItem('');
     setIsSubmitting(false);
   };
   
   const handleGetFeedback = async () => {
-    if (!lastSubmittedRecord || !school) return;
+    if (records.length === 0 || !school) {
+        toast({
+            variant: 'destructive',
+            title: '피드백 생성 불가',
+            description: '피드백을 생성하려면 먼저 기록을 하나 이상 입력해주세요.',
+        });
+        return;
+    }
     
     setIsFeedbackLoading(true);
     try {
+      const latestRecord = records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+      const performanceResults = records
+        .map(r => `${r.item}: ${r.value}${getItemUnit(r.item)} (측정일: ${r.date})`)
+        .join('\n');
+
       const feedbackInput = {
         school: school,
         studentName: student.name,
         grade: student.grade,
         classNumber: student.classNum,
         studentNumber: student.studentNum,
-        exerciseType: lastSubmittedRecord.item,
-        performanceResults: `${lastSubmittedRecord.item} 결과: ${lastSubmittedRecord.value}`
+        exerciseType: '종합',
+        performanceResults: `최근 기록\n${performanceResults}`
       };
       const result = await getStudentFeedback(feedbackInput);
       setAiFeedback(result.feedback);
@@ -224,13 +235,13 @@ export default function StudentDashboardPage() {
             ) : aiFeedback ? (
               <p className="text-sm whitespace-pre-wrap">{aiFeedback}</p>
             ) : (
-              <p className="text-sm text-muted-foreground">결과를 저장하고 AI 피드백을 받아보세요.</p>
+              <p className="text-sm text-muted-foreground">AI 피드백 받기 버튼을 눌러 피드백을 받아보세요.</p>
             )}
           </CardContent>
           <CardFooter>
             <Button
               onClick={handleGetFeedback}
-              disabled={!lastSubmittedRecord || isFeedbackLoading || !!aiFeedback}
+              disabled={isFeedbackLoading || records.length === 0}
               className="w-full"
               variant="outline"
             >
