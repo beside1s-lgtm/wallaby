@@ -7,18 +7,22 @@ export type Student = {
   name: string;
 };
 
-export type MeasurementItem = string;
-
 export type RecordType = 'time' | 'count' | 'distance';
+
+export type MeasurementItem = {
+  id: string;
+  name: string;
+  unit: string;
+  recordType: RecordType;
+};
 
 export type MeasurementRecord = {
   id: string;
   studentId: string;
   school: string;
-  item: MeasurementItem;
+  item: string; // The name of the measurement item
   value: number;
   date: string; // YYYY-MM-DD
-  recordType: RecordType;
 };
 
 export type StudentLogin = Omit<Student, 'id'>;

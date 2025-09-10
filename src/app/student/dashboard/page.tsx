@@ -31,24 +31,17 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { getStudentFeedback } from '@/ai/flows/student-ai-feedback';
 import { Loader2, Wand2 } from 'lucide-react';
-import type { Student, MeasurementRecord } from '@/lib/types';
+import type { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
 
 const chartColors = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
-
-const getItemUnit = (item: string) => {
-  if (item.includes('달리기')) return '초';
-  if (item.includes('멀리뛰기')) return 'cm';
-  if (item.includes('일으키기') || item.includes('턱걸이')) return '회';
-  return '점';
-};
 
 export default function StudentDashboardPage() {
   const { user, school } = useAuth();
   const { toast } = useToast();
   const student = user as Student;
 
-  const [measurementItems, setMeasurementItems] = useState<string[]>([]);
-  const [selectedItem, setSelectedItem] = useState('');
+  const [measurementItems, setMeasurementItems] = useState<MeasurementItem[]>([]);
+  const [selectedItemName, setSelectedItemName] = useState('');
   const [value, setValue] = useState('');
   const [records, setRecords] = useState<MeasurementRecord[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -65,14 +58,18 @@ export default function StudentDashboardPage() {
     }
   }, [student, school]);
   
+  const selectedItem = useMemo(() => {
+      return measurementItems.find(item => item.name === selectedItemName);
+  }, [selectedItemName, measurementItems]);
+
   const inputPlaceholder = useMemo(() => {
     if (!selectedItem) return "측정 결과 (숫자만 입력)";
-    return `결과 (${getItemUnit(selectedItem)})`;
+    return `결과 (${selectedItem.unit})`;
   }, [selectedItem]);
 
 
   const handleSubmit = () => {
-    if (!selectedItem || !value || !school) {
+    if (!selectedItemName || !value || !school) {
       toast({
         variant: 'destructive',
         title: '입력 오류',
@@ -96,7 +93,7 @@ export default function StudentDashboardPage() {
     addOrUpdateRecord({
       studentId: student.id,
       school: school,
-      item: selectedItem,
+      item: selectedItemName,
       value: numericValue,
     });
 
@@ -105,11 +102,11 @@ export default function StudentDashboardPage() {
     
     toast({
       title: '기록 저장 완료',
-      description: `${selectedItem} 기록이 ${numericValue}${getItemUnit(selectedItem)}으로 저장/업데이트되었습니다.`,
+      description: `${selectedItemName} 기록이 ${numericValue}${selectedItem?.unit}으로 저장/업데이트되었습니다.`,
     });
     
     setValue('');
-    setSelectedItem('');
+    setSelectedItemName('');
     setIsSubmitting(false);
   };
   
@@ -125,9 +122,11 @@ export default function StudentDashboardPage() {
     
     setIsFeedbackLoading(true);
     try {
-      const latestRecord = records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
       const performanceResults = records
-        .map(r => `${r.item}: ${r.value}${getItemUnit(r.item)} (측정일: ${r.date})`)
+        .map(r => {
+            const itemInfo = measurementItems.find(item => item.name === r.item);
+            return `${r.item}: ${r.value}${itemInfo?.unit || ''} (측정일: ${r.date})`;
+        })
         .join('\n');
 
       const feedbackInput = {
@@ -160,9 +159,10 @@ export default function StudentDashboardPage() {
     
     const uniqueItems = [...new Set(filteredRecords.map(r => r.item))];
     const config: ChartConfig = {};
-    uniqueItems.forEach((item, index) => {
-      config[item] = {
-        label: `${item} (${getItemUnit(item)})`,
+    uniqueItems.forEach((itemName, index) => {
+      const itemInfo = measurementItems.find(item => item.name === itemName);
+      config[itemName] = {
+        label: `${itemName} (${itemInfo?.unit || ''})`,
         color: chartColors[index % chartColors.length],
       };
     });
@@ -178,7 +178,7 @@ export default function StudentDashboardPage() {
     const data = Object.values(dataByDate).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     
     return { chartData: data, chartConfig: config };
-  }, [records, chartFilter]);
+  }, [records, chartFilter, measurementItems]);
 
   if (!student || !school) {
     return null;
@@ -197,13 +197,13 @@ export default function StudentDashboardPage() {
             <CardDescription>오늘의 측정 결과를 입력하세요. 같은 날짜에 다시 입력하면 덮어쓰기됩니다.</CardDescription>
           </CardHeader>
           <CardContent className="flex-grow space-y-4">
-            <Select onValueChange={setSelectedItem} value={selectedItem}>
+            <Select onValueChange={setSelectedItemName} value={selectedItemName}>
               <SelectTrigger>
                 <SelectValue placeholder="측정 종목 선택" />
               </SelectTrigger>
               <SelectContent>
                 {measurementItems.map(item => (
-                  <SelectItem key={item} value={item}>{item}</SelectItem>
+                  <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -266,7 +266,7 @@ export default function StudentDashboardPage() {
               <SelectContent>
                 <SelectItem value="all">모든 종목</SelectItem>
                 {measurementItems.map(item => (
-                  <SelectItem key={item} value={item}>{item}</SelectItem>
+                  <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

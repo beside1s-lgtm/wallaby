@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { getItems, addItem, deleteItem } from '@/lib/store';
+import { getItems, setItems, addItem, deleteItem } from '@/lib/store';
 import {
   Card,
   CardContent,
@@ -13,21 +13,38 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { X, Plus } from 'lucide-react';
+import type { MeasurementItem, RecordType } from '@/lib/types';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 export default function MeasurementManagement() {
   const { school } = useAuth();
-  const [items, setItems] = useState<string[]>([]);
-  const [newItem, setNewItem] = useState('');
+  const [items, setItemsState] = useState<MeasurementItem[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
     if (school) {
-      setItems(getItems(school));
+      setItemsState(getItems(school));
     }
   }, [school]);
 
-  const handleAddItem = () => {
-    if (newItem.trim() === '' || !school) {
+  const handleAddItem = (newItem: Omit<MeasurementItem, 'id'>) => {
+    if (newItem.name.trim() === '' || !school) {
       toast({
         variant: 'destructive',
         title: '입력 오류',
@@ -36,22 +53,21 @@ export default function MeasurementManagement() {
       return;
     }
     addItem(school, newItem);
-    setItems(getItems(school));
-    setNewItem('');
+    setItemsState(getItems(school));
     toast({
       title: '추가 완료',
-      description: `"${newItem}" 종목이 추가되었습니다.`,
+      description: `"${newItem.name}" 종목이 추가되었습니다.`,
     });
   };
 
-  const handleDeleteItem = (itemToDelete: string) => {
+  const handleDeleteItem = (itemToDelete: MeasurementItem) => {
     if (!school) return;
-    deleteItem(school, itemToDelete);
-    setItems(getItems(school));
+    deleteItem(school, itemToDelete.id);
+    setItemsState(getItems(school));
     toast({
       variant: 'destructive',
       title: '삭제 완료',
-      description: `"${itemToDelete}" 종목이 삭제되었습니다.`,
+      description: `"${itemToDelete.name}" 종목이 삭제되었습니다.`,
     });
   };
 
@@ -61,27 +77,24 @@ export default function MeasurementManagement() {
     <Card>
       <CardHeader>
         <CardTitle>측정 종목 관리</CardTitle>
-        <CardDescription>측정할 종목을 추가하거나 삭제합니다.</CardDescription>
+        <CardDescription>측정할 종목을 추가하거나 삭제합니다. 이름, 단위, 기록 유형을 설정할 수 있습니다.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex w-full max-w-sm items-center space-x-2">
-          <Input
-            value={newItem}
-            onChange={(e) => setNewItem(e.target.value)}
-            placeholder="새 종목 이름"
-            onKeyDown={(e) => e.key === 'Enter' && handleAddItem()}
-          />
-          <Button onClick={handleAddItem}><Plus className="mr-2 h-4 w-4" /> 추가</Button>
+            <AddMeasurementItemDialog onAddItem={handleAddItem} />
         </div>
         <div className="border rounded-md p-4 space-y-2">
             <h3 className="font-semibold">현재 종목 목록</h3>
             {items.length > 0 ? (
                 <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
                     {items.map((item) => (
-                    <li key={item} className="flex items-center justify-between p-2 bg-secondary rounded-md">
-                        <span className="text-sm">{item}</span>
+                    <li key={item.id} className="flex items-center justify-between p-2 bg-secondary rounded-md text-sm">
+                        <div>
+                            <span className="font-semibold">{item.name}</span>
+                            <span className="text-muted-foreground ml-2">({item.unit}, {item.recordType})</span>
+                        </div>
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteItem(item)}>
-                        <X className="h-4 w-4" />
+                           <X className="h-4 w-4" />
                         </Button>
                     </li>
                     ))}
@@ -92,5 +105,66 @@ export default function MeasurementManagement() {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function AddMeasurementItemDialog({ onAddItem }: { onAddItem: (item: Omit<MeasurementItem, 'id'>) => void }) {
+  const [name, setName] = useState('');
+  const [unit, setUnit] = useState('');
+  const [recordType, setRecordType] = useState<RecordType | ''>('');
+  const { toast } = useToast();
+
+  const handleSubmit = () => {
+    if (!name || !unit || !recordType) {
+      toast({ variant: 'destructive', title: '입력 오류', description: '모든 필드를 입력해주세요.' });
+      return;
+    }
+    onAddItem({ name, unit, recordType });
+    setName('');
+    setUnit('');
+    setRecordType('');
+    document.getElementById('add-item-dialog-close')?.click();
+  };
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button><Plus className="mr-2 h-4 w-4" /> 새 종목 추가</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>새 측정 종목 추가</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="name" className="text-right">종목명</Label>
+            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" placeholder="예: 50m 달리기" />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="unit" className="text-right">단위</Label>
+            <Input id="unit" value={unit} onChange={(e) => setUnit(e.target.value)} className="col-span-3" placeholder="예: 초, cm, 회" />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="recordType" className="text-right">기록 유형</Label>
+            <Select onValueChange={(value) => setRecordType(value as RecordType)} value={recordType}>
+                <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="기록 유형 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="time">시간 (낮을수록 좋음)</SelectItem>
+                    <SelectItem value="count">횟수 (높을수록 좋음)</SelectItem>
+                    <SelectItem value="distance">거리 (높을수록 좋음)</SelectItem>
+                </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button id="add-item-dialog-close" variant="outline">취소</Button>
+          </DialogClose>
+          <Button onClick={handleSubmit}>추가</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

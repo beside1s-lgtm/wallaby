@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { getStudents, getRecords, getItems } from '@/lib/store';
-import { Student, MeasurementRecord } from '@/lib/types';
+import { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
 import { Input } from '@/components/ui/input';
 import {
   Card,
@@ -44,7 +44,7 @@ export default function Analytics() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [studentRecords, setStudentRecords] = useState<MeasurementRecord[]>([]);
   const [allRecords, setAllRecords] = useState<MeasurementRecord[]>([]);
-  const [allItems, setAllItems] = useState<string[]>([]);
+  const [allItems, setAllItems] = useState<MeasurementItem[]>([]);
   const [progressChartItem, setProgressChartItem] = useState<string>('');
   
   const [aiAnalysis, setAiAnalysis] = useState<AiAnalysis | null>(null);
@@ -54,8 +54,12 @@ export default function Analytics() {
 
   useEffect(() => {
     if (school) {
-        setAllItems(getItems(school));
+        const items = getItems(school);
+        setAllItems(items);
         setAllRecords(getRecords(school));
+        if (items.length > 0) {
+            setProgressChartItem(items[0].name);
+        }
     }
   }, [school]);
 
@@ -66,8 +70,8 @@ export default function Analytics() {
       setSelectedStudent(student);
       const studentRecs = allRecords.filter(r => r.studentId === student.id);
       setStudentRecords(studentRecs);
-      if (allItems.length > 0) {
-        setProgressChartItem(allItems[0] || '');
+      if (allItems.length > 0 && !progressChartItem) {
+        setProgressChartItem(allItems[0].name || '');
       }
       setAiAnalysis(null);
     } else {
@@ -85,7 +89,10 @@ export default function Analytics() {
     if (!selectedStudent || studentRecords.length === 0 || !school) return;
     setIsAiLoading(true);
     try {
-      const performanceData = JSON.stringify(studentRecords.map(r => ({ item: r.item, value: r.value, date: r.date, recordType: r.recordType })));
+      const performanceData = JSON.stringify(studentRecords.map(r => {
+          const itemInfo = allItems.find(item => item.name === r.item);
+          return { item: r.item, value: r.value, date: r.date, recordType: itemInfo?.recordType || 'count' }
+        }));
       const result = await analyzeStudentPerformance({
         school,
         studentName: selectedStudent.name,
@@ -124,9 +131,9 @@ export default function Analytics() {
     });
 
     return allItems.map(item => ({
-      name: item,
-      student: latestStudentRecords[item]?.value || 0,
-      average: averageRecords[item] ? parseFloat((averageRecords[item].sum / averageRecords[item].count).toFixed(2)) : 0,
+      name: item.name,
+      student: latestStudentRecords[item.name]?.value || 0,
+      average: averageRecords[item.name] ? parseFloat((averageRecords[item.name].sum / averageRecords[item.name].count).toFixed(2)) : 0,
     }));
   }, [selectedStudent, studentRecords, allRecords, allItems]);
   
@@ -193,7 +200,7 @@ export default function Analytics() {
                         <SelectValue placeholder="종목 선택" />
                       </SelectTrigger>
                       <SelectContent>
-                        {allItems.map(item => <SelectItem key={item} value={item}>{item}</SelectItem>)}
+                        {allItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
