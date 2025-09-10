@@ -5,6 +5,7 @@ export type Student = {
   classNum: string;
   studentNum: string;
   name: string;
+  gender: '남' | '여';
 };
 
 export type RecordType = 'time' | 'count' | 'distance';
@@ -25,4 +26,4 @@ export type MeasurementRecord = {
   date: string; // YYYY-MM-DD
 };
 
-export type StudentLogin = Omit<Student, 'id'>;
+export type StudentLogin = Omit<Student, 'id' | 'gender'>;

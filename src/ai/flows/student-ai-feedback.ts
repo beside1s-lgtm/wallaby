@@ -21,6 +21,7 @@ const StudentFeedbackInputSchema = z.object({
   grade: z.string().describe('The grade of the student'),
   classNumber: z.string().describe('The class number of the student'),
   studentNumber: z.string().describe('The student number'),
+  gender: z.enum(['남', '여']).describe('The gender of the student'),
 });
 export type StudentFeedbackInput = z.infer<typeof StudentFeedbackInputSchema>;
 
@@ -45,6 +46,7 @@ const prompt = ai.definePrompt({
 - 학년: {{grade}}
 - 반: {{classNumber}}
 - 번호: {{studentNumber}}
+- 성별: {{gender}}
 
 운동 정보:
 - 종목: {{exerciseType}}

@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { getItems, addOrUpdateRecord, getRecordsByStudent } from '@/lib/store';
+import { getItems, addOrUpdateRecord, getRecordsByStudent, getStudentById } from '@/lib/store';
 import {
   Card,
   CardContent,
@@ -32,8 +32,27 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { getStudentFeedback } from '@/ai/flows/student-ai-feedback';
 import { Loader2, Wand2 } from 'lucide-react';
 import type { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
+import { getPapsGrade } from '@/lib/paps';
 
 const chartColors = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    const originalRecord = payload[0].payload.originalRecord;
+    return (
+      <div className="p-2 text-sm bg-background/90 border rounded-md shadow-lg">
+        <p className="font-bold">{label}</p>
+        {payload.map((p: any) => (
+            <div key={p.dataKey} style={{ color: p.color }}>
+                <p>{`${p.name}: ${p.value}등급`}</p>
+                <p className="text-xs text-muted-foreground">{`원래 기록: ${originalRecord[p.dataKey]?.value} ${originalRecord[p.dataKey]?.unit}`}</p>
+            </div>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
 
 export default function StudentDashboardPage() {
   const { user, school } = useAuth();
@@ -50,6 +69,13 @@ export default function StudentDashboardPage() {
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
 
   const [chartFilter, setChartFilter] = useState('all');
+
+  const fullStudent = useMemo(() => {
+    if (student?.id && school) {
+      return getStudentById(school, student.id);
+    }
+    return student;
+  }, [student, school])
 
   useEffect(() => {
     if (student?.id && school) {
@@ -111,7 +137,7 @@ export default function StudentDashboardPage() {
   };
   
   const handleGetFeedback = async () => {
-    if (records.length === 0 || !school) {
+    if (!fullStudent || records.length === 0 || !school) {
         toast({
             variant: 'destructive',
             title: '피드백 생성 불가',
@@ -131,10 +157,11 @@ export default function StudentDashboardPage() {
 
       const feedbackInput = {
         school: school,
-        studentName: student.name,
-        grade: student.grade,
-        classNumber: student.classNum,
-        studentNumber: student.studentNum,
+        studentName: fullStudent.name,
+        grade: fullStudent.grade,
+        classNumber: fullStudent.classNum,
+        studentNumber: fullStudent.studentNum,
+        gender: fullStudent.gender,
         exerciseType: '종합',
         performanceResults: `최근 기록\n${performanceResults}`
       };
@@ -153,6 +180,8 @@ export default function StudentDashboardPage() {
   };
 
   const { chartData, chartConfig } = useMemo(() => {
+    if (!fullStudent) return { chartData: [], chartConfig: {} };
+    
     const filteredRecords = chartFilter === 'all' 
       ? records 
       : records.filter(r => r.item === chartFilter);
@@ -162,32 +191,40 @@ export default function StudentDashboardPage() {
     uniqueItems.forEach((itemName, index) => {
       const itemInfo = measurementItems.find(item => item.name === itemName);
       config[itemName] = {
-        label: `${itemName} (${itemInfo?.unit || ''})`,
+        label: `${itemName}`,
         color: chartColors[index % chartColors.length],
       };
     });
 
-    const dataByDate = filteredRecords.reduce((acc, record) => {
-      if (!acc[record.date]) {
-        acc[record.date] = { date: record.date };
-      }
-      acc[record.date][record.item] = record.value;
-      return acc;
-    }, {} as Record<string, { date: string } & Record<string, number>>);
+    const dataByDate: Record<string, { date: string, originalRecord: Record<string, {value: number, unit: string}> } & Record<string, number>> = {};
+
+    filteredRecords.forEach(record => {
+        const itemInfo = measurementItems.find(i => i.name === record.item);
+        if (!itemInfo) return;
+
+        const grade = getPapsGrade(record.item, fullStudent.gender, record.value);
+        if (grade === null) return;
+
+        if (!dataByDate[record.date]) {
+            dataByDate[record.date] = { date: record.date, originalRecord: {} };
+        }
+        dataByDate[record.date][record.item] = grade;
+        dataByDate[record.date].originalRecord[record.item] = { value: record.value, unit: itemInfo.unit };
+    });
 
     const data = Object.values(dataByDate).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     
     return { chartData: data, chartConfig: config };
-  }, [records, chartFilter, measurementItems]);
+  }, [records, chartFilter, measurementItems, fullStudent]);
 
-  if (!student || !school) {
+  if (!fullStudent || !school) {
     return null;
   }
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
       <h1 className="text-3xl font-bold text-primary font-headline">
-        {school} {student.name} 학생 대시보드
+        {school} {fullStudent.name} 학생 대시보드
       </h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -256,8 +293,8 @@ export default function StudentDashboardPage() {
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-                <CardTitle>나의 성장 기록</CardTitle>
-                <CardDescription>지금까지의 측정 결과 변화를 확인해보세요.</CardDescription>
+                <CardTitle>나의 성장 기록 (PAPS 등급)</CardTitle>
+                <CardDescription>지금까지의 측정 결과 변화를 등급으로 확인해보세요. (1등급이 가장 높음)</CardDescription>
             </div>
             <Select onValueChange={setChartFilter} value={chartFilter}>
               <SelectTrigger className="w-full sm:w-[200px]">
@@ -278,8 +315,8 @@ export default function StudentDashboardPage() {
               <LineChart data={chartData}>
                 <CartesianGrid vertical={false} />
                 <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
-                <YAxis hide />
-                <ChartTooltip content={<ChartTooltipContent />} />
+                <YAxis reversed={true} domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} tickCount={5} />
+                <ChartTooltip content={<CustomTooltip />} />
                 <ChartLegend content={<ChartLegendContent />} />
                 {Object.keys(chartConfig).map((key) => (
                   <Line key={key} dataKey={key} type="monotone" stroke={chartConfig[key].color} strokeWidth={2} dot={false} />

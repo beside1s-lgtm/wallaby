@@ -16,7 +16,8 @@ export function parseCsv<T>(csvText: string): T[] {
       '학년': 'grade',
       '반': 'classNum',
       '번호': 'studentNum',
-      '이름': 'name'
+      '이름': 'name',
+      '성별': 'gender'
   };
 
   return lines.slice(1).map(line => {

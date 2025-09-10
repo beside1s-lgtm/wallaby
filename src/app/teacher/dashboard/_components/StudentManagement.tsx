@@ -8,7 +8,7 @@ import {
   setRecords,
   addStudent,
 } from '@/lib/store';
-import type { Student, StudentLogin } from '@/lib/types';
+import type { Student } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -37,6 +37,13 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { parseCsv, exportToCsv } from '@/lib/utils';
 import { UserPlus, Trash2, FileUp, FileDown } from 'lucide-react';
@@ -108,7 +115,7 @@ export default function StudentManagement() {
           let count = 0;
           newStudents.forEach(student => {
             const studentSchool = student.school || school;
-            if (studentSchool && student.grade && student.classNum && student.studentNum && student.name) {
+            if (studentSchool && student.grade && student.classNum && student.studentNum && student.name && student.gender) {
               const existingStudents = getStudents(studentSchool);
               const studentExists = existingStudents.some(s => 
                 s.grade === student.grade &&
@@ -153,6 +160,7 @@ export default function StudentManagement() {
             반: student?.classNum || '',
             번호: student?.studentNum || '',
             이름: student?.name || '알수없음',
+            성별: student?.gender || '',
             측정종목: record.item,
             기록: record.value,
             측정일: record.date,
@@ -166,11 +174,12 @@ export default function StudentManagement() {
   const handleDownloadTemplate = () => {
     if (!school) return;
     const templateData = [{
-      학교: school,
-      학년: '1',
-      반: '1',
-      번호: '1',
-      이름: '홍길동'
+      school,
+      grade: '1',
+      classNum: '1',
+      studentNum: '1',
+      name: '홍길동',
+      gender: '남',
     }];
     exportToCsv(`${school}_학생_등록_템플릿.csv`, templateData);
   }
@@ -222,6 +231,7 @@ export default function StudentManagement() {
                 <TableHead>반</TableHead>
                 <TableHead>번호</TableHead>
                 <TableHead>이름</TableHead>
+                <TableHead>성별</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -238,11 +248,12 @@ export default function StudentManagement() {
                     <TableCell>{student.classNum}</TableCell>
                     <TableCell>{student.studentNum}</TableCell>
                     <TableCell className="font-medium">{student.name}</TableCell>
+                    <TableCell>{student.gender}</TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
+                  <TableCell colSpan={6} className="h-24 text-center">
                     등록된 학생이 없습니다.
                   </TableCell>
                 </TableRow>
@@ -261,18 +272,20 @@ function AddStudentDialog({ onAddStudent }: { onAddStudent: (data: Omit<Student,
   const [classNum, setClassNum] = useState('');
   const [studentNum, setStudentNum] = useState('');
   const [name, setName] = useState('');
+  const [gender, setGender] = useState<'남' | '여' | ''>('');
   const { toast } = useToast();
 
   const handleSubmit = () => {
-    if (!grade || !classNum || !studentNum || !name) {
+    if (!grade || !classNum || !studentNum || !name || !gender) {
       toast({ variant: 'destructive', title: '입력 오류', description: '모든 필드를 입력해주세요.' });
       return;
     }
-    onAddStudent({ grade, classNum, studentNum, name });
+    onAddStudent({ grade, classNum, studentNum, name, gender });
     setGrade('');
     setClassNum('');
     setStudentNum('');
     setName('');
+    setGender('');
     document.getElementById('add-student-dialog-close')?.click();
   };
 
@@ -301,6 +314,18 @@ function AddStudentDialog({ onAddStudent }: { onAddStudent: (data: Omit<Student,
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="name" className="text-right">이름</Label>
             <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" />
+          </div>
+           <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="gender" className="text-right">성별</Label>
+             <Select onValueChange={(value) => setGender(value as '남' | '여')} value={gender}>
+                <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="성별 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="남">남</SelectItem>
+                    <SelectItem value="여">여</SelectItem>
+                </SelectContent>
+            </Select>
           </div>
         </div>
         <DialogFooter>
