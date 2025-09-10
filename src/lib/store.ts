@@ -54,7 +54,10 @@ const setLocalStorage = <T>(key: string, value: T) => {
 export const initializeData = (school: string) => {
   const studentsKey = getKey(school, 'students');
   if (!localStorage.getItem(studentsKey)) {
-    setLocalStorage(studentsKey, initialStudents.filter(s => s.school === school));
+    const schoolStudents = initialStudents.filter(s => s.school === school);
+    if(schoolStudents.length > 0) {
+        setLocalStorage(studentsKey, schoolStudents);
+    }
   }
   
   const itemsKey = getKey(school, 'measurementItems');
@@ -64,7 +67,10 @@ export const initializeData = (school: string) => {
   
   const recordsKey = getKey(school, 'records');
   if (!localStorage.getItem(recordsKey)) {
-    setLocalStorage(recordsKey, initialRecords.filter(r => r.school === school));
+    const schoolRecords = initialRecords.filter(r => r.school === school);
+     if(schoolRecords.length > 0) {
+        setLocalStorage(recordsKey, schoolRecords);
+    }
   }
 };
 
