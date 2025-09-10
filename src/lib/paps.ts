@@ -28,6 +28,8 @@ export function getPapsGrade(item: string, gender: '남' | '여', value: number)
   if (!standard) return null;
 
   const thresholds = standard[gender];
+  if (!thresholds) return null; // thresholds가 없을 경우를 대비한 안전 장치
+
   const type = standard.type;
 
   if (type === 'time') { // 낮을수록 좋음
