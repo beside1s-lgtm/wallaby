@@ -8,7 +8,7 @@ export type Student = {
   gender: '남' | '여';
 };
 
-export type RecordType = 'time' | 'count' | 'distance';
+export type RecordType = 'time' | 'count' | 'distance' | 'weight';
 
 export type MeasurementItem = {
   id: string;

@@ -142,7 +142,7 @@ function AddMeasurementItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measur
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="unit" className="text-right">단위</Label>
-            <Input id="unit" value={unit} onChange={(e) => setUnit(e.target.value)} className="col-span-3" placeholder="예: 초, cm, 회" />
+            <Input id="unit" value={unit} onChange={(e) => setUnit(e.target.value)} className="col-span-3" placeholder="예: 초, cm, 회, kg" />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="recordType" className="text-right">기록 유형</Label>
@@ -154,6 +154,7 @@ function AddMeasurementItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measur
                     <SelectItem value="time">시간 (낮을수록 좋음)</SelectItem>
                     <SelectItem value="count">횟수 (높을수록 좋음)</SelectItem>
                     <SelectItem value="distance">거리 (높을수록 좋음)</SelectItem>
+                    <SelectItem value="weight">무게 (높을수록 좋음)</SelectItem>
                 </SelectContent>
             </Select>
           </div>
