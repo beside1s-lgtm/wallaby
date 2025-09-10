@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { getRecords } from '@/lib/store';
+import { getRecords, getStudents } from '@/lib/store';
 import { getTeacherDashboardBriefing } from '@/ai/flows/teacher-ai-dashboard';
 import {
   Dialog,
@@ -42,6 +42,8 @@ export default function AiWelcome() {
       const fetchBriefing = async () => {
         try {
           const allRecords = getRecords(school);
+          const allStudents = getStudents(school);
+          
           if (allRecords.length === 0) {
             setBriefingData({
               briefing: '기록된 데이터가 없습니다.',
@@ -67,7 +69,12 @@ export default function AiWelcome() {
             averageMeasurements[item] = parseFloat(averageMeasurements[item].toFixed(2));
           }
 
-          const result = await getTeacherDashboardBriefing({ school, averageMeasurements });
+          const result = await getTeacherDashboardBriefing({
+            school,
+            averageMeasurements,
+            totalStudentCount: allStudents.length,
+            studentRankings: {},
+          });
           setBriefingData(result);
         } catch (error) {
           console.error('Failed to get AI briefing:', error);
