@@ -7,7 +7,6 @@ import {
   getRecords,
   setRecords,
   addStudent,
-  getStudentsBySchool,
 } from '@/lib/store';
 import type { Student, StudentLogin } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -108,9 +107,9 @@ export default function StudentManagement() {
           const newStudents = parseCsv<Omit<Student, 'id'>>(text);
           let count = 0;
           newStudents.forEach(student => {
-            if (student.school && student.grade && student.classNum && student.studentNum && student.name) {
-              const studentSchool = student.school;
-              const existingStudents = getStudentsBySchool(studentSchool);
+            const studentSchool = student.school || school;
+            if (studentSchool && student.grade && student.classNum && student.studentNum && student.name) {
+              const existingStudents = getStudents(studentSchool);
               const studentExists = existingStudents.some(s => 
                 s.grade === student.grade &&
                 s.classNum === student.classNum &&
@@ -119,7 +118,7 @@ export default function StudentManagement() {
               );
               
               if (!studentExists) {
-                  addStudent(student);
+                  addStudent({ ...student, school: studentSchool });
                   count++;
               }
             }
@@ -164,6 +163,18 @@ export default function StudentManagement() {
     toast({ title: '다운로드 시작', description: '전체 학생 기록을 CSV 파일로 다운로드합니다.'});
   }
 
+  const handleDownloadTemplate = () => {
+    if (!school) return;
+    const templateData = [{
+      학교: school,
+      학년: '1',
+      반: '1',
+      번호: '1',
+      이름: '홍길동'
+    }];
+    exportToCsv(`${school}_학생_등록_템플릿.csv`, templateData);
+  }
+
   if (!school) return null;
 
   return (
@@ -180,7 +191,8 @@ export default function StudentManagement() {
             CSV 일괄 등록
           </Button>
           <input type="file" id="csv-upload" accept=".csv" onChange={handleCsvUpload} style={{ display: 'none' }} />
-          <a href="/template.csv" download className="text-sm text-muted-foreground hover:text-primary underline">템플릿 다운로드</a>
+           <Button variant="link" onClick={handleDownloadTemplate}>템플릿 다운로드</Button>
+
           <div className="ml-auto flex items-center gap-2">
             <Button variant="outline" onClick={handleDownloadAllRecords}>
               <FileDown className="mr-2 h-4 w-4" />
