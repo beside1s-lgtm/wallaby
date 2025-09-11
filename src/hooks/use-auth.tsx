@@ -71,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isLoading) return;
 
-    const isAuthPage = pathname === '/';
+    const isAuthPage = pathname === '/' || pathname === '/student-login';
     if (!role && !isAuthPage) {
       router.push('/');
     }
