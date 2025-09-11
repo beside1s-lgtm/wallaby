@@ -35,6 +35,10 @@ type AiWelcomeProps = {
     title: string;
 }
 
+const gradeToPercentage = (grade: number) => {
+    return (5 - grade) * 25;
+}
+
 export default function AiWelcome({ itemType, title }: AiWelcomeProps) {
   const { school } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
@@ -71,8 +75,8 @@ export default function AiWelcome({ itemType, title }: AiWelcomeProps) {
       if (itemInfo.isPaps) {
         const grade = getPapsGrade(record.item, student.gender, record.value);
         if (grade !== null) {
-          insights[record.item].type = 'grade';
-          insights[record.item].value += grade;
+          insights[record.item].type = 'percentage';
+          insights[record.item].value += gradeToPercentage(grade);
           insights[record.item].count++;
         }
       } else if (itemInfo.goal && itemInfo.recordType !== 'time') {
@@ -87,12 +91,14 @@ export default function AiWelcome({ itemType, title }: AiWelcomeProps) {
       .filter(([, data]) => data.count > 0)
       .map(([name, data]) => {
         const average = parseFloat((data.value / data.count).toFixed(2));
-        perfInsightsForAI[name] = { type: data.type, value: average };
-        return {
-          name,
-          paps: data.type === 'grade' ? average : null,
-          custom: data.type === 'percentage' ? average : null,
-        };
+        const itemInfo = allItems.find(i => i.name === name);
+        if (itemInfo?.isPaps) {
+            perfInsightsForAI[name] = { type: 'percentage', value: average };
+            return { name, paps: average, custom: null };
+        } else {
+            perfInsightsForAI[name] = { type: 'percentage', value: average };
+            return { name, paps: null, custom: average };
+        }
       });
 
     return { chartData: finalChartData, performanceInsights: perfInsightsForAI, hasData: true };
@@ -127,7 +133,7 @@ export default function AiWelcome({ itemType, title }: AiWelcomeProps) {
     if (isOpen && !briefingData) {
         fetchBriefing();
     }
-  }, [isOpen]);
+  }, [isOpen, briefingData, fetchBriefing]);
 
 
   return (
@@ -139,7 +145,7 @@ export default function AiWelcome({ itemType, title }: AiWelcomeProps) {
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold font-headline">{school} AI {title}</DialogTitle>
           <DialogDescription>
-            {itemType === 'paps' ? 'PAPS' : '기타'} 종목의 평균 데이터를 기반으로 AI가 생성한 요약 및 조언입니다.
+            {itemType === 'paps' ? 'PAPS 종목의 평균 성취도를 100% 만점으로 환산하여 표시합니다.' : '기타 종목의 평균 목표 달성률을 표시합니다.'}
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto pr-2 space-y-6">
@@ -154,25 +160,25 @@ export default function AiWelcome({ itemType, title }: AiWelcomeProps) {
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <BarChart2 className="w-5 h-5 text-primary" />
-                        종목별 평균 등급 / 달성률
+                        종목별 평균 성취도 / 달성률
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={250}>
                       <BarChart data={chartData}>
                         <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                        <YAxis yAxisId="left" orientation="left" stroke="hsl(var(--chart-1))" domain={[1, 5]} reversed={true} ticks={[1,2,3,4,5]} tickCount={5} />
+                        <YAxis yAxisId="left" orientation="left" stroke="hsl(var(--chart-1))" domain={[0, 100]} unit="%" />
                         <YAxis yAxisId="right" orientation="right" stroke="hsl(var(--chart-2))" domain={[0, 100]} unit="%" />
                         <Tooltip
                             contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}
                             formatter={(value, name) => {
-                                if (name === 'paps') return [`${value} 등급`, '평균 등급'];
-                                if (name === 'custom') return [`${value} %`, '평균 달성률'];
+                                if (name === 'paps') return [`${value}%`, '평균 성취도'];
+                                if (name === 'custom') return [`${value}%`, '평균 달성률'];
                                 return [value, name];
                             }}
                         />
                         <Legend />
-                        <Bar yAxisId="left" dataKey="paps" name="PAPS 등급" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
+                        <Bar yAxisId="left" dataKey="paps" name="PAPS 성취도" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
                         <Bar yAxisId="right" dataKey="custom" name="목표 달성률" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
