@@ -13,19 +13,23 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
+const GradeDistributionSchema = z.record(z.string(), z.number().describe('The percentage of students for each grade (1-5).'));
+
+const PapsAnalysisSchema = z.object({
+  averageGrade: z.number().describe('The average PAPS grade for the group.'),
+  lowPerformingPercentage: z.number().describe('The percentage of students in grades 4 and 5.'),
+  gradeDistribution: GradeDistributionSchema.describe('The distribution of PAPS grades as percentages.'),
+});
+
 const TeacherDashboardBriefingInputSchema = z.object({
   school: z.string().describe('The school for which the briefing is generated.'),
-  performanceInsights: z
-    .record(z.object({
-        type: z.enum(['grade', 'percentage']),
-        value: z.number()
-    }))
-    .describe(
-      'A record of performance insights. Keys are measurement types. Values indicate average grade for PAPS items or average achievement percentage for non-PAPS items.'
-    ),
-   totalStudentCount: z.number().describe('The total number of students with records.'),
-   studentRankings: z.record(z.string()).describe('An object containing the rank of the student for each measurement type.'),
+  totalStudentCount: z.number().describe('The total number of students with records.'),
+  paps: z.object({
+      overall: PapsAnalysisSchema,
+      byGradeLevel: z.record(z.string(), PapsAnalysisSchema),
+  }).describe('A detailed analysis of PAPS performance, including overall and by-grade-level stats.'),
 });
+
 export type TeacherDashboardBriefingInput = z.infer<
   typeof TeacherDashboardBriefingInputSchema
 >;
@@ -52,18 +56,38 @@ const prompt = ai.definePrompt({
   name: 'teacherDashboardBriefingPrompt',
   input: {schema: TeacherDashboardBriefingInputSchema},
   output: {schema: TeacherDashboardBriefingOutputSchema},
-  prompt: `당신은 {{school}}의 체육 선생님을 위한 AI 조수입니다. 학생들의 평균 데이터를 분석하여 종합 브리핑과 수업 조언을 한국어로 제공해주세요.
+  prompt: `당신은 {{school}}의 체육 선생님을 위한 AI 조수입니다. 학생들의 PAPS(학생건강체력평가) 데이터를 분석하여 종합 브리핑과 수업 조언을 한국어로 제공해주세요.
 
-분석 데이터:
-- 전체 학생 평균 성취도: {{json performanceInsights}} (PAPS 종목은 평균 등급, 그 외는 평균 목표 달성률(%) 입니다. 등급은 1등급이 가장 높습니다.)
-- 기록이 있는 총 학생 수: {{totalStudentCount}}
-{{#if studentRankings}}- 조회 학생의 종목별 등수: {{json studentRankings}}{{/if}}
+## 분석 데이터:
+- 기록이 있는 총 학생 수: {{totalStudentCount}}명
+- 전체 학생 PAPS 분석:
+    - 평균 등급: {{paps.overall.averageGrade}}등급
+    - 4, 5등급 학생 비율: {{paps.overall.lowPerformingPercentage}}%
+    - 전체 등급 분포: {{json paps.overall.gradeDistribution}}
+- 학년별 PAPS 분석:
+    {{#each paps.byGradeLevel}}
+    - {{@key}}학년:
+        - 평균 등급: {{this.averageGrade}}등급
+        - 4, 5등급 학생 비율: {{this.lowPerformingPercentage}}%
+        - 등급 분포: {{json this.gradeDistribution}}
+    {{/each}}
 
-결과 형식:
-- 브리핑: 전체 학생들의 평균적인 강점과 약점을 요약합니다. {{#if studentRankings}}조회된 학생의 등수 정보를 포함하여 현재 위치를 알려주세요.{{/if}}
-- 조언: 분석 결과를 바탕으로 학생들의 성과를 향상시킬 수 있는 구체적이고 실행 가능한 수업 전략이나 활동을 제안합니다.
+## 평가 기준:
+- **우수한 편:** 평균 등급이 2.5 이하
+- **부족한 편:** 4~5등급 학생의 비중이 10% 이상
+- **보통:** 그 외의 경우
 
-결과는 반드시 한국어로 작성해주세요. 결과를 각 1-2문장으로 요약하여 간결하게 작성해주세요.
+## 결과 생성 가이드라인:
+1.  **브리핑:**
+    - 먼저, 전체 학생의 평균 등급과 4~5등급 비율을 바탕으로 '평가 기준'에 따라 '우수한 편', '부족한 편', '보통' 중 하나로 전반적인 수준을 평가해주세요.
+    - 그 다음, 학년별 분석 데이터를 참고하여 어떤 학년이 특히 우수하거나 부족한지 구체적으로 언급해주세요.
+    - 전체 등급 분포와 학년별 등급 분포를 인용하여 분석을 뒷받침하세요. (예: "전체적으로 1, 2등급 학생이 50%를 차지하여 우수한 편입니다.", "특히 5학년은 4, 5등급 학생 비율이 15%로 나타나 주의가 필요합니다.")
+2.  **조언:**
+    - '부족한 편'으로 평가된 경우, 해당 학년이나 전체 학생들을 위한 체력 증진 프로그램을 제안해주세요. (예: '왕복오래달리기'나 '윗몸 말아올리기' 같은 근지구력 및 심폐지구력 강화 운동 추천)
+    - '보통'인 경우, 현재 수준을 유지하며 특정 등급대(예: 3등급) 학생들을 상위 등급으로 끌어올릴 수 있는 격려 및 지도 방안을 제안해주세요.
+    - '우수한 편'인 경우, 학생들의 성과를 칭찬하고 현재의 높은 체력 수준을 유지하거나 심화할 수 있는 도전적인 활동(예: 새로운 스포츠 기술 배우기, 교내 리그)을 제안해주세요.
+
+결과는 반드시 한국어로 작성하고, 각 항목을 1-2문장의 간결하고 명확한 문장으로 요약해주세요.
 `,
 });
 
