@@ -158,7 +158,7 @@ export default function StudentLoginPage() {
               <FormField
                 control={studentForm.control}
                 name="name"
-                render={({ field }) autofocus => (
+                render={({ field }) => (
                   <FormItem>
                     <FormLabel>이름</FormLabel>
                     <FormControl>

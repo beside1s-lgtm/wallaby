@@ -9,10 +9,10 @@ export const initialStudents: Student[] = [
 ];
 
 export const initialItems: MeasurementItem[] = [
-    { id: '1', name: '50m 달리기', unit: '초', recordType: 'time' },
-    { id: '2', name: '윗몸 일으키기', unit: '회', recordType: 'count' },
-    { id: '3', name: '오래달리기', unit: '초', recordType: 'time' },
-    { id: '4', name: '제자리 멀리뛰기', unit: 'cm', recordType: 'distance' },
+    { id: '1', name: '50m 달리기', unit: '초', recordType: 'time', isPaps: true },
+    { id: '2', name: '윗몸 일으키기', unit: '회', recordType: 'count', isPaps: true },
+    { id: '3', name: '오래달리기', unit: '초', recordType: 'time', isPaps: true },
+    { id: '4', name: '제자리 멀리뛰기', unit: 'cm', recordType: 'distance', isPaps: true },
 ];
 
 export const initialRecords: MeasurementRecord[] = [

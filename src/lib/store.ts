@@ -40,7 +40,6 @@ const setLocalStorage = <T>(key: string, value: T) => {
 };
 
 // This function now only seeds data if the collections are empty.
-// It will be expanded later.
 export const initializeData = async (school: string) => {
   const studentsRef = collection(db, 'schools', school, 'students');
   const snapshot = await getDocs(query(studentsRef));
@@ -48,21 +47,21 @@ export const initializeData = async (school: string) => {
     const batch = writeBatch(db);
     const schoolStudents = initialStudents.filter(s => s.school === school);
     schoolStudents.forEach(student => {
-      const studentRef = doc(studentsRef, student.id);
-      batch.set(studentRef, student);
+      const studentDocRef = doc(db, 'schools', school, 'students', student.id);
+      batch.set(studentDocRef, student);
     });
     
     const itemsRef = collection(db, 'schools', school, 'items');
     initialItems.forEach(item => {
-        const itemRef = doc(itemsRef, item.id);
-        batch.set(itemRef, item);
+        const itemDocRef = doc(db, 'schools', school, 'items', item.id);
+        batch.set(itemDocRef, item);
     });
 
     const recordsRef = collection(db, 'schools', school, 'records');
     const schoolRecords = initialRecords.filter(r => r.school === school);
     schoolRecords.forEach(record => {
-        const recordRef = doc(recordsRef); // Firestore will auto-generate ID
-        batch.set(recordRef, record);
+        const recordDocRef = doc(recordsRef); // Firestore will auto-generate ID
+        batch.set(recordDocRef, record);
     });
 
     await batch.commit();

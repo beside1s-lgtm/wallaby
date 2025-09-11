@@ -58,7 +58,7 @@ export default function LoginPage() {
       toast({
         variant: 'destructive',
         title: '로그인 실패',
-        description: '데이터베이스 초기화 중 오류가 발생했습니다. 다시 시도해주세요.',
+        description: '데이터베이스 초기화 또는 연결 중 오류가 발생했습니다. 다시 시도해주세요.',
       });
     } finally {
       setIsSubmitting(false);
