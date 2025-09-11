@@ -96,20 +96,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
-    const previousRole = role;
+    const previousRole = localStorage.getItem('userRole') as Role;
+
     localStorage.removeItem('userRole');
     localStorage.removeItem('loggedInStudent');
     localStorage.removeItem('userSchool');
     sessionStorage.removeItem('welcomeShown');
+    
     setUser(null);
     setRole(null);
     setSchool(null);
+
     if (previousRole === 'student') {
         router.push('/student-login');
     } else {
         router.push('/');
     }
-  }, [router, role]);
+  }, [router]);
 
   const value = {
     user,
