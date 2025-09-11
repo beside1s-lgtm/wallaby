@@ -37,7 +37,7 @@ import { analyzeStudentPerformance } from '@/ai/flows/teacher-ai-assistant';
 import { Button } from '@/components/ui/button';
 import { Loader2, Search, Wand2, UserPlus, FileUp, FileDown, X as XIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getPapsGrade } from '@/lib/paps';
+import { getPapsGrade, getCustomItemGrade } from '@/lib/paps';
 import { parseCsv, exportToZip } from '@/lib/utils';
 import { addOrUpdateRecords } from '@/lib/store';
 
@@ -46,6 +46,12 @@ type AiAnalysis = {
   weaknesses: string;
   suggestedTrainingMethods: string;
 };
+
+const gradeToPercentage = (grade: number | null): number => {
+    if (grade === null) return 0;
+    return (5 - grade + 1) * 20;
+};
+
 
 export default function Analytics() {
   const { school } = useAuth();
@@ -89,7 +95,7 @@ export default function Analytics() {
   useEffect(() => {
     if (school) {
         const items = getItems(school);
-        const papsItems = items.filter(i => getPapsGrade(i.name, '남', 0) !== null);
+        const papsItems = items.filter(i => i.isPaps);
         setAllItems(papsItems);
         setAllRecords(getRecords(school));
         if (papsItems.length > 0) {
@@ -282,7 +288,9 @@ export default function Analytics() {
     }
   };
   
-  const calculateAverageGrades = (studentList: Student[]) => {
+  const calculateAverageGrades = (studentList: Student[]): Record<string, number> => {
+      if (studentList.length === 0) return {};
+      
       const averageGrades: Record<string, number> = {};
       const studentIds = new Set(studentList.map(s => s.id));
       const relevantRecords = allRecords.filter(r => studentIds.has(r.studentId));
@@ -290,22 +298,22 @@ export default function Analytics() {
       allItems.forEach(item => {
         const itemRecords = relevantRecords.filter(r => r.item === item.name);
         if (itemRecords.length > 0) {
-          const totalGrades = itemRecords.reduce((sum, record) => {
+          let totalPercentage = 0;
+          let validRecordsCount = 0;
+          
+          itemRecords.forEach(record => {
             const student = studentList.find(s => s.id === record.studentId);
             if (student) {
               const grade = getPapsGrade(item.name, student.gender, record.value);
-              if (grade !== null) return sum + grade;
+              if (grade !== null) {
+                totalPercentage += gradeToPercentage(grade);
+                validRecordsCount++;
+              }
             }
-            return sum;
-          }, 0);
-          
-          const validRecordsCount = itemRecords.filter(r => {
-              const student = studentList.find(s => s.id === r.studentId);
-              return student && getPapsGrade(item.name, student.gender, r.value) !== null;
-          }).length;
+          });
 
           if (validRecordsCount > 0) {
-              averageGrades[item.name] = parseFloat((totalGrades / validRecordsCount).toFixed(2));
+              averageGrades[item.name] = parseFloat((totalPercentage / validRecordsCount).toFixed(2));
           }
         }
       });
@@ -329,7 +337,7 @@ export default function Analytics() {
           if (recordsForItem.length > 0) {
             const grade = getPapsGrade(item.name, selectedStudent.gender, recordsForItem[0].value);
             if (grade !== null) {
-              comparisonTargetData[item.name] = grade;
+              comparisonTargetData[item.name] = gradeToPercentage(grade);
             }
           }
         });
@@ -354,14 +362,19 @@ export default function Analytics() {
   const progressData = useMemo(() => {
     if (!progressChartItem || !selectedStudent) return [];
     const allItemsList = getItems(school);
+    const itemInfo = allItemsList.find(i => i.name === progressChartItem);
+
+    if (!itemInfo) return [];
+
     return studentRecords
       .filter(r => r.item === progressChartItem)
       .map(r => {
-          const itemInfo = allItemsList.find(i => i.name === r.item);
-          if (!itemInfo) return {date: r.date, value: null};
-          const grade = itemInfo.isPaps 
-                ? getPapsGrade(r.item, selectedStudent.gender, r.value)
-                : getPapsGrade(r.item, selectedStudent.gender, r.value);
+          let grade: number | null = null;
+          if (itemInfo.isPaps) {
+            grade = getPapsGrade(r.item, selectedStudent.gender, r.value)
+          } else {
+            grade = getCustomItemGrade(itemInfo, r.value);
+          }
           return { date: r.date, value: grade }
       })
       .filter(r => r.value !== null)
@@ -528,16 +541,19 @@ export default function Analytics() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
               <Card>
                 <CardHeader>
-                  <CardTitle>PAPS 등급 비교 ({comparisonData.targetLabel} vs 전체 평균)</CardTitle>
-                  <CardDescription>1등급이 가장 높음</CardDescription>
+                  <CardTitle>PAPS 성취도 비교 ({comparisonData.targetLabel} vs 전체 평균)</CardTitle>
+                  <CardDescription>1등급(100%)에 가까울수록 성취도가 높습니다.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ChartContainer config={comparisonChartConfig} className="h-[300px] w-full">
                     <BarChart data={comparisonData.data}>
                       <CartesianGrid vertical={false} />
                       <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} angle={-45} textAnchor="end" height={80} interval={0} />
-                      <YAxis reversed={true} domain={[1, 5]} ticks={[1,2,3,4,5]} tickCount={5} />
-                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <YAxis domain={[0, 100]} unit="%" />
+                      <ChartTooltip 
+                        content={<ChartTooltipContent />} 
+                        formatter={(value) => `${value}%`}
+                      />
                       <Legend />
                       <Bar dataKey="target" name={comparisonChartConfig.target.label} fill="var(--color-target)" radius={4} />
                       <Bar dataKey="average" name={comparisonChartConfig.average.label} fill="var(--color-average)" radius={4} />
@@ -560,14 +576,14 @@ export default function Analytics() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <CardDescription>1등급이 가장 높음</CardDescription>
+                    <CardDescription>1등급이 가장 높은 등급입니다.</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <ChartContainer config={{}} className="h-[300px] w-full">
                       <LineChart data={progressData}>
                         <CartesianGrid vertical={false} />
                         <XAxis dataKey="date" />
-                        <YAxis reversed={true} domain={[1, 5]} ticks={[1,2,3,4,5]} tickCount={5} />
+                        <YAxis domain={[1, 5]} ticks={[1,2,3,4,5]} tickCount={5} reversed={true} />
                         <Tooltip />
                         <Legend />
                         <Line type="monotone" dataKey="value" name={progressChartItem} stroke="hsl(var(--primary))" strokeWidth={2} />
