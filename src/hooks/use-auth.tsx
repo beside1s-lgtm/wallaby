@@ -7,6 +7,7 @@ import {
   useEffect,
   ReactNode,
   useCallback,
+  useRef,
 } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Student } from '@/lib/types';
@@ -33,6 +34,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
+  const previousPathnameRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    previousPathnameRef.current = pathname;
+  }, [pathname]);
 
   useEffect(() => {
     try {
@@ -72,17 +78,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (isLoading) return;
 
     const isAuthPage = pathname === '/' || pathname === '/student-login';
-    if (!role && !isAuthPage) {
-      router.push('/');
+    
+    // User is logged out
+    if (!role) {
+        // And not on an auth page, redirect to appropriate login
+        if (!isAuthPage) {
+            if (previousPathnameRef.current?.startsWith('/student')) {
+                router.replace('/student-login');
+            } else {
+                router.replace('/');
+            }
+        }
+    } 
+    // User is logged in
+    else {
+        if (role === 'teacher' && !pathname.startsWith('/teacher')) {
+            router.replace('/teacher/dashboard');
+        }
+        if (role === 'student' && !pathname.startsWith('/student')) {
+            router.replace('/student/dashboard');
+        }
     }
-    if (role === 'teacher' && !pathname.startsWith('/teacher')) {
-        router.push('/teacher/dashboard');
-    }
-    if (role === 'student' && !pathname.startsWith('/student')) {
-        router.push('/student/dashboard');
-    }
-
   }, [role, pathname, router, isLoading]);
+
 
   const login = useCallback((role: 'teacher' | 'student', userData: User, school: string) => {
     localStorage.setItem('userRole', role);
@@ -90,29 +108,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (role === 'student') {
       localStorage.setItem('loggedInStudent', JSON.stringify(userData));
     }
-    setUser(userData);
     setRole(role);
     setSchool(school);
+    setUser(userData);
   }, []);
 
   const logout = useCallback(() => {
-    const previousRole = localStorage.getItem('userRole') as Role;
-
     localStorage.removeItem('userRole');
     localStorage.removeItem('loggedInStudent');
     localStorage.removeItem('userSchool');
     sessionStorage.removeItem('welcomeShown');
     
-    setUser(null);
     setRole(null);
     setSchool(null);
-
-    if (previousRole === 'student') {
-        router.push('/student-login');
-    } else {
-        router.push('/');
-    }
-  }, [router]);
+    setUser(null);
+  }, []);
 
   const value = {
     user,
