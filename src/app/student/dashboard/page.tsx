@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { getItems, addOrUpdateRecord, getRecordsByStudent, getStudentById, calculateRanks } from '@/lib/store';
+import { getItems, addOrUpdateRecord, getRecordsByStudent, getStudentById, calculateRanks, deleteRecord } from '@/lib/store';
 import {
   Card,
   CardContent,
@@ -21,6 +21,25 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
@@ -29,7 +48,7 @@ import {
 } from '@/components/ui/chart';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { getStudentFeedback } from '@/ai/flows/student-ai-feedback';
-import { Loader2, Wand2 } from 'lucide-react';
+import { Loader2, Wand2, Trash2 } from 'lucide-react';
 import type { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
 import { getPapsGrade, getCustomItemGrade } from '@/lib/paps';
 import { getStudents, getRecords } from '@/lib/store';
@@ -109,6 +128,13 @@ export default function StudentDashboardPage() {
     return `결과 (${selectedItem.unit})`;
   }, [selectedItem]);
 
+  const fetchRecords = async () => {
+      if (!school || !student) return;
+      const updatedRecords = await getRecordsByStudent(school, student.id);
+      const updatedAllRecords = await getRecords(school);
+      setRecords(updatedRecords);
+      setAllRecords(updatedAllRecords);
+  }
 
   const handleSubmit = async () => {
     if (!selectedItemName || !value || !school || !student) {
@@ -140,10 +166,7 @@ export default function StudentDashboardPage() {
             value: numericValue,
         });
 
-        const updatedRecords = await getRecordsByStudent(school, student.id);
-        const updatedAllRecords = await getRecords(school);
-        setRecords(updatedRecords);
-        setAllRecords(updatedAllRecords);
+        await fetchRecords();
         setAiFeedback('');
         
         toast({
@@ -158,6 +181,21 @@ export default function StudentDashboardPage() {
         toast({ variant: 'destructive', title: '저장 실패', description: '기록 저장 중 오류가 발생했습니다.'})
     } finally {
         setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteRecord = async (recordId: string) => {
+    if (!school) return;
+    try {
+        await deleteRecord(school, recordId);
+        await fetchRecords();
+        toast({
+            title: '기록 삭제 완료',
+            description: '선택한 기록이 삭제되었습니다.',
+        });
+    } catch (error) {
+        console.error("Failed to delete record:", error);
+        toast({ variant: 'destructive', title: '삭제 실패', description: '기록 삭제 중 오류가 발생했습니다.'})
     }
   };
   
@@ -281,6 +319,11 @@ export default function StudentDashboardPage() {
     return { chartData: data, chartConfig: config, availableItems: itemsWithGrade };
   }, [records, chartFilter, chartItemFilter, measurementItems, fullStudent, school, allRecords, allStudents]);
 
+  const sortedRecords = useMemo(() => {
+    return [...records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [records]);
+
+
   if (!fullStudent || !school) {
     return (
          <div className="flex items-center justify-center h-screen">
@@ -401,6 +444,67 @@ export default function StudentDashboardPage() {
           </ChartContainer>
         </CardContent>
       </Card>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>전체 측정 기록</CardTitle>
+          <CardDescription>지금까지의 모든 측정 기록입니다. 잘못 입력된 기록은 삭제할 수 있습니다.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>날짜</TableHead>
+                <TableHead>종목</TableHead>
+                <TableHead>기록</TableHead>
+                <TableHead className="text-right">작업</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sortedRecords.length > 0 ? (
+                sortedRecords.map((record) => {
+                  const item = measurementItems.find(i => i.name === record.item);
+                  return (
+                    <TableRow key={record.id}>
+                      <TableCell>{record.date}</TableCell>
+                      <TableCell>{record.item}</TableCell>
+                      <TableCell>{record.value}{item?.unit}</TableCell>
+                      <TableCell className="text-right">
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                이 작업은 되돌릴 수 없습니다. 이 기록이 영구적으로 삭제됩니다.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>취소</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteRecord(record.id)}>삭제</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4} className="h-24 text-center">
+                    측정된 기록이 없습니다.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
     </div>
   );
 }

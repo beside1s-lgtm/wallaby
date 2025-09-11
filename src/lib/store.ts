@@ -194,6 +194,12 @@ export const addOrUpdateRecord = async (record: Omit<MeasurementRecord, 'id' | '
   });
 };
 
+export const deleteRecord = async (school: string, recordId: string) => {
+  const recordDocRef = doc(db, 'schools', school, 'records', recordId);
+  await deleteDoc(recordDocRef);
+};
+
+
 export const addOrUpdateRecords = async (school: string, newRecords: (Omit<MeasurementRecord, 'id'> & { studentId: string })[]) => {
   const batch = writeBatch(db);
 
