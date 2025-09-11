@@ -50,7 +50,11 @@ export const initializeData = (school: string) => {
 };
 
 // Students
-export const getStudents = (school: string): Student[] => getLocalStorage(getKey(school, 'students'), []);
+export const getStudents = (school: string): Student[] => {
+    initializeData(school);
+    return getLocalStorage(getKey(school, 'students'), []);
+}
+
 export const getStudentsBySchool = (school: string): Student[] => {
     initializeData(school);
     return getStudents(school);
@@ -126,6 +130,7 @@ export const getRecords = (school: string): MeasurementRecord[] => {
     return getLocalStorage(getKey(school, 'records'), []);
 }
 export const setRecords = (school: string, records: MeasurementRecord[]) => setLocalStorage(getKey(school, 'records'), records);
+
 export const addOrUpdateRecord = (record: Omit<MeasurementRecord, 'id' | 'date'> & { date?: string }) => {
   const records = getRecords(record.school);
   const today = record.date || format(new Date(), 'yyyy-MM-dd');
@@ -141,6 +146,28 @@ export const addOrUpdateRecord = (record: Omit<MeasurementRecord, 'id' | 'date'>
     return newRecord;
   }
 };
+
+export const addOrUpdateRecords = (school: string, newRecords: (Omit<MeasurementRecord, 'id'> & { studentId: string })[]) => {
+  const allRecords = getRecords(school);
+  
+  newRecords.forEach(record => {
+      const recordDate = record.date || format(new Date(), 'yyyy-MM-dd');
+      const existingRecordIndex = allRecords.findIndex(r => 
+          r.studentId === record.studentId && 
+          r.item === record.item && 
+          r.date === recordDate
+      );
+
+      if (existingRecordIndex > -1) {
+          allRecords[existingRecordIndex].value = record.value;
+      } else {
+          allRecords.push({ ...record, id: uuidv4(), date: recordDate });
+      }
+  });
+
+  setRecords(school, allRecords);
+};
+
 export const getRecordsByStudent = (school: string, studentId: string): MeasurementRecord[] => {
   const records = getRecords(school);
   return records.filter(r => r.studentId === studentId);

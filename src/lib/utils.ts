@@ -5,29 +5,34 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+const universalKeyMap: Record<string, string> = {
+    // Student
+    '학교': 'school',
+    '학년': 'grade',
+    '반': 'classNum',
+    '번호': 'studentNum',
+    '이름': 'name',
+    '성별': 'gender',
+    // Record
+    '측정종목': 'item',
+    '기록': 'value',
+    '측정일': 'date'
+};
+
 export function parseCsv<T>(csvText: string): T[] {
-  const lines = csvText.trim().split(/\r\n|\n/); // Handles both windows and unix line endings
+  const lines = csvText.trim().split(/\r\n|\n/);
   if (lines.length < 2) return [];
 
   const header = lines[0].split(',').map(h => h.trim());
   
-  const keyMap: Record<string, string> = {
-      '학교': 'school',
-      '학년': 'grade',
-      '반': 'classNum',
-      '번호': 'studentNum',
-      '이름': 'name',
-      '성별': 'gender'
-  };
-
   return lines.slice(1).map(line => {
     const values = line.split(',').map(v => v.trim());
     return header.reduce((obj, key, index) => {
-      const newKey = keyMap[key] || key;
+      const newKey = universalKeyMap[key] || key;
       (obj as any)[newKey] = values[index];
       return obj;
     }, {} as T);
-  }).filter(obj => (obj as any).name); // Ensure there's at least a name
+  }).filter(obj => Object.values(obj as any).some(val => val !== '' && val !== null && val !== undefined));
 }
 
 export function exportToCsv(filename: string, rows: object[]) {

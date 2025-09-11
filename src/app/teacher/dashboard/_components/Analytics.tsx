@@ -1,7 +1,7 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { getStudents, getRecords, getItems } from '@/lib/store';
+import { getStudents, getRecords, getItems, addOrUpdateRecord } from '@/lib/store';
 import { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
 import { Input } from '@/components/ui/input';
 import {
@@ -27,9 +27,11 @@ import {
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { analyzeStudentPerformance } from '@/ai/flows/teacher-ai-assistant';
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, Wand2 } from 'lucide-react';
+import { Loader2, Search, Wand2, UserPlus, FileUp, FileDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getPapsGrade } from '@/lib/paps';
+import { parseCsv, exportToCsv } from '@/lib/utils';
+import { addOrUpdateRecords } from '@/lib/store';
 
 type AiAnalysis = {
   strengths: string;
@@ -50,6 +52,11 @@ export default function Analytics() {
   const [aiAnalysis, setAiAnalysis] = useState<AiAnalysis | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
 
+  // States for adding a new record
+  const [selectedItemName, setSelectedItemName] = useState('');
+  const [recordValue, setRecordValue] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const students = useMemo(() => school ? getStudents(school) : [], [school]);
 
   useEffect(() => {
@@ -63,6 +70,23 @@ export default function Analytics() {
         }
     }
   }, [school]);
+
+  const selectedItem = useMemo(() => {
+      return allItems.find(item => item.name === selectedItemName) ?? getItems(school).find(item => item.name === selectedItemName);
+  }, [selectedItemName, allItems, school]);
+
+  const inputPlaceholder = useMemo(() => {
+    if (!selectedItem) return "측정 결과 (숫자만 입력)";
+    return `결과 (${selectedItem.unit})`;
+  }, [selectedItem]);
+
+  const refreshStudentRecords = (studentId: string) => {
+    if(!school) return;
+    const allRecs = getRecords(school);
+    setAllRecords(allRecs);
+    const studentRecs = allRecs.filter(r => r.studentId === studentId);
+    setStudentRecords(studentRecs);
+  };
 
   const handleSearch = () => {
     if (!school) return;
@@ -83,12 +107,110 @@ export default function Analytics() {
     }
   };
 
+  const handleAddRecord = () => {
+    if (!selectedItemName || !recordValue || !school || !selectedStudent) {
+      toast({
+        variant: 'destructive',
+        title: '입력 오류',
+        description: '측정 종목과 결과를 모두 입력해주세요.',
+      });
+      return;
+    }
+    
+    setIsSubmitting(true);
+    const numericValue = parseFloat(recordValue);
+    if (isNaN(numericValue)) {
+      toast({
+        variant: 'destructive',
+        title: '입력 오류',
+        description: '결과는 숫자로 입력해주세요.',
+      });
+      setIsSubmitting(false);
+      return;
+    }
+    
+    addOrUpdateRecord({
+      studentId: selectedStudent.id,
+      school: school,
+      item: selectedItemName,
+      value: numericValue,
+    });
+
+    refreshStudentRecords(selectedStudent.id);
+    
+    toast({
+      title: '기록 저장 완료',
+      description: `${selectedStudent.name} 학생의 ${selectedItemName} 기록이 ${numericValue}${selectedItem?.unit}으로 저장/업데이트되었습니다.`,
+    });
+    
+    setRecordValue('');
+    setSelectedItemName('');
+    setIsSubmitting(false);
+  };
+
+  const handleCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && school) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        try {
+          const parsedRecords = parseCsv<any>(text);
+          const allStudents = getStudents(school);
+          const studentMapByName = new Map(allStudents.map(s => [s.name, s]));
+          
+          const recordsToAdd: (Omit<MeasurementRecord, 'id'> & { studentId: string })[] = [];
+
+          parsedRecords.forEach(rec => {
+            const student = studentMapByName.get(rec.name || rec.이름);
+            if (student && (rec.item || rec.측정종목) && (rec.value || rec.기록)) {
+              recordsToAdd.push({
+                studentId: student.id,
+                school: school,
+                item: rec.item || rec.측정종목,
+                value: parseFloat(rec.value || rec.기록),
+                date: rec.date || rec.측정일,
+              });
+            }
+          });
+
+          addOrUpdateRecords(school, recordsToAdd);
+          
+          toast({ title: '일괄 등록 완료', description: `${recordsToAdd.length}개의 기록을 등록/업데이트했습니다.` });
+          
+          if(selectedStudent) {
+            refreshStudentRecords(selectedStudent.id);
+          } else {
+             setAllRecords(getRecords(school));
+          }
+
+        } catch (error) {
+            console.error('CSV 처리 오류', error);
+            toast({ variant: 'destructive', title: 'CSV 처리 오류', description: '파일 형식이 올바르지 않거나 데이터가 유효하지 않습니다.' });
+        }
+      };
+      reader.readAsText(file, 'UTF-8');
+    }
+    event.target.value = ''; // Reset file input
+  };
+  
+  const handleDownloadTemplate = () => {
+    if (!school || !selectedStudent) return;
+    const templateData = [{
+      이름: selectedStudent.name,
+      측정종목: '50m 달리기',
+      기록: 9.5,
+      측정일: '2024-01-01'
+    }];
+    exportToCsv(`${school}_기록_등록_템플릿.csv`, templateData);
+  }
+
   const handleAiAnalysis = async () => {
     if (!selectedStudent || studentRecords.length === 0 || !school) return;
     setIsAiLoading(true);
     try {
       const performanceData = JSON.stringify(studentRecords.map(r => {
-          const itemInfo = allItems.find(item => item.name === r.item);
+          const itemInfo = allItems.find(item => item.name === r.item) ?? getItems(school).find(item => item.name === r.item);
           return { item: r.item, value: r.value, date: r.date, recordType: itemInfo?.recordType || 'count' }
         }));
       const result = await analyzeStudentPerformance({
@@ -140,7 +262,14 @@ export default function Analytics() {
           }
           return sum;
         }, 0);
-        averageGrades[item.name] = parseFloat((totalGrades / itemRecords.length).toFixed(2));
+        const validRecordsCount = itemRecords.filter(r => {
+            const student = students.find(s => s.id === r.studentId);
+            return student && getPapsGrade(item.name, student.gender, r.value) !== null;
+        }).length;
+
+        if (validRecordsCount > 0) {
+            averageGrades[item.name] = parseFloat((totalGrades / validRecordsCount).toFixed(2));
+        }
       }
     });
 
@@ -154,15 +283,20 @@ export default function Analytics() {
   
   const progressData = useMemo(() => {
     if (!progressChartItem || !selectedStudent) return [];
+    const allItemsList = getItems(school);
     return studentRecords
       .filter(r => r.item === progressChartItem)
-      .map(r => ({
-          date: r.date,
-          value: getPapsGrade(r.item, selectedStudent.gender, r.value)
-      }))
+      .map(r => {
+          const itemInfo = allItemsList.find(i => i.name === r.item);
+          if (!itemInfo) return {date: r.date, value: null};
+          const grade = itemInfo.isPaps 
+                ? getPapsGrade(r.item, selectedStudent.gender, r.value)
+                : getPapsGrade(r.item, selectedStudent.gender, r.value);
+          return { date: r.date, value: grade }
+      })
       .filter(r => r.value !== null)
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [studentRecords, progressChartItem, selectedStudent]);
+  }, [studentRecords, progressChartItem, selectedStudent, school]);
   
   const comparisonChartConfig = {
       student: { label: selectedStudent?.name || '학생', color: 'hsl(var(--chart-1))' },
@@ -175,7 +309,7 @@ export default function Analytics() {
     <Card>
       <CardHeader>
         <CardTitle>학생 기록 조회 및 분석</CardTitle>
-        <CardDescription>학생 이름을 검색하여 상세 기록과 AI 분석을 확인하세요.</CardDescription>
+        <CardDescription>학생 이름을 검색하여 상세 기록과 AI 분석을 확인하고, 새로운 기록을 추가할 수 있습니다.</CardDescription>
         <div className="flex w-full max-w-sm items-center space-x-2 pt-4">
           <Input 
             type="text" 
@@ -192,6 +326,48 @@ export default function Analytics() {
         {selectedStudent && (
           <div>
             <h2 className="text-2xl font-bold mb-6">{selectedStudent.name} ({selectedStudent.grade}-{selectedStudent.classNum}) 학생 분석</h2>
+            
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle>기록 추가</CardTitle>
+                 <CardDescription>
+                  선택된 학생의 측정 기록을 추가합니다. CSV 일괄 등록도 가능합니다.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Select onValueChange={setSelectedItemName} value={selectedItemName}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="측정 종목 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getItems(school).map(item => (
+                          <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      placeholder={inputPlaceholder}
+                      value={recordValue}
+                      onChange={e => setRecordValue(e.target.value)}
+                      type="number"
+                    />
+                 </div>
+              </CardContent>
+              <CardFooter className="flex-wrap gap-2">
+                <Button onClick={handleAddRecord} disabled={isSubmitting}>
+                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  개별 기록 저장
+                </Button>
+                <Button variant="outline" onClick={() => document.getElementById('record-csv-upload')?.click()}>
+                    <FileUp className="mr-2 h-4 w-4" />
+                    CSV 일괄 등록
+                </Button>
+                <input type="file" id="record-csv-upload" accept=".csv" onChange={handleCsvUpload} style={{ display: 'none' }} />
+                <Button variant="link" onClick={handleDownloadTemplate}>템플릿 다운로드</Button>
+              </CardFooter>
+            </Card>
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
               <Card>
                 <CardHeader>
