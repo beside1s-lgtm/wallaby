@@ -1,7 +1,6 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { getRecords, getStudents, getItems } from '@/lib/store';
 import { getTeacherDashboardBriefing } from '@/ai/flows/teacher-ai-dashboard';
 import {
   Dialog,
@@ -23,7 +22,8 @@ import {
   Legend
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { getPapsGrade, papsStandards } from '@/lib/paps';
+import { getPapsGrade } from '@/lib/paps';
+import type { Student, MeasurementItem, MeasurementRecord } from '@/lib/types';
 
 type BriefingData = {
   briefing: string;
@@ -33,13 +33,18 @@ type BriefingData = {
 type AiWelcomeProps = {
     itemType: 'paps' | 'custom';
     title: string;
+    students: Student[];
+    items: MeasurementItem[];
+    records: MeasurementRecord[];
 }
 
 const gradeToPercentage = (grade: number) => {
+    // 1등급: 100%, 2등급: 75%, 3등급: 50%, 4등급: 25%, 5등급: 0%
+    if (grade >= 5) return 0;
     return (5 - grade) * 25;
 }
 
-export default function AiWelcome({ itemType, title }: AiWelcomeProps) {
+export default function AiWelcome({ itemType, title, students, items, records }: AiWelcomeProps) {
   const { school } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -48,23 +53,20 @@ export default function AiWelcome({ itemType, title }: AiWelcomeProps) {
   const { chartData, performanceInsights, hasData } = useMemo(() => {
     if (!school) return { chartData: [], performanceInsights: {}, hasData: false };
 
-    const allRecords = getRecords(school);
-    const allStudents = getStudents(school);
-    const allItems = getItems(school).filter(item => itemType === 'paps' ? item.isPaps : !item.isPaps);
-    
-    const records = allRecords.filter(record => allItems.some(item => item.name === record.item));
+    const filteredItems = items.filter(item => itemType === 'paps' ? item.isPaps : !item.isPaps);
+    const filteredRecords = records.filter(record => filteredItems.some(item => item.name === record.item));
 
-    if (records.length === 0 || allItems.length === 0) {
+    if (filteredRecords.length === 0 || filteredItems.length === 0 || students.length === 0) {
       return { chartData: [], performanceInsights: {}, hasData: false };
     }
 
-    const studentMap = new Map(allStudents.map(s => [s.id, s]));
+    const studentMap = new Map(students.map(s => [s.id, s]));
 
     const insights: Record<string, { type: 'grade' | 'percentage'; value: number, count: number }> = {};
     const perfInsightsForAI: Record<string, { type: 'grade' | 'percentage'; value: number }> = {};
 
-    for (const record of records) {
-      const itemInfo = allItems.find(i => i.name === record.item);
+    for (const record of filteredRecords) {
+      const itemInfo = filteredItems.find(i => i.name === record.item);
       const student = studentMap.get(record.studentId);
       if (!itemInfo || !student) continue;
 
@@ -91,7 +93,7 @@ export default function AiWelcome({ itemType, title }: AiWelcomeProps) {
       .filter(([, data]) => data.count > 0)
       .map(([name, data]) => {
         const average = parseFloat((data.value / data.count).toFixed(2));
-        const itemInfo = allItems.find(i => i.name === name);
+        const itemInfo = filteredItems.find(i => i.name === name);
         if (itemInfo?.isPaps) {
             perfInsightsForAI[name] = { type: 'percentage', value: average };
             return { name, paps: average, custom: null };
@@ -101,20 +103,18 @@ export default function AiWelcome({ itemType, title }: AiWelcomeProps) {
         }
       });
 
-    return { chartData: finalChartData, performanceInsights: perfInsightsForAI, hasData: true };
-  }, [school, itemType]);
+    return { chartData: finalChartData, performanceInsights: perfInsightsForAI, hasData: finalChartData.length > 0 };
+  }, [school, itemType, students, items, records]);
 
   const fetchBriefing = async () => {
     if (!school || !hasData) return;
     
     setIsLoading(true);
     try {
-      const allStudents = getStudents(school);
-      
       const result = await getTeacherDashboardBriefing({
         school,
         performanceInsights: performanceInsights,
-        totalStudentCount: allStudents.length,
+        totalStudentCount: students.length,
         studentRankings: {},
       });
       setBriefingData(result);
@@ -133,7 +133,7 @@ export default function AiWelcome({ itemType, title }: AiWelcomeProps) {
     if (isOpen && !briefingData) {
         fetchBriefing();
     }
-  }, [isOpen, briefingData, fetchBriefing]);
+  }, [isOpen, briefingData]);
 
 
   return (
@@ -168,7 +168,7 @@ export default function AiWelcome({ itemType, title }: AiWelcomeProps) {
                       <BarChart data={chartData}>
                         <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
                         <YAxis yAxisId="left" orientation="left" stroke="hsl(var(--chart-1))" domain={[0, 100]} unit="%" />
-                        <YAxis yAxisId="right" orientation="right" stroke="hsl(var(--chart-2))" domain={[0, 100]} unit="%" />
+                        <YAxis yAxisId="right" orientation="right" stroke="hsl(var(--chart-2))" domain={[0, 100]} unit="%" hide={itemType === 'paps'} />
                         <Tooltip
                             contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}
                             formatter={(value, name) => {
@@ -178,8 +178,8 @@ export default function AiWelcome({ itemType, title }: AiWelcomeProps) {
                             }}
                         />
                         <Legend />
-                        <Bar yAxisId="left" dataKey="paps" name="PAPS 성취도" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
-                        <Bar yAxisId="right" dataKey="custom" name="목표 달성률" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
+                        {itemType === 'paps' && <Bar yAxisId="left" dataKey="paps" name="PAPS 성취도" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />}
+                        {itemType === 'custom' && <Bar yAxisId="right" dataKey="custom" name="목표 달성률" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />}
                       </BarChart>
                     </ResponsiveContainer>
                   </CardContent>

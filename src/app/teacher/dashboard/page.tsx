@@ -1,3 +1,10 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/use-auth';
+import { getStudents, getItems, getRecords } from '@/lib/store';
+import type { Student, MeasurementItem, MeasurementRecord } from '@/lib/types';
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import StudentManagement from './_components/StudentManagement';
 import MeasurementManagement from './_components/MeasurementManagement';
@@ -7,9 +14,66 @@ import AiWelcome from './_components/AiWelcome';
 import { Users, ClipboardList, BarChart3, Bot, Trophy } from 'lucide-react';
 import { DashboardHeaderContents } from '@/components/DashboardHeader';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function TeacherDashboardPage() {
+  const { school } = useAuth();
+  const [students, setStudents] = useState<Student[]>([]);
+  const [items, setItems] = useState<MeasurementItem[]>([]);
+  const [records, setRecords] = useState<MeasurementRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      if (!school) return;
+      setIsLoading(true);
+      try {
+        const [studentData, itemData, recordData] = await Promise.all([
+          getStudents(school),
+          getItems(school),
+          getRecords(school),
+        ]);
+        setStudents(studentData);
+        setItems(itemData);
+        setRecords(recordData);
+      } catch (error) {
+        console.error("Failed to load dashboard data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, [school]);
+
+  const forceUpdate = async () => {
+     if (!school) return;
+     const [studentData, itemData, recordData] = await Promise.all([
+        getStudents(school),
+        getItems(school),
+        getRecords(school),
+    ]);
+    setStudents(studentData);
+    setItems(itemData);
+    setRecords(recordData);
+  }
+
+  if (isLoading) {
+    return (
+       <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6">
+        <DashboardHeaderContents />
+        <Skeleton className="h-48 w-full" />
+        <div className="flex space-x-1">
+            <Skeleton className="h-10 flex-1" />
+            <Skeleton className="h-10 flex-1" />
+            <Skeleton className="h-10 flex-1" />
+            <Skeleton className="h-10 flex-1" />
+        </div>
+        <Skeleton className="h-96 w-full" />
+       </div>
+    )
+  }
+
+
   return (
     <>
       <div className="container mx-auto p-4 md:p-6 lg:p-8">
@@ -24,8 +88,8 @@ export default function TeacherDashboardPage() {
                 <CardDescription>PAPS 종목 또는 기타 종목의 전체 평균 데이터를 기반으로 AI가 생성한 요약 및 조언을 확인하세요.</CardDescription>
             </CardHeader>
             <CardContent className="flex gap-4">
-                <AiWelcome itemType='paps' title="PAPS 종목 브리핑" />
-                <AiWelcome itemType='custom' title="기타 종목 브리핑" />
+                <AiWelcome itemType='paps' title="PAPS 종목 브리핑" students={students} items={items} records={records} />
+                <AiWelcome itemType='custom' title="기타 종목 브리핑" students={students} items={items} records={records} />
             </CardContent>
         </Card>
 
@@ -50,19 +114,19 @@ export default function TeacherDashboardPage() {
           </TabsList>
 
           <TabsContent value="class-analytics">
-            <ClassAnalytics />
+            <ClassAnalytics allStudents={students} allItems={items} allRecords={records} onRecordUpdate={forceUpdate} />
           </TabsContent>
 
           <TabsContent value="ranking">
-            <Ranking />
+            <Ranking allStudents={students} allItems={items} allRecords={records} />
           </TabsContent>
 
           <TabsContent value="students">
-            <StudentManagement />
+            <StudentManagement students={students} onStudentsUpdate={forceUpdate} />
           </TabsContent>
 
           <TabsContent value="measurements">
-            <MeasurementManagement />
+            <MeasurementManagement items={items} onItemsUpdate={forceUpdate} />
           </TabsContent>
         </Tabs>
       </div>

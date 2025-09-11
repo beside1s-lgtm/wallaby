@@ -3,7 +3,6 @@ import type { Student, MeasurementItem, MeasurementRecord, RecordType } from './
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { initialItems, initialStudents, initialRecords } from './initial-data';
-import { papsStandards } from './paps';
 import { db } from './firebase';
 import {
   collection,
@@ -16,57 +15,42 @@ import {
   addDoc,
   deleteDoc,
   writeBatch,
-  runTransaction
+  runTransaction,
+  collectionGroup,
+  limit
 } from 'firebase/firestore';
 
 
-const getLocalStorage = <T>(key: string, fallback: T): T => {
-  if (typeof window === 'undefined') {
-    return fallback;
-  }
-  const stored = localStorage.getItem(key);
-  try {
-    return stored ? JSON.parse(stored) : fallback;
-  } catch (e) {
-    console.error(`Failed to parse JSON for key ${key}:`, e);
-    return fallback;
-  }
-};
-
-const setLocalStorage = <T>(key: string, value: T) => {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(key, JSON.stringify(value));
-  }
-};
-
-// This function now only seeds data if the collections are empty.
+// This function now only seeds data if the schools collection is empty for that school.
 export const initializeData = async (school: string) => {
-  const studentsRef = collection(db, 'schools', school, 'students');
-  const snapshot = await getDocs(query(studentsRef));
-  if (snapshot.empty) {
+  const schoolDocRef = doc(db, 'schools', school);
+  const snapshot = await getDoc(schoolDocRef);
+  
+  if (!snapshot.exists()) {
     const batch = writeBatch(db);
+    batch.set(schoolDocRef, { name: school, createdAt: new Date() });
+
     const schoolStudents = initialStudents.filter(s => s.school === school);
     schoolStudents.forEach(student => {
       const studentDocRef = doc(db, 'schools', school, 'students', student.id);
       batch.set(studentDocRef, student);
     });
     
-    const itemsRef = collection(db, 'schools', school, 'items');
     initialItems.forEach(item => {
         const itemDocRef = doc(db, 'schools', school, 'items', item.id);
         batch.set(itemDocRef, item);
     });
 
-    const recordsRef = collection(db, 'schools', school, 'records');
     const schoolRecords = initialRecords.filter(r => r.school === school);
     schoolRecords.forEach(record => {
-        const recordDocRef = doc(recordsRef); // Firestore will auto-generate ID
-        batch.set(recordDocRef, record);
+        const recordDocRef = doc(collection(db, 'schools', school, 'records')); 
+        batch.set(recordDocRef, { ...record, id: recordDocRef.id });
     });
 
     await batch.commit();
   }
 };
+
 
 // --- Student Functions ---
 export const getStudents = async (school: string): Promise<Student[]> => {
@@ -74,6 +58,21 @@ export const getStudents = async (school: string): Promise<Student[]> => {
     const snapshot = await getDocs(studentsRef);
     return snapshot.docs.map(doc => doc.data() as Student);
 };
+
+export const setStudents = async (school: string, students: Student[]) => {
+    const batch = writeBatch(db);
+    const studentsRef = collection(db, 'schools', school, 'students');
+    const currentStudentsSnapshot = await getDocs(studentsRef);
+    currentStudentsSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+    });
+    students.forEach(student => {
+        const studentDocRef = doc(db, 'schools', school, 'students', student.id);
+        batch.set(studentDocRef, student);
+    });
+    await batch.commit();
+}
+
 
 export const getStudent = async (
   loginInfo: Omit<Student, 'id' | 'gender'>
@@ -94,121 +93,151 @@ export const getStudent = async (
   return snapshot.docs[0].data() as Student;
 };
 
-
-// --- Legacy localStorage functions (will be migrated) ---
-
-export const getStudentsBySchool = (school: string): Student[] => {
-    return getLocalStorage(getKey(school, 'students'), []);
-}
-export const setStudents = (school: string, students: Student[]) => setLocalStorage(getKey(school, 'students'), students);
-export const addStudent = (student: Omit<Student, 'id'>) => {
-  const students = getStudentsBySchool(student.school);
-  const newStudent = { ...student, id: uuidv4() };
-  setStudents(student.school, [...students, newStudent]);
-  return newStudent;
+export const addStudent = async (student: Omit<Student, 'id'>) => {
+    const studentWithId = { ...student, id: uuidv4() };
+    const studentDocRef = doc(db, 'schools', student.school, 'students', studentWithId.id);
+    await setDoc(studentDocRef, studentWithId);
+    return studentWithId;
 };
 
-export const getStudentById = (school: string, studentId: string): Student | undefined => {
-    const students = getStudentsBySchool(school);
-    return students.find(s => s.id === studentId);
+export const getStudentById = async (school: string, studentId: string): Promise<Student | undefined> => {
+    const studentDocRef = doc(db, 'schools', school, 'students', studentId);
+    const docSnap = await getDoc(studentDocRef);
+    return docSnap.exists() ? docSnap.data() as Student : undefined;
 }
-export const deleteStudents = (school: string, ids: string[]) => {
-  const students = getStudentsBySchool(school);
-  setStudents(school, students.filter(s => !ids.includes(s.id)));
-};
-const getKey = (school: string, key: string) => `${school}_${key}`;
+
 // Measurement Items
-export const getItems = (school: string): MeasurementItem[] => {
-    const key = getKey(school, 'measurementItems');
-    let items = getLocalStorage<MeasurementItem[]>(key, initialItems);
-
-    // Data migration logic for old items without isPaps
-    if (items.length > 0 && typeof items[0].isPaps === 'undefined') {
-        const migratedItems = items.map((item) => ({
-            ...item,
-            isPaps: !!papsStandards[item.name as keyof typeof papsStandards],
-        }));
-        setLocalStorage(key, migratedItems);
-        return migratedItems;
+export const getItems = async (school: string): Promise<MeasurementItem[]> => {
+    const itemsRef = collection(db, 'schools', school, 'items');
+    const snapshot = await getDocs(itemsRef);
+    if(snapshot.empty) {
+        return [];
     }
-    return items;
+    return snapshot.docs.map(doc => doc.data() as MeasurementItem);
 };
 
-export const setItems = (school: string, items: MeasurementItem[]) => setLocalStorage(getKey(school, 'measurementItems'), items);
+export const setItems = async (school: string, items: MeasurementItem[]) => {
+    const batch = writeBatch(db);
+    const itemsRef = collection(db, 'schools', school, 'items');
+    const currentItemsSnapshot = await getDocs(itemsRef);
+    currentItemsSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+    });
+    items.forEach(item => {
+        const itemDocRef = doc(db, 'schools', school, 'items', item.id);
+        batch.set(itemDocRef, item);
+    });
+    await batch.commit();
+}
 
-export const addItem = (school: string, item: Omit<MeasurementItem, 'id'>) => {
-  const items = getItems(school);
-  const newItem = { ...item, id: uuidv4() };
-  if (!items.find(i => i.name === item.name)) {
-    setItems(school, [...items, newItem]);
+
+export const addItem = async (school: string, item: Omit<MeasurementItem, 'id'>) => {
+  const itemsRef = collection(db, 'schools', school, 'items');
+  const q = query(itemsRef, where("name", "==", item.name), limit(1));
+  const existing = await getDocs(q);
+
+  if (existing.empty) {
+    const newItemRef = doc(itemsRef);
+    const newItem = { ...item, id: newItemRef.id };
+    await setDoc(newItemRef, newItem);
   }
 };
-export const deleteItem = (school: string, itemId: string) => {
-  const items = getItems(school);
-  const itemToDelete = items.find(i => i.id === itemId);
-  if (!itemToDelete) return;
-  
-  const currentRecords = getRecords(school);
-  setRecords(school, currentRecords.filter(r => r.item !== itemToDelete.name));
-  setItems(school, items.filter(i => i.id !== itemId));
+
+export const deleteItem = async (school: string, itemId: string) => {
+  await deleteDoc(doc(db, 'schools', school, 'items', itemId));
 };
 
 // Records
-export const getRecords = (school: string): MeasurementRecord[] => {
-    return getLocalStorage(getKey(school, 'records'), []);
+export const getRecords = async (school: string): Promise<MeasurementRecord[]> => {
+    const recordsRef = collection(db, 'schools', school, 'records');
+    const snapshot = await getDocs(recordsRef);
+    if(snapshot.empty) {
+        return [];
+    }
+    return snapshot.docs.map(doc => doc.data() as MeasurementRecord);
 }
-export const setRecords = (school: string, records: MeasurementRecord[]) => setLocalStorage(getKey(school, 'records'), records);
 
-export const addOrUpdateRecord = (record: Omit<MeasurementRecord, 'id' | 'date'> & { date?: string }) => {
-  const records = getRecords(record.school);
+export const setRecords = async (school: string, records: MeasurementRecord[]) => {
+     const batch = writeBatch(db);
+    const recordsRef = collection(db, 'schools', school, 'records');
+    const currentRecordsSnapshot = await getDocs(recordsRef);
+    currentRecordsSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+    });
+    records.forEach(record => {
+        const recordDocRef = doc(db, 'schools', school, 'records', record.id);
+        batch.set(recordDocRef, record);
+    });
+    await batch.commit();
+}
+
+
+export const addOrUpdateRecord = async (record: Omit<MeasurementRecord, 'id' | 'date'> & { date?: string }) => {
   const today = record.date || format(new Date(), 'yyyy-MM-dd');
-  const existingRecordIndex = records.findIndex(r => r.studentId === record.studentId && r.item === record.item && r.date === today);
+  const recordsRef = collection(db, 'schools', record.school, 'records');
+  const q = query(recordsRef, 
+      where("studentId", "==", record.studentId), 
+      where("item", "==", record.item), 
+      where("date", "==", today)
+  );
 
-  if (existingRecordIndex > -1) {
-    records[existingRecordIndex].value = record.value;
-    setRecords(record.school, records);
-    return records[existingRecordIndex];
-  } else {
-    const newRecord: Omit<MeasurementRecord, 'id'> & { id: string } = { ...record, id: uuidv4(), date: today };
-    setRecords(record.school, [...records, newRecord]);
-    return newRecord;
-  }
+  await runTransaction(db, async (transaction) => {
+    const snapshot = await getDocs(q);
+    if (!snapshot.empty) {
+      const existingDocRef = snapshot.docs[0].ref;
+      transaction.update(existingDocRef, { value: record.value });
+    } else {
+      const newRecordRef = doc(recordsRef);
+      const newRecord = { ...record, id: newRecordRef.id, date: today };
+      transaction.set(newRecordRef, newRecord);
+    }
+  });
 };
 
-export const addOrUpdateRecords = (school: string, newRecords: (Omit<MeasurementRecord, 'id'> & { studentId: string })[]) => {
-  const allRecords = getRecords(school);
-  
-  newRecords.forEach(record => {
+export const addOrUpdateRecords = async (school: string, newRecords: (Omit<MeasurementRecord, 'id'> & { studentId: string })[]) => {
+  const batch = writeBatch(db);
+
+  for (const record of newRecords) {
       const recordDate = record.date || format(new Date(), 'yyyy-MM-dd');
-      const existingRecordIndex = allRecords.findIndex(r => 
-          r.studentId === record.studentId && 
-          r.item === record.item && 
-          r.date === recordDate
+      const recordsRef = collection(db, 'schools', school, 'records');
+      const q = query(recordsRef, 
+          where("studentId", "==", record.studentId), 
+          where("item", "==", record.item), 
+          where("date", "==", recordDate)
       );
 
-      if (existingRecordIndex > -1) {
-          allRecords[existingRecordIndex].value = record.value;
+      const snapshot = await getDocs(q);
+      
+      if (!snapshot.empty) {
+          const existingDocRef = snapshot.docs[0].ref;
+          batch.update(existingDocRef, { value: record.value });
       } else {
-          allRecords.push({ ...record, id: uuidv4(), date: recordDate });
+          const newRecordRef = doc(recordsRef);
+          batch.set(newRecordRef, { ...record, id: newRecordRef.id, date: recordDate });
       }
-  });
+  }
 
-  setRecords(school, allRecords);
+  await batch.commit();
 };
 
-export const getRecordsByStudent = (school: string, studentId: string): MeasurementRecord[] => {
-  const records = getRecords(school);
-  return records.filter(r => r.studentId === studentId);
+export const getRecordsByStudent = async (school: string, studentId: string): Promise<MeasurementRecord[]> => {
+  const recordsRef = collection(db, 'schools', school, 'records');
+  const q = query(recordsRef, where("studentId", "==", studentId));
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => doc.data() as MeasurementRecord);
 };
 
 
 // Ranks
 type RankInfo = { studentId: string; value: number; rank: number };
 
-export const calculateRanks = (school: string, grade?: string): Record<string, RankInfo[]> => {
-  const allItems = getItems(school);
-  const allRecords = getRecords(school);
-  const allStudents = getStudentsBySchool(school);
+export const calculateRanks = (
+    school: string, 
+    allItems: MeasurementItem[], 
+    allRecords: MeasurementRecord[],
+    allStudents: Student[],
+    grade?: string
+): Record<string, RankInfo[]> => {
   const allRanks: Record<string, RankInfo[]> = {};
 
   const gradeStudents = grade ? allStudents.filter(s => s.grade === grade) : allStudents;

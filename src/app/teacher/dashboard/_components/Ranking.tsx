@@ -1,8 +1,8 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { getStudents, getItems, calculateRanks } from '@/lib/store';
-import { Student, MeasurementItem } from '@/lib/types';
+import { calculateRanks } from '@/lib/store';
+import { Student, MeasurementItem, MeasurementRecord } from '@/lib/types';
 import {
   Card,
   CardContent,
@@ -36,21 +36,24 @@ type RankedStudent = {
   value: string;
 };
 
-export default function Ranking() {
+interface RankingProps {
+    allStudents: Student[];
+    allItems: MeasurementItem[];
+    allRecords: MeasurementRecord[];
+}
+
+export default function Ranking({ allStudents, allItems, allRecords }: RankingProps) {
   const { school } = useAuth();
 
   const [selectedGrade, setSelectedGrade] = useState('');
   const [selectedItem, setSelectedItem] = useState('');
   const [rankedStudents, setRankedStudents] = useState<RankedStudent[]>([]);
   
-  const allStudents = useMemo(() => school ? getStudents(school) : [], [school]);
-  const allItems = useMemo(() => school ? getItems(school) : [], [school]);
-
   const grades = useMemo(() => [...new Set(allStudents.map(s => s.grade))].sort(), [allStudents]);
 
   useEffect(() => {
     if (school && selectedGrade && selectedItem) {
-      const ranksByItem = calculateRanks(school, selectedGrade);
+      const ranksByItem = calculateRanks(school, allItems, allRecords, allStudents, selectedGrade);
       const itemRanks = ranksByItem[selectedItem];
       const itemInfo = allItems.find(i => i.name === selectedItem);
       
@@ -79,7 +82,7 @@ export default function Ranking() {
     } else {
       setRankedStudents([]);
     }
-  }, [school, selectedGrade, selectedItem, allStudents, allItems]);
+  }, [school, selectedGrade, selectedItem, allStudents, allItems, allRecords]);
   
   if (!school) return null;
 

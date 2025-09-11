@@ -1,11 +1,10 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import {
-  getStudents,
-  setStudents,
+  setStudents as setStudentsInDb,
+  setRecords as setRecordsInDb,
   getRecords,
-  setRecords,
   addStudent,
 } from '@/lib/store';
 import type { Student } from '@/lib/types';
@@ -48,43 +47,42 @@ import { useToast } from '@/hooks/use-toast';
 import { parseCsv, exportToCsv } from '@/lib/utils';
 import { UserPlus, Trash2, FileUp, FileDown } from 'lucide-react';
 
-export default function StudentManagement() {
+interface StudentManagementProps {
+  students: Student[];
+  onStudentsUpdate: () => void;
+}
+
+export default function StudentManagement({ students, onStudentsUpdate }: StudentManagementProps) {
   const { school } = useAuth();
-  const [students, setStudentsState] = useState<Student[]>([]);
   const [selection, setSelection] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
-
-  useEffect(() => {
-    if (school) {
-      setStudentsState(getStudents(school));
-    }
-  }, [school]);
 
   const selectedIds = useMemo(
     () => Object.keys(selection).filter((id) => selection[id]),
     [selection]
   );
 
-  const handleAddStudent = (studentData: Omit<Student, 'id' | 'school'>) => {
+  const handleAddStudent = async (studentData: Omit<Student, 'id' | 'school'>) => {
     if (!school) return;
-    addStudent({ ...studentData, school });
-    setStudentsState(getStudents(school));
+    await addStudent({ ...studentData, school });
+    onStudentsUpdate(); // Refresh data in parent
     toast({ title: '학생 추가 완료', description: `${studentData.name} 학생을 등록했습니다.` });
   };
 
-  const handleDeleteSelected = () => {
+  const handleDeleteSelected = async () => {
     if (!school) return;
-    const studentsToDelete = getStudents(school).filter(s => selectedIds.includes(s.id));
+    const studentsToDelete = students.filter(s => selectedIds.includes(s.id));
     const studentNames = studentsToDelete.map(s => s.name).join(', ');
 
-    const currentStudents = getStudents(school).filter(s => !selectedIds.includes(s.id));
-    setStudents(school, currentStudents);
-    setStudentsState(currentStudents);
-
-    const currentRecords = getRecords(school).filter(r => !selectedIds.includes(r.studentId));
-    setRecords(school, currentRecords);
+    const currentStudents = students.filter(s => !selectedIds.includes(s.id));
+    await setStudentsInDb(school, currentStudents);
+    
+    const currentRecords = await getRecords(school);
+    const updatedRecords = currentRecords.filter(r => !selectedIds.includes(r.studentId));
+    await setRecordsInDb(school, updatedRecords);
 
     setSelection({});
+    onStudentsUpdate(); // Refresh data in parent
     toast({
       variant: 'destructive',
       title: '삭제 완료',
@@ -108,16 +106,16 @@ export default function StudentManagement() {
     const file = event.target.files?.[0];
     if (file && school) {
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         const text = e.target?.result as string;
         try {
           const newStudents = parseCsv<Omit<Student, 'id'>>(text);
           let count = 0;
-          newStudents.forEach(student => {
+          
+          const addPromises = newStudents.map(student => {
             const studentSchool = student.school || school;
             if (studentSchool && student.grade && student.classNum && student.studentNum && student.name && student.gender) {
-              const existingStudents = getStudents(studentSchool);
-              const studentExists = existingStudents.some(s => 
+              const studentExists = students.some(s => 
                 s.grade === student.grade &&
                 s.classNum === student.classNum &&
                 s.studentNum === student.studentNum &&
@@ -125,12 +123,16 @@ export default function StudentManagement() {
               );
               
               if (!studentExists) {
-                  addStudent({ ...student, school: studentSchool });
                   count++;
+                  return addStudent({ ...student, school: studentSchool });
               }
             }
+            return Promise.resolve();
           });
-          setStudentsState(getStudents(school));
+
+          await Promise.all(addPromises);
+          
+          onStudentsUpdate();
           toast({ title: '일괄 등록 완료', description: `${count}명의 학생을 등록했습니다.` });
         } catch (error) {
           toast({ variant: 'destructive', title: 'CSV 파싱 오류', description: '파일 형식이 올바르지 않습니다.' });
@@ -141,16 +143,15 @@ export default function StudentManagement() {
     event.target.value = ''; // Reset file input
   };
   
-  const handleDownloadAllRecords = () => {
+  const handleDownloadAllRecords = async () => {
     if (!school) return;
-    const allRecords = getRecords(school);
-    const allStudents = getStudents(school);
+    const allRecords = await getRecords(school);
     if(allRecords.length === 0){
         toast({variant: 'destructive', title: '데이터 없음', description: '다운로드할 기록이 없습니다.'})
         return;
     }
     
-    const studentMap = new Map(allStudents.map(s => [s.id, s]));
+    const studentMap = new Map(students.map(s => [s.id, s]));
     
     const dataToExport = allRecords.map(record => {
         const student = studentMap.get(record.studentId);
@@ -269,25 +270,28 @@ export default function StudentManagement() {
 }
 
 
-function AddStudentDialog({ onAddStudent }: { onAddStudent: (data: Omit<Student, 'id' | 'school'>) => void }) {
+function AddStudentDialog({ onAddStudent }: { onAddStudent: (data: Omit<Student, 'id' | 'school'>) => Promise<void> }) {
   const [grade, setGrade] = useState('');
   const [classNum, setClassNum] = useState('');
   const [studentNum, setStudentNum] = useState('');
   const [name, setName] = useState('');
   const [gender, setGender] = useState<'남' | '여' | ''>('');
   const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!grade || !classNum || !studentNum || !name || !gender) {
       toast({ variant: 'destructive', title: '입력 오류', description: '모든 필드를 입력해주세요.' });
       return;
     }
-    onAddStudent({ grade, classNum, studentNum, name, gender });
+    setIsSubmitting(true);
+    await onAddStudent({ grade, classNum, studentNum, name, gender });
     setGrade('');
     setClassNum('');
     setStudentNum('');
     setName('');
     setGender('');
+    setIsSubmitting(false);
     document.getElementById('add-student-dialog-close')?.click();
   };
 
@@ -334,7 +338,10 @@ function AddStudentDialog({ onAddStudent }: { onAddStudent: (data: Omit<Student,
           <DialogClose asChild>
             <Button id="add-student-dialog-close" variant="outline">취소</Button>
           </DialogClose>
-          <Button onClick={handleSubmit}>등록</Button>
+          <Button onClick={handleSubmit} disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            등록
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

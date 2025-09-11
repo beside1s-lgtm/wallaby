@@ -1,7 +1,7 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { getStudents, getRecords, getItems, addOrUpdateRecord, calculateRanks, getRecordsByStudent } from '@/lib/store';
+import { addOrUpdateRecord, calculateRanks, getRecordsByStudent, addOrUpdateRecords } from '@/lib/store';
 import { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
 import { Input } from '@/components/ui/input';
 import {
@@ -38,7 +38,7 @@ import { Loader2, Search, Wand2, FileUp, X as XIcon, ArrowUpDown } from 'lucide-
 import { useToast } from '@/hooks/use-toast';
 import { getPapsGrade, getCustomItemGrade } from '@/lib/paps';
 import { parseCsv, exportToZip } from '@/lib/utils';
-import { addOrUpdateRecords } from '@/lib/store';
+
 
 type AiAnalysis = {
   strengths: string;
@@ -46,10 +46,18 @@ type AiAnalysis = {
   suggestedTrainingMethods: string;
 };
 
+interface ClassAnalyticsProps {
+    allStudents: Student[];
+    allItems: MeasurementItem[];
+    allRecords: MeasurementRecord[];
+    onRecordUpdate: () => void;
+}
+
 const gradeToPercentage = (grade: number | null): number => {
     if (grade === null) return 0;
-    // 1등급 -> 100, 2등급 -> 80, ..., 5등급 -> 20
-    return (5 - grade + 1) * 20;
+    // 1등급: 100%, 2등급: 75%, 3등급: 50%, 4등급: 25%, 5등급: 0%
+    if (grade >= 5) return 0;
+    return (5 - grade) * 25;
 };
 
 const CustomTooltipContent = ({ active, payload, label }: any) => {
@@ -59,7 +67,7 @@ const CustomTooltipContent = ({ active, payload, label }: any) => {
       <div className="p-2 text-sm bg-background/90 border rounded-md shadow-lg">
         <p className="font-bold">{label}</p>
         <p style={{ color: payload[0].color }}>
-            {`${payload[0].name}: ${payload[0].value}${unit ? ` (${value}${unit})` : ''}`}
+            {`${payload[0].name}: ${payload[0].value}등급 (${value}${unit})`}
         </p>
       </div>
     );
@@ -85,7 +93,7 @@ const CustomBarTooltipContent = ({ active, payload, label }: any) => {
 };
 
 
-export default function ClassAnalytics() {
+export default function ClassAnalytics({ allStudents, allItems, allRecords, onRecordUpdate }: ClassAnalyticsProps) {
   const { school } = useAuth();
   const { toast } = useToast();
   
@@ -95,8 +103,6 @@ export default function ClassAnalytics() {
   
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [studentRecords, setStudentRecords] = useState<MeasurementRecord[]>([]);
-  const [allRecords, setAllRecords] = useState<MeasurementRecord[]>([]);
-  const [allItems, setAllItems] = useState<MeasurementItem[]>([]);
   const [progressChartItem, setProgressChartItem] = useState<string>('');
   
   const [aiAnalysis, setAiAnalysis] = useState<AiAnalysis | null>(null);
@@ -112,23 +118,20 @@ export default function ClassAnalytics() {
   const [sortItem, setSortItem] = useState('');
   const [sortType, setSortType] = useState<'record' | 'averageGrade' | null>(null);
 
-  const students = useMemo(() => school ? getStudents(school) : [], [school]);
-  const measurementItems = useMemo(() => school ? getItems(school) : [], [school]);
-
   const { grades, classNumsByGrade } = useMemo(() => {
-    const grades = [...new Set(students.map(s => s.grade))].sort();
+    const grades = [...new Set(allStudents.map(s => s.grade))].sort();
     const classNumsByGrade: Record<string, string[]> = {};
     grades.forEach(grade => {
-        classNumsByGrade[grade] = [...new Set(students.filter(s => s.grade === grade).map(s => s.classNum))].sort();
+        classNumsByGrade[grade] = [...new Set(allStudents.filter(s => s.grade === grade).map(s => s.classNum))].sort();
     });
     return { grades, classNumsByGrade };
-  }, [students]);
+  }, [allStudents]);
 
   const filteredStudentsByClass = useMemo(() => {
     if (!selectedGrade || !selectedClassNum) return [];
-    const classStudents = students.filter(s => s.grade === selectedGrade && s.classNum === selectedClassNum);
+    const classStudents = allStudents.filter(s => s.grade === selectedGrade && s.classNum === selectedClassNum);
     return classStudents.sort((a,b) => parseInt(a.studentNum) - parseInt(b.studentNum));
-  }, [students, selectedGrade, selectedClassNum]);
+  }, [allStudents, selectedGrade, selectedClassNum]);
   
   useEffect(() => {
     setSortedStudents(null);
@@ -137,18 +140,18 @@ export default function ClassAnalytics() {
 
 
   useEffect(() => {
-    if (school) {
-        const items = getItems(school);
-        const papsItems = items.filter(i => i.isPaps);
-        setAllItems(papsItems);
-        setAllRecords(getRecords(school));
+    if (allItems.length > 0) {
+        const papsItems = allItems.filter(i => i.isPaps);
         if (papsItems.length > 0) {
             const firstPapsItem = papsItems[0].name;
             setProgressChartItem(firstPapsItem);
             setSortItem(firstPapsItem);
+        } else if (allItems.length > 0) {
+            setProgressChartItem(allItems[0].name);
+            setSortItem(allItems[0].name);
         }
     }
-  }, [school]);
+  }, [allItems]);
   
   useEffect(() => {
     // Reset student search when class filter changes
@@ -159,8 +162,8 @@ export default function ClassAnalytics() {
   }, [selectedGrade, selectedClassNum]);
 
   const selectedItem = useMemo(() => {
-      return allItems.find(item => item.name === selectedItemName) ?? getItems(school).find(item => item.name === selectedItemName);
-  }, [selectedItemName, allItems, school]);
+      return allItems.find(item => item.name === selectedItemName);
+  }, [selectedItemName, allItems]);
 
   const inputPlaceholder = useMemo(() => {
     if (!selectedItem) return "측정 결과 (숫자만 입력)";
@@ -169,9 +172,7 @@ export default function ClassAnalytics() {
 
   const refreshStudentRecords = (studentId: string) => {
     if(!school) return;
-    const allRecs = getRecords(school);
-    setAllRecords(allRecs);
-    const studentRecs = allRecs.filter(r => r.studentId === studentId);
+    const studentRecs = allRecords.filter(r => r.studentId === studentId);
     setStudentRecords(studentRecs);
   };
 
@@ -188,7 +189,7 @@ export default function ClassAnalytics() {
         resetFilters();
         return;
     }
-    const student = students.find(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    const student = allStudents.find(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
     if (student) {
       handleSelectStudent(student);
       setSelectedGrade('');
@@ -204,7 +205,7 @@ export default function ClassAnalytics() {
     }
   };
 
-  const handleAddRecord = () => {
+  const handleAddRecord = async () => {
     if (!selectedItemName || !recordValue || !school || !selectedStudent) {
       toast({
         variant: 'destructive',
@@ -226,14 +227,14 @@ export default function ClassAnalytics() {
       return;
     }
     
-    addOrUpdateRecord({
+    await addOrUpdateRecord({
       studentId: selectedStudent.id,
       school: school,
       item: selectedItemName,
       value: numericValue,
     });
 
-    refreshStudentRecords(selectedStudent.id);
+    await onRecordUpdate(); // This will re-fetch all records in parent and pass down
     
     toast({
       title: '기록 저장 완료',
@@ -245,15 +246,20 @@ export default function ClassAnalytics() {
     setIsSubmitting(false);
   };
 
+  useEffect(() => {
+    if (selectedStudent) {
+        refreshStudentRecords(selectedStudent.id);
+    }
+  }, [allRecords, selectedStudent]);
+
   const handleCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && school) {
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         const text = e.target?.result as string;
         try {
           const parsedRecords = parseCsv<any>(text);
-          const allStudents = getStudents(school);
           const studentMapByName = new Map(allStudents.map(s => [s.name, s]));
           
           const recordsToAdd: (Omit<MeasurementRecord, 'id'> & { studentId: string })[] = [];
@@ -271,15 +277,12 @@ export default function ClassAnalytics() {
             }
           });
 
-          addOrUpdateRecords(school, recordsToAdd);
+          await addOrUpdateRecords(school, recordsToAdd);
           
+          onRecordUpdate();
+
           toast({ title: '일괄 등록 완료', description: `${recordsToAdd.length}개의 기록을 등록/업데이트했습니다.` });
           
-          if(selectedStudent) {
-            refreshStudentRecords(selectedStudent.id);
-          } else {
-             setAllRecords(getRecords(school));
-          }
 
         } catch (error) {
             console.error('CSV 처리 오류', error);
@@ -300,7 +303,7 @@ export default function ClassAnalytics() {
       측정일: '2024-01-01'
     }];
     
-    const itemsData = measurementItems.map(item => ({
+    const itemsData = allItems.map(item => ({
         종목명: item.name,
         단위: item.unit
     }));
@@ -318,7 +321,7 @@ export default function ClassAnalytics() {
     if (!selectedStudent || studentRecords.length === 0 || !school) return;
     setIsAiLoading(true);
     try {
-       const allItemRanks = calculateRanks(school, selectedStudent.grade);
+       const allItemRanks = calculateRanks(school, allItems, allRecords, allStudents, selectedStudent.grade);
        const studentRanks: Record<string, string> = {};
        Object.entries(allItemRanks).forEach(([item, ranks]) => {
             const rankInfo = ranks.find(r => r.studentId === selectedStudent.id);
@@ -328,7 +331,7 @@ export default function ClassAnalytics() {
        });
 
       const performanceData = JSON.stringify(studentRecords.map(r => {
-          const itemInfo = allItems.find(item => item.name === r.item) ?? getItems(school).find(item => item.name === r.item);
+          const itemInfo = allItems.find(item => item.name === r.item);
           return { item: r.item, value: r.value, date: r.date, recordType: itemInfo?.recordType || 'count' }
         }));
       const result = await analyzeStudentPerformance({
@@ -350,35 +353,36 @@ export default function ClassAnalytics() {
     }
   };
 
-  const handleSortByRecord = () => {
+  const handleSortByRecord = async () => {
     if (!sortItem || filteredStudentsByClass.length === 0 || !school) return;
-    const itemInfo = measurementItems.find(i => i.name === sortItem);
+    const itemInfo = allItems.find(i => i.name === sortItem);
     if (!itemInfo) return;
 
-    const studentRecords = filteredStudentsByClass.map(student => {
-      const records = getRecordsByStudent(school, student.id).filter(r => r.item === sortItem);
-      const latestRecord = records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-      return {
-        ...student,
-        sortValue: latestRecord ? `${latestRecord.value}${itemInfo.unit}` : '기록 없음',
-        _sortValue: latestRecord ? latestRecord.value : (itemInfo.recordType === 'time' ? Infinity : -1),
-      };
-    });
+    const studentRecs = await Promise.all(filteredStudentsByClass.map(async (student) => {
+        const records = (await getRecordsByStudent(school, student.id)).filter(r => r.item === sortItem);
+        const latestRecord = records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+        return {
+            ...student,
+            sortValue: latestRecord ? `${latestRecord.value}${itemInfo.unit}` : '기록 없음',
+            _sortValue: latestRecord ? latestRecord.value : (itemInfo.recordType === 'time' ? Infinity : -1),
+        };
+    }));
 
-    studentRecords.sort((a, b) => {
+
+    studentRecs.sort((a, b) => {
       return itemInfo.recordType === 'time' ? a._sortValue - b._sortValue : b._sortValue - a._sortValue;
     });
 
-    setSortedStudents(studentRecords);
+    setSortedStudents(studentRecs);
     setSortType('record');
   };
 
-  const handleSortByAverageGrade = () => {
+  const handleSortByAverageGrade = async () => {
       if (filteredStudentsByClass.length === 0 || !school) return;
       const papsItems = allItems.filter(i => i.isPaps);
 
-      const studentAvgs = filteredStudentsByClass.map(student => {
-          const studentRecords = getRecordsByStudent(school, student.id);
+      const studentAvgs = await Promise.all(filteredStudentsByClass.map(async (student) => {
+          const studentRecords = await getRecordsByStudent(school, student.id);
           const grades = papsItems.map(item => {
               const latestRecord = studentRecords
                   .filter(r => r.item === item.name)
@@ -396,7 +400,7 @@ export default function ClassAnalytics() {
           
           const avgGrade = grades.reduce((a, b) => a + b, 0) / grades.length;
           return { ...student, sortValue: `${Math.round(avgGrade)}등급`, _sortValue: avgGrade };
-      });
+      }));
       
       studentAvgs.sort((a, b) => a._sortValue - b._sortValue);
       setSortedStudents(studentAvgs);
@@ -407,11 +411,12 @@ export default function ClassAnalytics() {
   const calculateAverageGrades = (studentList: Student[]): Record<string, { percentage: number, avgValue: number, unit: string }> => {
       if (studentList.length === 0) return {};
       
+      const papsItems = allItems.filter(i => i.isPaps);
       const averageData: Record<string, { totalPercentage: number, totalValue: number, count: number, unit: string }> = {};
       const studentIds = new Set(studentList.map(s => s.id));
       const relevantRecords = allRecords.filter(r => studentIds.has(r.studentId));
 
-      allItems.forEach(item => {
+      papsItems.forEach(item => {
         const itemRecords = relevantRecords.filter(r => r.item === item.name);
         if (itemRecords.length > 0) {
           if (!averageData[item.name]) {
@@ -449,11 +454,14 @@ export default function ClassAnalytics() {
   const comparisonData = useMemo(() => {
     if (allRecords.length === 0 || !school) return { data: [], targetLabel: '선택 대상'};
     
+    const papsItems = allItems.filter(i => i.isPaps);
+
     let comparisonTargetData: Record<string, { percentage: number, avgValue: number, unit: string, rank?: string }> = {};
     let label = '선택 대상';
+    let gradeForRanks = selectedStudent?.grade || selectedGrade;
 
     if(selectedStudent) {
-        const allItemRanks = calculateRanks(school, selectedStudent.grade);
+        const allItemRanks = calculateRanks(school, allItems, allRecords, allStudents, gradeForRanks);
         label = selectedStudent.name;
         const studentRecordsForComparison = allRecords.filter(r => r.studentId === selectedStudent.id);
         const latestRecords: Record<string, MeasurementRecord> = {};
@@ -464,7 +472,7 @@ export default function ClassAnalytics() {
             }
         });
 
-        allItems.forEach(item => {
+        papsItems.forEach(item => {
           const record = latestRecords[item.name];
           if (record) {
             const grade = getPapsGrade(item.name, selectedStudent.gender, record.value);
@@ -484,10 +492,10 @@ export default function ClassAnalytics() {
         comparisonTargetData = calculateAverageGrades(filteredStudentsByClass);
     }
     
-    const overallAverageData = calculateAverageGrades(students.filter(s => s.grade === (selectedStudent?.grade || selectedGrade)));
+    const overallAverageData = calculateAverageGrades(allStudents.filter(s => s.grade === gradeForRanks));
 
     return {
-        data: allItems.map(item => ({
+        data: papsItems.map(item => ({
             name: item.name,
             target: comparisonTargetData[item.name]?.percentage || 0,
             average: overallAverageData[item.name]?.percentage || 0,
@@ -499,12 +507,12 @@ export default function ClassAnalytics() {
         targetLabel: label
     };
 
-  }, [selectedStudent, filteredStudentsByClass, allRecords, allItems, students, selectedGrade, selectedClassNum, school]);
+  }, [selectedStudent, filteredStudentsByClass, allRecords, allItems, allStudents, selectedGrade, school]);
   
   const progressData = useMemo(() => {
     if (!progressChartItem || !selectedStudent || !school) return [];
-    const allItemsList = getItems(school);
-    const itemInfo = allItemsList.find(i => i.name === progressChartItem);
+    
+    const itemInfo = allItems.find(i => i.name === progressChartItem);
 
     if (!itemInfo) return [];
 
@@ -521,7 +529,7 @@ export default function ClassAnalytics() {
       })
       .filter(r => r.value !== null)
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [studentRecords, progressChartItem, selectedStudent, school]);
+  }, [studentRecords, progressChartItem, selectedStudent, allItems]);
   
   const comparisonChartConfig = {
       target: { label: comparisonData.targetLabel, color: 'hsl(var(--chart-1))' },
@@ -623,7 +631,7 @@ export default function ClassAnalytics() {
                                     <SelectValue placeholder="정렬 종목 선택" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {measurementItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
+                                    {allItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                             <Button size="sm" variant="outline" onClick={handleSortByRecord} disabled={!sortItem}>
@@ -683,7 +691,7 @@ export default function ClassAnalytics() {
                           <SelectValue placeholder="측정 종목 선택" />
                         </SelectTrigger>
                         <SelectContent>
-                          {getItems(school).map(item => (
+                          {allItems.map(item => (
                             <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
                           ))}
                         </SelectContent>

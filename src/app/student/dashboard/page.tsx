@@ -32,6 +32,7 @@ import { getStudentFeedback } from '@/ai/flows/student-ai-feedback';
 import { Loader2, Wand2 } from 'lucide-react';
 import type { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
 import { getPapsGrade, getCustomItemGrade } from '@/lib/paps';
+import { getStudents, getRecords } from '@/lib/store';
 
 const chartColors = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
@@ -69,20 +70,35 @@ export default function StudentDashboardPage() {
 
   const [chartFilter, setChartFilter] = useState<'all' | 'paps' | 'custom'>('all');
   const [chartItemFilter, setChartItemFilter] = useState('all');
-
-  const fullStudent = useMemo(() => {
-    if (student?.id && school) {
-      return getStudentById(school, student.id);
-    }
-    return student;
-  }, [student, school])
+  
+  const [fullStudent, setFullStudent] = useState<Student | null>(null);
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
+  const [allRecords, setAllRecords] = useState<MeasurementRecord[]>([]);
 
   useEffect(() => {
-    if (student?.id && school) {
-      setMeasurementItems(getItems(school));
-      setRecords(getRecordsByStudent(school, student.id));
+    async function loadData() {
+        if (student?.id && school) {
+            try {
+                const [items, recs, stud, allStuds, allRecs] = await Promise.all([
+                    getItems(school),
+                    getRecordsByStudent(school, student.id),
+                    getStudentById(school, student.id),
+                    getStudents(school),
+                    getRecords(school),
+                ]);
+                setMeasurementItems(items);
+                setRecords(recs);
+                setFullStudent(stud || null);
+                setAllStudents(allStuds);
+                setAllRecords(allRecs);
+            } catch (error) {
+                console.error("Failed to load student data", error);
+                toast({ variant: 'destructive', title: '데이터 로딩 실패' });
+            }
+        }
     }
-  }, [student, school]);
+    loadData();
+  }, [student?.id, school, toast]);
   
   const selectedItem = useMemo(() => {
       return measurementItems.find(item => item.name === selectedItemName);
@@ -94,8 +110,8 @@ export default function StudentDashboardPage() {
   }, [selectedItem]);
 
 
-  const handleSubmit = () => {
-    if (!selectedItemName || !value || !school) {
+  const handleSubmit = async () => {
+    if (!selectedItemName || !value || !school || !student) {
       toast({
         variant: 'destructive',
         title: '입력 오류',
@@ -116,24 +132,33 @@ export default function StudentDashboardPage() {
       return;
     }
     
-    addOrUpdateRecord({
-      studentId: student.id,
-      school: school,
-      item: selectedItemName,
-      value: numericValue,
-    });
+    try {
+        await addOrUpdateRecord({
+            studentId: student.id,
+            school: school,
+            item: selectedItemName,
+            value: numericValue,
+        });
 
-    setRecords(getRecordsByStudent(school, student.id));
-    setAiFeedback('');
-    
-    toast({
-      title: '기록 저장 완료',
-      description: `${selectedItemName} 기록이 ${numericValue}${selectedItem?.unit}으로 저장/업데이트되었습니다.`,
-    });
-    
-    setValue('');
-    setSelectedItemName('');
-    setIsSubmitting(false);
+        const updatedRecords = await getRecordsByStudent(school, student.id);
+        const updatedAllRecords = await getRecords(school);
+        setRecords(updatedRecords);
+        setAllRecords(updatedAllRecords);
+        setAiFeedback('');
+        
+        toast({
+            title: '기록 저장 완료',
+            description: `${selectedItemName} 기록이 ${numericValue}${selectedItem?.unit}으로 저장/업데이트되었습니다.`,
+        });
+        
+        setValue('');
+        setSelectedItemName('');
+    } catch(error) {
+        console.error("Failed to save record:", error);
+        toast({ variant: 'destructive', title: '저장 실패', description: '기록 저장 중 오류가 발생했습니다.'})
+    } finally {
+        setIsSubmitting(false);
+    }
   };
   
   const handleGetFeedback = async () => {
@@ -148,7 +173,7 @@ export default function StudentDashboardPage() {
     
     setIsFeedbackLoading(true);
     try {
-      const allItemRanks = calculateRanks(school, fullStudent.grade);
+      const allItemRanks = calculateRanks(school, measurementItems, allRecords, allStudents, fullStudent.grade);
       const studentRanks: Record<string, string> = {};
        Object.entries(allItemRanks).forEach(([item, ranks]) => {
             const rankInfo = ranks.find(r => r.studentId === fullStudent.id);
@@ -192,7 +217,7 @@ export default function StudentDashboardPage() {
   const { chartData, chartConfig, availableItems } = useMemo(() => {
     if (!fullStudent || !school) return { chartData: [], chartConfig: {}, availableItems: [] };
     
-    const allItemRanks = calculateRanks(school, fullStudent.grade);
+    const allItemRanks = calculateRanks(school, measurementItems, allRecords, allStudents, fullStudent.grade);
 
     const itemsToShow = measurementItems.filter(item => {
         if (chartFilter === 'paps') return item.isPaps;
@@ -249,15 +274,19 @@ export default function StudentDashboardPage() {
     const data = Object.values(dataByDate).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     
     const itemsWithGrade = itemsToShow.filter(item => {
-        if (item.isPaps) return getPapsGrade(item.name, fullStudent.gender, 0) !== null;
+        if (item.isPaps) return getPapsGrade(item.name, fullStudent.gender, 0) !== null; // check if it's a valid paps item for the gender
         return getCustomItemGrade(item, 0) !== null;
     });
 
     return { chartData: data, chartConfig: config, availableItems: itemsWithGrade };
-  }, [records, chartFilter, chartItemFilter, measurementItems, fullStudent, school]);
+  }, [records, chartFilter, chartItemFilter, measurementItems, fullStudent, school, allRecords, allStudents]);
 
   if (!fullStudent || !school) {
-    return null;
+    return (
+         <div className="flex items-center justify-center h-screen">
+            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+         </div>
+    )
   }
 
   return (
