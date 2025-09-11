@@ -1,5 +1,5 @@
 'use client';
-import type { Student, MeasurementItem, MeasurementRecord, StudentLogin, RecordType } from './types';
+import type { Student, MeasurementItem, MeasurementRecord, RecordType } from './types';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { initialItems, initialStudents, initialRecords } from './initial-data';
@@ -56,7 +56,6 @@ export const getStudents = (school: string): Student[] => {
 }
 
 export const getStudentsBySchool = (school: string): Student[] => {
-    initializeData(school);
     return getStudents(school);
 }
 export const setStudents = (school: string, students: Student[]) => setLocalStorage(getKey(school, 'students'), students);
@@ -67,7 +66,7 @@ export const addStudent = (student: Omit<Student, 'id'>) => {
   setStudents(student.school, [...students, newStudent]);
   return newStudent;
 };
-export const getStudent = (loginInfo: StudentLogin): Student | undefined => {
+export const getStudent = (loginInfo: Omit<Student, 'id' | 'gender'>): Student | undefined => {
   const students = getStudentsBySchool(loginInfo.school);
   
   return students.find(s => 
@@ -171,4 +170,52 @@ export const addOrUpdateRecords = (school: string, newRecords: (Omit<Measurement
 export const getRecordsByStudent = (school: string, studentId: string): MeasurementRecord[] => {
   const records = getRecords(school);
   return records.filter(r => r.studentId === studentId);
+};
+
+
+// Ranks
+type RankInfo = { studentId: string; value: number; rank: number };
+
+export const calculateRanks = (school: string): Record<string, RankInfo[]> => {
+  const allItems = getItems(school);
+  const allRecords = getRecords(school);
+  const allRanks: Record<string, RankInfo[]> = {};
+
+  allItems.forEach(item => {
+    // Get the latest record for each student for a specific item
+    const latestRecords: Record<string, MeasurementRecord> = {};
+    const itemRecords = allRecords.filter(r => r.item === item.name);
+
+    itemRecords.forEach(record => {
+      if (!latestRecords[record.studentId] || new Date(record.date) > new Date(latestRecords[record.studentId].date)) {
+        latestRecords[record.studentId] = record;
+      }
+    });
+
+    const studentValues = Object.values(latestRecords);
+
+    // Sort based on recordType
+    if (item.recordType === 'time') {
+      studentValues.sort((a, b) => a.value - b.value); // Lower is better
+    } else {
+      studentValues.sort((a, b) => b.value - a.value); // Higher is better
+    }
+
+    // Assign ranks
+    const ranks: RankInfo[] = [];
+    let rank = 1;
+    for (let i = 0; i < studentValues.length; i++) {
+      if (i > 0 && studentValues[i].value !== studentValues[i - 1].value) {
+        rank = i + 1;
+      }
+      ranks.push({
+        studentId: studentValues[i].studentId,
+        value: studentValues[i].value,
+        rank: rank
+      });
+    }
+    allRanks[item.name] = ranks;
+  });
+
+  return allRanks;
 };

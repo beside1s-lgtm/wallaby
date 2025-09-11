@@ -9,7 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z} from 'zod';
 
 const StudentFeedbackInputSchema = z.object({
   school: z.string().describe('The school of the student.'),
@@ -20,8 +20,9 @@ const StudentFeedbackInputSchema = z.object({
     .describe('The performance results of the exercise.'),
   grade: z.string().describe('The grade of the student'),
   classNumber: z.string().describe('The class number of the student'),
-  studentNumber: z.string().describe('The student number'),
+  studentNumber: z.string().describe('The student number of the student'),
   gender: z.enum(['남', '여']).describe('The gender of the student'),
+  ranks: z.record(z.string()).describe('A record of the student\'s rank for each measurement type.'),
 });
 export type StudentFeedbackInput = z.infer<typeof StudentFeedbackInputSchema>;
 
@@ -51,8 +52,9 @@ const prompt = ai.definePrompt({
 운동 정보:
 - 종목: {{exerciseType}}
 - 결과: {{performanceResults}}
+- 종목별 등수: {{json ranks}}
 
-주어진 학생의 기록을 아래의 학생건강체력평가(PAPS) 기준표와 비교하여 학생의 현재 수준을 평가하고, 개인화된 피드백을 한국어로 작성해주세요.
+주어진 학생의 기록과 등수 정보를 아래의 학생건강체력평가(PAPS) 기준표와 비교하여 학생의 현재 수준을 평가하고, 개인화된 피드백을 한국어로 작성해주세요.
 
 ## 학생건강체력평가(PAPS) 기준표 (초등학교)
 | 종목 | 성별 | 1등급 | 2등급 | 3등급 | 4등급 | 5등급 |
@@ -69,7 +71,7 @@ const prompt = ai.definePrompt({
 
 피드백 작성 가이드라인:
 1.  PAPS 기준표를 바탕으로 학생의 기록이 몇 등급에 해당하는지 분석해주세요.
-2.  학생의 강점과 개선점을 등급과 함께 명확히 짚어주세요.
+2.  학생의 강점과 개선점을 등급과 함께 명확히 짚어주세요. 등수 정보를 활용하여 현재 위치를 알려주세요. (예: "50m 달리기는 1등급으로, 전체 학생 중 3등을 차지할 만큼 아주 빨라!")
 3.  미래 성장을 위한 구체적인 조언을 제공해주세요.
 4.  피드백은 격려와 지지를 담아 긍정적인 어조로 작성하고, 학생의 이름을 부르며 직접 대화하는 것처럼 작성해주세요.
 5.  주어진 정보 외에 다른 내용을 만들지 마세요. 피드백은 200자 이내로 간결하게 작성해주세요.

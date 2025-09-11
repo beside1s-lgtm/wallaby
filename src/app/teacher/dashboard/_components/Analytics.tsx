@@ -1,7 +1,7 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { getStudents, getRecords, getItems, addOrUpdateRecord } from '@/lib/store';
+import { getStudents, getRecords, getItems, addOrUpdateRecord, calculateRanks } from '@/lib/store';
 import { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
 import { Input } from '@/components/ui/input';
 import {
@@ -76,6 +76,7 @@ const CustomBarTooltipContent = ({ active, payload, label }: any) => {
                 {payload.map((p: any) => (
                     <div key={p.dataKey} style={{ color: p.color }}>
                         <p>{`${p.name}: ${p.value}% (${p.payload.originalRecords[p.dataKey]?.value || 'N/A'}${p.payload.originalRecords[p.dataKey]?.unit || ''})`}</p>
+                        {p.payload.originalRecords[p.dataKey]?.rank && <p className='text-xs text-muted-foreground'>{p.payload.originalRecords[p.dataKey].rank}</p>}
                     </div>
                 ))}
             </div>
@@ -300,6 +301,15 @@ export default function Analytics() {
     if (!selectedStudent || studentRecords.length === 0 || !school) return;
     setIsAiLoading(true);
     try {
+       const allItemRanks = calculateRanks(school);
+       const studentRanks: Record<string, string> = {};
+       Object.entries(allItemRanks).forEach(([item, ranks]) => {
+            const rankInfo = ranks.find(r => r.studentId === selectedStudent.id);
+            if(rankInfo) {
+                studentRanks[item] = `${ranks.length}명 중 ${rankInfo.rank}등`;
+            }
+       });
+
       const performanceData = JSON.stringify(studentRecords.map(r => {
           const itemInfo = allItems.find(item => item.name === r.item) ?? getItems(school).find(item => item.name === r.item);
           return { item: r.item, value: r.value, date: r.date, recordType: itemInfo?.recordType || 'count' }
@@ -308,6 +318,7 @@ export default function Analytics() {
         school,
         studentName: selectedStudent.name,
         performanceData,
+        ranks: studentRanks,
       });
       setAiAnalysis(result);
     } catch (error) {
@@ -365,10 +376,12 @@ export default function Analytics() {
   }
 
   const comparisonData = useMemo(() => {
-    if (allRecords.length === 0) return { data: [], targetLabel: '선택 대상'};
+    if (allRecords.length === 0 || !school) return { data: [], targetLabel: '선택 대상'};
     
-    let comparisonTargetData: Record<string, { percentage: number, avgValue: number, unit: string }> = {};
+    let comparisonTargetData: Record<string, { percentage: number, avgValue: number, unit: string, rank?: string }> = {};
     let label = '선택 대상';
+
+    const allItemRanks = calculateRanks(school);
 
     if(selectedStudent) {
         label = selectedStudent.name;
@@ -386,10 +399,12 @@ export default function Analytics() {
           if (record) {
             const grade = getPapsGrade(item.name, selectedStudent.gender, record.value);
             if (grade !== null) {
+              const rankInfo = allItemRanks[item.name]?.find(r => r.studentId === selectedStudent.id);
               comparisonTargetData[item.name] = {
                   percentage: gradeToPercentage(grade),
                   avgValue: record.value,
-                  unit: item.unit
+                  unit: item.unit,
+                  rank: rankInfo ? `${allItemRanks[item.name].length}명 중 ${rankInfo.rank}등` : undefined
               };
             }
           }
@@ -407,17 +422,17 @@ export default function Analytics() {
             target: comparisonTargetData[item.name]?.percentage || 0,
             average: overallAverageData[item.name]?.percentage || 0,
             originalRecords: {
-                target: { value: comparisonTargetData[item.name]?.avgValue, unit: comparisonTargetData[item.name]?.unit },
+                target: { value: comparisonTargetData[item.name]?.avgValue, unit: comparisonTargetData[item.name]?.unit, rank: comparisonTargetData[item.name]?.rank },
                 average: { value: overallAverageData[item.name]?.avgValue, unit: overallAverageData[item.name]?.unit }
             }
         })).filter(d => d.target > 0 || d.average > 0),
         targetLabel: label
     };
 
-  }, [selectedStudent, filteredStudentsByClass, allRecords, allItems, students, selectedGrade, selectedClassNum]);
+  }, [selectedStudent, filteredStudentsByClass, allRecords, allItems, students, selectedGrade, selectedClassNum, school]);
   
   const progressData = useMemo(() => {
-    if (!progressChartItem || !selectedStudent) return [];
+    if (!progressChartItem || !selectedStudent || !school) return [];
     const allItemsList = getItems(school);
     const itemInfo = allItemsList.find(i => i.name === progressChartItem);
 

@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { getItems, addOrUpdateRecord, getRecordsByStudent, getStudentById } from '@/lib/store';
+import { getItems, addOrUpdateRecord, getRecordsByStudent, getStudentById, calculateRanks } from '@/lib/store';
 import {
   Card,
   CardContent,
@@ -37,7 +37,7 @@ const chartColors = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--ch
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
-    const originalRecord = payload[0].payload.originalRecord;
+    const { originalRecord, rank } = payload[0].payload;
     return (
       <div className="p-2 text-sm bg-background/90 border rounded-md shadow-lg">
         <p className="font-bold">{label}</p>
@@ -46,6 +46,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
                 <p>{`${p.name}: ${p.value}등급 (${originalRecord[p.dataKey]?.value}${originalRecord[p.dataKey]?.unit})`}</p>
             </div>
         ))}
+         {rank && <p className="text-muted-foreground mt-1">{rank}</p>}
       </div>
     );
   }
@@ -147,6 +148,15 @@ export default function StudentDashboardPage() {
     
     setIsFeedbackLoading(true);
     try {
+      const allItemRanks = calculateRanks(school);
+      const studentRanks: Record<string, string> = {};
+       Object.entries(allItemRanks).forEach(([item, ranks]) => {
+            const rankInfo = ranks.find(r => r.studentId === fullStudent.id);
+            if(rankInfo) {
+                studentRanks[item] = `${ranks.length}명 중 ${rankInfo.rank}등`;
+            }
+       });
+
       const performanceResults = records
         .map(r => {
             const itemInfo = measurementItems.find(item => item.name === r.item);
@@ -162,7 +172,8 @@ export default function StudentDashboardPage() {
         studentNumber: fullStudent.studentNum,
         gender: fullStudent.gender,
         exerciseType: '종합',
-        performanceResults: `최근 기록\n${performanceResults}`
+        performanceResults: `최근 기록\n${performanceResults}`,
+        ranks: studentRanks,
       };
       const result = await getStudentFeedback(feedbackInput);
       setAiFeedback(result.feedback);
@@ -179,8 +190,10 @@ export default function StudentDashboardPage() {
   };
 
   const { chartData, chartConfig, availableItems } = useMemo(() => {
-    if (!fullStudent) return { chartData: [], chartConfig: {}, availableItems: [] };
+    if (!fullStudent || !school) return { chartData: [], chartConfig: {}, availableItems: [] };
     
+    const allItemRanks = calculateRanks(school);
+
     const itemsToShow = measurementItems.filter(item => {
         if (chartFilter === 'paps') return item.isPaps;
         if (chartFilter === 'custom') return !item.isPaps;
@@ -193,7 +206,7 @@ export default function StudentDashboardPage() {
       ? recordsToShow 
       : recordsToShow.filter(r => r.item === chartItemFilter);
     
-    const dataByDate: Record<string, { date: string, originalRecord: Record<string, {value: number, unit: string}> } & Record<string, number>> = {};
+    const dataByDate: Record<string, { date: string, originalRecord: Record<string, {value: number, unit: string}>, rank?: string } & Record<string, number>> = {};
 
     filteredRecords.forEach(record => {
         const itemInfo = measurementItems.find(i => i.name === record.item);
@@ -213,9 +226,17 @@ export default function StudentDashboardPage() {
         }
         dataByDate[record.date][record.item] = grade;
         dataByDate[record.date].originalRecord[record.item] = { value: record.value, unit: itemInfo.unit };
+        
+        const itemRanks = allItemRanks[record.item];
+        if (itemRanks) {
+            const studentRank = itemRanks.find(r => r.studentId === fullStudent.id && r.value === record.value);
+            if (studentRank) {
+                dataByDate[record.date].rank = `${itemRanks.length}명 중 ${studentRank.rank}등`;
+            }
+        }
     });
     
-    const uniqueItems = [...new Set(Object.values(dataByDate).flatMap(d => Object.keys(d).filter(k => k !== 'date' && k !== 'originalRecord')))];
+    const uniqueItems = [...new Set(Object.values(dataByDate).flatMap(d => Object.keys(d).filter(k => k !== 'date' && k !== 'originalRecord' && k !== 'rank')))];
 
     const config: Record<string, any> = {};
     uniqueItems.forEach((itemName, index) => {
@@ -233,7 +254,7 @@ export default function StudentDashboardPage() {
     });
 
     return { chartData: data, chartConfig: config, availableItems: itemsWithGrade };
-  }, [records, chartFilter, chartItemFilter, measurementItems, fullStudent]);
+  }, [records, chartFilter, chartItemFilter, measurementItems, fullStudent, school]);
 
   if (!fullStudent || !school) {
     return null;

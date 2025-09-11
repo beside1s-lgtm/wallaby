@@ -24,10 +24,7 @@ const TeacherDashboardBriefingInputSchema = z.object({
       'A record of performance insights. Keys are measurement types. Values indicate average grade for PAPS items or average achievement percentage for non-PAPS items.'
     ),
    totalStudentCount: z.number().describe('The total number of students with records.'),
-   studentRankings: z.record(z.object({
-       rank: z.number(),
-       total: z.number()
-   })).describe('An object containing the rank of the student for each measurement type.')
+   studentRankings: z.record(z.string()).describe('An object containing the rank of the student for each measurement type.'),
 });
 export type TeacherDashboardBriefingInput = z.infer<
   typeof TeacherDashboardBriefingInputSchema
