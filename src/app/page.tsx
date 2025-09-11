@@ -75,7 +75,6 @@ export default function LoginPage() {
   };
 
   const handleStudentLogin = (values: StudentLoginValues) => {
-    initializeData(values.school);
     const student = getStudent(values);
     if (student) {
       login('student', student, values.school);

@@ -64,8 +64,7 @@ export const addStudent = (student: Omit<Student, 'id'>) => {
   return newStudent;
 };
 export const getStudent = (loginInfo: StudentLogin): Student | undefined => {
-  initializeData(loginInfo.school);
-  const students = getStudents(loginInfo.school);
+  const students = getStudentsBySchool(loginInfo.school);
   
   return students.find(s => 
     s.school === loginInfo.school &&
