@@ -195,9 +195,9 @@ export default function Analytics() {
   };
   
   const handleDownloadTemplate = () => {
-    if (!school || !selectedStudent) return;
+    if (!school) return;
     const templateData = [{
-      이름: selectedStudent.name,
+      이름: '홍길동',
       측정종목: '50m 달리기',
       기록: 9.5,
       측정일: '2024-01-01'
@@ -309,7 +309,7 @@ export default function Analytics() {
     <Card>
       <CardHeader>
         <CardTitle>학생 기록 조회 및 분석</CardTitle>
-        <CardDescription>학생 이름을 검색하여 상세 기록과 AI 분석을 확인하고, 새로운 기록을 추가할 수 있습니다.</CardDescription>
+        <CardDescription>학생 이름을 검색하여 상세 기록과 AI 분석을 확인하고, 기록을 추가/관리할 수 있습니다.</CardDescription>
         <div className="flex w-full max-w-sm items-center space-x-2 pt-4">
           <Input 
             type="text" 
@@ -322,16 +322,35 @@ export default function Analytics() {
         </div>
       </CardHeader>
       <CardContent className="space-y-8">
-        {!selectedStudent && <p className="text-center text-muted-foreground">분석할 학생을 검색해주세요.</p>}
+        {!selectedStudent && (
+          <div className="space-y-8">
+             <Card>
+                <CardHeader>
+                    <CardTitle>기록 일괄 관리</CardTitle>
+                    <CardDescription>CSV 파일을 사용하여 여러 학생의 기록을 한 번에 등록합니다.</CardDescription>
+                </CardHeader>
+                <CardFooter className="flex-wrap gap-2">
+                    <Button variant="outline" onClick={() => document.getElementById('record-csv-upload-main')?.click()}>
+                        <FileUp className="mr-2 h-4 w-4" />
+                        CSV 일괄 등록
+                    </Button>
+                    <input type="file" id="record-csv-upload-main" accept=".csv" onChange={handleCsvUpload} style={{ display: 'none' }} />
+                    <Button variant="link" onClick={handleDownloadTemplate}>템플릿 다운로드</Button>
+                </CardFooter>
+            </Card>
+            <p className="text-center text-muted-foreground">분석할 학생을 검색해주세요.</p>
+          </div>
+        )}
+
         {selectedStudent && (
           <div>
             <h2 className="text-2xl font-bold mb-6">{selectedStudent.name} ({selectedStudent.grade}-{selectedStudent.classNum}) 학생 분석</h2>
             
             <Card className="mb-8">
               <CardHeader>
-                <CardTitle>기록 추가</CardTitle>
+                <CardTitle>기록 개별 추가</CardTitle>
                  <CardDescription>
-                  선택된 학생의 측정 기록을 추가합니다. CSV 일괄 등록도 가능합니다.
+                  선택된 학생의 측정 기록을 개별적으로 추가합니다.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -359,12 +378,6 @@ export default function Analytics() {
                   {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   개별 기록 저장
                 </Button>
-                <Button variant="outline" onClick={() => document.getElementById('record-csv-upload')?.click()}>
-                    <FileUp className="mr-2 h-4 w-4" />
-                    CSV 일괄 등록
-                </Button>
-                <input type="file" id="record-csv-upload" accept=".csv" onChange={handleCsvUpload} style={{ display: 'none' }} />
-                <Button variant="link" onClick={handleDownloadTemplate}>템플릿 다운로드</Button>
               </CardFooter>
             </Card>
 
