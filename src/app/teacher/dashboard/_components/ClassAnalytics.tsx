@@ -390,8 +390,12 @@ export default function ClassAnalytics() {
               return null;
           }).filter((g): g is number => g !== null);
 
-          const avgGrade = grades.length > 0 ? grades.reduce((a, b) => a + b, 0) / grades.length : 6;
-          return { ...student, sortValue: `${avgGrade.toFixed(2)}등급`, _sortValue: avgGrade };
+          if (grades.length === 0) {
+              return { ...student, sortValue: '미측정', _sortValue: 6 };
+          }
+          
+          const avgGrade = grades.reduce((a, b) => a + b, 0) / grades.length;
+          return { ...student, sortValue: `${Math.round(avgGrade)}등급`, _sortValue: avgGrade };
       });
       
       studentAvgs.sort((a, b) => a._sortValue - b._sortValue);
