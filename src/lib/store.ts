@@ -4,8 +4,21 @@ import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { initialItems, initialStudents, initialRecords } from './initial-data';
 import { papsStandards } from './paps';
+import { db } from './firebase';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  doc,
+  getDoc,
+  setDoc,
+  addDoc,
+  deleteDoc,
+  writeBatch,
+  runTransaction
+} from 'firebase/firestore';
 
-const getKey = (school: string, key: string) => `${school}_${key}`;
 
 const getLocalStorage = <T>(key: string, fallback: T): T => {
   if (typeof window === 'undefined') {
@@ -26,71 +39,89 @@ const setLocalStorage = <T>(key: string, value: T) => {
   }
 };
 
-export const initializeData = (school: string) => {
-  const studentsKey = getKey(school, 'students');
-  if (!localStorage.getItem(studentsKey)) {
+// This function now only seeds data if the collections are empty.
+// It will be expanded later.
+export const initializeData = async (school: string) => {
+  const studentsRef = collection(db, 'schools', school, 'students');
+  const snapshot = await getDocs(query(studentsRef));
+  if (snapshot.empty) {
+    const batch = writeBatch(db);
     const schoolStudents = initialStudents.filter(s => s.school === school);
-    if(schoolStudents.length > 0) {
-        setLocalStorage(studentsKey, schoolStudents);
-    }
-  }
-  
-  const itemsKey = getKey(school, 'measurementItems');
-  if (!localStorage.getItem(itemsKey)) {
-    setLocalStorage(itemsKey, initialItems);
-  }
-  
-  const recordsKey = getKey(school, 'records');
-  if (!localStorage.getItem(recordsKey)) {
+    schoolStudents.forEach(student => {
+      const studentRef = doc(studentsRef, student.id);
+      batch.set(studentRef, student);
+    });
+    
+    const itemsRef = collection(db, 'schools', school, 'items');
+    initialItems.forEach(item => {
+        const itemRef = doc(itemsRef, item.id);
+        batch.set(itemRef, item);
+    });
+
+    const recordsRef = collection(db, 'schools', school, 'records');
     const schoolRecords = initialRecords.filter(r => r.school === school);
-     if(schoolRecords.length > 0) {
-        setLocalStorage(recordsKey, schoolRecords);
-    }
+    schoolRecords.forEach(record => {
+        const recordRef = doc(recordsRef); // Firestore will auto-generate ID
+        batch.set(recordRef, record);
+    });
+
+    await batch.commit();
   }
 };
 
-// Students
-export const getStudents = (school: string): Student[] => {
-    initializeData(school);
-    return getLocalStorage(getKey(school, 'students'), []);
-}
+// --- Student Functions ---
+export const getStudents = async (school: string): Promise<Student[]> => {
+    const studentsRef = collection(db, 'schools', school, 'students');
+    const snapshot = await getDocs(studentsRef);
+    return snapshot.docs.map(doc => doc.data() as Student);
+};
+
+export const getStudent = async (
+  loginInfo: Omit<Student, 'id' | 'gender'>
+): Promise<Student | undefined> => {
+  const studentsRef = collection(db, 'schools', loginInfo.school, 'students');
+  const q = query(
+    studentsRef,
+    where('school', '==', loginInfo.school),
+    where('grade', '==', loginInfo.grade),
+    where('classNum', '==', loginInfo.classNum),
+    where('studentNum', '==', loginInfo.studentNum),
+    where('name', '==', loginInfo.name)
+  );
+  const snapshot = await getDocs(q);
+  if (snapshot.empty) {
+    return undefined;
+  }
+  return snapshot.docs[0].data() as Student;
+};
+
+
+// --- Legacy localStorage functions (will be migrated) ---
 
 export const getStudentsBySchool = (school: string): Student[] => {
-    return getStudents(school);
+    return getLocalStorage(getKey(school, 'students'), []);
 }
 export const setStudents = (school: string, students: Student[]) => setLocalStorage(getKey(school, 'students'), students);
 export const addStudent = (student: Omit<Student, 'id'>) => {
-  initializeData(student.school);
-  const students = getStudents(student.school);
+  const students = getStudentsBySchool(student.school);
   const newStudent = { ...student, id: uuidv4() };
   setStudents(student.school, [...students, newStudent]);
   return newStudent;
 };
-export const getStudent = (loginInfo: Omit<Student, 'id' | 'gender'>): Student | undefined => {
-  const students = getStudentsBySchool(loginInfo.school);
-  
-  return students.find(s => 
-    s.school === loginInfo.school &&
-    s.grade === loginInfo.grade && 
-    s.classNum === loginInfo.classNum && 
-    s.studentNum === loginInfo.studentNum && 
-    s.name === loginInfo.name
-  );
-};
+
 export const getStudentById = (school: string, studentId: string): Student | undefined => {
-    const students = getStudents(school);
+    const students = getStudentsBySchool(school);
     return students.find(s => s.id === studentId);
 }
 export const deleteStudents = (school: string, ids: string[]) => {
-  const students = getStudents(school);
+  const students = getStudentsBySchool(school);
   setStudents(school, students.filter(s => !ids.includes(s.id)));
 };
-
+const getKey = (school: string, key: string) => `${school}_${key}`;
 // Measurement Items
 export const getItems = (school: string): MeasurementItem[] => {
-    initializeData(school);
     const key = getKey(school, 'measurementItems');
-    let items = getLocalStorage<MeasurementItem[]>(key, []);
+    let items = getLocalStorage<MeasurementItem[]>(key, initialItems);
 
     // Data migration logic for old items without isPaps
     if (items.length > 0 && typeof items[0].isPaps === 'undefined') {
@@ -125,7 +156,6 @@ export const deleteItem = (school: string, itemId: string) => {
 
 // Records
 export const getRecords = (school: string): MeasurementRecord[] => {
-    initializeData(school);
     return getLocalStorage(getKey(school, 'records'), []);
 }
 export const setRecords = (school: string, records: MeasurementRecord[]) => setLocalStorage(getKey(school, 'records'), records);
@@ -179,7 +209,7 @@ type RankInfo = { studentId: string; value: number; rank: number };
 export const calculateRanks = (school: string, grade?: string): Record<string, RankInfo[]> => {
   const allItems = getItems(school);
   const allRecords = getRecords(school);
-  const allStudents = getStudents(school);
+  const allStudents = getStudentsBySchool(school);
   const allRanks: Record<string, RankInfo[]> = {};
 
   const gradeStudents = grade ? allStudents.filter(s => s.grade === grade) : allStudents;

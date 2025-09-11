@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -22,7 +23,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Rocket } from 'lucide-react';
+import { Loader2, Rocket } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getStudent, initializeData } from '@/lib/store';
 
@@ -40,6 +41,7 @@ export default function StudentLoginPage() {
   const router = useRouter();
   const { login } = useAuth();
   const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const studentForm = useForm<StudentLoginValues>({
     resolver: zodResolver(studentLoginSchema),
@@ -52,18 +54,31 @@ export default function StudentLoginPage() {
     },
   });
 
-  const handleStudentLogin = (values: StudentLoginValues) => {
-    initializeData(values.school);
-    const student = getStudent(values);
-    if (student) {
-      login('student', student, values.school);
-      router.push('/student/dashboard');
-    } else {
+  const handleStudentLogin = async (values: StudentLoginValues) => {
+    setIsSubmitting(true);
+    try {
+      await initializeData(values.school);
+      const student = await getStudent(values);
+
+      if (student) {
+        login('student', student, values.school);
+        router.push('/student/dashboard');
+      } else {
+        toast({
+          variant: 'destructive',
+          title: '로그인 실패',
+          description: '학생 정보가 존재하지 않습니다. 학교 정보를 확인하거나 교사에게 문의하세요.',
+        });
+      }
+    } catch (error) {
+      console.error("Login failed: ", error);
       toast({
         variant: 'destructive',
         title: '로그인 실패',
-        description: '학생 정보가 존재하지 않습니다. 학교 정보를 확인하거나 교사에게 문의하세요.',
+        description: '데이터베이스 연결 중 오류가 발생했습니다. 다시 시도해주세요.',
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -143,7 +158,7 @@ export default function StudentLoginPage() {
               <FormField
                 control={studentForm.control}
                 name="name"
-                render={({ field }) => (
+                render={({ field }) autofocus => (
                   <FormItem>
                     <FormLabel>이름</FormLabel>
                     <FormControl>
@@ -153,8 +168,16 @@ export default function StudentLoginPage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full bg-primary hover:bg-primary/90">
-                학생으로 로그인
+              <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={isSubmitting}>
+                {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      로그인 중...
+                    </>
+                  ) : (
+                    '학생으로 로그인'
+                  )
+                }
               </Button>
             </form>
           </Form>

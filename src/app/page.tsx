@@ -23,8 +23,9 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Rocket } from 'lucide-react';
+import { Loader2, Rocket } from 'lucide-react';
 import { initializeData } from '@/lib/store';
+import { useToast } from '@/hooks/use-toast';
 
 const teacherLoginSchema = z.object({
   school: z.string().min(1, '학교 이름을 입력해주세요.'),
@@ -35,6 +36,8 @@ type TeacherLoginValues = z.infer<typeof teacherLoginSchema>;
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const teacherForm = useForm<TeacherLoginValues>({
     resolver: zodResolver(teacherLoginSchema),
@@ -43,10 +46,23 @@ export default function LoginPage() {
     },
   });
 
-  const handleTeacherLogin = (values: TeacherLoginValues) => {
-    initializeData(values.school);
-    login('teacher', { name: '교사', school: values.school }, values.school);
-    router.push('/teacher/dashboard');
+  const handleTeacherLogin = async (values: TeacherLoginValues) => {
+    setIsSubmitting(true);
+    try {
+      await initializeData(values.school);
+      // For now, teacher login is simple. We can add verification later if needed.
+      login('teacher', { name: '교사', school: values.school }, values.school);
+      router.push('/teacher/dashboard');
+    } catch (error) {
+      console.error("Login failed: ", error);
+      toast({
+        variant: 'destructive',
+        title: '로그인 실패',
+        description: '데이터베이스 초기화 중 오류가 발생했습니다. 다시 시도해주세요.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -78,8 +94,15 @@ export default function LoginPage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full bg-primary hover:bg-primary/90">
-                교사로 로그인
+              <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    로그인 중...
+                  </>
+                ) : (
+                  '교사로 로그인'
+                )}
               </Button>
             </form>
           </Form>
