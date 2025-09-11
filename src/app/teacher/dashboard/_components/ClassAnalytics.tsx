@@ -1,7 +1,7 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { getStudents, getRecords, getItems, addOrUpdateRecord, calculateRanks } from '@/lib/store';
+import { getStudents, getRecords, getItems, addOrUpdateRecord, calculateRanks, getRecordsByStudent } from '@/lib/store';
 import { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
 import { Input } from '@/components/ui/input';
 import {
@@ -30,12 +30,11 @@ import {
 import {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
 } from '@/components/ui/chart';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { analyzeStudentPerformance } from '@/ai/flows/teacher-ai-assistant';
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, Wand2, UserPlus, FileUp, FileDown, X as XIcon, ArrowUpDown } from 'lucide-react';
+import { Loader2, Search, Wand2, FileUp, X as XIcon, ArrowUpDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getPapsGrade, getCustomItemGrade } from '@/lib/paps';
 import { parseCsv, exportToZip } from '@/lib/utils';
@@ -86,7 +85,7 @@ const CustomBarTooltipContent = ({ active, payload, label }: any) => {
 };
 
 
-export default function Analytics() {
+export default function ClassAnalytics() {
   const { school } = useAuth();
   const { toast } = useToast();
   
@@ -537,7 +536,7 @@ export default function Analytics() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>학생 기록 조회 및 분석</CardTitle>
+        <CardTitle>학급별 학생 기록 조회 및 분석</CardTitle>
         <CardDescription>학생을 검색하거나 학급을 선택하여 상세 기록과 AI 분석을 확인하고, 기록을 추가/관리할 수 있습니다.</CardDescription>
         <div className="flex flex-wrap items-center gap-2 pt-4">
           <Input 
