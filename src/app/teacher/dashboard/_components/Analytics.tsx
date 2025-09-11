@@ -20,6 +20,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
@@ -27,10 +35,10 @@ import {
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { analyzeStudentPerformance } from '@/ai/flows/teacher-ai-assistant';
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, Wand2, UserPlus, FileUp, FileDown } from 'lucide-react';
+import { Loader2, Search, Wand2, UserPlus, FileUp, FileDown, X as XIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getPapsGrade } from '@/lib/paps';
-import { parseCsv, exportToCsv, exportToZip } from '@/lib/utils';
+import { parseCsv, exportToZip } from '@/lib/utils';
 import { addOrUpdateRecords } from '@/lib/store';
 
 type AiAnalysis = {
@@ -42,7 +50,11 @@ type AiAnalysis = {
 export default function Analytics() {
   const { school } = useAuth();
   const { toast } = useToast();
+  
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedGrade, setSelectedGrade] = useState('');
+  const [selectedClassNum, setSelectedClassNum] = useState('');
+  
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [studentRecords, setStudentRecords] = useState<MeasurementRecord[]>([]);
   const [allRecords, setAllRecords] = useState<MeasurementRecord[]>([]);
@@ -60,6 +72,20 @@ export default function Analytics() {
   const students = useMemo(() => school ? getStudents(school) : [], [school]);
   const measurementItems = useMemo(() => school ? getItems(school) : [], [school]);
 
+  const { grades, classNumsByGrade } = useMemo(() => {
+    const grades = [...new Set(students.map(s => s.grade))].sort();
+    const classNumsByGrade: Record<string, string[]> = {};
+    grades.forEach(grade => {
+        classNumsByGrade[grade] = [...new Set(students.filter(s => s.grade === grade).map(s => s.classNum))].sort();
+    });
+    return { grades, classNumsByGrade };
+  }, [students]);
+
+  const filteredStudentsByClass = useMemo(() => {
+    if (!selectedGrade || !selectedClassNum) return [];
+    return students.filter(s => s.grade === selectedGrade && s.classNum === selectedClassNum);
+  }, [students, selectedGrade, selectedClassNum]);
+
   useEffect(() => {
     if (school) {
         const items = getItems(school);
@@ -71,6 +97,12 @@ export default function Analytics() {
         }
     }
   }, [school]);
+  
+  useEffect(() => {
+    // Reset student search when class filter changes
+    setSearchTerm('');
+    setSelectedStudent(null);
+  }, [selectedGrade, selectedClassNum]);
 
   const selectedItem = useMemo(() => {
       return allItems.find(item => item.name === selectedItemName) ?? getItems(school).find(item => item.name === selectedItemName);
@@ -89,14 +121,20 @@ export default function Analytics() {
     setStudentRecords(studentRecs);
   };
 
+  const handleSelectStudent = (student: Student) => {
+    setSelectedStudent(student);
+    const studentRecs = allRecords.filter(r => r.studentId === student.id);
+    setStudentRecords(studentRecs);
+    setAiAnalysis(null);
+  }
+
   const handleSearch = () => {
-    if (!school) return;
+    if (!school || !searchTerm) return;
     const student = students.find(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
     if (student) {
-      setSelectedStudent(student);
-      const studentRecs = allRecords.filter(r => r.studentId === student.id);
-      setStudentRecords(studentRecs);
-      setAiAnalysis(null);
+      setSelectedGrade(student.grade);
+      setSelectedClassNum(student.classNum);
+      handleSelectStudent(student);
     } else {
       setSelectedStudent(null);
       setStudentRecords([]);
@@ -243,56 +281,75 @@ export default function Analytics() {
       setIsAiLoading(false);
     }
   };
+  
+  const calculateAverageGrades = (studentList: Student[]) => {
+      const averageGrades: Record<string, number> = {};
+      const studentIds = new Set(studentList.map(s => s.id));
+      const relevantRecords = allRecords.filter(r => studentIds.has(r.studentId));
+
+      allItems.forEach(item => {
+        const itemRecords = relevantRecords.filter(r => r.item === item.name);
+        if (itemRecords.length > 0) {
+          const totalGrades = itemRecords.reduce((sum, record) => {
+            const student = studentList.find(s => s.id === record.studentId);
+            if (student) {
+              const grade = getPapsGrade(item.name, student.gender, record.value);
+              if (grade !== null) return sum + grade;
+            }
+            return sum;
+          }, 0);
+          
+          const validRecordsCount = itemRecords.filter(r => {
+              const student = studentList.find(s => s.id === r.studentId);
+              return student && getPapsGrade(item.name, student.gender, r.value) !== null;
+          }).length;
+
+          if (validRecordsCount > 0) {
+              averageGrades[item.name] = parseFloat((totalGrades / validRecordsCount).toFixed(2));
+          }
+        }
+      });
+      return averageGrades;
+  }
 
   const comparisonData = useMemo(() => {
-    if (!selectedStudent || allRecords.length === 0) return [];
+    if (allRecords.length === 0) return [];
     
-    const studentLatestGrades: Record<string, number> = {};
-    const studentRecordsForComparison = allRecords.filter(r => r.studentId === selectedStudent.id);
-    
-    allItems.forEach(item => {
-      const recordsForItem = studentRecordsForComparison
-        .filter(r => r.item === item.name)
-        .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      
-      if (recordsForItem.length > 0) {
-        const grade = getPapsGrade(item.name, selectedStudent.gender, recordsForItem[0].value);
-        if (grade !== null) {
-          studentLatestGrades[item.name] = grade;
-        }
-      }
-    });
+    let comparisonTargetData: Record<string, number> = {};
+    let label = '선택 대상';
 
-    const averageGrades: Record<string, number> = {};
-    allItems.forEach(item => {
-      const itemRecords = allRecords.filter(r => r.item === item.name);
-      if (itemRecords.length > 0) {
-        const totalGrades = itemRecords.reduce((sum, record) => {
-          const student = students.find(s => s.id === record.studentId);
-          if (student) {
-            const grade = getPapsGrade(item.name, student.gender, record.value);
-            if (grade !== null) return sum + grade;
+    if(selectedStudent) {
+        label = selectedStudent.name;
+        const studentRecordsForComparison = allRecords.filter(r => r.studentId === selectedStudent.id);
+        allItems.forEach(item => {
+          const recordsForItem = studentRecordsForComparison
+            .filter(r => r.item === item.name)
+            .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          
+          if (recordsForItem.length > 0) {
+            const grade = getPapsGrade(item.name, selectedStudent.gender, recordsForItem[0].value);
+            if (grade !== null) {
+              comparisonTargetData[item.name] = grade;
+            }
           }
-          return sum;
-        }, 0);
-        const validRecordsCount = itemRecords.filter(r => {
-            const student = students.find(s => s.id === r.studentId);
-            return student && getPapsGrade(item.name, student.gender, r.value) !== null;
-        }).length;
+        });
+    } else if (filteredStudentsByClass.length > 0) {
+        label = `${selectedGrade}학년 ${selectedClassNum}반 평균`;
+        comparisonTargetData = calculateAverageGrades(filteredStudentsByClass);
+    }
+    
+    const overallAverageGrades = calculateAverageGrades(students);
 
-        if (validRecordsCount > 0) {
-            averageGrades[item.name] = parseFloat((totalGrades / validRecordsCount).toFixed(2));
-        }
-      }
-    });
+    return {
+        data: allItems.map(item => ({
+            name: item.name,
+            target: comparisonTargetData[item.name] || 0,
+            average: overallAverageGrades[item.name] || 0,
+        })).filter(d => d.target > 0 || d.average > 0),
+        targetLabel: label
+    };
 
-    return allItems.map(item => ({
-      name: item.name,
-      student: studentLatestGrades[item.name] || 0,
-      average: averageGrades[item.name] || 0,
-    })).filter(d => d.student > 0 || d.average > 0);
-
-  }, [selectedStudent, allRecords, allItems, students]);
+  }, [selectedStudent, filteredStudentsByClass, allRecords, allItems, students, selectedGrade, selectedClassNum]);
   
   const progressData = useMemo(() => {
     if (!progressChartItem || !selectedStudent) return [];
@@ -312,9 +369,16 @@ export default function Analytics() {
   }, [studentRecords, progressChartItem, selectedStudent, school]);
   
   const comparisonChartConfig = {
-      student: { label: selectedStudent?.name || '학생', color: 'hsl(var(--chart-1))' },
+      target: { label: comparisonData.targetLabel, color: 'hsl(var(--chart-1))' },
       average: { label: '전체 평균', color: 'hsl(var(--chart-2))' },
   };
+  
+  const resetFilters = () => {
+    setSearchTerm('');
+    setSelectedGrade('');
+    setSelectedClassNum('');
+    setSelectedStudent(null);
+  }
 
   if (!school) return null;
 
@@ -322,20 +386,47 @@ export default function Analytics() {
     <Card>
       <CardHeader>
         <CardTitle>학생 기록 조회 및 분석</CardTitle>
-        <CardDescription>학생 이름을 검색하여 상세 기록과 AI 분석을 확인하고, 기록을 추가/관리할 수 있습니다.</CardDescription>
-        <div className="flex w-full max-w-sm items-center space-x-2 pt-4">
+        <CardDescription>학생을 검색하거나 학급을 선택하여 상세 기록과 AI 분석을 확인하고, 기록을 추가/관리할 수 있습니다.</CardDescription>
+        <div className="flex flex-wrap items-center gap-2 pt-4">
           <Input 
             type="text" 
             placeholder="학생 이름 검색..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            className="w-full sm:w-auto"
           />
           <Button type="button" onClick={handleSearch}><Search className="mr-2 h-4 w-4" /> 검색</Button>
+          
+          <span className="text-muted-foreground text-sm mx-2">또는</span>
+
+          <Select value={selectedGrade} onValueChange={setSelectedGrade}>
+            <SelectTrigger className="w-full sm:w-[120px]">
+                <SelectValue placeholder="학년 선택" />
+            </SelectTrigger>
+            <SelectContent>
+                {grades.map(grade => <SelectItem key={grade} value={grade}>{grade}학년</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <Select value={selectedClassNum} onValueChange={setSelectedClassNum} disabled={!selectedGrade}>
+            <SelectTrigger className="w-full sm:w-[120px]">
+                <SelectValue placeholder="반 선택" />
+            </SelectTrigger>
+            <SelectContent>
+                {classNumsByGrade[selectedGrade]?.map(classNum => <SelectItem key={classNum} value={classNum}>{classNum}반</SelectItem>)}
+            </SelectContent>
+          </Select>
+          
+           {(selectedStudent || selectedGrade) && (
+            <Button variant="ghost" size="icon" onClick={resetFilters} className="h-9 w-9">
+                <XIcon className="h-5 w-5" />
+            </Button>
+           )}
         </div>
       </CardHeader>
       <CardContent className="space-y-8">
-        {!selectedStudent && (
+        {!selectedStudent && !filteredStudentsByClass.length && (
           <div className="space-y-8">
              <Card>
                 <CardHeader>
@@ -353,127 +444,169 @@ export default function Analytics() {
                     <Button variant="link" onClick={handleDownloadTemplate}>템플릿 및 종목 목록 다운로드</Button>
                 </CardFooter>
             </Card>
-            <p className="text-center text-muted-foreground">분석할 학생을 검색해주세요.</p>
+            <p className="text-center text-muted-foreground">분석할 학생을 검색하거나 학급을 선택해주세요.</p>
           </div>
         )}
 
-        {selectedStudent && (
+        {(selectedStudent || filteredStudentsByClass.length > 0) && (
           <div>
-            <h2 className="text-2xl font-bold mb-6">{selectedStudent.name} ({selectedStudent.grade}-{selectedStudent.classNum}) 학생 분석</h2>
+            {selectedStudent ? (
+                <h2 className="text-2xl font-bold mb-6">{selectedStudent.name} ({selectedStudent.grade}-{selectedStudent.classNum}) 학생 분석</h2>
+            ) : (
+                <h2 className="text-2xl font-bold mb-6">{selectedGrade}학년 {selectedClassNum}반 학급 분석</h2>
+            )}
             
-            <Card className="mb-8">
-              <CardHeader>
-                <CardTitle>기록 개별 추가</CardTitle>
-                 <CardDescription>
-                  선택된 학생의 측정 기록을 개별적으로 추가합니다.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Select onValueChange={setSelectedItemName} value={selectedItemName}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="측정 종목 선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {getItems(school).map(item => (
-                          <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      placeholder={inputPlaceholder}
-                      value={recordValue}
-                      onChange={e => setRecordValue(e.target.value)}
-                      type="number"
-                    />
-                 </div>
-              </CardContent>
-              <CardFooter className="flex-wrap gap-2">
-                <Button onClick={handleAddRecord} disabled={isSubmitting}>
-                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  개별 기록 저장
-                </Button>
-              </CardFooter>
-            </Card>
+            {!selectedStudent && filteredStudentsByClass.length > 0 && (
+                 <Card className="mb-8">
+                    <CardHeader>
+                        <CardTitle>학급 학생 목록</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>번호</TableHead>
+                                    <TableHead>이름</TableHead>
+                                    <TableHead>성별</TableHead>
+                                    <TableHead>기록 조회</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {filteredStudentsByClass.map(student => (
+                                    <TableRow key={student.id}>
+                                        <TableCell>{student.studentNum}</TableCell>
+                                        <TableCell>{student.name}</TableCell>
+                                        <TableCell>{student.gender}</TableCell>
+                                        <TableCell>
+                                            <Button variant="link" size="sm" onClick={() => handleSelectStudent(student)}>기록 보기</Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            )}
+
+            {selectedStudent && (
+              <Card className="mb-8">
+                <CardHeader>
+                  <CardTitle>기록 개별 추가</CardTitle>
+                  <CardDescription>
+                    선택된 학생의 측정 기록을 개별적으로 추가합니다.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <Select onValueChange={setSelectedItemName} value={selectedItemName}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="측정 종목 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {getItems(school).map(item => (
+                            <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        placeholder={inputPlaceholder}
+                        value={recordValue}
+                        onChange={e => setRecordValue(e.target.value)}
+                        type="number"
+                      />
+                  </div>
+                </CardContent>
+                <CardFooter className="flex-wrap gap-2">
+                  <Button onClick={handleAddRecord} disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    개별 기록 저장
+                  </Button>
+                </CardFooter>
+              </Card>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
               <Card>
                 <CardHeader>
-                  <CardTitle>PAPS 등급 비교 (학생 vs 전체 평균)</CardTitle>
+                  <CardTitle>PAPS 등급 비교 ({comparisonData.targetLabel} vs 전체 평균)</CardTitle>
                   <CardDescription>1등급이 가장 높음</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ChartContainer config={comparisonChartConfig} className="h-[300px] w-full">
-                    <BarChart data={comparisonData}>
+                    <BarChart data={comparisonData.data}>
                       <CartesianGrid vertical={false} />
                       <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} angle={-45} textAnchor="end" height={80} interval={0} />
                       <YAxis reversed={true} domain={[1, 5]} ticks={[1,2,3,4,5]} tickCount={5} />
                       <ChartTooltip content={<ChartTooltipContent />} />
                       <Legend />
-                      <Bar dataKey="student" fill="var(--color-student)" radius={4} />
-                      <Bar dataKey="average" fill="var(--color-average)" radius={4} />
+                      <Bar dataKey="target" name={comparisonChartConfig.target.label} fill="var(--color-target)" radius={4} />
+                      <Bar dataKey="average" name={comparisonChartConfig.average.label} fill="var(--color-average)" radius={4} />
                     </BarChart>
                   </ChartContainer>
                 </CardContent>
               </Card>
-              <Card>
-                <CardHeader>
-                  <div className="flex justify-between items-center">
-                    <CardTitle>회차별 등급 변화</CardTitle>
-                    <Select value={progressChartItem} onValueChange={setProgressChartItem}>
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="종목 선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {allItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                   <CardDescription>1등급이 가장 높음</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ChartContainer config={{}} className="h-[300px] w-full">
-                    <LineChart data={progressData}>
-                      <CartesianGrid vertical={false} />
-                      <XAxis dataKey="date" />
-                      <YAxis reversed={true} domain={[1, 5]} ticks={[1,2,3,4,5]} tickCount={5} />
-                      <Tooltip />
-                      <Legend />
-                      <Line type="monotone" dataKey="value" name={progressChartItem} stroke="hsl(var(--primary))" strokeWidth={2} />
-                    </LineChart>
-                  </ChartContainer>
-                </CardContent>
-              </Card>
+              
+              {selectedStudent && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex justify-between items-center">
+                      <CardTitle>회차별 등급 변화</CardTitle>
+                      <Select value={progressChartItem} onValueChange={setProgressChartItem}>
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="종목 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {allItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <CardDescription>1등급이 가장 높음</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ChartContainer config={{}} className="h-[300px] w-full">
+                      <LineChart data={progressData}>
+                        <CartesianGrid vertical={false} />
+                        <XAxis dataKey="date" />
+                        <YAxis reversed={true} domain={[1, 5]} ticks={[1,2,3,4,5]} tickCount={5} />
+                        <Tooltip />
+                        <Legend />
+                        <Line type="monotone" dataKey="value" name={progressChartItem} stroke="hsl(var(--primary))" strokeWidth={2} />
+                      </LineChart>
+                    </ChartContainer>
+                  </CardContent>
+                </Card>
+              )}
             </div>
             
-            <Card className="bg-primary/5">
-                <CardHeader>
-                    <CardTitle>AI 코칭 어시스턴트</CardTitle>
-                    <CardDescription>학생의 기록을 바탕으로 강점, 약점, 추천 훈련 방법을 분석합니다.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {isAiLoading ? (
-                        <div className="flex items-center justify-center h-24">
-                            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                        </div>
-                    ) : aiAnalysis ? (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                            <div><h4 className="font-bold mb-2 text-green-600">강점</h4><p className="whitespace-pre-wrap">{aiAnalysis.strengths}</p></div>
-                            <div><h4 className="font-bold mb-2 text-red-600">약점</h4><p className="whitespace-pre-wrap">{aiAnalysis.weaknesses}</p></div>
-                            <div><h4 className="font-bold mb-2 text-blue-600">추천 훈련 방법</h4><p className="whitespace-pre-wrap">{aiAnalysis.suggestedTrainingMethods}</p></div>
-                        </div>
-                    ) : (
-                        <p className="text-center text-muted-foreground">AI 분석을 요청하여 학생 맞춤형 코칭을 받아보세요.</p>
-                    )}
-                </CardContent>
-                <CardFooter>
-                    <Button onClick={handleAiAnalysis} disabled={isAiLoading || studentRecords.length === 0}>
-                        <Wand2 className="mr-2 h-4 w-4" />
-                        {isAiLoading ? '분석 중...' : 'AI 분석 요청'}
-                    </Button>
-                </CardFooter>
-            </Card>
-
+            {selectedStudent && (
+              <Card className="bg-primary/5">
+                  <CardHeader>
+                      <CardTitle>AI 코칭 어시스턴트</CardTitle>
+                      <CardDescription>학생의 기록을 바탕으로 강점, 약점, 추천 훈련 방법을 분석합니다.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                      {isAiLoading ? (
+                          <div className="flex items-center justify-center h-24">
+                              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                          </div>
+                      ) : aiAnalysis ? (
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                              <div><h4 className="font-bold mb-2 text-green-600">강점</h4><p className="whitespace-pre-wrap">{aiAnalysis.strengths}</p></div>
+                              <div><h4 className="font-bold mb-2 text-red-600">약점</h4><p className="whitespace-pre-wrap">{aiAnalysis.weaknesses}</p></div>
+                              <div><h4 className="font-bold mb-2 text-blue-600">추천 훈련 방법</h4><p className="whitespace-pre-wrap">{aiAnalysis.suggestedTrainingMethods}</p></div>
+                          </div>
+                      ) : (
+                          <p className="text-center text-muted-foreground">AI 분석을 요청하여 학생 맞춤형 코칭을 받아보세요.</p>
+                      )}
+                  </CardContent>
+                  <CardFooter>
+                      <Button onClick={handleAiAnalysis} disabled={isAiLoading || studentRecords.length === 0}>
+                          <Wand2 className="mr-2 h-4 w-4" />
+                          {isAiLoading ? '분석 중...' : 'AI 분석 요청'}
+                      </Button>
+                  </CardFooter>
+              </Card>
+            )}
           </div>
         )}
       </CardContent>
