@@ -148,7 +148,7 @@ export default function StudentDashboardPage() {
     
     setIsFeedbackLoading(true);
     try {
-      const allItemRanks = calculateRanks(school);
+      const allItemRanks = calculateRanks(school, fullStudent.grade);
       const studentRanks: Record<string, string> = {};
        Object.entries(allItemRanks).forEach(([item, ranks]) => {
             const rankInfo = ranks.find(r => r.studentId === fullStudent.id);
@@ -192,7 +192,7 @@ export default function StudentDashboardPage() {
   const { chartData, chartConfig, availableItems } = useMemo(() => {
     if (!fullStudent || !school) return { chartData: [], chartConfig: {}, availableItems: [] };
     
-    const allItemRanks = calculateRanks(school);
+    const allItemRanks = calculateRanks(school, fullStudent.grade);
 
     const itemsToShow = measurementItems.filter(item => {
         if (chartFilter === 'paps') return item.isPaps;
@@ -231,7 +231,7 @@ export default function StudentDashboardPage() {
         if (itemRanks) {
             const studentRank = itemRanks.find(r => r.studentId === fullStudent.id && r.value === record.value);
             if (studentRank) {
-                dataByDate[record.date].rank = `${itemRanks.length}명 중 ${studentRank.rank}등`;
+                dataByDate[record.date].rank = `같은 학년 ${itemRanks.length}명 중 ${studentRank.rank}등`;
             }
         }
     });

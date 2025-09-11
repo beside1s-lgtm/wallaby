@@ -301,7 +301,7 @@ export default function Analytics() {
     if (!selectedStudent || studentRecords.length === 0 || !school) return;
     setIsAiLoading(true);
     try {
-       const allItemRanks = calculateRanks(school);
+       const allItemRanks = calculateRanks(school, selectedStudent.grade);
        const studentRanks: Record<string, string> = {};
        Object.entries(allItemRanks).forEach(([item, ranks]) => {
             const rankInfo = ranks.find(r => r.studentId === selectedStudent.id);
@@ -381,9 +381,8 @@ export default function Analytics() {
     let comparisonTargetData: Record<string, { percentage: number, avgValue: number, unit: string, rank?: string }> = {};
     let label = '선택 대상';
 
-    const allItemRanks = calculateRanks(school);
-
     if(selectedStudent) {
+        const allItemRanks = calculateRanks(school, selectedStudent.grade);
         label = selectedStudent.name;
         const studentRecordsForComparison = allRecords.filter(r => r.studentId === selectedStudent.id);
         const latestRecords: Record<string, MeasurementRecord> = {};
@@ -404,7 +403,7 @@ export default function Analytics() {
                   percentage: gradeToPercentage(grade),
                   avgValue: record.value,
                   unit: item.unit,
-                  rank: rankInfo ? `${allItemRanks[item.name].length}명 중 ${rankInfo.rank}등` : undefined
+                  rank: rankInfo ? `같은 학년 ${allItemRanks[item.name].length}명 중 ${rankInfo.rank}등` : undefined
               };
             }
           }
@@ -414,7 +413,7 @@ export default function Analytics() {
         comparisonTargetData = calculateAverageGrades(filteredStudentsByClass);
     }
     
-    const overallAverageData = calculateAverageGrades(students);
+    const overallAverageData = calculateAverageGrades(students.filter(s => s.grade === (selectedStudent?.grade || selectedGrade)));
 
     return {
         data: allItems.map(item => ({
@@ -455,7 +454,7 @@ export default function Analytics() {
   
   const comparisonChartConfig = {
       target: { label: comparisonData.targetLabel, color: 'hsl(var(--chart-1))' },
-      average: { label: '전체 평균', color: 'hsl(var(--chart-2))' },
+      average: { label: '학년 평균', color: 'hsl(var(--chart-2))' },
   };
   
   const resetFilters = () => {
@@ -613,7 +612,7 @@ export default function Analytics() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
               <Card>
                 <CardHeader>
-                  <CardTitle>PAPS 성취도 비교 ({comparisonData.targetLabel} vs 전체 평균)</CardTitle>
+                  <CardTitle>PAPS 성취도 비교 ({comparisonData.targetLabel} vs 학년 평균)</CardTitle>
                   <CardDescription>100%에 가까울수록 성취도가 높습니다.</CardDescription>
                 </CardHeader>
                 <CardContent>

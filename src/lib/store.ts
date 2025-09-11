@@ -176,15 +176,18 @@ export const getRecordsByStudent = (school: string, studentId: string): Measurem
 // Ranks
 type RankInfo = { studentId: string; value: number; rank: number };
 
-export const calculateRanks = (school: string): Record<string, RankInfo[]> => {
+export const calculateRanks = (school: string, grade?: string): Record<string, RankInfo[]> => {
   const allItems = getItems(school);
   const allRecords = getRecords(school);
+  const allStudents = getStudents(school);
   const allRanks: Record<string, RankInfo[]> = {};
 
+  const gradeStudents = grade ? allStudents.filter(s => s.grade === grade) : allStudents;
+  const gradeStudentIds = new Set(gradeStudents.map(s => s.id));
+
   allItems.forEach(item => {
-    // Get the latest record for each student for a specific item
     const latestRecords: Record<string, MeasurementRecord> = {};
-    const itemRecords = allRecords.filter(r => r.item === item.name);
+    const itemRecords = allRecords.filter(r => r.item === item.name && gradeStudentIds.has(r.studentId));
 
     itemRecords.forEach(record => {
       if (!latestRecords[record.studentId] || new Date(record.date) > new Date(latestRecords[record.studentId].date)) {
@@ -194,14 +197,12 @@ export const calculateRanks = (school: string): Record<string, RankInfo[]> => {
 
     const studentValues = Object.values(latestRecords);
 
-    // Sort based on recordType
     if (item.recordType === 'time') {
       studentValues.sort((a, b) => a.value - b.value); // Lower is better
     } else {
       studentValues.sort((a, b) => b.value - a.value); // Higher is better
     }
 
-    // Assign ranks
     const ranks: RankInfo[] = [];
     let rank = 1;
     for (let i = 0; i < studentValues.length; i++) {
