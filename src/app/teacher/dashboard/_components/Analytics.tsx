@@ -49,6 +49,7 @@ type AiAnalysis = {
 
 const gradeToPercentage = (grade: number | null): number => {
     if (grade === null) return 0;
+    // 1등급 -> 100, 2등급 -> 80, ..., 5등급 -> 20
     return (5 - grade + 1) * 20;
 };
 
@@ -138,8 +139,6 @@ export default function Analytics() {
     if (!school || !searchTerm) return;
     const student = students.find(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
     if (student) {
-      setSelectedGrade(student.grade);
-      setSelectedClassNum(student.classNum);
       handleSelectStudent(student);
     } else {
       setSelectedStudent(null);
@@ -542,7 +541,7 @@ export default function Analytics() {
               <Card>
                 <CardHeader>
                   <CardTitle>PAPS 성취도 비교 ({comparisonData.targetLabel} vs 전체 평균)</CardTitle>
-                  <CardDescription>1등급(100%)에 가까울수록 성취도가 높습니다.</CardDescription>
+                  <CardDescription>100%에 가까울수록 성취도가 높습니다.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ChartContainer config={comparisonChartConfig} className="h-[300px] w-full">
