@@ -1,7 +1,7 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { addOrUpdateRecord, calculateRanks, getRecordsByStudent, addOrUpdateRecords } from '@/lib/store';
+import { addOrUpdateRecord, calculateRanks, getRecordsByStudent, addOrUpdateRecords, deleteRecord } from '@/lib/store';
 import { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
 import { Input } from '@/components/ui/input';
 import {
@@ -28,13 +28,24 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import {
   ChartContainer,
   ChartTooltip,
 } from '@/components/ui/chart';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { analyzeStudentPerformance } from '@/ai/flows/teacher-ai-assistant';
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, Wand2, FileUp, X as XIcon, ArrowUpDown } from 'lucide-react';
+import { Loader2, Search, Wand2, FileUp, X as XIcon, ArrowUpDown, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getPapsGrade, getCustomItemGrade } from '@/lib/paps';
 import { parseCsv, exportToZip } from '@/lib/utils';
@@ -244,6 +255,21 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
     setRecordValue('');
     setSelectedItemName('');
     setIsSubmitting(false);
+  };
+
+  const handleDeleteRecord = async (recordId: string) => {
+    if (!school) return;
+    try {
+        await deleteRecord(school, recordId);
+        await onRecordUpdate();
+        toast({
+            title: '기록 삭제 완료',
+            description: '선택한 기록이 삭제되었습니다.',
+        });
+    } catch (error) {
+        console.error("Failed to delete record:", error);
+        toast({ variant: 'destructive', title: '삭제 실패', description: '기록 삭제 중 오류가 발생했습니다.'})
+    }
   };
 
   useEffect(() => {
@@ -531,6 +557,10 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [studentRecords, progressChartItem, selectedStudent, allItems]);
   
+    const sortedStudentRecords = useMemo(() => {
+        return [...studentRecords].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [studentRecords]);
+  
   const comparisonChartConfig = {
       target: { label: comparisonData.targetLabel, color: 'hsl(var(--chart-1))' },
       average: { label: '학년 평균', color: 'hsl(var(--chart-2))' },
@@ -677,125 +707,183 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
             )}
 
             {selectedStudent && (
-              <Card className="mb-8">
-                <CardHeader>
-                  <CardTitle>기록 개별 추가</CardTitle>
-                  <CardDescription>
-                    선택된 학생의 측정 기록을 개별적으로 추가합니다.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <Select onValueChange={setSelectedItemName} value={selectedItemName}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="측정 종목 선택" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {allItems.map(item => (
-                            <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Input
-                        placeholder={inputPlaceholder}
-                        value={recordValue}
-                        onChange={e => setRecordValue(e.target.value)}
-                        type="number"
-                      />
-                  </div>
-                </CardContent>
-                <CardFooter className="flex-wrap gap-2">
-                  <Button onClick={handleAddRecord} disabled={isSubmitting}>
-                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    개별 기록 저장
-                  </Button>
-                </CardFooter>
-              </Card>
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-              <Card>
-                <CardHeader>
-                  <CardTitle>PAPS 성취도 비교 ({comparisonData.targetLabel} vs 학년 평균)</CardTitle>
-                  <CardDescription>100%에 가까울수록 성취도가 높습니다.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ChartContainer config={comparisonChartConfig} className="h-[300px] w-full">
-                    <BarChart data={comparisonData.data}>
-                      <CartesianGrid vertical={false} />
-                      <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} angle={-45} textAnchor="end" height={80} interval={0} />
-                      <YAxis domain={[0, 100]} unit="%" />
-                      <ChartTooltip 
-                        content={<CustomBarTooltipContent />} 
-                      />
-                      <Legend />
-                      <Bar dataKey="target" name={comparisonChartConfig.target.label} fill="var(--color-target)" radius={4} />
-                      <Bar dataKey="average" name={comparisonChartConfig.average.label} fill="var(--color-average)" radius={4} />
-                    </BarChart>
-                  </ChartContainer>
-                </CardContent>
-              </Card>
-              
-              {selectedStudent && (
+              <div className="space-y-8">
                 <Card>
                   <CardHeader>
-                    <div className="flex justify-between items-center">
-                      <CardTitle>회차별 등급 변화</CardTitle>
-                      <Select value={progressChartItem} onValueChange={setProgressChartItem}>
-                        <SelectTrigger className="w-[180px]">
-                          <SelectValue placeholder="종목 선택" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {allItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                    <CardTitle>기록 개별 추가</CardTitle>
+                    <CardDescription>
+                      선택된 학생의 측정 기록을 개별적으로 추가합니다.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <Select onValueChange={setSelectedItemName} value={selectedItemName}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="측정 종목 선택" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {allItems.map(item => (
+                              <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          placeholder={inputPlaceholder}
+                          value={recordValue}
+                          onChange={e => setRecordValue(e.target.value)}
+                          type="number"
+                        />
                     </div>
-                    <CardDescription>1등급이 가장 높은 등급입니다.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <ChartContainer config={{}} className="h-[300px] w-full">
-                      <LineChart data={progressData}>
-                        <CartesianGrid vertical={false} />
-                        <XAxis dataKey="date" />
-                        <YAxis domain={[1, 5]} ticks={[1,2,3,4,5]} tickCount={5} reversed={true} />
-                        <Tooltip content={<CustomTooltipContent />} />
-                        <Legend />
-                        <Line type="monotone" dataKey="value" name={progressChartItem} stroke="hsl(var(--primary))" strokeWidth={2} />
-                      </LineChart>
-                    </ChartContainer>
                   </CardContent>
-                </Card>
-              )}
-            </div>
-            
-            {selectedStudent && (
-              <Card className="bg-primary/5">
-                  <CardHeader>
-                      <CardTitle>AI 코칭 어시스턴트</CardTitle>
-                      <CardDescription>학생의 기록을 바탕으로 강점, 약점, 추천 훈련 방법을 분석합니다.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                      {isAiLoading ? (
-                          <div className="flex items-center justify-center h-24">
-                              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                          </div>
-                      ) : aiAnalysis ? (
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                              <div><h4 className="font-bold mb-2 text-green-600">강점</h4><p className="whitespace-pre-wrap">{aiAnalysis.strengths}</p></div>
-                              <div><h4 className="font-bold mb-2 text-red-600">약점</h4><p className="whitespace-pre-wrap">{aiAnalysis.weaknesses}</p></div>
-                              <div><h4 className="font-bold mb-2 text-blue-600">추천 훈련 방법</h4><p className="whitespace-pre-wrap">{aiAnalysis.suggestedTrainingMethods}</p></div>
-                          </div>
-                      ) : (
-                          <p className="text-center text-muted-foreground">AI 분석을 요청하여 학생 맞춤형 코칭을 받아보세요.</p>
-                      )}
-                  </CardContent>
-                  <CardFooter>
-                      <Button onClick={handleAiAnalysis} disabled={isAiLoading || studentRecords.length === 0}>
-                          <Wand2 className="mr-2 h-4 w-4" />
-                          {isAiLoading ? '분석 중...' : 'AI 분석 요청'}
-                      </Button>
+                  <CardFooter className="flex-wrap gap-2">
+                    <Button onClick={handleAddRecord} disabled={isSubmitting}>
+                      {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      개별 기록 저장
+                    </Button>
                   </CardFooter>
-              </Card>
+                </Card>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>PAPS 성취도 비교 ({comparisonData.targetLabel} vs 학년 평균)</CardTitle>
+                      <CardDescription>100%에 가까울수록 성취도가 높습니다.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ChartContainer config={comparisonChartConfig} className="h-[300px] w-full">
+                        <BarChart data={comparisonData.data}>
+                          <CartesianGrid vertical={false} />
+                          <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} angle={-45} textAnchor="end" height={80} interval={0} />
+                          <YAxis domain={[0, 100]} unit="%" />
+                          <ChartTooltip 
+                            content={<CustomBarTooltipContent />} 
+                          />
+                          <Legend />
+                          <Bar dataKey="target" name={comparisonChartConfig.target.label} fill="var(--color-target)" radius={4} />
+                          <Bar dataKey="average" name={comparisonChartConfig.average.label} fill="var(--color-average)" radius={4} />
+                        </BarChart>
+                      </ChartContainer>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader>
+                      <div className="flex justify-between items-center">
+                        <CardTitle>회차별 등급 변화</CardTitle>
+                        <Select value={progressChartItem} onValueChange={setProgressChartItem}>
+                          <SelectTrigger className="w-[180px]">
+                            <SelectValue placeholder="종목 선택" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {allItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <CardDescription>1등급이 가장 높은 등급입니다.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ChartContainer config={{}} className="h-[300px] w-full">
+                        <LineChart data={progressData}>
+                          <CartesianGrid vertical={false} />
+                          <XAxis dataKey="date" />
+                          <YAxis domain={[1, 5]} ticks={[1,2,3,4,5]} tickCount={5} reversed={true} />
+                          <Tooltip content={<CustomTooltipContent />} />
+                          <Legend />
+                          <Line type="monotone" dataKey="value" name={progressChartItem} stroke="hsl(var(--primary))" strokeWidth={2} />
+                        </LineChart>
+                      </ChartContainer>
+                    </CardContent>
+                  </Card>
+                </div>
+                
+                <Card>
+                    <CardHeader>
+                        <CardTitle>전체 측정 기록</CardTitle>
+                        <CardDescription>선택된 학생의 모든 측정 기록입니다. 잘못 입력된 기록은 삭제할 수 있습니다.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                    <Table>
+                        <TableHeader>
+                        <TableRow>
+                            <TableHead>날짜</TableHead>
+                            <TableHead>종목</TableHead>
+                            <TableHead>기록</TableHead>
+                            <TableHead className="text-right">작업</TableHead>
+                        </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                        {sortedStudentRecords.length > 0 ? (
+                            sortedStudentRecords.map((record) => {
+                            const item = allItems.find(i => i.name === record.item);
+                            return (
+                                <TableRow key={record.id}>
+                                <TableCell>{record.date}</TableCell>
+                                <TableCell>{record.item}</TableCell>
+                                <TableCell>{record.value}{item?.unit}</TableCell>
+                                <TableCell className="text-right">
+                                    <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                        <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            이 작업은 되돌릴 수 없습니다. 이 기록이 영구적으로 삭제됩니다.
+                                        </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                        <AlertDialogCancel>취소</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleDeleteRecord(record.id)}>삭제</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                    </AlertDialog>
+                                </TableCell>
+                                </TableRow>
+                            );
+                            })
+                        ) : (
+                            <TableRow>
+                            <TableCell colSpan={4} className="h-24 text-center">
+                                측정된 기록이 없습니다.
+                            </TableCell>
+                            </TableRow>
+                        )}
+                        </TableBody>
+                    </Table>
+                    </CardContent>
+                </Card>
+
+                <Card className="bg-primary/5">
+                    <CardHeader>
+                        <CardTitle>AI 코칭 어시스턴트</CardTitle>
+                        <CardDescription>학생의 기록을 바탕으로 강점, 약점, 추천 훈련 방법을 분석합니다.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {isAiLoading ? (
+                            <div className="flex items-center justify-center h-24">
+                                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                            </div>
+                        ) : aiAnalysis ? (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                                <div><h4 className="font-bold mb-2 text-green-600">강점</h4><p className="whitespace-pre-wrap">{aiAnalysis.strengths}</p></div>
+                                <div><h4 className="font-bold mb-2 text-red-600">약점</h4><p className="whitespace-pre-wrap">{aiAnalysis.weaknesses}</p></div>
+                                <div><h4 className="font-bold mb-2 text-blue-600">추천 훈련 방법</h4><p className="whitespace-pre-wrap">{aiAnalysis.suggestedTrainingMethods}</p></div>
+                            </div>
+                        ) : (
+                            <p className="text-center text-muted-foreground">AI 분석을 요청하여 학생 맞춤형 코칭을 받아보세요.</p>
+                        )}
+                    </CardContent>
+                    <CardFooter>
+                        <Button onClick={handleAiAnalysis} disabled={isAiLoading || studentRecords.length === 0}>
+                            <Wand2 className="mr-2 h-4 w-4" />
+                            {isAiLoading ? '분석 중...' : 'AI 분석 요청'}
+                        </Button>
+                    </CardFooter>
+                </Card>
+              </div>
             )}
           </div>
         )}
