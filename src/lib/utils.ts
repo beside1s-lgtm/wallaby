@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import JSZip from 'jszip';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -35,21 +36,26 @@ export function parseCsv<T>(csvText: string): T[] {
   }).filter(obj => Object.values(obj as any).some(val => val !== '' && val !== null && val !== undefined));
 }
 
+function convertToCsv(rows: object[]): string {
+    if (!rows || rows.length === 0) {
+        return "";
+    }
+    const header = Object.keys(rows[0]);
+    return [
+        header.join(','),
+        ...rows.map(row => header.map(fieldName => {
+            const value = (row as any)[fieldName];
+            if (typeof value === 'string' && value.includes(',')) {
+                return `"${value}"`;
+            }
+            return value;
+        }).join(','))
+    ].join('\r\n');
+}
+
 export function exportToCsv(filename: string, rows: object[]) {
-  if (!rows || rows.length === 0) {
-    return;
-  }
-  const header = Object.keys(rows[0]);
-  const csv = [
-    header.join(','),
-    ...rows.map(row => header.map(fieldName => {
-        const value = (row as any)[fieldName];
-        if (typeof value === 'string' && value.includes(',')) {
-            return `"${value}"`;
-        }
-        return value;
-    }).join(','))
-  ].join('\r\n');
+  const csv = convertToCsv(rows);
+  if (!csv) return;
 
   const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
@@ -61,5 +67,29 @@ export function exportToCsv(filename: string, rows: object[]) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  }
+}
+
+export async function exportToZip(filename: string, files: { name: string, data: object[] }[]) {
+  const zip = new JSZip();
+  
+  files.forEach(file => {
+      const csvData = convertToCsv(file.data);
+      if (csvData) {
+          zip.file(file.name, `\uFEFF${csvData}`);
+      }
+  });
+
+  const zipBlob = await zip.generateAsync({ type: 'blob' });
+  
+  const link = document.createElement('a');
+  if (link.download !== undefined) {
+      const url = URL.createObjectURL(zipBlob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
   }
 }

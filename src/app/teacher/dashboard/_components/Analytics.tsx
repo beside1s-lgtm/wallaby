@@ -30,7 +30,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Search, Wand2, UserPlus, FileUp, FileDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getPapsGrade } from '@/lib/paps';
-import { parseCsv, exportToCsv } from '@/lib/utils';
+import { parseCsv, exportToCsv, exportToZip } from '@/lib/utils';
 import { addOrUpdateRecords } from '@/lib/store';
 
 type AiAnalysis = {
@@ -58,6 +58,7 @@ export default function Analytics() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const students = useMemo(() => school ? getStudents(school) : [], [school]);
+  const measurementItems = useMemo(() => school ? getItems(school) : [], [school]);
 
   useEffect(() => {
     if (school) {
@@ -195,13 +196,26 @@ export default function Analytics() {
   };
   
   const handleDownloadTemplate = () => {
+    if(!school) return;
     const templateData = [{
       이름: '홍길동',
       측정종목: '50m 달리기',
       기록: 9.5,
       측정일: '2024-01-01'
     }];
-    exportToCsv(`기록_등록_템플릿.csv`, templateData);
+    
+    const itemsData = measurementItems.map(item => ({
+        종목명: item.name,
+        단위: item.unit
+    }));
+    
+    const files = [
+        { name: '기록_등록_템플릿.csv', data: templateData },
+        { name: '등록된_종목_목록.csv', data: itemsData },
+    ];
+    
+    exportToZip('기록_등록_템플릿.zip', files);
+    toast({ title: '다운로드 시작', description: '템플릿과 종목 목록을 ZIP 파일로 다운로드합니다.'});
   }
 
   const handleAiAnalysis = async () => {
@@ -327,7 +341,7 @@ export default function Analytics() {
                 <CardHeader>
                     <CardTitle>기록 일괄 관리</CardTitle>
                     <CardDescription>
-                      CSV 파일을 사용하여 여러 학생의 기록을 한 번에 등록합니다. 한글 깨짐 방지를 위해 CSV 파일은 반드시 UTF-8 형식으로 저장해주세요.
+                      CSV 파일을 사용하여 여러 학생의 기록을 한 번에 등록합니다. 템플릿과 함께 제공되는 '등록된_종목_목록.csv' 파일을 참고하여 정확한 종목명을 입력해주세요. 한글 깨짐 방지를 위해 CSV 파일은 반드시 UTF-8 형식으로 저장해주세요.
                     </CardDescription>
                 </CardHeader>
                 <CardFooter className="flex-wrap gap-2">
@@ -336,7 +350,7 @@ export default function Analytics() {
                         CSV 일괄 등록
                     </Button>
                     <input type="file" id="record-csv-upload-main" accept=".csv" onChange={handleCsvUpload} style={{ display: 'none' }} />
-                    <Button variant="link" onClick={handleDownloadTemplate}>템플릿 다운로드</Button>
+                    <Button variant="link" onClick={handleDownloadTemplate}>템플릿 및 종목 목록 다운로드</Button>
                 </CardFooter>
             </Card>
             <p className="text-center text-muted-foreground">분석할 학생을 검색해주세요.</p>
