@@ -190,7 +190,9 @@ export default function StudentManagement() {
     <Card>
       <CardHeader>
         <CardTitle>학생 관리</CardTitle>
-        <CardDescription>학생을 등록, 삭제하고 전체 기록을 관리합니다.</CardDescription>
+        <CardDescription>
+          학생을 등록, 삭제하고 전체 기록을 관리합니다. CSV 파일은 한글 깨짐 방지를 위해 반드시 UTF-8 형식으로 저장해주세요.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="flex items-center gap-2 mb-4">
