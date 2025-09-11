@@ -31,7 +31,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { getStudentFeedback } from '@/ai/flows/student-ai-feedback';
 import { Loader2, Wand2 } from 'lucide-react';
 import type { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
-import { getPapsGrade } from '@/lib/paps';
+import { getPapsGrade, getCustomItemGrade } from '@/lib/paps';
 
 const chartColors = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
@@ -200,7 +200,13 @@ export default function StudentDashboardPage() {
         const itemInfo = measurementItems.find(i => i.name === record.item);
         if (!itemInfo) return;
 
-        const grade = getPapsGrade(record.item, fullStudent.gender, record.value);
+        let grade = null;
+        if (itemInfo.isPaps) {
+            grade = getPapsGrade(record.item, fullStudent.gender, record.value);
+        } else {
+            grade = getCustomItemGrade(itemInfo, record.value);
+        }
+        
         if (grade === null) return;
 
         if (!dataByDate[record.date]) {
@@ -222,7 +228,12 @@ export default function StudentDashboardPage() {
 
     const data = Object.values(dataByDate).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     
-    return { chartData: data, chartConfig: config, availableItems: itemsToShow.filter(item => getPapsGrade(item.name, fullStudent.gender, 0) !== null) };
+    const itemsWithGrade = itemsToShow.filter(item => {
+        if (item.isPaps) return getPapsGrade(item.name, fullStudent.gender, 0) !== null;
+        return getCustomItemGrade(item, 0) !== null;
+    });
+
+    return { chartData: data, chartConfig: config, availableItems: itemsWithGrade };
   }, [records, chartFilter, chartItemFilter, measurementItems, fullStudent]);
 
   if (!fullStudent || !school) {
@@ -301,7 +312,7 @@ export default function StudentDashboardPage() {
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-                <CardTitle>나의 성장 기록 (PAPS 등급)</CardTitle>
+                <CardTitle>나의 성장 기록 (등급)</CardTitle>
                 <CardDescription>지금까지의 측정 결과 변화를 등급으로 확인해보세요. (1등급이 가장 높음)</CardDescription>
             </div>
             <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>

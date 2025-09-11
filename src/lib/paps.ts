@@ -1,3 +1,5 @@
+import type { MeasurementItem } from './types';
+
 // 초등학교 5학년 PAPS 기준표 (예시)
 export const papsStandards: Record<string, { male: number[], female: number[], type: 'time' | 'count' | 'distance' | 'weight', unit: string }> = {
   '50m 달리기': {
@@ -62,4 +64,18 @@ export function getPapsGrade(item: string, gender: '남' | '여', value: number)
     if (value >= thresholds[3]) return 4;
     return 5;
   }
+}
+
+export function getCustomItemGrade(item: MeasurementItem, value: number): number | null {
+  if (item.isPaps || !item.goal || item.recordType === 'time') {
+    return null;
+  }
+
+  const percentage = (value / item.goal) * 100;
+
+  if (percentage >= 80) return 1;
+  if (percentage >= 60) return 2;
+  if (percentage >= 40) return 3;
+  if (percentage >= 20) return 4;
+  return 5;
 }
