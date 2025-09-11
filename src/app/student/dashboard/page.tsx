@@ -43,8 +43,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         <p className="font-bold">{label}</p>
         {payload.map((p: any) => (
             <div key={p.dataKey} style={{ color: p.color }}>
-                <p>{`${p.name}: ${p.value}등급`}</p>
-                <p className="text-xs text-muted-foreground">{`원래 기록: ${originalRecord[p.dataKey]?.value} ${originalRecord[p.dataKey]?.unit}`}</p>
+                <p>{`${p.name}: ${p.value}등급 (${originalRecord[p.dataKey]?.value}${originalRecord[p.dataKey]?.unit})`}</p>
             </div>
         ))}
       </div>

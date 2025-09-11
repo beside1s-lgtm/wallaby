@@ -53,6 +53,37 @@ const gradeToPercentage = (grade: number | null): number => {
     return (5 - grade + 1) * 20;
 };
 
+const CustomTooltipContent = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    const { name, value, unit } = payload[0].payload.originalRecord || {};
+    return (
+      <div className="p-2 text-sm bg-background/90 border rounded-md shadow-lg">
+        <p className="font-bold">{label}</p>
+        <p style={{ color: payload[0].color }}>
+            {`${payload[0].name}: ${payload[0].value}${unit ? ` (${value}${unit})` : ''}`}
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
+const CustomBarTooltipContent = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+        return (
+            <div className="p-2 text-sm bg-background/90 border rounded-md shadow-lg">
+                <p className="font-bold">{label}</p>
+                {payload.map((p: any) => (
+                    <div key={p.dataKey} style={{ color: p.color }}>
+                        <p>{`${p.name}: ${p.value}% (${p.payload.originalRecords[p.dataKey]?.value || 'N/A'}${p.payload.originalRecords[p.dataKey]?.unit || ''})`}</p>
+                    </div>
+                ))}
+            </div>
+        );
+    }
+    return null;
+};
+
 
 export default function Analytics() {
   const { school } = useAuth();
@@ -107,8 +138,10 @@ export default function Analytics() {
   
   useEffect(() => {
     // Reset student search when class filter changes
-    setSearchTerm('');
-    setSelectedStudent(null);
+    if(selectedGrade && selectedClassNum){
+        setSearchTerm('');
+        setSelectedStudent(null);
+    }
   }, [selectedGrade, selectedClassNum]);
 
   const selectedItem = useMemo(() => {
@@ -140,6 +173,8 @@ export default function Analytics() {
     const student = students.find(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
     if (student) {
       handleSelectStudent(student);
+      setSelectedGrade('');
+      setSelectedClassNum('');
     } else {
       setSelectedStudent(null);
       setStudentRecords([]);
@@ -287,56 +322,75 @@ export default function Analytics() {
     }
   };
   
-  const calculateAverageGrades = (studentList: Student[]): Record<string, number> => {
+  const calculateAverageGrades = (studentList: Student[]): Record<string, { percentage: number, avgValue: number, unit: string }> => {
       if (studentList.length === 0) return {};
       
-      const averageGrades: Record<string, number> = {};
+      const averageData: Record<string, { totalPercentage: number, totalValue: number, count: number, unit: string }> = {};
       const studentIds = new Set(studentList.map(s => s.id));
       const relevantRecords = allRecords.filter(r => studentIds.has(r.studentId));
 
       allItems.forEach(item => {
         const itemRecords = relevantRecords.filter(r => r.item === item.name);
         if (itemRecords.length > 0) {
-          let totalPercentage = 0;
-          let validRecordsCount = 0;
+          if (!averageData[item.name]) {
+            averageData[item.name] = { totalPercentage: 0, totalValue: 0, count: 0, unit: item.unit };
+          }
           
           itemRecords.forEach(record => {
             const student = studentList.find(s => s.id === record.studentId);
             if (student) {
               const grade = getPapsGrade(item.name, student.gender, record.value);
               if (grade !== null) {
-                totalPercentage += gradeToPercentage(grade);
-                validRecordsCount++;
+                averageData[item.name].totalPercentage += gradeToPercentage(grade);
+                averageData[item.name].totalValue += record.value;
+                averageData[item.name].count++;
               }
             }
           });
-
-          if (validRecordsCount > 0) {
-              averageGrades[item.name] = parseFloat((totalPercentage / validRecordsCount).toFixed(2));
-          }
         }
       });
-      return averageGrades;
+      
+      const finalAverages: Record<string, { percentage: number, avgValue: number, unit: string }> = {};
+      Object.keys(averageData).forEach(itemName => {
+          const data = averageData[itemName];
+          if(data.count > 0) {
+            finalAverages[itemName] = {
+                percentage: parseFloat((data.totalPercentage / data.count).toFixed(2)),
+                avgValue: parseFloat((data.totalValue / data.count).toFixed(2)),
+                unit: data.unit,
+            };
+          }
+      });
+      return finalAverages;
   }
 
   const comparisonData = useMemo(() => {
-    if (allRecords.length === 0) return [];
+    if (allRecords.length === 0) return { data: [], targetLabel: '선택 대상'};
     
-    let comparisonTargetData: Record<string, number> = {};
+    let comparisonTargetData: Record<string, { percentage: number, avgValue: number, unit: string }> = {};
     let label = '선택 대상';
 
     if(selectedStudent) {
         label = selectedStudent.name;
         const studentRecordsForComparison = allRecords.filter(r => r.studentId === selectedStudent.id);
+        const latestRecords: Record<string, MeasurementRecord> = {};
+        
+        studentRecordsForComparison.forEach(r => {
+            if (!latestRecords[r.item] || new Date(r.date) > new Date(latestRecords[r.item].date)) {
+                latestRecords[r.item] = r;
+            }
+        });
+
         allItems.forEach(item => {
-          const recordsForItem = studentRecordsForComparison
-            .filter(r => r.item === item.name)
-            .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-          
-          if (recordsForItem.length > 0) {
-            const grade = getPapsGrade(item.name, selectedStudent.gender, recordsForItem[0].value);
+          const record = latestRecords[item.name];
+          if (record) {
+            const grade = getPapsGrade(item.name, selectedStudent.gender, record.value);
             if (grade !== null) {
-              comparisonTargetData[item.name] = gradeToPercentage(grade);
+              comparisonTargetData[item.name] = {
+                  percentage: gradeToPercentage(grade),
+                  avgValue: record.value,
+                  unit: item.unit
+              };
             }
           }
         });
@@ -345,13 +399,17 @@ export default function Analytics() {
         comparisonTargetData = calculateAverageGrades(filteredStudentsByClass);
     }
     
-    const overallAverageGrades = calculateAverageGrades(students);
+    const overallAverageData = calculateAverageGrades(students);
 
     return {
         data: allItems.map(item => ({
             name: item.name,
-            target: comparisonTargetData[item.name] || 0,
-            average: overallAverageGrades[item.name] || 0,
+            target: comparisonTargetData[item.name]?.percentage || 0,
+            average: overallAverageData[item.name]?.percentage || 0,
+            originalRecords: {
+                target: { value: comparisonTargetData[item.name]?.avgValue, unit: comparisonTargetData[item.name]?.unit },
+                average: { value: overallAverageData[item.name]?.avgValue, unit: overallAverageData[item.name]?.unit }
+            }
         })).filter(d => d.target > 0 || d.average > 0),
         targetLabel: label
     };
@@ -374,7 +432,7 @@ export default function Analytics() {
           } else {
             grade = getCustomItemGrade(itemInfo, r.value);
           }
-          return { date: r.date, value: grade }
+          return { date: r.date, value: grade, originalRecord: { name: r.item, value: r.value, unit: itemInfo.unit } }
       })
       .filter(r => r.value !== null)
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -412,7 +470,7 @@ export default function Analytics() {
           
           <span className="text-muted-foreground text-sm mx-2">또는</span>
 
-          <Select value={selectedGrade} onValueChange={setSelectedGrade}>
+          <Select value={selectedGrade} onValueChange={(value) => { setSelectedGrade(value); setSelectedClassNum(''); }}>
             <SelectTrigger className="w-full sm:w-[120px]">
                 <SelectValue placeholder="학년 선택" />
             </SelectTrigger>
@@ -550,8 +608,7 @@ export default function Analytics() {
                       <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} angle={-45} textAnchor="end" height={80} interval={0} />
                       <YAxis domain={[0, 100]} unit="%" />
                       <ChartTooltip 
-                        content={<ChartTooltipContent />} 
-                        formatter={(value) => `${value}%`}
+                        content={<CustomBarTooltipContent />} 
                       />
                       <Legend />
                       <Bar dataKey="target" name={comparisonChartConfig.target.label} fill="var(--color-target)" radius={4} />
@@ -583,7 +640,7 @@ export default function Analytics() {
                         <CartesianGrid vertical={false} />
                         <XAxis dataKey="date" />
                         <YAxis domain={[1, 5]} ticks={[1,2,3,4,5]} tickCount={5} reversed={true} />
-                        <Tooltip />
+                        <Tooltip content={<CustomTooltipContent />} />
                         <Legend />
                         <Line type="monotone" dataKey="value" name={progressChartItem} stroke="hsl(var(--primary))" strokeWidth={2} />
                       </LineChart>
