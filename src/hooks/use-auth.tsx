@@ -96,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    const previousRole = role;
     localStorage.removeItem('userRole');
     localStorage.removeItem('loggedInStudent');
     localStorage.removeItem('userSchool');
@@ -103,8 +104,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setRole(null);
     setSchool(null);
-    router.push('/');
-  }, [router]);
+    if (previousRole === 'student') {
+        router.push('/student-login');
+    } else {
+        router.push('/');
+    }
+  }, [router, role]);
 
   const value = {
     user,
