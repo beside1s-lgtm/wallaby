@@ -131,6 +131,8 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
         const text = e.target?.result as string;
         try {
           const newStudents = parseCsv<Omit<Student, 'id'>>(text);
+          if (newStudents.length === 0) throw new Error("No data in CSV");
+          
           let count = 0;
           
           const addPromises = newStudents.map(student => {
@@ -154,9 +156,9 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
           await Promise.all(addPromises);
           
           onStudentsUpdate();
-          toast({ title: '일괄 등록 완료', description: `${count}명의 학생을 등록했습니다.` });
+          toast({ title: '학생 일괄 등록 완료', description: `${count}명의 새로운 학생을 등록했습니다.` });
         } catch (error) {
-          toast({ variant: 'destructive', title: 'CSV 파싱 오류', description: '파일 형식이 올바르지 않습니다.' });
+          toast({ variant: 'destructive', title: '파일이 잘못 되었습니다', description: 'CSV 파일 형식이나 내용을 확인해주세요.' });
         }
       };
       reader.readAsText(file, 'UTF-8');
@@ -172,12 +174,14 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
                 const text = e.target?.result as string;
                 try {
                     const parsedRecords = parseCsv<any>(text);
+                    if (parsedRecords.length === 0) throw new Error("No data in CSV");
+
                     await addOrUpdateRecords(school, students, parsedRecords);
                     onStudentsUpdate();
-                    toast({ title: '기록 일괄 등록 완료', description: `${parsedRecords.length}개의 기록을 처리했습니다.` });
+                    toast({ title: '등록 되었습니다', description: `기록 일괄 등록이 완료되었습니다.` });
                 } catch (error) {
                     console.error('CSV 처리 오류', error);
-                    toast({ variant: 'destructive', title: 'CSV 처리 오류', description: '파일 형식이 올바르지 않거나 데이터가 유효하지 않습니다.' });
+                    toast({ variant: 'destructive', title: '파일이 잘못 되었습니다', description: 'CSV 파일 형식이나 내용을 확인해주세요.' });
                 }
             };
             reader.readAsText(file, 'UTF-8');
