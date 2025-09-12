@@ -364,7 +364,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                   .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
               
               if (latestRecord) {
-                  return getPapsGrade(item.name, student.gender, latestRecord.value);
+                  return getPapsGrade(item.name, student, latestRecord.value);
               }
               return null;
           }).filter((g): g is number => g !== null);
@@ -401,7 +401,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                 .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
 
             if (latestRecord) {
-                const grade = getPapsGrade(item.name, student.gender, latestRecord.value);
+                const grade = getPapsGrade(item.name, student, latestRecord.value);
                 if (grade !== null) {
                     averageData[item.name].totalPercentage += gradeToPercentage(grade);
                     averageData[item.name].totalValue += latestRecord.value;
@@ -449,7 +449,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
         papsItems.forEach(item => {
           const record = latestRecords[item.name];
           if (record) {
-            const grade = getPapsGrade(item.name, selectedStudent.gender, record.value);
+            const grade = getPapsGrade(item.name, selectedStudent, record.value);
             if (grade !== null) {
               const rankInfo = allItemRanks[item.name]?.find(r => r.studentId === selectedStudent.id);
               comparisonTargetData[item.name] = {
@@ -496,7 +496,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
       .map(r => {
           let grade: number | null = null;
           if (itemInfo.isPaps) {
-            grade = getPapsGrade(r.item, selectedStudent.gender, r.value)
+            grade = getPapsGrade(r.item, selectedStudent, r.value)
           } else {
             grade = getCustomItemGrade(itemInfo, r.value);
           }

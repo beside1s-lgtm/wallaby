@@ -70,7 +70,7 @@ export default function AiWelcome({ itemType, title, students, items, records }:
             const itemInfo = papsItems.find(i => i.name === record.item);
             if (!student || !itemInfo) continue;
 
-            const grade = getPapsGrade(record.item, student.gender, record.value);
+            const grade = getPapsGrade(record.item, student, record.value);
             if (grade === null) continue;
 
             // Simple average of all grades per student for briefing purposes
@@ -88,7 +88,7 @@ export default function AiWelcome({ itemType, title, students, items, records }:
                 const studentRecords = papsRecords.filter(r => r.studentId === student.id && r.item === item.name);
                 if (studentRecords.length > 0) {
                     const latestRecord = studentRecords.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-                    const grade = getPapsGrade(item.name, student.gender, latestRecord.value);
+                    const grade = getPapsGrade(item.name, student, latestRecord.value);
                     if (grade !== null) {
                         allGrades.push({ grade, student });
                     }

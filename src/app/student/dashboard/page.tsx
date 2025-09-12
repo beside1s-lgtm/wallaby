@@ -277,7 +277,7 @@ export default function StudentDashboardPage() {
 
         let grade = null;
         if (itemInfo.isPaps) {
-            grade = getPapsGrade(record.item, fullStudent.gender, record.value);
+            grade = getPapsGrade(record.item, fullStudent, record.value);
         } else {
             grade = getCustomItemGrade(itemInfo, record.value);
         }
@@ -312,7 +312,7 @@ export default function StudentDashboardPage() {
     const data = Object.values(dataByDate).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     
     const itemsWithGrade = itemsToShow.filter(item => {
-        if (item.isPaps) return getPapsGrade(item.name, fullStudent.gender, 0) !== null; // check if it's a valid paps item for the gender
+        if (item.isPaps) return getPapsGrade(item.name, fullStudent, 0) !== null; // check if it's a valid paps item for the gender
         return getCustomItemGrade(item, 0) !== null;
     });
 

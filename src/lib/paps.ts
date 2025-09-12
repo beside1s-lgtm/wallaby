@@ -1,64 +1,86 @@
-import type { MeasurementItem } from './types';
+import type { MeasurementItem, Student } from './types';
 
-// 초등학교 5학년 PAPS 기준표 (예시)
-export const papsStandards: Record<string, { male: number[], female: number[], type: 'time' | 'count' | 'distance' | 'weight', unit: string }> = {
-  '50m 달리기': {
-    male: [8.4, 9.0, 9.6, 10.2],
-    female: [9.0, 9.6, 10.2, 10.8],
-    type: 'time',
-    unit: '초'
+// 초등학교 1~6학년 PAPS 기준표 (https://m.blog.naver.com/usuu0919/222304005427 참조)
+// 3단계 구조: 학년 -> 종목 -> 성별 -> 등급 기준
+const papsStandardsByGrade: Record<
+  string, // 학년 (e.g., '1', '2', ..., '6')
+  Record<
+    string, // 종목명
+    {
+      male: number[];
+      female: number[];
+      type: 'time' | 'count' | 'distance' | 'weight';
+      unit: string;
+    }
+  >
+> = {
+  '1': {
+    '왕복오래달리기': { male: [23, 15, 8, 4], female: [19, 12, 6, 3], type: 'count', unit: '회' },
+    '앉아윗몸앞으로굽히기': { male: [8.5, 4.0, 0.0, -4.0], female: [10.8, 6.5, 2.5, -1.5], type: 'distance', unit: 'cm' },
+    '윗몸 말아올리기': { male: [22, 16, 11, 6], female: [19, 14, 9, 4], type: 'count', unit: '회' },
+    '50m 달리기': { male: [10.4, 11.0, 11.6, 12.2], female: [10.8, 11.4, 12.0, 12.6], type: 'time', unit: '초' },
+    '제자리 멀리뛰기': { male: [140, 130, 120, 110], female: [135, 125, 115, 105], type: 'distance', unit: 'cm' },
   },
-  '제자리 멀리뛰기': {
-    male: [185, 170, 155, 140],
-    female: [175, 160, 145, 130],
-    type: 'distance',
-    unit: 'cm'
+  '2': {
+    '왕복오래달리기': { male: [28, 19, 11, 5], female: [23, 15, 8, 4], type: 'count', unit: '회' },
+    '앉아윗몸앞으로굽히기': { male: [9.8, 5.5, 1.5, -2.5], female: [12.0, 8.0, 4.0, 0.0], type: 'distance', unit: 'cm' },
+    '윗몸 말아올리기': { male: [25, 19, 13, 7], female: [22, 17, 12, 6], type: 'count', unit: '회' },
+    '50m 달리기': { male: [9.8, 10.4, 11.0, 11.6], female: [10.2, 10.8, 11.4, 12.0], type: 'time', unit: '초' },
+    '제자리 멀리뛰기': { male: [150, 140, 130, 120], female: [145, 135, 125, 115], type: 'distance', unit: 'cm' },
   },
-  '윗몸 말아올리기': {
-    male: [40, 32, 24, 16],
-    female: [35, 27, 19, 11],
-    type: 'count',
-    unit: '회'
+  '3': {
+    '왕복오래달리기': { male: [37, 27, 18, 10], female: [29, 21, 13, 7], type: 'count', unit: '회' },
+    '앉아윗몸앞으로굽히기': { male: [11.5, 7.0, 3.0, -1.0], female: [13.5, 9.5, 5.5, 1.5], type: 'distance', unit: 'cm' },
+    '윗몸 말아올리기': { male: [30, 24, 17, 10], female: [27, 21, 15, 9], type: 'count', unit: '회' },
+    '50m 달리기': { male: [9.3, 9.9, 10.5, 11.1], female: [9.7, 10.3, 10.9, 11.5], type: 'time', unit: '초' },
+    '제자리 멀리뛰기': { male: [160, 150, 140, 130], female: [155, 145, 135, 120], type: 'distance', unit: 'cm' },
   },
-  '왕복오래달리기': {
-    male: [60, 45, 30, 15],
-    female: [50, 35, 20, 10],
-    type: 'count',
-    unit: '회'
+  '4': {
+    '왕복오래달리기': { male: [45, 34, 23, 13], female: [34, 25, 16, 9], type: 'count', unit: '회' },
+    '앉아윗몸앞으로굽히기': { male: [13.0, 8.5, 4.5, 0.5], female: [15.2, 11.5, 7.5, 3.5], type: 'distance', unit: 'cm' },
+    '윗몸 말아올리기': { male: [35, 28, 20, 12], female: [31, 25, 18, 11], type: 'count', unit: '회' },
+    '50m 달리기': { male: [8.9, 9.5, 10.1, 10.7], female: [9.3, 9.9, 10.5, 11.1], type: 'time', unit: '초' },
+    '제자리 멀리뛰기': { male: [170, 160, 150, 135], female: [165, 155, 140, 125], type: 'distance', unit: 'cm' },
   },
-  '오래달리기': {
-    male: [420, 480, 540, 600],
-    female: [450, 510, 570, 630],
-    type: 'time',
-    unit: '초'
+  '5': {
+    '왕복오래달리기': { male: [53, 41, 28, 16], female: [38, 29, 19, 11], type: 'count', unit: '회' },
+    '앉아윗몸앞으로굽히기': { male: [14.0, 9.5, 5.0, 0.5], female: [16.5, 12.5, 8.5, 4.5], type: 'distance', unit: 'cm' },
+    '윗몸 말아올리기': { male: [40, 32, 24, 16], female: [35, 27, 19, 11], type: 'count', unit: '회' },
+    '50m 달리기': { male: [8.4, 9.0, 9.6, 10.2], female: [9.0, 9.6, 10.2, 10.8], type: 'time', unit: '초' },
+    '제자리 멀리뛰기': { male: [185, 170, 155, 140], female: [175, 160, 145, 130], type: 'distance', unit: 'cm' },
   },
-  '팔굽혀펴기': {
-    male: [30, 20, 10, 5],
-    female: [20, 15, 8, 3],
-    type: 'count',
-    unit: '회'
-  },
-  '앉아윗몸앞으로굽히기': {
-    male: [15, 10, 5, 0],
-    female: [18, 13, 8, 3],
-    type: 'distance',
-    unit: 'cm'
-  },
-  '악력': {
-    male: [25, 20, 15, 10],
-    female: [20, 15, 10, 5],
-    type: 'weight',
-    unit: 'kg'
+  '6': {
+    '왕복오래달리기': { male: [60, 47, 34, 20], female: [42, 32, 22, 13], type: 'count', unit: '회' },
+    '앉아윗몸앞으로굽히기': { male: [15.0, 10.0, 5.5, 1.0], female: [17.8, 14.0, 10.0, 6.0], type: 'distance', unit: 'cm' },
+    '윗몸 말아올리기': { male: [43, 35, 26, 18], female: [38, 30, 21, 13], type: 'count', unit: '회' },
+    '50m 달리기': { male: [8.1, 8.7, 9.3, 9.9], female: [8.7, 9.3, 9.9, 10.5], type: 'time', unit: '초' },
+    '제자리 멀리뛰기': { male: [195, 180, 165, 145], female: [180, 165, 150, 135], type: 'distance', unit: 'cm' },
   },
 };
 
-type ItemName = keyof typeof papsStandards;
+// 모든 PAPS 종목 정보를 하나의 객체로 통합 (기존 코드 호환용)
+export const papsStandards: Record<string, { type: 'time' | 'count' | 'distance' | 'weight', unit: string }> = {};
+Object.values(papsStandardsByGrade).forEach(gradeData => {
+    Object.entries(gradeData).forEach(([itemName, itemData]) => {
+        if (!papsStandards[itemName]) {
+            papsStandards[itemName] = { type: itemData.type, unit: itemData.unit };
+        }
+    });
+});
+// 기존에 있던 종목 중 새로운 기준표에 없는 종목 추가
+papsStandards['오래달리기'] = { type: 'time', unit: '초' };
+papsStandards['팔굽혀펴기'] = { type: 'count', unit: '회' };
+papsStandards['악력'] = { type: 'weight', unit: 'kg' };
 
-export function getPapsGrade(item: string, gender: '남' | '여', value: number): number | null {
-  const standard = papsStandards[item as ItemName];
-  if (!standard) return null;
 
-  const thresholds = gender === '남' ? standard.male : standard.female;
+export function getPapsGrade(item: string, student: Student, value: number): number | null {
+  const gradeStandard = papsStandardsByGrade[student.grade];
+  if (!gradeStandard) return null; // 해당 학년 기준 없음
+
+  const standard = gradeStandard[item];
+  if (!standard) return null; // 해당 종목 기준 없음
+
+  const thresholds = student.gender === '남' ? standard.male : standard.female;
   if (!thresholds) return null;
 
   const type = standard.type;
