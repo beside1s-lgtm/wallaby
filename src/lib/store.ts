@@ -174,13 +174,13 @@ export const setRecords = async (school: string, records: MeasurementRecord[]) =
 }
 
 
-export const addOrUpdateRecord = async (record: Omit<MeasurementRecord, 'id' | 'date'> & { date?: string }) => {
-  const today = record.date || format(new Date(), 'yyyy-MM-dd');
+export const addOrUpdateRecord = async (record: Omit<MeasurementRecord, 'id'>) => {
+  const recordDate = record.date || format(new Date(), 'yyyy-MM-dd');
   const recordsRef = collection(db, 'schools', record.school, 'records');
   const q = query(recordsRef, 
       where("studentId", "==", record.studentId), 
       where("item", "==", record.item), 
-      where("date", "==", today)
+      where("date", "==", recordDate)
   );
 
   await runTransaction(db, async (transaction) => {
@@ -190,7 +190,7 @@ export const addOrUpdateRecord = async (record: Omit<MeasurementRecord, 'id' | '
       transaction.update(existingDocRef, { value: record.value });
     } else {
       const newRecordRef = doc(recordsRef);
-      const newRecord = { ...record, id: newRecordRef.id, date: today };
+      const newRecord = { ...record, id: newRecordRef.id, date: recordDate };
       transaction.set(newRecordRef, newRecord);
     }
   });

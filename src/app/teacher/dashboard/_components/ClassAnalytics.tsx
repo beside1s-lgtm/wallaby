@@ -45,10 +45,14 @@ import {
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { analyzeStudentPerformance } from '@/ai/flows/teacher-ai-assistant';
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, Wand2, X as XIcon, ArrowUpDown, Trash2 } from 'lucide-react';
+import { Loader2, Search, Wand2, X as XIcon, ArrowUpDown, Trash2, Calendar as CalendarIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getPapsGrade, getCustomItemGrade } from '@/lib/paps';
 import AiWelcome from './AiWelcome';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 
 
 type AiAnalysis = {
@@ -123,6 +127,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
   const [selectedItemName, setSelectedItemName] = useState('');
   const [recordValue, setRecordValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [recordDate, setRecordDate] = useState<Date | undefined>(new Date());
   
   // States for sorting
   const [sortedStudents, setSortedStudents] = useState<(Student & { sortValue?: string | number })[] | null>(null);
@@ -219,11 +224,11 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
   };
 
   const handleAddRecord = async () => {
-    if (!selectedItemName || !recordValue || !school || !selectedStudent) {
+    if (!selectedItemName || !recordValue || !school || !selectedStudent || !recordDate) {
       toast({
         variant: 'destructive',
         title: '입력 오류',
-        description: '측정 종목과 결과를 모두 입력해주세요.',
+        description: '날짜, 측정 종목, 결과를 모두 입력해주세요.',
       });
       return;
     }
@@ -246,6 +251,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
           school: school,
           item: selectedItemName,
           value: numericValue,
+          date: format(recordDate, 'yyyy-MM-dd'),
         });
 
         await onRecordUpdate(); // This will re-fetch all records in parent and pass down
@@ -657,9 +663,31 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                      <Card>
                         <CardHeader>
                             <CardTitle>기록 추가/수정</CardTitle>
-                            <CardDescription>오늘 날짜로 기록을 추가하거나, 기존 기록을 수정합니다.</CardDescription>
+                            <CardDescription>특정 날짜의 기록을 추가하거나, 기존 기록을 수정합니다.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                <Button
+                                    variant={"outline"}
+                                    className={cn(
+                                    "w-full justify-start text-left font-normal",
+                                    !recordDate && "text-muted-foreground"
+                                    )}
+                                >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {recordDate ? format(recordDate, "PPP") : <span>날짜 선택</span>}
+                                </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                <Calendar
+                                    mode="single"
+                                    selected={recordDate}
+                                    onSelect={setRecordDate}
+                                    initialFocus
+                                />
+                                </PopoverContent>
+                            </Popover>
                             <Select onValueChange={setSelectedItemName} value={selectedItemName}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="측정 종목 선택" />
