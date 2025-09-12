@@ -1,7 +1,7 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { addOrUpdateRecord, calculateRanks, getRecordsByStudent, addOrUpdateRecords, deleteRecord } from '@/lib/store';
+import { addOrUpdateRecord, calculateRanks, getRecordsByStudent, deleteRecord } from '@/lib/store';
 import { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
 import { Input } from '@/components/ui/input';
 import {
@@ -45,10 +45,9 @@ import {
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { analyzeStudentPerformance } from '@/ai/flows/teacher-ai-assistant';
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, Wand2, FileUp, X as XIcon, ArrowUpDown, Trash2 } from 'lucide-react';
+import { Loader2, Search, Wand2, X as XIcon, ArrowUpDown, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getPapsGrade, getCustomItemGrade } from '@/lib/paps';
-import { parseCsv, exportToZip } from '@/lib/utils';
 import AiWelcome from './AiWelcome';
 
 
@@ -280,71 +279,6 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
         refreshStudentRecords(selectedStudent.id);
     }
   }, [allRecords, selectedStudent]);
-
-  const handleCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file && school) {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const text = e.target?.result as string;
-        try {
-          const parsedRecords = parseCsv<any>(text);
-          const studentMapByName = new Map(allStudents.map(s => [s.name, s]));
-          
-          const recordsToAdd: (Omit<MeasurementRecord, 'id'> & { studentId: string })[] = [];
-
-          parsedRecords.forEach(rec => {
-            const student = studentMapByName.get(rec.name || rec.이름);
-            if (student && (rec.item || rec.측정종목) && (rec.value || rec.기록)) {
-              recordsToAdd.push({
-                studentId: student.id,
-                school: school,
-                item: rec.item || rec.측정종목,
-                value: parseFloat(rec.value || rec.기록),
-                date: rec.date || rec.측정일,
-              });
-            }
-          });
-
-          await addOrUpdateRecords(school, recordsToAdd);
-          
-          onRecordUpdate();
-
-          toast({ title: '일괄 등록 완료', description: `${recordsToAdd.length}개의 기록을 등록/업데이트했습니다.` });
-          
-
-        } catch (error) {
-            console.error('CSV 처리 오류', error);
-            toast({ variant: 'destructive', title: 'CSV 처리 오류', description: '파일 형식이 올바르지 않거나 데이터가 유효하지 않습니다.' });
-        }
-      };
-      reader.readAsText(file, 'UTF-8');
-    }
-    event.target.value = ''; // Reset file input
-  };
-  
-  const handleDownloadTemplate = () => {
-    if(!school) return;
-    const templateData = [{
-      이름: '홍길동',
-      측정종목: '50m 달리기',
-      기록: 9.5,
-      측정일: '2024-01-01'
-    }];
-    
-    const itemsData = allItems.map(item => ({
-        종목명: item.name,
-        단위: item.unit
-    }));
-    
-    const files = [
-        { name: '기록_등록_템플릿.csv', data: templateData },
-        { name: '등록된_종목_목록.csv', data: itemsData },
-    ];
-    
-    exportToZip('기록_등록_템플릿.zip', files);
-    toast({ title: '다운로드 시작', description: '템플릿과 종목 목록을 ZIP 파일로 다운로드합니다.'});
-  }
 
   const handleAiAnalysis = async () => {
     if (!selectedStudent || studentRecords.length === 0 || !school) return;
@@ -624,22 +558,6 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
       <CardContent className="space-y-8">
         {!selectedStudent && !filteredStudentsByClass.length && (
           <div className="space-y-8">
-             <Card>
-                <CardHeader>
-                    <CardTitle>기록 일괄 관리</CardTitle>
-                    <CardDescription>
-                      CSV 파일을 사용하여 여러 학생의 기록을 한 번에 등록합니다. 템플릿과 함께 제공되는 '등록된_종목_목록.csv' 파일을 참고하여 정확한 종목명을 입력해주세요. 한글 깨짐 방지를 위해 CSV 파일은 반드시 UTF-8 형식으로 저장해주세요.
-                    </CardDescription>
-                </CardHeader>
-                <CardFooter className="flex-wrap gap-2">
-                    <Button variant="outline" onClick={() => document.getElementById('record-csv-upload-main')?.click()}>
-                        <FileUp className="mr-2 h-4 w-4" />
-                        CSV 일괄 등록
-                    </Button>
-                    <input type="file" id="record-csv-upload-main" accept=".csv" onChange={handleCsvUpload} style={{ display: 'none' }} />
-                    <Button variant="link" onClick={handleDownloadTemplate}>템플릿 및 종목 목록 다운로드</Button>
-                </CardFooter>
-            </Card>
             <p className="text-center text-muted-foreground">분석할 학생을 검색하거나 학급을 선택해주세요.</p>
           </div>
         )}

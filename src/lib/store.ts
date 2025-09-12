@@ -200,27 +200,47 @@ export const deleteRecord = async (school: string, recordId: string) => {
 };
 
 
-export const addOrUpdateRecords = async (school: string, newRecords: (Omit<MeasurementRecord, 'id'> & { studentId: string })[]) => {
+export const addOrUpdateRecords = async (school: string, allStudents: Student[], newRecords: any[]) => {
   const batch = writeBatch(db);
+  const studentMap = new Map(allStudents.map(s => `${s.school}-${s.grade}-${s.classNum}-${s.studentNum}-${s.name}`));
 
   for (const record of newRecords) {
-      const recordDate = record.date || format(new Date(), 'yyyy-MM-dd');
-      const recordsRef = collection(db, 'schools', school, 'records');
-      const q = query(recordsRef, 
-          where("studentId", "==", record.studentId), 
-          where("item", "==", record.item), 
-          where("date", "==", recordDate)
-      );
+    // Find student based on composite key from CSV
+    const student = allStudents.find(s => 
+        s.school === record.school &&
+        s.grade === record.grade &&
+        s.classNum === record.classNum &&
+        s.studentNum === record.studentNum &&
+        s.name === record.name
+    );
 
-      const snapshot = await getDocs(q);
-      
-      if (!snapshot.empty) {
-          const existingDocRef = snapshot.docs[0].ref;
-          batch.update(existingDocRef, { value: record.value });
-      } else {
-          const newRecordRef = doc(recordsRef);
-          batch.set(newRecordRef, { ...record, id: newRecordRef.id, date: recordDate });
-      }
+    if (!student) continue; // Skip if student not found
+
+    const recordDate = record.date || format(new Date(), 'yyyy-MM-dd');
+    const recordsRef = collection(db, 'schools', school, 'records');
+    const q = query(recordsRef, 
+        where("studentId", "==", student.id), 
+        where("item", "==", record.item), 
+        where("date", "==", recordDate)
+    );
+
+    const snapshot = await getDocs(q);
+    
+    if (!snapshot.empty) {
+        const existingDocRef = snapshot.docs[0].ref;
+        batch.update(existingDocRef, { value: parseFloat(record.value) });
+    } else {
+        const newRecordRef = doc(recordsRef);
+        const recordToAdd = {
+            id: newRecordRef.id,
+            studentId: student.id,
+            school: school,
+            item: record.item,
+            value: parseFloat(record.value),
+            date: recordDate,
+        };
+        batch.set(newRecordRef, recordToAdd);
+    }
   }
 
   await batch.commit();

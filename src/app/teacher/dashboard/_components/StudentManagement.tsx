@@ -6,6 +6,8 @@ import {
   setRecords as setRecordsInDb,
   getRecords,
   addStudent,
+  addOrUpdateRecords,
+  getItems,
 } from '@/lib/store';
 import type { Student } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -15,6 +17,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from '@/components/ui/card';
 import {
   Table,
@@ -44,7 +47,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { parseCsv, exportToCsv } from '@/lib/utils';
+import { parseCsv, exportToCsv, exportToZip } from '@/lib/utils';
 import { UserPlus, Trash2, FileUp, FileDown, Loader2 } from 'lucide-react';
 
 interface StudentManagementProps {
@@ -102,7 +105,7 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
     setSelection((prev) => ({ ...prev, [id]: checked }));
   };
 
-  const handleCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleStudentCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && school) {
       const reader = new FileReader();
@@ -143,6 +146,27 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
     event.target.value = ''; // Reset file input
   };
   
+    const handleRecordCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file && school) {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const text = e.target?.result as string;
+                try {
+                    const parsedRecords = parseCsv<any>(text);
+                    await addOrUpdateRecords(school, students, parsedRecords);
+                    onStudentsUpdate();
+                    toast({ title: '기록 일괄 등록 완료', description: `${parsedRecords.length}개의 기록을 처리했습니다.` });
+                } catch (error) {
+                    console.error('CSV 처리 오류', error);
+                    toast({ variant: 'destructive', title: 'CSV 처리 오류', description: '파일 형식이 올바르지 않거나 데이터가 유효하지 않습니다.' });
+                }
+            };
+            reader.readAsText(file, 'UTF-8');
+        }
+        event.target.value = ''; // Reset file input
+    };
+
   const handleDownloadAllRecords = async () => {
     if (!school) return;
     const allRecords = await getRecords(school);
@@ -172,7 +196,7 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
     toast({ title: '다운로드 시작', description: '전체 학생 기록을 CSV 파일로 다운로드합니다.'});
   }
 
-  const handleDownloadTemplate = () => {
+  const handleDownloadStudentTemplate = () => {
     if (!school) return;
     const templateData = [{
       school,
@@ -185,87 +209,134 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
     exportToCsv(`${school}_학생_등록_템플릿.csv`, templateData);
   }
 
+  const handleDownloadRecordTemplate = async () => {
+    if(!school) return;
+    const templateData = [{
+      school: school,
+      grade: '1',
+      classNum: '1',
+      studentNum: '1',
+      name: '홍길동',
+      item: '50m 달리기',
+      value: 9.5,
+      date: '2024-01-01'
+    }];
+    
+    const items = await getItems(school);
+    const itemsData = items.map(item => ({
+        종목명: item.name,
+        단위: item.unit
+    }));
+    
+    const files = [
+        { name: '기록_등록_템플릿.csv', data: templateData },
+        { name: '등록된_종목_목록.csv', data: itemsData },
+    ];
+    
+    exportToZip('기록_등록_템플릿.zip', files);
+    toast({ title: '다운로드 시작', description: '템플릿과 종목 목록을 ZIP 파일로 다운로드합니다.'});
+  }
+
+
   if (!school) return null;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>학생 관리</CardTitle>
-        <CardDescription>
-          학생을 등록, 삭제하고 전체 기록을 관리합니다. CSV 파일은 한글 깨짐 방지를 위해 반드시 UTF-8 형식으로 저장해주세요.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-center gap-2 mb-4">
-          <AddStudentDialog onAddStudent={handleAddStudent} />
-          <Button variant="outline" onClick={() => document.getElementById('csv-upload')?.click()}>
-            <FileUp className="mr-2 h-4 w-4" />
-            CSV 일괄 등록
-          </Button>
-          <input type="file" id="csv-upload" accept=".csv" onChange={handleCsvUpload} style={{ display: 'none' }} />
-           <Button variant="link" onClick={handleDownloadTemplate}>템플릿 다운로드</Button>
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>학생 명단 관리</CardTitle>
+          <CardDescription>
+            학생을 개별 또는 일괄 등록하고, 선택하여 삭제합니다.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <AddStudentDialog onAddStudent={handleAddStudent} />
+            <Button variant="outline" onClick={() => document.getElementById('student-csv-upload')?.click()}>
+              <FileUp className="mr-2 h-4 w-4" />
+              학생 일괄 등록
+            </Button>
+            <input type="file" id="student-csv-upload" accept=".csv" onChange={handleStudentCsvUpload} style={{ display: 'none' }} />
+            <Button variant="link" onClick={handleDownloadStudentTemplate}>학생 템플릿</Button>
 
-          <div className="ml-auto flex items-center gap-2">
-            <Button variant="outline" onClick={handleDownloadAllRecords}>
-              <FileDown className="mr-2 h-4 w-4" />
-              전체 기록 다운로드
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={selectedIds.length === 0}
-              onClick={handleDeleteSelected}
-            >
-              <Trash2 className="mr-2 h-4 w-4" />
-              선택 삭제 ({selectedIds.length})
-            </Button>
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                variant="destructive"
+                disabled={selectedIds.length === 0}
+                onClick={handleDeleteSelected}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                선택 삭제 ({selectedIds.length})
+              </Button>
+            </div>
           </div>
-        </div>
-        <div className="border rounded-md">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[50px]">
-                  <Checkbox
-                    checked={students.length > 0 && selectedIds.length === students.length}
-                    onCheckedChange={handleSelectAll}
-                  />
-                </TableHead>
-                <TableHead>학년</TableHead>
-                <TableHead>반</TableHead>
-                <TableHead>번호</TableHead>
-                <TableHead>이름</TableHead>
-                <TableHead>성별</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {students.length > 0 ? (
-                students.map((student) => (
-                  <TableRow key={student.id} data-state={selection[student.id] && 'selected'}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selection[student.id] || false}
-                        onCheckedChange={(checked) => handleSelectRow(student.id, !!checked)}
-                      />
-                    </TableCell>
-                    <TableCell>{student.grade}</TableCell>
-                    <TableCell>{student.classNum}</TableCell>
-                    <TableCell>{student.studentNum}</TableCell>
-                    <TableCell className="font-medium">{student.name}</TableCell>
-                    <TableCell>{student.gender}</TableCell>
-                  </TableRow>
-                ))
-              ) : (
+          <div className="border rounded-md">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">
-                    등록된 학생이 없습니다.
-                  </TableCell>
+                  <TableHead className="w-[50px]">
+                    <Checkbox
+                      checked={students.length > 0 && selectedIds.length === students.length}
+                      onCheckedChange={handleSelectAll}
+                    />
+                  </TableHead>
+                  <TableHead>학년</TableHead>
+                  <TableHead>반</TableHead>
+                  <TableHead>번호</TableHead>
+                  <TableHead>이름</TableHead>
+                  <TableHead>성별</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
+              </TableHeader>
+              <TableBody>
+                {students.length > 0 ? (
+                  students.map((student) => (
+                    <TableRow key={student.id} data-state={selection[student.id] && 'selected'}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selection[student.id] || false}
+                          onCheckedChange={(checked) => handleSelectRow(student.id, !!checked)}
+                        />
+                      </TableCell>
+                      <TableCell>{student.grade}</TableCell>
+                      <TableCell>{student.classNum}</TableCell>
+                      <TableCell>{student.studentNum}</TableCell>
+                      <TableCell className="font-medium">{student.name}</TableCell>
+                      <TableCell>{student.gender}</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-24 text-center">
+                      등록된 학생이 없습니다.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+      <Card className="mt-6">
+          <CardHeader>
+              <CardTitle>측정 기록 일괄 관리</CardTitle>
+              <CardDescription>
+                CSV 파일을 사용하여 여러 학생의 기록을 한 번에 등록하거나, 전체 학생 기록을 다운로드합니다. CSV 파일은 한글 깨짐 방지를 위해 반드시 UTF-8 형식으로 저장해주세요.
+              </CardDescription>
+          </CardHeader>
+          <CardFooter className="flex-wrap gap-2">
+              <Button variant="outline" onClick={() => document.getElementById('record-csv-upload')?.click()}>
+                  <FileUp className="mr-2 h-4 w-4" />
+                  기록 일괄 등록
+              </Button>
+              <input type="file" id="record-csv-upload" accept=".csv" onChange={handleRecordCsvUpload} style={{ display: 'none' }} />
+              <Button variant="link" onClick={handleDownloadRecordTemplate}>기록 템플릿</Button>
+              <Button variant="outline" onClick={handleDownloadAllRecords} className="ml-auto">
+                <FileDown className="mr-2 h-4 w-4" />
+                전체 기록 다운로드
+              </Button>
+          </CardFooter>
+      </Card>
+    </>
   );
 }
 
