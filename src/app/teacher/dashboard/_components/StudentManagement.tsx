@@ -45,7 +45,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { parseCsv, exportToCsv } from '@/lib/utils';
-import { UserPlus, Trash2, FileUp, FileDown } from 'lucide-react';
+import { UserPlus, Trash2, FileUp, FileDown, Loader2 } from 'lucide-react';
 
 interface StudentManagementProps {
   students: Student[];
