@@ -140,7 +140,9 @@ export const addItem = async (school: string, item: Omit<MeasurementItem, 'id'>)
     const newItemRef = doc(itemsRef);
     const newItem = { ...item, id: newItemRef.id };
     await setDoc(newItemRef, newItem);
+    return newItem;
   }
+  return existing.docs[0].data() as MeasurementItem;
 };
 
 export const deleteItem = async (school: string, itemId: string) => {
@@ -203,12 +205,25 @@ export const deleteRecord = async (school: string, recordId: string) => {
 export const addOrUpdateRecords = async (school: string, allStudents: Student[], newRecords: any[]) => {
   const batch = writeBatch(db);
   const studentMap = new Map(allStudents.map(s => [`${s.school}-${s.grade}-${s.classNum}-${s.studentNum}-${s.name}`, s]));
-
+  const currentItems = await getItems(school);
+  const itemMap = new Map(currentItems.map(i => [i.name, i]));
+  
   for (const record of newRecords) {
+    // Auto-create item if it doesn't exist
+    if (!itemMap.has(record.item)) {
+        const newItem = await addItem(school, {
+            name: record.item,
+            unit: record.unit || '점', // Default unit if not provided
+            recordType: record.recordType || 'distance', // Default recordType
+            isPaps: false
+        });
+        itemMap.set(newItem.name, newItem);
+    }
+
     const studentKey = `${record.school}-${record.grade}-${record.classNum}-${record.studentNum}-${record.name}`;
     const student = studentMap.get(studentKey);
 
-    if (!student) continue; // Skip if student not found
+    if (!student) continue;
 
     const recordDate = record.date || format(new Date(), 'yyyy-MM-dd');
     const recordsRef = collection(db, 'schools', school, 'records');

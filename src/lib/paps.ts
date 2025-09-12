@@ -26,7 +26,7 @@ export const papsStandards: Record<string, { male: number[], female: number[], t
     type: 'count',
     unit: '회'
   },
-  '오래달리기 걷기': {
+  '오래달리기': {
     male: [420, 480, 540, 600],
     female: [450, 510, 570, 630],
     type: 'time',
