@@ -208,47 +208,65 @@ export const addOrUpdateRecords = async (school: string, allStudents: Student[],
   const currentItems = await getItems(school);
   const itemMap = new Map(currentItems.map(i => [i.name, i]));
   
+  // Pre-fetch all existing records for performance
+  const allExistingRecords = await getRecords(school);
+  const existingRecordsMap = new Map<string, MeasurementRecord>();
+  allExistingRecords.forEach(rec => {
+    const key = `${rec.studentId}-${rec.item}-${rec.date}`;
+    existingRecordsMap.set(key, rec);
+  });
+
+  const newItemsToAdd: Omit<MeasurementItem, 'id'>[] = [];
+  // Find new items to create
   for (const record of newRecords) {
-    // Auto-create item if it doesn't exist
-    if (!itemMap.has(record.item)) {
-        const newItem = await addItem(school, {
+    if (!itemMap.has(record.item) && !newItemsToAdd.some(i => i.name === record.item)) {
+       newItemsToAdd.push({
             name: record.item,
-            unit: record.unit || '점', // Default unit if not provided
-            recordType: record.recordType || 'distance', // Default recordType
+            unit: record.unit || '점',
+            recordType: record.recordType || 'distance',
             isPaps: false
         });
-        itemMap.set(newItem.name, newItem);
     }
+  }
 
+  // Add new items to DB and update the local map
+  if (newItemsToAdd.length > 0) {
+    const itemPromises = newItemsToAdd.map(item => addItem(school, item));
+    const addedItems = await Promise.all(itemPromises);
+    addedItems.forEach(item => itemMap.set(item.name, item));
+  }
+  
+  for (const record of newRecords) {
     const studentKey = `${record.school}-${record.grade}-${record.classNum}-${record.studentNum}-${record.name}`;
     const student = studentMap.get(studentKey);
-
-    if (!student) continue;
+    
+    if (!student || !record.item || record.value === undefined) continue;
 
     const recordDate = record.date || format(new Date(), 'yyyy-MM-dd');
-    const recordsRef = collection(db, 'schools', school, 'records');
-    const q = query(recordsRef, 
-        where("studentId", "==", student.id), 
-        where("item", "==", record.item), 
-        where("date", "==", recordDate)
-    );
+    const recordValue = parseFloat(record.value);
+    if(isNaN(recordValue)) continue;
 
-    const snapshot = await getDocs(q);
-    
-    if (!snapshot.empty) {
-        const existingDocRef = snapshot.docs[0].ref;
-        batch.update(existingDocRef, { value: parseFloat(record.value) });
+    const recordKey = `${student.id}-${record.item}-${recordDate}`;
+    const existingRecord = existingRecordsMap.get(recordKey);
+
+    const recordsCollectionRef = collection(db, 'schools', school, 'records');
+
+    if (existingRecord) {
+      if (existingRecord.value !== recordValue) {
+        const docRef = doc(recordsCollectionRef, existingRecord.id);
+        batch.update(docRef, { value: recordValue });
+      }
     } else {
-        const newRecordRef = doc(recordsRef);
-        const recordToAdd = {
-            id: newRecordRef.id,
-            studentId: student.id,
-            school: school,
-            item: record.item,
-            value: parseFloat(record.value),
-            date: recordDate,
-        };
-        batch.set(newRecordRef, recordToAdd);
+      const newRecordRef = doc(recordsCollectionRef);
+      const recordToAdd = {
+        id: newRecordRef.id,
+        studentId: student.id,
+        school: school,
+        item: record.item,
+        value: recordValue,
+        date: recordDate,
+      };
+      batch.set(newRecordRef, recordToAdd);
     }
   }
 
