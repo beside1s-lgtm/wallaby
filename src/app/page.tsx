@@ -24,7 +24,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Loader2, Rocket } from 'lucide-react';
-import { initializeData } from '@/lib/store';
+import { initializeData, cleanUpDuplicateRecords } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
 
 const teacherLoginSchema = z.object({
@@ -50,6 +50,7 @@ export default function LoginPage() {
     setIsSubmitting(true);
     try {
       await initializeData(values.school);
+      await cleanUpDuplicateRecords(values.school);
       // For now, teacher login is simple. We can add verification later if needed.
       login('teacher', { name: '교사', school: values.school }, values.school);
       router.push('/teacher/dashboard');

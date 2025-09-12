@@ -186,8 +186,15 @@ export const addOrUpdateRecord = async (record: Omit<MeasurementRecord, 'id'>) =
   await runTransaction(db, async (transaction) => {
     const snapshot = await getDocs(q);
     if (!snapshot.empty) {
-      const existingDocRef = snapshot.docs[0].ref;
-      transaction.update(existingDocRef, { value: record.value });
+      // If duplicates exist, update the last one and delete the others.
+      const docs = snapshot.docs;
+      const docToKeep = docs[docs.length - 1];
+      transaction.update(docToKeep.ref, { value: record.value });
+      
+      // Delete other duplicates
+      for (let i = 0; i < docs.length - 1; i++) {
+        transaction.delete(docs[i].ref);
+      }
     } else {
       const newRecordRef = doc(recordsRef);
       const newRecord = { ...record, id: newRecordRef.id, date: recordDate };
@@ -200,7 +207,6 @@ export const deleteRecord = async (school: string, recordId: string) => {
   const recordDocRef = doc(db, 'schools', school, 'records', recordId);
   await deleteDoc(recordDocRef);
 };
-
 
 export const addOrUpdateRecords = async (school: string, allStudents: Student[], newRecords: any[]) => {
   const batch = writeBatch(db);
@@ -219,7 +225,7 @@ export const addOrUpdateRecords = async (school: string, allStudents: Student[],
   const newItemsToAdd: Omit<MeasurementItem, 'id'>[] = [];
   // Find new items to create
   for (const record of newRecords) {
-    if (!itemMap.has(record.item) && !newItemsToAdd.some(i => i.name === record.item)) {
+    if (record.item && !itemMap.has(record.item) && !newItemsToAdd.some(i => i.name === record.item)) {
        newItemsToAdd.push({
             name: record.item,
             unit: record.unit || '점',
@@ -330,4 +336,44 @@ export const calculateRanks = (
   });
 
   return allRanks;
+};
+
+export const cleanUpDuplicateRecords = async (school: string): Promise<void> => {
+  const recordsRef = collection(db, 'schools', school, 'records');
+  const snapshot = await getDocs(recordsRef);
+  const records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MeasurementRecord));
+
+  const recordsByCompoundKey = new Map<string, MeasurementRecord[]>();
+
+  records.forEach(record => {
+    const key = `${record.studentId}-${record.item}-${record.date}`;
+    if (!recordsByCompoundKey.has(key)) {
+      recordsByCompoundKey.set(key, []);
+    }
+    recordsByCompoundKey.get(key)!.push(record);
+  });
+
+  const batch = writeBatch(db);
+  let duplicatesFound = false;
+
+  for (const [key, recordGroup] of recordsByCompoundKey.entries()) {
+    if (recordGroup.length > 1) {
+      duplicatesFound = true;
+      // Sort by ID to find the "latest" one. Assuming UUIDs/auto-IDs are roughly chronological.
+      recordGroup.sort((a, b) => b.id.localeCompare(a.id));
+      const recordToKeep = recordGroup[0];
+
+      // Mark others for deletion
+      for (let i = 1; i < recordGroup.length; i++) {
+        const docToDeleteRef = doc(db, 'schools', school, 'records', recordGroup[i].id);
+        batch.delete(docToDeleteRef);
+      }
+    }
+  }
+
+  if (duplicatesFound) {
+    console.log(`[${school}] Cleaning up duplicate records...`);
+    await batch.commit();
+    console.log(`[${school}] Cleanup complete.`);
+  }
 };
