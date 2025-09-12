@@ -1,9 +1,10 @@
+
 import type { MeasurementItem, Student } from './types';
 
-// 초등학교 1~6학년 PAPS 기준표 (https://m.blog.naver.com/usuu0919/222304005427 참조)
+// 초등학교 4~6학년 PAPS 기준표 (https://m.blog.naver.com/usuu0919/222304005427 참조)
 // 3단계 구조: 학년 -> 종목 -> 성별 -> 등급 기준
 const papsStandardsByGrade: Record<
-  string, // 학년 (e.g., '1', '2', ..., '6')
+  string, // 학년 (e.g., '4', '5', '6')
   Record<
     string, // 종목명
     {
@@ -14,27 +15,6 @@ const papsStandardsByGrade: Record<
     }
   >
 > = {
-  '1': {
-    '왕복오래달리기': { male: [23, 15, 8, 4], female: [19, 12, 6, 3], type: 'count', unit: '회' },
-    '앉아윗몸앞으로굽히기': { male: [8.5, 4.0, 0.0, -4.0], female: [10.8, 6.5, 2.5, -1.5], type: 'distance', unit: 'cm' },
-    '윗몸 말아올리기': { male: [22, 16, 11, 6], female: [19, 14, 9, 4], type: 'count', unit: '회' },
-    '50m 달리기': { male: [10.4, 11.0, 11.6, 12.2], female: [10.8, 11.4, 12.0, 12.6], type: 'time', unit: '초' },
-    '제자리 멀리뛰기': { male: [140, 130, 120, 110], female: [135, 125, 115, 105], type: 'distance', unit: 'cm' },
-  },
-  '2': {
-    '왕복오래달리기': { male: [28, 19, 11, 5], female: [23, 15, 8, 4], type: 'count', unit: '회' },
-    '앉아윗몸앞으로굽히기': { male: [9.8, 5.5, 1.5, -2.5], female: [12.0, 8.0, 4.0, 0.0], type: 'distance', unit: 'cm' },
-    '윗몸 말아올리기': { male: [25, 19, 13, 7], female: [22, 17, 12, 6], type: 'count', unit: '회' },
-    '50m 달리기': { male: [9.8, 10.4, 11.0, 11.6], female: [10.2, 10.8, 11.4, 12.0], type: 'time', unit: '초' },
-    '제자리 멀리뛰기': { male: [150, 140, 130, 120], female: [145, 135, 125, 115], type: 'distance', unit: 'cm' },
-  },
-  '3': {
-    '왕복오래달리기': { male: [37, 27, 18, 10], female: [29, 21, 13, 7], type: 'count', unit: '회' },
-    '앉아윗몸앞으로굽히기': { male: [11.5, 7.0, 3.0, -1.0], female: [13.5, 9.5, 5.5, 1.5], type: 'distance', unit: 'cm' },
-    '윗몸 말아올리기': { male: [30, 24, 17, 10], female: [27, 21, 15, 9], type: 'count', unit: '회' },
-    '50m 달리기': { male: [9.3, 9.9, 10.5, 11.1], female: [9.7, 10.3, 10.9, 11.5], type: 'time', unit: '초' },
-    '제자리 멀리뛰기': { male: [160, 150, 140, 130], female: [155, 145, 135, 120], type: 'distance', unit: 'cm' },
-  },
   '4': {
     '왕복오래달리기': { male: [45, 34, 23, 13], female: [34, 25, 16, 9], type: 'count', unit: '회' },
     '앉아윗몸앞으로굽히기': { male: [13.0, 8.5, 4.5, 0.5], female: [15.2, 11.5, 7.5, 3.5], type: 'distance', unit: 'cm' },
@@ -113,3 +93,5 @@ export function getCustomItemGrade(item: MeasurementItem, value: number): number
   if (percentage >= 20) return 4;
   return 5;
 }
+
+    
