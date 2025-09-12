@@ -59,6 +59,7 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
   const { school } = useAuth();
   const [selection, setSelection] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
+  const [isUploading, setIsUploading] = useState(false);
 
   const sortedStudents = useMemo(() => {
     return [...students].sort((a, b) => {
@@ -172,6 +173,7 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
             const reader = new FileReader();
             reader.onload = async (e) => {
                 const text = e.target?.result as string;
+                setIsUploading(true);
                 try {
                     const parsedRecords = parseCsv<any>(text);
                     if (parsedRecords.length === 0) throw new Error("No data in CSV");
@@ -182,6 +184,8 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
                 } catch (error) {
                     console.error('CSV 처리 오류', error);
                     toast({ variant: 'destructive', title: '파일이 잘못 되었습니다', description: 'CSV 파일 형식이나 내용을 확인해주세요.' });
+                } finally {
+                  setIsUploading(false);
                 }
             };
             reader.readAsText(file, 'UTF-8');
@@ -272,9 +276,18 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
               </CardDescription>
           </CardHeader>
           <CardFooter className="flex-wrap gap-2">
-              <Button variant="outline" onClick={() => document.getElementById('record-csv-upload')?.click()}>
-                  <FileUp className="mr-2 h-4 w-4" />
-                  기록 일괄 등록
+              <Button variant="outline" onClick={() => document.getElementById('record-csv-upload')?.click()} disabled={isUploading}>
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      등록 중...
+                    </>
+                  ) : (
+                    <>
+                      <FileUp className="mr-2 h-4 w-4" />
+                      기록 일괄 등록
+                    </>
+                  )}
               </Button>
               <input type="file" id="record-csv-upload" accept=".csv" onChange={handleRecordCsvUpload} style={{ display: 'none' }} />
               <Button variant="link" onClick={handleDownloadRecordTemplate}>기록 템플릿</Button>
