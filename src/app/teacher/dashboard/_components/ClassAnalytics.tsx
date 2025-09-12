@@ -49,6 +49,7 @@ import { Loader2, Search, Wand2, FileUp, X as XIcon, ArrowUpDown, Trash2 } from 
 import { useToast } from '@/hooks/use-toast';
 import { getPapsGrade, getCustomItemGrade } from '@/lib/paps';
 import { parseCsv, exportToZip } from '@/lib/utils';
+import AiWelcome from './AiWelcome';
 
 
 type AiAnalysis = {
@@ -792,9 +793,18 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
              <div className="space-y-8">
                  <h2 className="text-2xl font-bold">{selectedGrade}학년 {selectedClassNum}반 학급 분석</h2>
                  <Card>
-                    <CardHeader>
-                      <CardTitle>PAPS 성취도 비교 ({comparisonData.targetLabel} vs 학년 평균)</CardTitle>
-                      <CardDescription>100%에 가까울수록 성취도가 높습니다.</CardDescription>
+                    <CardHeader className="flex-row items-start justify-between">
+                      <div>
+                        <CardTitle>PAPS 성취도 비교 ({comparisonData.targetLabel} vs 학년 평균)</CardTitle>
+                        <CardDescription>100%에 가까울수록 성취도가 높습니다.</CardDescription>
+                      </div>
+                      <AiWelcome 
+                        itemType='paps' 
+                        title="학급 AI 브리핑" 
+                        students={filteredStudentsByClass} 
+                        items={allItems} 
+                        records={allRecords} 
+                      />
                     </CardHeader>
                     <CardContent>
                       <ChartContainer config={comparisonChartConfig} className="h-[300px] w-full">
