@@ -240,23 +240,29 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
       return;
     }
     
-    await addOrUpdateRecord({
-      studentId: selectedStudent.id,
-      school: school,
-      item: selectedItemName,
-      value: numericValue,
-    });
+    try {
+        await addOrUpdateRecord({
+          studentId: selectedStudent.id,
+          school: school,
+          item: selectedItemName,
+          value: numericValue,
+        });
 
-    await onRecordUpdate(); // This will re-fetch all records in parent and pass down
-    
-    toast({
-      title: '기록 저장 완료',
-      description: `${selectedStudent.name} 학생의 ${selectedItemName} 기록이 ${numericValue}${selectedItem?.unit}으로 저장/업데이트되었습니다.`,
-    });
-    
-    setRecordValue('');
-    setSelectedItemName('');
-    setIsSubmitting(false);
+        await onRecordUpdate(); // This will re-fetch all records in parent and pass down
+        
+        toast({
+          title: '기록 저장 완료',
+          description: `${selectedStudent.name} 학생의 ${selectedItemName} 기록이 ${numericValue}${selectedItem?.unit}으로 저장/업데이트되었습니다.`,
+        });
+        
+        setRecordValue('');
+        setSelectedItemName('');
+    } catch(error) {
+         console.error("Failed to save record:", error);
+        toast({ variant: 'destructive', title: '저장 실패', description: '기록 저장 중 오류가 발생했습니다.'})
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
   const handleDeleteRecord = async (recordId: string) => {
@@ -619,33 +625,66 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                   </Card>
                 </div>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>AI 코칭 어시스턴트</CardTitle>
-                    <CardDescription>학생의 기록을 바탕으로 강점, 약점, 추천 훈련 방법을 분석합니다.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                      {isAiLoading ? (
-                          <div className="flex items-center justify-center h-24">
-                              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                          </div>
-                      ) : aiAnalysis ? (
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                              <div><h4 className="font-bold mb-2 text-green-600">강점</h4><p className="whitespace-pre-wrap">{aiAnalysis.strengths}</p></div>
-                              <div><h4 className="font-bold mb-2 text-red-600">약점</h4><p className="whitespace-pre-wrap">{aiAnalysis.weaknesses}</p></div>
-                              <div><h4 className="font-bold mb-2 text-blue-600">추천 훈련 방법</h4><p className="whitespace-pre-wrap">{aiAnalysis.suggestedTrainingMethods}</p></div>
-                          </div>
-                      ) : (
-                          <p className="text-center text-muted-foreground">AI 분석을 요청하여 학생 맞춤형 코칭을 받아보세요.</p>
-                      )}
-                  </CardContent>
-                  <CardFooter>
-                      <Button onClick={handleAiAnalysis} disabled={isAiLoading || studentRecords.length === 0}>
-                          <Wand2 className="mr-2 h-4 w-4" />
-                          {isAiLoading ? '분석 중...' : 'AI 분석 요청'}
-                      </Button>
-                  </CardFooter>
-                </Card>
+                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>AI 코칭 어시스턴트</CardTitle>
+                            <CardDescription>학생의 기록을 바탕으로 강점, 약점, 추천 훈련 방법을 분석합니다.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            {isAiLoading ? (
+                                <div className="flex items-center justify-center h-24">
+                                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                                </div>
+                            ) : aiAnalysis ? (
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                                    <div><h4 className="font-bold mb-2 text-green-600">강점</h4><p className="whitespace-pre-wrap">{aiAnalysis.strengths}</p></div>
+                                    <div><h4 className="font-bold mb-2 text-red-600">약점</h4><p className="whitespace-pre-wrap">{aiAnalysis.weaknesses}</p></div>
+                                    <div><h4 className="font-bold mb-2 text-blue-600">추천 훈련 방법</h4><p className="whitespace-pre-wrap">{aiAnalysis.suggestedTrainingMethods}</p></div>
+                                </div>
+                            ) : (
+                                <p className="text-center text-muted-foreground">AI 분석을 요청하여 학생 맞춤형 코칭을 받아보세요.</p>
+                            )}
+                        </CardContent>
+                        <CardFooter>
+                            <Button onClick={handleAiAnalysis} disabled={isAiLoading || studentRecords.length === 0}>
+                                <Wand2 className="mr-2 h-4 w-4" />
+                                {isAiLoading ? '분석 중...' : 'AI 분석 요청'}
+                            </Button>
+                        </CardFooter>
+                    </Card>
+
+                     <Card>
+                        <CardHeader>
+                            <CardTitle>기록 추가/수정</CardTitle>
+                            <CardDescription>오늘 날짜로 기록을 추가하거나, 기존 기록을 수정합니다.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <Select onValueChange={setSelectedItemName} value={selectedItemName}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="측정 종목 선택" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {allItems.map(item => (
+                                    <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <Input
+                                placeholder={inputPlaceholder}
+                                value={recordValue}
+                                onChange={e => setRecordValue(e.target.value)}
+                                type="number"
+                            />
+                        </CardContent>
+                        <CardFooter>
+                            <Button onClick={handleAddRecord} disabled={isSubmitting} className="w-full">
+                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                결과 저장
+                            </Button>
+                        </CardFooter>
+                    </Card>
+                </div>
                 
                 <Card>
                     <CardHeader>
