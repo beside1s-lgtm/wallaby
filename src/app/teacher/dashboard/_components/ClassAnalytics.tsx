@@ -641,108 +641,10 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
           </div>
         )}
 
-        {(selectedStudent || filteredStudentsByClass.length > 0) && (
-          <div>
-            {selectedStudent ? (
+        {selectedStudent ? (
+            <div className="space-y-8">
                 <h2 className="text-2xl font-bold mb-6">{selectedStudent.name} ({selectedStudent.grade}-{selectedStudent.classNum}) 학생 분석</h2>
-            ) : (
-                <h2 className="text-2xl font-bold mb-6">{selectedGrade}학년 {selectedClassNum}반 학급 분석</h2>
-            )}
-            
-            {!selectedStudent && filteredStudentsByClass.length > 0 && (
-                 <Card className="mb-8">
-                    <CardHeader>
-                        <CardTitle>학급 학생 목록</CardTitle>
-                        <CardDescription>학생을 선택하여 개별 기록을 조회하거나, 목록을 정렬하여 성취도를 비교할 수 있습니다.</CardDescription>
-                         <div className="flex flex-wrap items-center gap-2 pt-4">
-                            <span className="text-sm font-medium">정렬 기준:</span>
-                            <Select value={sortItem} onValueChange={setSortItem}>
-                                <SelectTrigger className="w-full sm:w-[180px]">
-                                    <SelectValue placeholder="정렬 종목 선택" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {allItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                            <Button size="sm" variant="outline" onClick={handleSortByRecord} disabled={!sortItem}>
-                                <ArrowUpDown className="mr-2 h-4 w-4" />
-                                기록순 정렬
-                            </Button>
-                             <Button size="sm" variant="outline" onClick={handleSortByAverageGrade}>
-                                <ArrowUpDown className="mr-2 h-4 w-4" />
-                                평균 등급순 정렬
-                            </Button>
-                             {sortedStudents && (
-                                <Button size="sm" variant="ghost" onClick={() => setSortedStudents(null)}>정렬 초기화</Button>
-                             )}
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>번호</TableHead>
-                                    <TableHead>이름</TableHead>
-                                    <TableHead>성별</TableHead>
-                                    {sortType && <TableHead>정렬 기준값</TableHead>}
-                                    <TableHead>기록 조회</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {(sortedStudents || filteredStudentsByClass).map(student => (
-                                    <TableRow key={student.id}>
-                                        <TableCell>{student.studentNum}</TableCell>
-                                        <TableCell>{student.name}</TableCell>
-                                        <TableCell>{student.gender}</TableCell>
-                                        {student.sortValue !== undefined && <TableCell>{student.sortValue}</TableCell>}
-                                        <TableCell>
-                                            <Button variant="link" size="sm" onClick={() => handleSelectStudent(student)}>기록 보기</Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
-            )}
-
-            {selectedStudent && (
-              <div className="space-y-8">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>기록 개별 추가</CardTitle>
-                    <CardDescription>
-                      선택된 학생의 측정 기록을 개별적으로 추가합니다.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <Select onValueChange={setSelectedItemName} value={selectedItemName}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="측정 종목 선택" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {allItems.map(item => (
-                              <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          placeholder={inputPlaceholder}
-                          value={recordValue}
-                          onChange={e => setRecordValue(e.target.value)}
-                          type="number"
-                        />
-                    </div>
-                  </CardContent>
-                  <CardFooter className="flex-wrap gap-2">
-                    <Button onClick={handleAddRecord} disabled={isSubmitting}>
-                      {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      개별 기록 저장
-                    </Button>
-                  </CardFooter>
-                </Card>
-
+                
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   <Card>
                     <CardHeader>
@@ -795,6 +697,34 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                     </CardContent>
                   </Card>
                 </div>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>AI 코칭 어시스턴트</CardTitle>
+                    <CardDescription>학생의 기록을 바탕으로 강점, 약점, 추천 훈련 방법을 분석합니다.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                      {isAiLoading ? (
+                          <div className="flex items-center justify-center h-24">
+                              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                          </div>
+                      ) : aiAnalysis ? (
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                              <div><h4 className="font-bold mb-2 text-green-600">강점</h4><p className="whitespace-pre-wrap">{aiAnalysis.strengths}</p></div>
+                              <div><h4 className="font-bold mb-2 text-red-600">약점</h4><p className="whitespace-pre-wrap">{aiAnalysis.weaknesses}</p></div>
+                              <div><h4 className="font-bold mb-2 text-blue-600">추천 훈련 방법</h4><p className="whitespace-pre-wrap">{aiAnalysis.suggestedTrainingMethods}</p></div>
+                          </div>
+                      ) : (
+                          <p className="text-center text-muted-foreground">AI 분석을 요청하여 학생 맞춤형 코칭을 받아보세요.</p>
+                      )}
+                  </CardContent>
+                  <CardFooter>
+                      <Button onClick={handleAiAnalysis} disabled={isAiLoading || studentRecords.length === 0}>
+                          <Wand2 className="mr-2 h-4 w-4" />
+                          {isAiLoading ? '분석 중...' : 'AI 분석 요청'}
+                      </Button>
+                  </CardFooter>
+                </Card>
                 
                 <Card>
                     <CardHeader>
@@ -855,37 +785,62 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                     </Table>
                     </CardContent>
                 </Card>
-
-                <Card className="bg-primary/5">
-                    <CardHeader>
-                        <CardTitle>AI 코칭 어시스턴트</CardTitle>
-                        <CardDescription>학생의 기록을 바탕으로 강점, 약점, 추천 훈련 방법을 분석합니다.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        {isAiLoading ? (
-                            <div className="flex items-center justify-center h-24">
-                                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                            </div>
-                        ) : aiAnalysis ? (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                                <div><h4 className="font-bold mb-2 text-green-600">강점</h4><p className="whitespace-pre-wrap">{aiAnalysis.strengths}</p></div>
-                                <div><h4 className="font-bold mb-2 text-red-600">약점</h4><p className="whitespace-pre-wrap">{aiAnalysis.weaknesses}</p></div>
-                                <div><h4 className="font-bold mb-2 text-blue-600">추천 훈련 방법</h4><p className="whitespace-pre-wrap">{aiAnalysis.suggestedTrainingMethods}</p></div>
-                            </div>
-                        ) : (
-                            <p className="text-center text-muted-foreground">AI 분석을 요청하여 학생 맞춤형 코칭을 받아보세요.</p>
-                        )}
-                    </CardContent>
-                    <CardFooter>
-                        <Button onClick={handleAiAnalysis} disabled={isAiLoading || studentRecords.length === 0}>
-                            <Wand2 className="mr-2 h-4 w-4" />
-                            {isAiLoading ? '분석 중...' : 'AI 분석 요청'}
+            </div>
+        ) : filteredStudentsByClass.length > 0 && (
+             <Card className="mb-8">
+                <CardHeader>
+                    <CardTitle>학급 학생 목록</CardTitle>
+                    <CardDescription>학생을 선택하여 개별 기록을 조회하거나, 목록을 정렬하여 성취도를 비교할 수 있습니다.</CardDescription>
+                     <div className="flex flex-wrap items-center gap-2 pt-4">
+                        <span className="text-sm font-medium">정렬 기준:</span>
+                        <Select value={sortItem} onValueChange={setSortItem}>
+                            <SelectTrigger className="w-full sm:w-[180px]">
+                                <SelectValue placeholder="정렬 종목 선택" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {allItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        <Button size="sm" variant="outline" onClick={handleSortByRecord} disabled={!sortItem}>
+                            <ArrowUpDown className="mr-2 h-4 w-4" />
+                            기록순 정렬
                         </Button>
-                    </CardFooter>
-                </Card>
-              </div>
-            )}
-          </div>
+                         <Button size="sm" variant="outline" onClick={handleSortByAverageGrade}>
+                            <ArrowUpDown className="mr-2 h-4 w-4" />
+                            평균 등급순 정렬
+                        </Button>
+                         {sortedStudents && (
+                            <Button size="sm" variant="ghost" onClick={() => setSortedStudents(null)}>정렬 초기화</Button>
+                         )}
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>번호</TableHead>
+                                <TableHead>이름</TableHead>
+                                <TableHead>성별</TableHead>
+                                {sortType && <TableHead>정렬 기준값</TableHead>}
+                                <TableHead>기록 조회</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {(sortedStudents || filteredStudentsByClass).map(student => (
+                                <TableRow key={student.id}>
+                                    <TableCell>{student.studentNum}</TableCell>
+                                    <TableCell>{student.name}</TableCell>
+                                    <TableCell>{student.gender}</TableCell>
+                                    {student.sortValue !== undefined && <TableCell>{student.sortValue}</TableCell>}
+                                    <TableCell>
+                                        <Button variant="link" size="sm" onClick={() => handleSelectStudent(student)}>기록 보기</Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
         )}
       </CardContent>
     </Card>
