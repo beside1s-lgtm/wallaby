@@ -260,6 +260,26 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
 
   return (
     <>
+      <Card className="mb-6">
+          <CardHeader>
+              <CardTitle>측정 기록 일괄 관리</CardTitle>
+              <CardDescription>
+                CSV 파일을 사용하여 여러 학생의 기록을 한 번에 등록하거나, 전체 학생 기록을 다운로드합니다. CSV 파일은 한글 깨짐 방지를 위해 반드시 UTF-8 형식으로 저장해주세요.
+              </CardDescription>
+          </CardHeader>
+          <CardFooter className="flex-wrap gap-2">
+              <Button variant="outline" onClick={() => document.getElementById('record-csv-upload')?.click()}>
+                  <FileUp className="mr-2 h-4 w-4" />
+                  기록 일괄 등록
+              </Button>
+              <input type="file" id="record-csv-upload" accept=".csv" onChange={handleRecordCsvUpload} style={{ display: 'none' }} />
+              <Button variant="link" onClick={handleDownloadRecordTemplate}>기록 템플릿</Button>
+              <Button variant="outline" onClick={handleDownloadAllRecords} className="ml-auto">
+                <FileDown className="mr-2 h-4 w-4" />
+                전체 기록 다운로드
+              </Button>
+          </CardFooter>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle>학생 명단 관리</CardTitle>
@@ -333,26 +353,6 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
             </Table>
           </div>
         </CardContent>
-      </Card>
-      <Card className="mt-6">
-          <CardHeader>
-              <CardTitle>측정 기록 일괄 관리</CardTitle>
-              <CardDescription>
-                CSV 파일을 사용하여 여러 학생의 기록을 한 번에 등록하거나, 전체 학생 기록을 다운로드합니다. CSV 파일은 한글 깨짐 방지를 위해 반드시 UTF-8 형식으로 저장해주세요.
-              </CardDescription>
-          </CardHeader>
-          <CardFooter className="flex-wrap gap-2">
-              <Button variant="outline" onClick={() => document.getElementById('record-csv-upload')?.click()}>
-                  <FileUp className="mr-2 h-4 w-4" />
-                  기록 일괄 등록
-              </Button>
-              <input type="file" id="record-csv-upload" accept=".csv" onChange={handleRecordCsvUpload} style={{ display: 'none' }} />
-              <Button variant="link" onClick={handleDownloadRecordTemplate}>기록 템플릿</Button>
-              <Button variant="outline" onClick={handleDownloadAllRecords} className="ml-auto">
-                <FileDown className="mr-2 h-4 w-4" />
-                전체 기록 다운로드
-              </Button>
-          </CardFooter>
       </Card>
     </>
   );
