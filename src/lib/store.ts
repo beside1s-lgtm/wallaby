@@ -202,17 +202,11 @@ export const deleteRecord = async (school: string, recordId: string) => {
 
 export const addOrUpdateRecords = async (school: string, allStudents: Student[], newRecords: any[]) => {
   const batch = writeBatch(db);
-  const studentMap = new Map(allStudents.map(s => `${s.school}-${s.grade}-${s.classNum}-${s.studentNum}-${s.name}`));
+  const studentMap = new Map(allStudents.map(s => [`${s.school}-${s.grade}-${s.classNum}-${s.studentNum}-${s.name}`, s]));
 
   for (const record of newRecords) {
-    // Find student based on composite key from CSV
-    const student = allStudents.find(s => 
-        s.school === record.school &&
-        s.grade === record.grade &&
-        s.classNum === record.classNum &&
-        s.studentNum === record.studentNum &&
-        s.name === record.name
-    );
+    const studentKey = `${record.school}-${record.grade}-${record.classNum}-${record.studentNum}-${record.name}`;
+    const student = studentMap.get(studentKey);
 
     if (!student) continue; // Skip if student not found
 
