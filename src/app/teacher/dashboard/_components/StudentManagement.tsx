@@ -60,6 +60,24 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
   const [selection, setSelection] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
 
+  const sortedStudents = useMemo(() => {
+    return [...students].sort((a, b) => {
+      const gradeA = parseInt(a.grade);
+      const gradeB = parseInt(b.grade);
+      if (gradeA !== gradeB) {
+        return gradeA - gradeB;
+      }
+      const classA = parseInt(a.classNum);
+      const classB = parseInt(b.classNum);
+      if (classA !== classB) {
+        return classA - classB;
+      }
+      const numA = parseInt(a.studentNum);
+      const numB = parseInt(b.studentNum);
+      return numA - numB;
+    });
+  }, [students]);
+
   const selectedIds = useMemo(
     () => Object.keys(selection).filter((id) => selection[id]),
     [selection]
@@ -96,7 +114,7 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
   const handleSelectAll = (checked: boolean) => {
     const newSelection: Record<string, boolean> = {};
     if (checked) {
-      students.forEach((s) => (newSelection[s.id] = true));
+      sortedStudents.forEach((s) => (newSelection[s.id] = true));
     }
     setSelection(newSelection);
   };
@@ -276,7 +294,7 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
                 <TableRow>
                   <TableHead className="w-[50px]">
                     <Checkbox
-                      checked={students.length > 0 && selectedIds.length === students.length}
+                      checked={sortedStudents.length > 0 && selectedIds.length === sortedStudents.length}
                       onCheckedChange={handleSelectAll}
                     />
                   </TableHead>
@@ -288,8 +306,8 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {students.length > 0 ? (
-                  students.map((student) => (
+                {sortedStudents.length > 0 ? (
+                  sortedStudents.map((student) => (
                     <TableRow key={student.id} data-state={selection[student.id] && 'selected'}>
                       <TableCell>
                         <Checkbox
