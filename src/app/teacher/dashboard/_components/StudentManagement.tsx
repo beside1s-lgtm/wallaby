@@ -60,9 +60,29 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
   const [selection, setSelection] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
+  const [selectedGrade, setSelectedGrade] = useState('');
+  const [selectedClassNum, setSelectedClassNum] = useState('');
+
+  const { grades, classNumsByGrade } = useMemo(() => {
+    const grades = [...new Set(students.map(s => s.grade))].sort((a,b) => parseInt(a) - parseInt(b));
+    const classNumsByGrade: Record<string, string[]> = {};
+    grades.forEach(grade => {
+        classNumsByGrade[grade] = [...new Set(students.filter(s => s.grade === grade).map(s => s.classNum))].sort((a,b) => parseInt(a) - parseInt(b));
+    });
+    return { grades, classNumsByGrade };
+  }, [students]);
+
+  const filteredStudents = useMemo(() => {
+    if (!selectedGrade) return students;
+    let filtered = students.filter(s => s.grade === selectedGrade);
+    if (selectedClassNum) {
+      filtered = filtered.filter(s => s.classNum === selectedClassNum);
+    }
+    return filtered;
+  }, [students, selectedGrade, selectedClassNum]);
 
   const sortedStudents = useMemo(() => {
-    return [...students].sort((a, b) => {
+    return [...filteredStudents].sort((a, b) => {
       const gradeA = parseInt(a.grade);
       const gradeB = parseInt(b.grade);
       if (gradeA !== gradeB) {
@@ -77,7 +97,7 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
       const numB = parseInt(b.studentNum);
       return numA - numB;
     });
-  }, [students]);
+  }, [filteredStudents]);
 
   const selectedIds = useMemo(
     () => Object.keys(selection).filter((id) => selection[id]),
@@ -239,6 +259,20 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
     exportToCsv(`${school}_학생_등록_템플릿.csv`, templateData);
   }
 
+  const handleDownloadClassList = () => {
+    if (!school || !selectedGrade || !selectedClassNum) return;
+    const dataToExport = sortedStudents.map(s => ({
+        학년: s.grade,
+        반: s.classNum,
+        번호: s.studentNum,
+        이름: s.name,
+        성별: s.gender,
+        접속코드: s.accessCode
+    }));
+    exportToCsv(`${school}_${selectedGrade}-${selectedClassNum}_학생명단.csv`, dataToExport);
+    toast({ title: '다운로드 시작', description: `${selectedGrade}학년 ${selectedClassNum}반 학생 명단을 다운로드합니다.` });
+  }
+
   const handleDownloadRecordTemplate = async () => {
     if(!school) return;
     const templateData = [{
@@ -305,29 +339,43 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
         <CardHeader>
           <CardTitle>학생 명단 관리</CardTitle>
           <CardDescription>
-            학생을 개별 또는 일괄 등록하고, 선택하여 삭제합니다.
+            학생을 개별 또는 일괄 등록하고, 선택하여 삭제합니다. 학급별로 명단을 필터링하고 다운로드할 수 있습니다.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap items-center gap-2 mb-4">
-            <AddStudentDialog onAddStudent={handleAddStudent} />
-            <Button variant="outline" onClick={() => document.getElementById('student-csv-upload')?.click()} disabled={isUploading}>
-                {isUploading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    등록 중...
-                  </>
-                ) : (
-                  <>
-                    <FileUp className="mr-2 h-4 w-4" />
-                    학생 일괄 등록
-                  </>
-                )}
-            </Button>
-            <input type="file" id="student-csv-upload" accept=".csv" onChange={handleStudentCsvUpload} style={{ display: 'none' }} />
-            <Button variant="link" onClick={handleDownloadStudentTemplate}>학생 템플릿</Button>
+          <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-2 mb-4">
+            <div className="flex flex-wrap items-center gap-2">
+                <AddStudentDialog onAddStudent={handleAddStudent} />
+                <Button variant="outline" onClick={() => document.getElementById('student-csv-upload')?.click()} disabled={isUploading}>
+                    {isUploading ? ( <> <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 등록 중... </> ) : ( <> <FileUp className="mr-2 h-4 w-4" /> 학생 일괄 등록 </> )}
+                </Button>
+                <input type="file" id="student-csv-upload" accept=".csv" onChange={handleStudentCsvUpload} style={{ display: 'none' }} />
+                <Button variant="link" onClick={handleDownloadStudentTemplate}>학생 템플릿</Button>
+            </div>
 
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-2 w-full sm:w-auto">
+              <div className="flex items-center gap-2">
+                <Select value={selectedGrade} onValueChange={(value) => { setSelectedGrade(value); setSelectedClassNum(''); }}>
+                    <SelectTrigger className="w-full sm:w-[120px]">
+                        <SelectValue placeholder="학년 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {grades.map(grade => <SelectItem key={grade} value={grade}>{grade}학년</SelectItem>)}
+                    </SelectContent>
+                </Select>
+                <Select value={selectedClassNum} onValueChange={setSelectedClassNum} disabled={!selectedGrade}>
+                    <SelectTrigger className="w-full sm:w-[120px]">
+                        <SelectValue placeholder="반 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {classNumsByGrade[selectedGrade]?.map(classNum => <SelectItem key={classNum} value={classNum}>{classNum}반</SelectItem>)}
+                    </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={handleDownloadClassList} disabled={!selectedGrade || !selectedClassNum}>
+                  <FileDown className="mr-2 h-4 w-4" />
+                  학급 명단 다운로드
+              </Button>
               <Button
                 variant="destructive"
                 disabled={selectedIds.length === 0}
@@ -377,7 +425,7 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
                 ) : (
                   <TableRow>
                     <TableCell colSpan={7} className="h-24 text-center">
-                      등록된 학생이 없습니다.
+                      {selectedGrade ? '해당 학급에 등록된 학생이 없습니다.' : '등록된 학생이 없습니다.'}
                     </TableCell>
                   </TableRow>
                 )}
