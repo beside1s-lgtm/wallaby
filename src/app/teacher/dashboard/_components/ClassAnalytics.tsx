@@ -84,12 +84,15 @@ const gradeToPercentage = (grade: number | null): number => {
 
 const CustomTooltipContent = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
-    const { name, value, unit } = payload[0].payload.originalRecord || {};
+    const { originalRecord } = payload[0].payload;
+    const recordKey = payload[0].dataKey;
+    const record = originalRecord?.[recordKey];
+
     return (
       <div className="p-2 text-sm bg-background/90 border rounded-md shadow-lg">
         <p className="font-bold">{label}</p>
         <p style={{ color: payload[0].color }}>
-            {`${payload[0].name}: ${payload[0].value}등급 (${value}${unit})`}
+            {`${payload[0].name}: ${payload[0].value}등급 (${record?.value ?? 'N/A'}${record?.unit ?? ''})`}
         </p>
       </div>
     );
@@ -579,9 +582,13 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
           } else {
             grade = getCustomItemGrade(itemInfo, r.value);
           }
-          return { date: r.date, value: grade, originalRecord: { name: r.item, value: r.value, unit: itemInfo.unit } }
+          return { 
+              date: r.date, 
+              [progressChartItem]: grade,
+              originalRecord: { [progressChartItem]: { value: r.value, unit: itemInfo.unit } }
+          }
       })
-      .filter(r => r.value !== null)
+      .filter(r => r[progressChartItem] !== null)
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [studentRecords, progressChartItem, selectedStudent, allItems]);
   
@@ -742,7 +749,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                             <YAxis domain={[1, 5]} ticks={[1,2,3,4,5]} tickCount={5} reversed={true} />
                             <Tooltip content={<CustomTooltipContent />} />
                             <Legend />
-                            <Line type="monotone" dataKey="value" name={progressChartItem} stroke="hsl(var(--primary))" strokeWidth={2} />
+                            <Line type="monotone" dataKey={progressChartItem} name={progressChartItem} stroke="hsl(var(--primary))" strokeWidth={2} />
                           </LineChart>
                         </ChartContainer>
                       </CardContent>
