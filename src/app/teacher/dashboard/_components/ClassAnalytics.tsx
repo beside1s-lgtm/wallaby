@@ -770,7 +770,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                             <YAxis yAxisId="right" orientation="right" stroke="hsl(var(--chart-1))" domain={[0, 100]} unit="%" name="성취도" />
                             <Tooltip content={<CustomTooltipContent />} />
                             <Legend />
-                             <Bar dataKey="score" yAxisId="left" fill="var(--color-grade)" name="등급" radius={[4, 4, 0, 0]} barSize={20}/>
+                             <Bar dataKey="score" yAxisId="left" fill="var(--color-score)" name="등급" radius={[4, 4, 0, 0]} barSize={20}/>
                              <Line dataKey="achievement" yAxisId="right" type="monotone" stroke="var(--color-achievement)" strokeWidth={2} dot={true} name="성취도" />
                           </ComposedChart>
                         </ChartContainer>
