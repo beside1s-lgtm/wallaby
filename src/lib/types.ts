@@ -6,6 +6,7 @@ export type Student = {
   studentNum: string;
   name: string;
   gender: '남' | '여';
+  accessCode: string; // 5-digit unique access code
 };
 
 export type RecordType = 'time' | 'count' | 'distance' | 'weight';

@@ -2,10 +2,10 @@ import type { Student, MeasurementItem, MeasurementRecord } from './types';
 import { v4 as uuidv4 } from 'uuid';
 
 export const initialStudents: Student[] = [
-  { id: '1', school: '테스트초등학교', grade: '1', classNum: '1', studentNum: '1', name: '김민준', gender: '남' },
-  { id: '2', school: '테스트초등학교', grade: '1', classNum: '1', studentNum: '2', name: '이서연', gender: '여' },
-  { id: '3', school: '테스트초등학교', grade: '1', classNum: '2', studentNum: '1', name: '박하은', gender: '여' },
-  { id: '4', school: '샘플중학교', grade: '2', classNum: '1', studentNum: '1', name: '최지우', gender: '남' },
+  { id: '1', school: '테스트초등학교', grade: '1', classNum: '1', studentNum: '1', name: '김민준', gender: '남', accessCode: '12345' },
+  { id: '2', school: '테스트초등학교', grade: '1', classNum: '1', studentNum: '2', name: '이서연', gender: '여', accessCode: '23456' },
+  { id: '3', school: '테스트초등학교', grade: '1', classNum: '2', studentNum: '1', name: '박하은', gender: '여', accessCode: '34567' },
+  { id: '4', school: '샘플중학교', grade: '2', classNum: '1', studentNum: '1', name: '최지우', gender: '남', accessCode: '45678' },
 ];
 
 export const initialItems: MeasurementItem[] = [

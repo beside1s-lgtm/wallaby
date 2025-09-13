@@ -84,7 +84,8 @@ export const getStudent = async (
     where('grade', '==', loginInfo.grade),
     where('classNum', '==', loginInfo.classNum),
     where('studentNum', '==', loginInfo.studentNum),
-    where('name', '==', loginInfo.name)
+    where('name', '==', loginInfo.name),
+    where('accessCode', '==', loginInfo.accessCode)
   );
   const snapshot = await getDocs(q);
   if (snapshot.empty) {

@@ -14,6 +14,8 @@ const universalKeyMap: Record<string, string> = {
     '번호': 'studentNum',
     '이름': 'name',
     '성별': 'gender',
+    '접속코드': 'accessCode',
+    'accessCode': 'accessCode',
     // Record
     '측정종목': 'item',
     '기록': 'value',

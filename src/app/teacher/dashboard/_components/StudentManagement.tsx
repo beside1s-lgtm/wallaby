@@ -127,6 +127,7 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
   const handleStudentCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && school) {
+      setIsUploading(true);
       const reader = new FileReader();
       reader.onload = async (e) => {
         const text = e.target?.result as string;
@@ -138,7 +139,7 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
           
           const addPromises = newStudents.map(student => {
             const studentSchool = student.school || school;
-            if (studentSchool && student.grade && student.classNum && student.studentNum && student.name && student.gender) {
+            if (studentSchool && student.grade && student.classNum && student.studentNum && student.name && student.gender && student.accessCode) {
               const studentExists = students.some(s => 
                 s.grade === student.grade &&
                 s.classNum === student.classNum &&
@@ -160,6 +161,8 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
           toast({ title: '학생 일괄 등록 완료', description: `${count}명의 새로운 학생을 등록했습니다.` });
         } catch (error) {
           toast({ variant: 'destructive', title: '파일이 잘못 되었습니다', description: 'CSV 파일 형식이나 내용을 확인해주세요.' });
+        } finally {
+          setIsUploading(false);
         }
       };
       reader.readAsText(file, 'UTF-8');
@@ -231,6 +234,7 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
       studentNum: '1',
       name: '홍길동',
       gender: '남',
+      accessCode: '12345'
     }];
     exportToCsv(`${school}_학생_등록_템플릿.csv`, templateData);
   }
@@ -307,9 +311,18 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
         <CardContent>
           <div className="flex flex-wrap items-center gap-2 mb-4">
             <AddStudentDialog onAddStudent={handleAddStudent} />
-            <Button variant="outline" onClick={() => document.getElementById('student-csv-upload')?.click()}>
-              <FileUp className="mr-2 h-4 w-4" />
-              학생 일괄 등록
+            <Button variant="outline" onClick={() => document.getElementById('student-csv-upload')?.click()} disabled={isUploading}>
+                {isUploading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    등록 중...
+                  </>
+                ) : (
+                  <>
+                    <FileUp className="mr-2 h-4 w-4" />
+                    학생 일괄 등록
+                  </>
+                )}
             </Button>
             <input type="file" id="student-csv-upload" accept=".csv" onChange={handleStudentCsvUpload} style={{ display: 'none' }} />
             <Button variant="link" onClick={handleDownloadStudentTemplate}>학생 템플릿</Button>
@@ -340,6 +353,7 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
                   <TableHead>번호</TableHead>
                   <TableHead>이름</TableHead>
                   <TableHead>성별</TableHead>
+                  <TableHead>접속 코드</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -357,11 +371,12 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
                       <TableCell>{student.studentNum}</TableCell>
                       <TableCell className="font-medium">{student.name}</TableCell>
                       <TableCell>{student.gender}</TableCell>
+                      <TableCell>{student.accessCode}</TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
+                    <TableCell colSpan={7} className="h-24 text-center">
                       등록된 학생이 없습니다.
                     </TableCell>
                   </TableRow>
@@ -382,21 +397,27 @@ function AddStudentDialog({ onAddStudent }: { onAddStudent: (data: Omit<Student,
   const [studentNum, setStudentNum] = useState('');
   const [name, setName] = useState('');
   const [gender, setGender] = useState<'남' | '여' | ''>('');
+  const [accessCode, setAccessCode] = useState('');
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
-    if (!grade || !classNum || !studentNum || !name || !gender) {
+    if (!grade || !classNum || !studentNum || !name || !gender || !accessCode) {
       toast({ variant: 'destructive', title: '입력 오류', description: '모든 필드를 입력해주세요.' });
       return;
     }
+    if (accessCode.length !== 5) {
+      toast({ variant: 'destructive', title: '입력 오류', description: '접속 코드는 5자리여야 합니다.' });
+      return;
+    }
     setIsSubmitting(true);
-    await onAddStudent({ grade, classNum, studentNum, name, gender });
+    await onAddStudent({ grade, classNum, studentNum, name, gender, accessCode });
     setGrade('');
     setClassNum('');
     setStudentNum('');
     setName('');
     setGender('');
+    setAccessCode('');
     setIsSubmitting(false);
     document.getElementById('add-student-dialog-close')?.click();
   };
@@ -438,6 +459,10 @@ function AddStudentDialog({ onAddStudent }: { onAddStudent: (data: Omit<Student,
                     <SelectItem value="여">여</SelectItem>
                 </SelectContent>
             </Select>
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="accessCode" className="text-right">접속 코드</Label>
+            <Input id="accessCode" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} className="col-span-3" placeholder="5자리 숫자" maxLength={5} />
           </div>
         </div>
         <DialogFooter>

@@ -33,6 +33,7 @@ const studentLoginSchema = z.object({
   classNum: z.string().min(1, '반을 입력해주세요.'),
   studentNum: z.string().min(1, '번호를 입력해주세요.'),
   name: z.string().min(1, '이름을 입력해주세요.'),
+  accessCode: z.string().min(5, '5자리 접속 코드를 입력해주세요.').max(5, '5자리 접속 코드를 입력해주세요.'),
 });
 
 type StudentLoginValues = z.infer<typeof studentLoginSchema>;
@@ -51,6 +52,7 @@ export default function StudentLoginPage() {
       classNum: '',
       studentNum: '',
       name: '',
+      accessCode: '',
     },
   });
 
@@ -66,7 +68,7 @@ export default function StudentLoginPage() {
         toast({
           variant: 'destructive',
           title: '로그인 실패',
-          description: '학생 정보가 존재하지 않습니다. 학교 정보를 확인하거나 교사에게 문의하세요.',
+          description: '학생 정보가 존재하지 않거나 접속 코드가 틀렸습니다. 교사에게 문의하세요.',
         });
       }
     } catch (error) {
@@ -91,7 +93,7 @@ export default function StudentLoginPage() {
         <CardHeader>
           <CardTitle>학생 로그인</CardTitle>
           <CardDescription>
-            개인 정보를 입력하여 기록을 확인하고 입력하세요.
+            개인 정보와 발급받은 접속 코드를 입력하여 로그인하세요.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -162,6 +164,19 @@ export default function StudentLoginPage() {
                     <FormLabel>이름</FormLabel>
                     <FormControl>
                       <Input placeholder="예: 홍길동" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={studentForm.control}
+                name="accessCode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>접속 코드</FormLabel>
+                    <FormControl>
+                      <Input placeholder="5자리 숫자" type="password" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
