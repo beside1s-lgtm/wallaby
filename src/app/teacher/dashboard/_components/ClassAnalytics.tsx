@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { addOrUpdateRecord, calculateRanks, getRecordsByStudent, deleteRecord, addOrUpdateRecords } from '@/lib/store';
 import { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
@@ -159,6 +159,8 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
   const [isSelectionDialogOpen, setIsSelectionDialogOpen] = useState(false);
   const [comparisonType, setComparisonType] = useState<'paps' | 'custom'>('paps');
 
+  const studentDetailRef = useRef<HTMLDivElement>(null);
+
   const { grades, classNumsByGrade } = useMemo(() => {
     const grades = [...new Set(allStudents.map(s => s.grade))].sort();
     const classNumsByGrade: Record<string, string[]> = {};
@@ -228,6 +230,9 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
     const studentRecs = allRecords.filter(r => r.studentId === student.id);
     setStudentRecords(studentRecs);
     setAiAnalysis(null);
+    setTimeout(() => {
+        studentDetailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 0);
   }
 
   const handleSearch = () => {
@@ -735,7 +740,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
           )}
 
           {selectedStudent ? (
-              <div className="space-y-8">
+              <div className="space-y-8" ref={studentDetailRef}>
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-2xl font-bold">{selectedStudent.name} ({selectedStudent.grade}-{selectedStudent.classNum}) 학생 분석</h2>
                     <Button variant="ghost" size="icon" onClick={() => { setSearchTerm(''); setSelectedStudent(null); }}>
