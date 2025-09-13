@@ -1,4 +1,4 @@
-'use server';
+
 import type { MeasurementItem, Student } from './types';
 
 // 초/중/고 PAPS 기준표 (교육부 기준 기반)
@@ -29,7 +29,7 @@ const papsStandardsByGrade: Record<
     },
      '앉아윗몸앞으로굽히기': {
       male: [ { grade: 1, min: 8.0, max: Infinity }, { grade: 2, min: 5.0, max: 7.9 }, { grade: 3, min: 1.0, max: 4.9 }, { grade: 4, min: -4.0, max: 0.9 }, { grade: 5, min: -Infinity, max: -4.1 } ],
-      female: [ { grade: 1, min: 10.0, max: Infinity }, { grade: 2, min: 7.0, max: 9.9 }, { grade: 3, min: 5.0, max: 6.9 }, { grade: 4, min: 1.0, max: 4.9 }, { grade: 5, min: -Infinity, max: 0.9 } ],
+      female: [ { grade: 1, min: 14.0, max: Infinity }, { grade: 2, min: 10.0, max: 13.9 }, { grade: 3, min: 5.0, max: 9.9 }, { grade: 4, min: 2.0, max: 4.9 }, { grade: 5, min: -Infinity, max: 1.9 } ],
       type: 'distance', unit: 'cm'
     },
     '50m 달리기': {
@@ -61,7 +61,7 @@ const papsStandardsByGrade: Record<
     },
     '앉아윗몸앞으로굽히기': {
       male: [ { grade: 1, min: 8, max: Infinity }, { grade: 2, min: 5.0, max: 7.9 }, { grade: 3, min: 1.0, max: 4.9 }, { grade: 4, min: -4.0, max: 0.9 }, { grade: 5, min: -Infinity, max: -4.1 } ],
-      female: [ { grade: 1, min: 10, max: Infinity }, { grade: 2, min: 7.0, max: 9.9 }, { grade: 3, min: 5.0, max: 6.9 }, { grade: 4, min: 1.0, max: 4.9 }, { grade: 5, min: -Infinity, max: 0.9 } ],
+      female: [ { grade: 1, min: 14, max: Infinity }, { grade: 2, min: 10, max: 13.9 }, { grade: 3, min: 5.0, max: 9.9 }, { grade: 4, min: 2, max: 4.9 }, { grade: 5, min: -Infinity, max: 1.9 } ],
       type: 'distance', unit: 'cm'
     },
     '50m 달리기': {
