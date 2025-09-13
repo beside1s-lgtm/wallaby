@@ -34,11 +34,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
-  const previousPathnameRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    previousPathnameRef.current = pathname;
-  }, [pathname]);
 
   useEffect(() => {
     try {
@@ -79,26 +74,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const isAuthPage = pathname === '/' || pathname === '/student-login';
     
-    // User is logged out
-    if (!role) {
-        // And not on an auth page, redirect to appropriate login
-        if (!isAuthPage) {
-            if (previousPathnameRef.current?.startsWith('/student')) {
-                router.replace('/student-login');
-            } else {
-                router.replace('/');
-            }
-        }
-    } 
-    // User is logged in
-    else {
-        if (role === 'teacher' && !pathname.startsWith('/teacher')) {
+    // User is logged in, but on an auth page, redirect them away
+    if (role && isAuthPage) {
+        if (role === 'teacher') {
             router.replace('/teacher/dashboard');
-        }
-        if (role === 'student' && !pathname.startsWith('/student')) {
+        } else if (role === 'student') {
             router.replace('/student/dashboard');
         }
+        return;
     }
+    
+    // User is logged out, but not on an auth page, redirect them
+    if (!role && !isAuthPage) {
+        // A simple redirect to the main login page is sufficient
+        router.replace('/');
+        return;
+    }
+
+    // Additional checks for logged-in users on wrong dashboards
+    if (role === 'teacher' && pathname.startsWith('/student')) {
+      router.replace('/teacher/dashboard');
+    }
+    if (role === 'student' && pathname.startsWith('/teacher')) {
+      router.replace('/student/dashboard');
+    }
+
   }, [role, pathname, router, isLoading]);
 
 
