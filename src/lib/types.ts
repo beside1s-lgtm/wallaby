@@ -9,6 +9,8 @@ export type Student = {
   accessCode: string; // 5-digit unique access code
 };
 
+export type StudentToAdd = Omit<Student, 'id' | 'accessCode'>;
+
 export type RecordType = 'time' | 'count' | 'distance' | 'weight';
 
 export type MeasurementItem = {

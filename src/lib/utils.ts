@@ -15,7 +15,6 @@ const universalKeyMap: Record<string, string> = {
     '이름': 'name',
     '성별': 'gender',
     '접속코드': 'accessCode',
-    'accessCode': 'accessCode',
     // Record
     '측정종목': 'item',
     '기록': 'value',
@@ -32,7 +31,9 @@ export function parseCsv<T>(csvText: string): T[] {
     const values = line.split(',').map(v => v.trim());
     return header.reduce((obj, key, index) => {
       const newKey = universalKeyMap[key] || key;
-      (obj as any)[newKey] = values[index];
+      if (newKey !== 'accessCode') { // accessCode is now auto-generated, so we ignore it from CSV
+        (obj as any)[newKey] = values[index];
+      }
       return obj;
     }, {} as T);
   }).filter(obj => Object.values(obj as any).some(val => val !== '' && val !== null && val !== undefined));

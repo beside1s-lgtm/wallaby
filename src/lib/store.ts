@@ -1,5 +1,5 @@
 'use client';
-import type { Student, MeasurementItem, MeasurementRecord, RecordType } from './types';
+import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentToAdd } from './types';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { initialItems, initialStudents, initialRecords } from './initial-data';
@@ -94,9 +94,15 @@ export const getStudent = async (
   return snapshot.docs[0].data() as Student;
 };
 
-export const addStudent = async (student: Omit<Student, 'id'>) => {
-    const studentWithId = { ...student, id: uuidv4() };
-    const studentDocRef = doc(db, 'schools', student.school, 'students', studentWithId.id);
+export const addStudent = async (school: string, studentData: StudentToAdd, allStudents: Student[]) => {
+    const existingCodes = new Set(allStudents.map(s => s.accessCode).filter(Boolean));
+    let newCode: string;
+    do {
+      newCode = Math.floor(10000 + Math.random() * 90000).toString();
+    } while (existingCodes.has(newCode));
+
+    const studentWithId = { ...studentData, school, id: uuidv4(), accessCode: newCode };
+    const studentDocRef = doc(db, 'schools', school, 'students', studentWithId.id);
     await setDoc(studentDocRef, studentWithId);
     return studentWithId;
 };

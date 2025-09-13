@@ -9,7 +9,7 @@ import {
   addOrUpdateRecords,
   getItems,
 } from '@/lib/store';
-import type { Student } from '@/lib/types';
+import type { Student, StudentToAdd } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -104,9 +104,9 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
     [selection]
   );
 
-  const handleAddStudent = async (studentData: Omit<Student, 'id' | 'school'>) => {
+  const handleAddStudent = async (studentData: StudentToAdd) => {
     if (!school) return;
-    await addStudent({ ...studentData, school });
+    await addStudent(school, studentData, students);
     onStudentsUpdate(); // Refresh data in parent
     toast({ title: '학생 추가 완료', description: `${studentData.name} 학생을 등록했습니다.` });
   };
@@ -152,24 +152,24 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
       reader.onload = async (e) => {
         const text = e.target?.result as string;
         try {
-          const newStudents = parseCsv<Omit<Student, 'id'>>(text);
+          const newStudents = parseCsv<Omit<Student, 'id' | 'accessCode'>>(text);
           if (newStudents.length === 0) throw new Error("No data in CSV");
           
           let count = 0;
           
-          const addPromises = newStudents.map(student => {
-            const studentSchool = student.school || school;
-            if (studentSchool && student.grade && student.classNum && student.studentNum && student.name && student.gender && student.accessCode) {
+          const addPromises = newStudents.map(studentFromFile => {
+            const studentSchool = studentFromFile.school || school;
+            if (studentSchool && studentFromFile.grade && studentFromFile.classNum && studentFromFile.studentNum && studentFromFile.name && studentFromFile.gender) {
               const studentExists = students.some(s => 
-                s.grade === student.grade &&
-                s.classNum === student.classNum &&
-                s.studentNum === student.studentNum &&
-                s.name === student.name
+                s.grade === studentFromFile.grade &&
+                s.classNum === studentFromFile.classNum &&
+                s.studentNum === studentFromFile.studentNum &&
+                s.name === studentFromFile.name
               );
               
               if (!studentExists) {
                   count++;
-                  return addStudent({ ...student, school: studentSchool });
+                  return addStudent(school, { ...studentFromFile, school: studentSchool }, students);
               }
             }
             return Promise.resolve();
@@ -254,7 +254,6 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
       studentNum: '1',
       name: '홍길동',
       gender: '남',
-      accessCode: '12345'
     }];
     exportToCsv(`${school}_학생_등록_템플릿.csv`, templateData);
   }
@@ -439,33 +438,27 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
 }
 
 
-function AddStudentDialog({ onAddStudent }: { onAddStudent: (data: Omit<Student, 'id' | 'school'>) => Promise<void> }) {
+function AddStudentDialog({ onAddStudent }: { onAddStudent: (data: StudentToAdd) => Promise<void> }) {
   const [grade, setGrade] = useState('');
   const [classNum, setClassNum] = useState('');
   const [studentNum, setStudentNum] = useState('');
   const [name, setName] = useState('');
   const [gender, setGender] = useState<'남' | '여' | ''>('');
-  const [accessCode, setAccessCode] = useState('');
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
-    if (!grade || !classNum || !studentNum || !name || !gender || !accessCode) {
+    if (!grade || !classNum || !studentNum || !name || !gender) {
       toast({ variant: 'destructive', title: '입력 오류', description: '모든 필드를 입력해주세요.' });
       return;
     }
-    if (accessCode.length !== 5) {
-      toast({ variant: 'destructive', title: '입력 오류', description: '접속 코드는 5자리여야 합니다.' });
-      return;
-    }
     setIsSubmitting(true);
-    await onAddStudent({ grade, classNum, studentNum, name, gender, accessCode });
+    await onAddStudent({ grade, classNum, studentNum, name, gender });
     setGrade('');
     setClassNum('');
     setStudentNum('');
     setName('');
     setGender('');
-    setAccessCode('');
     setIsSubmitting(false);
     document.getElementById('add-student-dialog-close')?.click();
   };
@@ -507,10 +500,6 @@ function AddStudentDialog({ onAddStudent }: { onAddStudent: (data: Omit<Student,
                     <SelectItem value="여">여</SelectItem>
                 </SelectContent>
             </Select>
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="accessCode" className="text-right">접속 코드</Label>
-            <Input id="accessCode" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} className="col-span-3" placeholder="5자리 숫자" maxLength={5} />
           </div>
         </div>
         <DialogFooter>
