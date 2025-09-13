@@ -503,7 +503,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
           return { date: r.date, value: grade, originalRecord: { name: r.item, value: r.value, unit: itemInfo.unit } }
       })
       .filter(r => r.value !== null)
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      .sort((a, b) => new Date(a.date).getTime() - new Date(a.date).getTime());
   }, [studentRecords, progressChartItem, selectedStudent, allItems]);
   
     const sortedStudentRecords = useMemo(() => {
