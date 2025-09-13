@@ -83,20 +83,20 @@ const gradeToPercentage = (grade: number | null): number => {
 };
 
 const chartConfig = {
-  grade: { label: "등급", color: "hsl(var(--chart-2))" },
+  score: { label: "등급", color: "hsl(var(--chart-2))" },
   achievement: { label: "기록 성취도", color: "hsl(var(--chart-1))" },
 };
 
 const CustomTooltipContent = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
-    const gradePayload = payload.find(p => p.dataKey === 'grade');
+    const scorePayload = payload.find(p => p.dataKey === 'score');
     const achievementPayload = payload.find(p => p.dataKey === 'achievement');
 
     return (
       <div className="p-2 text-sm bg-background/90 border rounded-md shadow-lg">
         <p className="font-bold">{label} ({data.itemName})</p>
-        {gradePayload && <p style={{ color: gradePayload.color }}>{`등급: ${gradePayload.value}등급`}</p>}
+        {scorePayload && <p style={{ color: scorePayload.color }}>{`등급: ${data.grade}등급`}</p>}
         {achievementPayload && <p style={{ color: achievementPayload.color }}>{`기록: ${data.value}${data.unit}`}</p>}
         {data.rank && <p className="text-muted-foreground mt-1">{data.rank}</p>}
       </div>
@@ -601,6 +601,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
               date: r.date, 
               itemName: r.item,
               grade: grade,
+              score: 6 - grade, // 1등급 -> 5점, 5등급 -> 1점
               achievement: achievement,
               value: r.value,
               unit: itemInfo.unit,
@@ -765,11 +766,11 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                           <ComposedChart data={progressData}>
                             <CartesianGrid vertical={false} />
                             <XAxis dataKey="date" />
-                            <YAxis yAxisId="left" orientation="left" stroke="hsl(var(--chart-2))" domain={[1, 5]} ticks={[1,2,3,4,5]} tickCount={5} reversed={true} name="등급" />
+                            <YAxis yAxisId="left" orientation="left" stroke="hsl(var(--chart-2))" domain={[0, 5]} ticks={[1, 2, 3, 4, 5]} tickFormatter={(value) => `${6 - value}등급`} name="등급" />
                             <YAxis yAxisId="right" orientation="right" stroke="hsl(var(--chart-1))" domain={[0, 100]} unit="%" name="성취도" />
                             <Tooltip content={<CustomTooltipContent />} />
                             <Legend />
-                             <Bar dataKey="grade" yAxisId="left" fill="var(--color-grade)" name="등급" radius={[4, 4, 0, 0]} barSize={20}/>
+                             <Bar dataKey="score" yAxisId="left" fill="var(--color-grade)" name="등급" radius={[4, 4, 0, 0]} barSize={20}/>
                              <Line dataKey="achievement" yAxisId="right" type="monotone" stroke="var(--color-achievement)" strokeWidth={2} dot={true} name="성취도" />
                           </ComposedChart>
                         </ChartContainer>
