@@ -17,7 +17,7 @@ const papsStandardsByGrade: Record<
 > = {
   '4': {
     '왕복오래달리기': { 
-      male: [ { grade: 1, min: 45, max: Infinity }, { grade: 2, min: 34, max: 44 }, { grade: 3, min: 23, max: 33 }, { grade: 4, min: 13, max: 22 }, { grade: 5, min: -Infinity, max: 12 } ],
+      male: [ { grade: 1, min: 96, max: 103 }, { grade: 2, min: 69, max: 95 }, { grade: 3, min: 45, max: 68 }, { grade: 4, min: 26, max: 44 }, { grade: 5, min: 19, max: 25 } ],
       female: [ { grade: 1, min: 34, max: Infinity }, { grade: 2, min: 25, max: 33 }, { grade: 3, min: 16, max: 24 }, { grade: 4, min: 9, max: 15 }, { grade: 5, min: -Infinity, max: 8 } ],
       type: 'count', unit: '회' 
     },
@@ -28,7 +28,7 @@ const papsStandardsByGrade: Record<
     },
     '윗몸 말아올리기': { 
       male: [ { grade: 1, min: 42, max: Infinity }, { grade: 2, min: 31, max: 41 }, { grade: 3, min: 18, max: 30 }, { grade: 4, min: 6, max: 17 }, { grade: 5, min: -Infinity, max: 5 } ],
-      female: [ { grade: 1, min: 60, max: Infinity }, { grade: 2, min: 29, max: 59 }, { grade: 3, min: 18, max: 28 }, { grade: 4, min: 6, max: 17 }, { grade: 5, min: 0, max: 5 } ],
+      female: [ { grade: 1, min: 60, max: Infinity }, { grade: 2, min: 36, max: 59 }, { grade: 3, min: 23, max: 35 }, { grade: 4, min: 7, max: 22 }, { grade: 5, min: 0, max: 6 } ],
       type: 'count', unit: '회' 
     },
     '50m 달리기': { 
@@ -44,7 +44,7 @@ const papsStandardsByGrade: Record<
   },
   '5': {
     '왕복오래달리기': { 
-        male: [ { grade: 1, min: 53, max: Infinity }, { grade: 2, min: 41, max: 52 }, { grade: 3, min: 28, max: 40 }, { grade: 4, min: 16, max: 27 }, { grade: 5, min: -Infinity, max: 15 } ],
+        male: [ { grade: 1, min: 100, max: 107 }, { grade: 2, min: 73, max: 99 }, { grade: 3, min: 50, max: 72 }, { grade: 4, min: 29, max: 49 }, { grade: 5, min: 22, max: 28 } ],
         female: [ { grade: 1, min: 38, max: Infinity }, { grade: 2, min: 29, max: 37 }, { grade: 3, min: 19, max: 28 }, { grade: 4, min: 11, max: 18 }, { grade: 5, min: -Infinity, max: 10 } ],
         type: 'count', unit: '회' 
     },
@@ -71,7 +71,7 @@ const papsStandardsByGrade: Record<
   },
   '6': {
     '왕복오래달리기': { 
-      male: [ { grade: 1, min: 60, max: Infinity }, { grade: 2, min: 47, max: 59 }, { grade: 3, min: 34, max: 46 }, { grade: 4, min: 20, max: 33 }, { grade: 5, min: -Infinity, max: 19 } ],
+      male: [ { grade: 1, min: 104, max: 112 }, { grade: 2, min: 78, max: 103 }, { grade: 3, min: 54, max: 77 }, { grade: 4, min: 32, max: 53 }, { grade: 5, min: 22, max: 31 } ],
       female: [ { grade: 1, min: 42, max: Infinity }, { grade: 2, min: 32, max: 41 }, { grade: 3, min: 22, max: 31 }, { grade: 4, min: 13, max: 21 }, { grade: 5, min: -Infinity, max: 12 } ],
       type: 'count', unit: '회' 
     },
@@ -125,16 +125,32 @@ export function getPapsGrade(item: string, student: Student, value: number): num
   if (!thresholds) return null;
 
   for (const range of thresholds) {
-    if (range.max === Infinity) {
-      if (value >= range.min) return range.grade;
-    } else if (range.min === -Infinity) {
-      if (value <= range.max) return range.grade;
-    } else {
-      if (value >= range.min && value <= range.max) {
-        return range.grade;
-      }
+    if (value >= range.min && value <= range.max) {
+      return range.grade;
     }
   }
+
+  // Handle unbounded ranges for time-based records (lower is better) or count/distance (higher is better)
+  if (standard.type === 'time') {
+      const highestGradeRange = thresholds.find(r => r.max === Infinity);
+      if (highestGradeRange && value >= highestGradeRange.min) {
+          return highestGradeRange.grade;
+      }
+      const lowestGradeRange = thresholds.find(r => r.min === -Infinity);
+      if (lowestGradeRange && value <= lowestGradeRange.max) {
+          return lowestGradeRange.grade;
+      }
+  } else { // count, distance, weight
+      const highestGradeRange = thresholds.find(r => r.max === Infinity);
+      if (highestGradeRange && value >= highestGradeRange.min) {
+          return highestGradeRange.grade;
+      }
+      const lowestGradeRange = thresholds.find(r => r.min === -Infinity);
+      if (lowestGradeRange && value <= lowestGradeRange.max) {
+          return lowestGradeRange.grade;
+      }
+  }
+
 
   return 5; // 등급을 찾지 못하면 5등급
 }
