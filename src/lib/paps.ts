@@ -1,3 +1,4 @@
+'use server';
 import type { MeasurementItem, Student } from './types';
 
 // 초/중/고 PAPS 기준표 (교육부 기준 기반)
@@ -17,8 +18,8 @@ const papsStandardsByGrade: Record<
   // --- 초등학교 ---
   '4': {
     '왕복오래달리기': { 
-      male: [ { grade: 1, min: 96, max: Infinity }, { grade: 2, min: 69, max: 95 }, { grade: 3, min: 45, max: 68 }, { grade: 4, min: 26, max: 44 }, { grade: 5, min: 1, max: 25 } ],
-      female: [ { grade: 1, min: 77, max: Infinity }, { grade: 2, min: 57, max: 76 }, { grade: 3, min: 40, max: 56 }, { grade: 4, min: 21, max: 39 }, { grade: 5, min: 1, max: 20 } ],
+      male: [ { grade: 1, min: 77, max: 84 }, { grade: 2, min: 69, max: 76 }, { grade: 3, min: 45, max: 68 }, { grade: 4, min: 26, max: 44 }, { grade: 5, min: 1, max: 25 } ],
+      female: [ { grade: 1, min: 60, max: 65 }, { grade: 2, min: 57, max: 59 }, { grade: 3, min: 40, max: 56 }, { grade: 4, min: 21, max: 39 }, { grade: 5, min: 1, max: 20 } ],
       type: 'count', unit: '회' 
     },
     '윗몸 말아올리기': { 
@@ -28,7 +29,7 @@ const papsStandardsByGrade: Record<
     },
      '앉아윗몸앞으로굽히기': {
       male: [ { grade: 1, min: 8, max: Infinity }, { grade: 2, min: 5, max: 7.9 }, { grade: 3, min: 1, max: 4.9 }, { grade: 4, min: -4, max: 0.9 }, { grade: 5, min: -Infinity, max: -4.1 } ],
-      female: [ { grade: 1, min: 10, max: Infinity }, { grade: 2, min: 7, max: 9.9 }, { grade: 3, min: 5, max: 9.9 }, { grade: 4, min: 2, max: 4.9 }, { grade: 5, min: -Infinity, max: 0.9 } ],
+      female: [ { grade: 1, min: 14, max: Infinity }, { grade: 2, min: 11, max: 13.9 }, { grade: 3, min: 8, max: 10.9 }, { grade: 4, min: 4, max: 7.9 }, { grade: 5, min: -Infinity, max: 3.9 } ],
       type: 'distance', unit: 'cm'
     },
     '50m 달리기': {
@@ -44,8 +45,8 @@ const papsStandardsByGrade: Record<
   },
   '5': {
     '왕복오래달리기': { 
-        male: [ { grade: 1, min: 100, max: Infinity }, { grade: 2, min: 73, max: 99 }, { grade: 3, min: 50, max: 72 }, { grade: 4, min: 29, max: 49 }, { grade: 5, min: 1, max: 28 } ],
-        female: [ { grade: 1, min: 85, max: Infinity }, { grade: 2, min: 63, max: 84 }, { grade: 3, min: 45, max: 62 }, { grade: 4, min: 23, max: 44 }, { grade: 5, min: 1, max: 22 } ],
+        male: [ { grade: 1, min: 100, max: 107 }, { grade: 2, min: 73, max: 99 }, { grade: 3, min: 50, max: 72 }, { grade: 4, min: 29, max: 49 }, { grade: 5, min: 1, max: 28 } ],
+        female: [ { grade: 1, min: 66, max: 70 }, { grade: 2, min: 63, max: 65 }, { grade: 3, min: 45, max: 62 }, { grade: 4, min: 23, max: 44 }, { grade: 5, min: 1, max: 22 } ],
         type: 'count', unit: '회' 
     },
     '윗몸 말아올리기': { 
@@ -54,8 +55,8 @@ const papsStandardsByGrade: Record<
       type: 'count', unit: '회' 
     },
     '앉아윗몸앞으로굽히기': {
-      male: [ { grade: 1, min: 8.0, max: Infinity }, { grade: 2, min: 5.0, max: 7.9 }, { grade: 3, min: 1.0, max: 4.9 }, { grade: 4, min: 0.9, max: -4.0 }, { grade: 5, min: -Infinity, max: -4.1 } ],
-      female: [ { grade: 1, min: 10.0, max: Infinity }, { grade: 2, min: 7.0, max: 9.9 }, { grade: 3, min: 5.0, max: 6.9 }, { grade: 4, min: 1.0, max: 4.9 }, { grade: 5, min: -0.1, max: 0.9 } ],
+      male: [ { grade: 1, min: 13.1, max: Infinity }, { grade: 2, min: 9.3, max: 13.0 }, { grade: 3, min: 5.1, max: 9.2 }, { grade: 4, min: 0.2, max: 5.0 }, { grade: 5, min: -Infinity, max: 0.1 } ],
+      female: [ { grade: 1, min: 16.5, max: Infinity }, { grade: 2, min: 13.2, max: 16.4 }, { grade: 3, min: 9.5, max: 13.1 }, { grade: 4, min: 5.0, max: 9.4 }, { grade: 5, min: -Infinity, max: 4.9 } ],
       type: 'distance', unit: 'cm'
     },
     '50m 달리기': {
@@ -71,18 +72,18 @@ const papsStandardsByGrade: Record<
   },
   '6': {
     '왕복오래달리기': { 
-      male: [ { grade: 1, min: 104, max: Infinity }, { grade: 2, min: 78, max: 103 }, { grade: 3, min: 54, max: 77 }, { grade: 4, min: 32, max: 53 }, { grade: 5, min: 1, max: 31 } ],
-      female: [ { grade: 1, min: 93, max: Infinity }, { grade: 2, min: 69, max: 92 }, { grade: 3, min: 50, max: 68 }, { grade: 4, min: 25, max: 49 }, { grade: 5, min: 1, max: 24 } ],
+      male: [ { grade: 1, min: 108, max: Infinity }, { grade: 2, min: 78, max: 107 }, { grade: 3, min: 54, max: 77 }, { grade: 4, min: 32, max: 53 }, { grade: 5, min: 1, max: 31 } ],
+      female: [ { grade: 1, min: 71, max: Infinity }, { grade: 2, min: 69, max: 70 }, { grade: 3, min: 50, max: 68 }, { grade: 4, min: 25, max: 49 }, { grade: 5, min: 1, max: 24 } ],
       type: 'count', unit: '회' 
     },
     '윗몸 말아올리기': { 
-      male: [ { grade: 1, min: 80, max: Infinity }, { grade: 2, min: 40, max: 79 }, { grade: 3, min: 22, max: 39 }, { grade: 4, min: 10, max: 21 }, { grade: 5, min: 0, max: 9 } ],
+      male: [ { grade: 1, min: 80, max: Infinity }, { grade: 2, min: 48, max: 79 }, { grade: 3, min: 30, max: 47 }, { grade: 4, min: 15, max: 29 }, { grade: 5, min: 0, max: 14 } ],
       female: [ { grade: 1, min: 60, max: Infinity }, { grade: 2, min: 43, max: 59 }, { grade: 3, min: 23, max: 42 }, { grade: 4, min: 7, max: 22 }, { grade: 5, min: 0, max: 6 } ],
       type: 'count', unit: '회' 
     },
      '앉아윗몸앞으로굽히기': {
-      male: [ { grade: 1, min: 8.0, max: Infinity }, { grade: 2, min: 5.0, max: 7.9 }, { grade: 3, min: 1.0, max: 4.9 }, { grade: 4, min: -4.0, max: 0.9 }, { grade: 5, min: -Infinity, max: -1.0 } ],
-      female: [ { grade: 1, min: 14.0, max: Infinity }, { grade: 2, min: 10.0, max: 13.9 }, { grade: 3, min: 5.0, max: 9.9 }, { grade: 4, min: 2.0, max: 4.9 }, { grade: 5, min: -0.1, max: 1.9 } ],
+      male: [ { grade: 1, min: 15.2, max: Infinity }, { grade: 2, min: 11.2, max: 15.1 }, { grade: 3, min: 7.0, max: 11.1 }, { grade: 4, min: 2.1, max: 6.9 }, { grade: 5, min: -Infinity, max: 2.0 } ],
+      female: [ { grade: 1, min: 18.1, max: Infinity }, { grade: 2, min: 15.0, max: 18.0 }, { grade: 3, min: 11.1, max: 14.9 }, { grade: 4, min: 6.8, max: 11.0 }, { grade: 5, min: -Infinity, max: 6.7 } ],
       type: 'distance', unit: 'cm'
     },
     '50m 달리기': {
@@ -109,8 +110,8 @@ const papsStandardsByGrade: Record<
       type: 'count', unit: '회' 
     },
     '앉아윗몸앞으로굽히기': {
-      male: [ { grade: 1, min: 10.0, max: Infinity }, { grade: 2, min: 6.0, max: 9.9 }, { grade: 3, min: 2.0, max: 5.9 }, { grade: 4, min: -4.0, max: 1.9 }, { grade: 5, min: -Infinity, max: -4.1 } ],
-      female: [ { grade: 1, min: 15.0, max: Infinity }, { grade: 2, min: 11.0, max: 14.9 }, { grade: 3, min: 8.0, max: 10.9 }, { grade: 4, min: 2.0, max: 7.9 }, { grade: 5, min: -0.1, max: 1.9 } ],
+      male: [ { grade: 1, min: 16.5, max: Infinity }, { grade: 2, min: 12.1, max: 16.4 }, { grade: 3, min: 7.2, max: 12.0 }, { grade: 4, min: 1.8, max: 7.1 }, { grade: 5, min: -Infinity, max: 1.7 } ],
+      female: [ { grade: 1, min: 19.3, max: Infinity }, { grade: 2, min: 16.1, max: 19.2 }, { grade: 3, min: 12.1, max: 16.0 }, { grade: 4, min: 7.7, max: 12.0 }, { grade: 5, min: -Infinity, max: 7.6 } ],
       type: 'distance', unit: 'cm'
     },
     '팔굽혀펴기': { 
@@ -131,8 +132,8 @@ const papsStandardsByGrade: Record<
       type: 'count', unit: '회' 
     },
     '앉아윗몸앞으로굽히기': {
-      male: [ { grade: 1, min: 10.0, max: Infinity }, { grade: 2, min: 7.0, max: 9.9 }, { grade: 3, min: 2.0, max: 6.9 }, { grade: 4, min: -4.0, max: 1.9 }, { grade: 5, min: -Infinity, max: -4.1 } ],
-      female: [ { grade: 1, min: 15.0, max: Infinity }, { grade: 2, min: 11.0, max: 14.9 }, { grade: 3, min: 8.0, max: 10.9 }, { grade: 4, min: 2.0, max: 7.9 }, { grade: 5, min: -0.1, max: 1.9 } ],
+      male: [ { grade: 1, min: 18.0, max: Infinity }, { grade: 2, min: 13.9, max: 17.9 }, { grade: 3, min: 9.1, max: 13.8 }, { grade: 4, min: 3.5, max: 9.0 }, { grade: 5, min: -Infinity, max: 3.4 } ],
+      female: [ { grade: 1, min: 20.0, max: Infinity }, { grade: 2, min: 16.9, max: 19.9 }, { grade: 3, min: 13.0, max: 16.8 }, { grade: 4, min: 8.8, max: 12.9 }, { grade: 5, min: -Infinity, max: 8.7 } ],
       type: 'distance', unit: 'cm'
     },
      '팔굽혀펴기': {
@@ -153,8 +154,8 @@ const papsStandardsByGrade: Record<
       type: 'count', unit: '회' 
     },
     '앉아윗몸앞으로굽히기': {
-      male: [ { grade: 1, min: 10.0, max: Infinity }, { grade: 2, min: 7.0, max: 9.9 }, { grade: 3, min: 2.6, max: 6.9 }, { grade: 4, min: -3.0, max: 2.5 }, { grade: 5, min: -Infinity, max: -3.1 } ],
-      female: [ { grade: 1, min: 16.0, max: Infinity }, { grade: 2, min: 11.0, max: 15.9 }, { grade: 3, min: 8.0, max: 10.9 }, { grade: 4, min: 2.0, max: 7.9 }, { grade: 5, min: -0.1, max: 1.9 } ],
+      male: [ { grade: 1, min: 18.8, max: Infinity }, { grade: 2, min: 14.8, max: 18.7 }, { grade: 3, min: 10.1, max: 14.7 }, { grade: 4, min: 4.8, max: 10.0 }, { grade: 5, min: -Infinity, max: 4.7 } ],
+      female: [ { grade: 1, min: 20.9, max: Infinity }, { grade: 2, min: 17.8, max: 20.8 }, { grade: 3, min: 13.9, max: 17.7 }, { grade: 4, min: 9.6, max: 13.8 }, { grade: 5, min: -Infinity, max: 9.5 } ],
       type: 'distance', unit: 'cm'
     },
      '팔굽혀펴기': {
@@ -176,8 +177,8 @@ const papsStandardsByGrade: Record<
       type: 'count', unit: '회' 
     },
     '앉아윗몸앞으로굽히기': {
-      male: [ { grade: 1, min: 13.0, max: Infinity }, { grade: 2, min: 9.0, max: 12.9 }, { grade: 3, min: 4.0, max: 8.9 }, { grade: 4, min: -2.0, max: 3.9 }, { grade: 5, min: -Infinity, max: -2.1 } ],
-      female: [ { grade: 1, min: 16.0, max: Infinity }, { grade: 2, min: 11.0, max: 15.9 }, { grade: 3, min: 8.0, max: 10.9 }, { grade: 4, min: 2.0, max: 7.9 }, { grade: 5, min: -0.1, max: 1.9 } ],
+      male: [ { grade: 1, min: 19.3, max: Infinity }, { grade: 2, min: 15.3, max: 19.2 }, { grade: 3, min: 10.6, max: 15.2 }, { grade: 4, min: 5.4, max: 10.5 }, { grade: 5, min: -Infinity, max: 5.3 } ],
+      female: [ { grade: 1, min: 21.3, max: Infinity }, { grade: 2, min: 18.2, max: 21.2 }, { grade: 3, min: 14.5, max: 18.1 }, { grade: 4, min: 10.3, max: 14.4 }, { grade: 5, min: -Infinity, max: 10.2 } ],
       type: 'distance', unit: 'cm'
     },
     '팔굽혀펴기': {
@@ -198,8 +199,8 @@ const papsStandardsByGrade: Record<
       type: 'count', unit: '회' 
     },
     '앉아윗몸앞으로굽히기': {
-      male: [ { grade: 1, min: 16.0, max: Infinity }, { grade: 2, min: 11.0, max: 15.9 }, { grade: 3, min: 5.0, max: 10.9 }, { grade: 4, min: 0.1, max: 4.9 }, { grade: 5, min: -Infinity, max: 0.0 } ],
-      female: [ { grade: 1, min: 17.0, max: Infinity }, { grade: 2, min: 12.0, max: 16.9 }, { grade: 3, min: 9.0, max: 11.9 }, { grade: 4, min: 5.0, max: 8.9 }, { grade: 5, min: -0.1, max: 4.9 } ],
+      male: [ { grade: 1, min: 19.8, max: Infinity }, { grade: 2, min: 15.8, max: 19.7 }, { grade: 3, min: 11.0, max: 15.7 }, { grade: 4, min: 5.8, max: 10.9 }, { grade: 5, min: -Infinity, max: 5.7 } ],
+      female: [ { grade: 1, min: 21.6, max: Infinity }, { grade: 2, min: 18.5, max: 21.5 }, { grade: 3, min: 14.8, max: 18.4 }, { grade: 4, min: 10.6, max: 14.7 }, { grade: 5, min: -Infinity, max: 10.5 } ],
       type: 'distance', unit: 'cm'
     },
     '팔굽혀펴기': {
@@ -220,8 +221,8 @@ const papsStandardsByGrade: Record<
       type: 'count', unit: '회' 
     },
     '앉아윗몸앞으로굽히기': {
-      male: [ { grade: 1, min: 16.0, max: Infinity }, { grade: 2, min: 11.0, max: 15.9 }, { grade: 3, min: 6.0, max: 10.9 }, { grade: 4, min: 0.1, max: 5.9 }, { grade: 5, min: -Infinity, max: 0.0 } ],
-      female: [ { grade: 1, min: 17.0, max: Infinity }, { grade: 2, min: 12.0, max: 16.9 }, { grade: 3, min: 9.0, max: 11.9 }, { grade: 4, min: 5.0, max: 8.9 }, { grade: 5, min: -0.1, max: 4.9 } ],
+      male: [ { grade: 1, min: 20.0, max: Infinity }, { grade: 2, min: 16.0, max: 19.9 }, { grade: 3, min: 11.3, max: 15.9 }, { grade: 4, min: 6.1, max: 11.2 }, { grade: 5, min: -Infinity, max: 6.0 } ],
+      female: [ { grade: 1, min: 21.8, max: Infinity }, { grade: 2, min: 18.7, max: 21.7 }, { grade: 3, min: 15.0, max: 18.6 }, { grade: 4, min: 10.8, max: 14.9 }, { grade: 5, min: -Infinity, max: 10.7 } ],
       type: 'distance', unit: 'cm'
     },
     '팔굽혀펴기': {
@@ -250,7 +251,6 @@ papsStandards['악력'] = { type: 'weight', unit: 'kg' };
 
 // 기존에 있던 종목 중 새로운 기준표에 없는 종목 추가 (레거시 호환)
 papsStandards['오래달리기'] = { type: 'time', unit: '초' };
-papsStandards['윗몸 일으키기'] = { type: 'count', unit: '회' };
 
 
 export function getPapsGrade(item: string, student: Student, value: number): number | null {
@@ -294,6 +294,9 @@ export function getPapsGrade(item: string, student: Student, value: number): num
   // 5등급의 하한값보다 낮거나, 1등급의 상한값보다 높은 경우를 처리
   const isTimeType = standard.type === 'time';
   const sortedThresholds = [...thresholds].sort((a,b) => a.grade - b.grade); // 1,2,3,4,5 등급 순으로 정렬
+  
+  if (sortedThresholds.length < 5) return 5; // 기준표 데이터가 부족하면 5등급으로 처리
+
   const bestGrade = sortedThresholds[0];
   const worstGrade = sortedThresholds[4];
 
