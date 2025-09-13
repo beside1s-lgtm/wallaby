@@ -214,10 +214,12 @@ export const addOrUpdateRecord = async (record: Omit<MeasurementRecord, 'id'>) =
       where("item", "==", record.item), 
       where("date", "==", recordDate)
     );
-    const snapshot = await getDocs(q);
-    if (!snapshot.empty) {
+    const querySnapshot = await getDocs(q);
+    const existingDocs = querySnapshot.docs;
+    
+    if (!querySnapshot.empty) {
       // If duplicates exist, update the last one (by ID) and delete the others.
-      const docs = snapshot.docs.sort((a,b) => b.id.localeCompare(a.id));
+      const docs = existingDocs.sort((a,b) => b.id.localeCompare(a.id));
       const docToKeepRef = docs[0].ref;
       transaction.update(docToKeepRef, { value: record.value });
       
