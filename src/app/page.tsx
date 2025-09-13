@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -13,6 +14,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
@@ -108,6 +110,12 @@ export default function LoginPage() {
             </form>
           </Form>
         </CardContent>
+        <CardFooter className="flex-col gap-4 pt-4 border-t">
+          <p className="text-sm text-muted-foreground">학생이신가요?</p>
+          <Button variant="outline" className="w-full" asChild>
+            <Link href="/student-login">학생으로 로그인</Link>
+          </Button>
+        </CardFooter>
       </Card>
     </main>
   );
