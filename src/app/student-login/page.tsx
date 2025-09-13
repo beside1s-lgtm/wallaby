@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { z } from 'zod';
@@ -42,7 +42,7 @@ type StudentLoginValues = z.infer<typeof studentLoginSchema>;
 
 export default function StudentLoginPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, role, isLoading } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 

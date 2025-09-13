@@ -111,12 +111,6 @@ export default function LoginPage() {
             </form>
           </Form>
         </CardContent>
-        <CardFooter className="flex-col gap-4 pt-4 border-t">
-          <p className="text-sm text-muted-foreground">학생이신가요?</p>
-          <Button variant="outline" className="w-full" asChild>
-            <Link href="/student-login">학생으로 로그인</Link>
-          </Button>
-        </CardFooter>
       </Card>
     </main>
   );

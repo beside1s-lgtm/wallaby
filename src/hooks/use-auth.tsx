@@ -114,6 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    const currentRole = role; // Capture role before clearing state
     localStorage.removeItem('userRole');
     localStorage.removeItem('loggedInStudent');
     localStorage.removeItem('userSchool');
@@ -122,7 +123,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRole(null);
     setSchool(null);
     setUser(null);
-  }, []);
+    
+    // Redirect based on the role they had before logging out
+    if (currentRole === 'student') {
+      router.push('/student-login');
+    } else {
+      router.push('/');
+    }
+  }, [role, router]);
 
   const value = {
     user,
