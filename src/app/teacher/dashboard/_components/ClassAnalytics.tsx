@@ -39,6 +39,13 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+} from "@/components/ui/dialog";
+import {
   ChartContainer,
   ChartTooltip,
 } from '@/components/ui/chart';
@@ -140,6 +147,9 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
   const [sortItem, setSortItem] = useState('');
   const [sortType, setSortType] = useState<'record' | 'averageGrade' | null>(null);
 
+  const [foundStudents, setFoundStudents] = useState<Student[]>([]);
+  const [isSelectionDialogOpen, setIsSelectionDialogOpen] = useState(false);
+
   const { grades, classNumsByGrade } = useMemo(() => {
     const grades = [...new Set(allStudents.map(s => s.grade))].sort();
     const classNumsByGrade: Record<string, string[]> = {};
@@ -214,23 +224,37 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
   const handleSearch = () => {
     if (!school) return;
     if (!searchTerm) {
-        resetFilters();
-        return;
+      resetFilters();
+      return;
     }
-    const student = allStudents.find(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
-    if (student) {
-      handleSelectStudent(student);
-      setSelectedGrade('');
-      setSelectedClassNum('');
-    } else {
+  
+    const matchingStudents = allStudents.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  
+    if (matchingStudents.length === 0) {
       setSelectedStudent(null);
       setStudentRecords([]);
       toast({
         variant: 'destructive',
         title: '검색 실패',
         description: '해당 학생을 찾을 수 없습니다.'
-      })
+      });
+    } else if (matchingStudents.length === 1) {
+      handleSelectStudent(matchingStudents[0]);
+      setSelectedGrade('');
+      setSelectedClassNum('');
+    } else {
+      // Multiple students found, open selection dialog
+      setFoundStudents(matchingStudents);
+      setIsSelectionDialogOpen(true);
     }
+  };
+
+  const handleStudentSelectionFromDialog = (student: Student) => {
+    handleSelectStudent(student);
+    setSelectedGrade('');
+    setSelectedClassNum('');
+    setIsSelectionDialogOpen(false);
+    setFoundStudents([]);
   };
 
   const handleAddRecord = async () => {
@@ -580,405 +604,445 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
   if (!school) return null;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>학급별 학생 기록 조회 및 분석</CardTitle>
-        <CardDescription>학생을 검색하거나 학급을 선택하여 상세 기록과 AI 분석을 확인하고, 기록을 추가/관리할 수 있습니다.</CardDescription>
-        <div className="flex flex-wrap items-center gap-2 pt-4">
-          <Input 
-            type="text" 
-            placeholder="학생 이름 검색..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            className="w-full sm:w-auto"
-          />
-          <Button type="button" onClick={handleSearch}><Search className="mr-2 h-4 w-4" /> 검색</Button>
-          
-          <span className="text-muted-foreground text-sm mx-2">또는</span>
+    <>
+      <Dialog open={isSelectionDialogOpen} onOpenChange={setIsSelectionDialogOpen}>
+          <DialogContent>
+              <DialogHeader>
+                  <DialogTitle>동명이인 학생 선택</DialogTitle>
+                  <DialogDescription>
+                      검색된 학생 중 한 명을 선택해주세요.
+                  </DialogDescription>
+              </DialogHeader>
+              <div className="max-h-[60vh] overflow-y-auto">
+                  <Table>
+                      <TableHeader>
+                          <TableRow>
+                              <TableHead>이름</TableHead>
+                              <TableHead>학년</TableHead>
+                              <TableHead>반</TableHead>
+                              <TableHead>번호</TableHead>
+                              <TableHead></TableHead>
+                          </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                          {foundStudents.map((student) => (
+                              <TableRow key={student.id}>
+                                  <TableCell>{student.name}</TableCell>
+                                  <TableCell>{student.grade}</TableCell>
+                                  <TableCell>{student.classNum}</TableCell>
+                                  <TableCell>{student.studentNum}</TableCell>
+                                  <TableCell className="text-right">
+                                      <Button size="sm" onClick={() => handleStudentSelectionFromDialog(student)}>
+                                          선택
+                                      </Button>
+                                  </TableCell>
+                              </TableRow>
+                          ))}
+                      </TableBody>
+                  </Table>
+              </div>
+          </DialogContent>
+      </Dialog>
+      <Card>
+        <CardHeader>
+          <CardTitle>학급별 학생 기록 조회 및 분석</CardTitle>
+          <CardDescription>학생을 검색하거나 학급을 선택하여 상세 기록과 AI 분석을 확인하고, 기록을 추가/관리할 수 있습니다.</CardDescription>
+          <div className="flex flex-wrap items-center gap-2 pt-4">
+            <Input 
+              type="text" 
+              placeholder="학생 이름 검색..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              className="w-full sm:w-auto"
+            />
+            <Button type="button" onClick={handleSearch}><Search className="mr-2 h-4 w-4" /> 검색</Button>
+            
+            <span className="text-muted-foreground text-sm mx-2">또는</span>
 
-          <Select value={selectedGrade} onValueChange={(value) => { setSelectedGrade(value); setSelectedClassNum(''); }}>
-            <SelectTrigger className="w-full sm:w-[120px]">
-                <SelectValue placeholder="학년 선택" />
-            </SelectTrigger>
-            <SelectContent>
-                {grades.map(grade => <SelectItem key={grade} value={grade}>{grade}학년</SelectItem>)}
-            </SelectContent>
-          </Select>
+            <Select value={selectedGrade} onValueChange={(value) => { setSelectedGrade(value); setSelectedClassNum(''); }}>
+              <SelectTrigger className="w-full sm:w-[120px]">
+                  <SelectValue placeholder="학년 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                  {grades.map(grade => <SelectItem key={grade} value={grade}>{grade}학년</SelectItem>)}
+              </SelectContent>
+            </Select>
 
-          <Select value={selectedClassNum} onValueChange={setSelectedClassNum} disabled={!selectedGrade}>
-            <SelectTrigger className="w-full sm:w-[120px]">
-                <SelectValue placeholder="반 선택" />
-            </SelectTrigger>
-            <SelectContent>
-                {classNumsByGrade[selectedGrade]?.map(classNum => <SelectItem key={classNum} value={classNum}>{classNum}반</SelectItem>)}
-            </SelectContent>
-          </Select>
-          
-           {(selectedStudent || selectedGrade) && (
-            <Button variant="ghost" size="icon" onClick={resetFilters} className="h-9 w-9">
-                <XIcon className="h-5 w-5" />
-            </Button>
-           )}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-8">
-        {!selectedStudent && !filteredStudentsByClass.length && (
-          <div className="space-y-8">
-            <p className="text-center text-muted-foreground">분석할 학생을 검색하거나 학급을 선택해주세요.</p>
+            <Select value={selectedClassNum} onValueChange={setSelectedClassNum} disabled={!selectedGrade}>
+              <SelectTrigger className="w-full sm:w-[120px]">
+                  <SelectValue placeholder="반 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                  {classNumsByGrade[selectedGrade]?.map(classNum => <SelectItem key={classNum} value={classNum}>{classNum}반</SelectItem>)}
+              </SelectContent>
+            </Select>
+            
+            {(selectedStudent || selectedGrade) && (
+              <Button variant="ghost" size="icon" onClick={resetFilters} className="h-9 w-9">
+                  <XIcon className="h-5 w-5" />
+              </Button>
+            )}
           </div>
-        )}
-
-        {selectedStudent ? (
+        </CardHeader>
+        <CardContent className="space-y-8">
+          {!selectedStudent && !filteredStudentsByClass.length && (
             <div className="space-y-8">
-                <h2 className="text-2xl font-bold mb-6">{selectedStudent.name} ({selectedStudent.grade}-{selectedStudent.classNum}) 학생 분석</h2>
-                
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>PAPS 성취도 비교 ({comparisonData.targetLabel} vs 학년 평균)</CardTitle>
-                      <CardDescription>100%에 가까울수록 성취도가 높습니다.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <ChartContainer config={comparisonChartConfig} className="h-[300px] w-full">
-                        <BarChart data={comparisonData.data}>
-                          <CartesianGrid vertical={false} />
-                          <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} angle={-45} textAnchor="end" height={80} interval={0} />
-                          <YAxis domain={[0, 100]} unit="%" />
-                          <ChartTooltip 
-                            content={<CustomBarTooltipContent />} 
-                          />
-                          <Legend />
-                          <Bar dataKey="target" name={comparisonChartConfig.target.label} fill="var(--color-target)" radius={4} />
-                          <Bar dataKey="average" name={comparisonChartConfig.average.label} fill="var(--color-average)" radius={4} />
-                        </BarChart>
-                      </ChartContainer>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader>
-                      <div className="flex justify-between items-center">
-                        <CardTitle>회차별 등급 변화</CardTitle>
-                        <Select value={progressChartItem} onValueChange={setProgressChartItem}>
-                          <SelectTrigger className="w-[180px]">
-                            <SelectValue placeholder="종목 선택" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {allItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <CardDescription>1등급이 가장 높은 등급입니다.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <ChartContainer config={{}} className="h-[300px] w-full">
-                        <LineChart data={progressData}>
-                          <CartesianGrid vertical={false} />
-                          <XAxis dataKey="date" />
-                          <YAxis domain={[1, 5]} ticks={[1,2,3,4,5]} tickCount={5} reversed={true} />
-                          <Tooltip content={<CustomTooltipContent />} />
-                          <Legend />
-                          <Line type="monotone" dataKey="value" name={progressChartItem} stroke="hsl(var(--primary))" strokeWidth={2} />
-                        </LineChart>
-                      </ChartContainer>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>AI 코칭 어시스턴트</CardTitle>
-                            <CardDescription>학생의 기록을 바탕으로 강점, 약점, 추천 훈련 방법을 분석합니다.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {isAiLoading ? (
-                                <div className="flex items-center justify-center h-24">
-                                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                                </div>
-                            ) : aiAnalysis ? (
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                                    <div><h4 className="font-bold mb-2 text-green-600">강점</h4><p className="whitespace-pre-wrap">{aiAnalysis.strengths}</p></div>
-                                    <div><h4 className="font-bold mb-2 text-red-600">약점</h4><p className="whitespace-pre-wrap">{aiAnalysis.weaknesses}</p></div>
-                                    <div><h4 className="font-bold mb-2 text-blue-600">추천 훈련 방법</h4><p className="whitespace-pre-wrap">{aiAnalysis.suggestedTrainingMethods}</p></div>
-                                </div>
-                            ) : (
-                                <p className="text-center text-muted-foreground">AI 분석을 요청하여 학생 맞춤형 코칭을 받아보세요.</p>
-                            )}
-                        </CardContent>
-                        <CardFooter>
-                            <Button onClick={handleAiAnalysis} disabled={isAiLoading || studentRecords.length === 0}>
-                                <Wand2 className="mr-2 h-4 w-4" />
-                                {isAiLoading ? '분석 중...' : 'AI 분석 요청'}
-                            </Button>
-                        </CardFooter>
-                    </Card>
-
-                     <Card>
-                        <CardHeader>
-                            <CardTitle>기록 추가/수정</CardTitle>
-                            <CardDescription>특정 날짜의 기록을 추가하거나, 기존 기록을 수정합니다.</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                <Button
-                                    variant={"outline"}
-                                    className={cn(
-                                    "w-full justify-start text-left font-normal",
-                                    !recordDate && "text-muted-foreground"
-                                    )}
-                                >
-                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                    {recordDate ? format(recordDate, "PPP") : <span>날짜 선택</span>}
-                                </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0">
-                                <Calendar
-                                    mode="single"
-                                    selected={recordDate}
-                                    onSelect={setRecordDate}
-                                    initialFocus
-                                />
-                                </PopoverContent>
-                            </Popover>
-                            <Select onValueChange={setSelectedItemName} value={selectedItemName}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="측정 종목 선택" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {allItems.map(item => (
-                                    <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <Input
-                                placeholder={inputPlaceholder}
-                                value={recordValue}
-                                onChange={e => setRecordValue(e.target.value)}
-                                type="number"
-                            />
-                        </CardContent>
-                        <CardFooter>
-                            <Button onClick={handleAddRecord} disabled={isSubmitting} className="w-full">
-                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                결과 저장
-                            </Button>
-                        </CardFooter>
-                    </Card>
-                </div>
-                
-                <Card>
-                    <CardHeader>
-                        <CardTitle>전체 측정 기록</CardTitle>
-                        <CardDescription>선택된 학생의 모든 측정 기록입니다. 잘못 입력된 기록은 삭제할 수 있습니다.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                    <Table>
-                        <TableHeader>
-                        <TableRow>
-                            <TableHead>날짜</TableHead>
-                            <TableHead>종목</TableHead>
-                            <TableHead>기록</TableHead>
-                            <TableHead className="text-right">작업</TableHead>
-                        </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                        {sortedStudentRecords.length > 0 ? (
-                            sortedStudentRecords.map((record) => {
-                            const item = allItems.find(i => i.name === record.item);
-                            return (
-                                <TableRow key={record.id}>
-                                <TableCell>{record.date}</TableCell>
-                                <TableCell>{record.item}</TableCell>
-                                <TableCell>{record.value}{item?.unit}</TableCell>
-                                <TableCell className="text-right">
-                                    <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                        </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                        <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            이 작업은 되돌릴 수 없습니다. 이 기록이 영구적으로 삭제됩니다.
-                                        </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                        <AlertDialogCancel>취소</AlertDialogCancel>
-                                        <AlertDialogAction onClick={() => handleDeleteRecord(record.id)}>삭제</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                    </AlertDialog>
-                                </TableCell>
-                                </TableRow>
-                            );
-                            })
-                        ) : (
-                            <TableRow>
-                            <TableCell colSpan={4} className="h-24 text-center">
-                                측정된 기록이 없습니다.
-                            </TableCell>
-                            </TableRow>
-                        )}
-                        </TableBody>
-                    </Table>
-                    </CardContent>
-                </Card>
+              <p className="text-center text-muted-foreground">분석할 학생을 검색하거나 학급을 선택해주세요.</p>
             </div>
-        ) : filteredStudentsByClass.length > 0 && (
-             <div className="space-y-8">
-                 <h2 className="text-2xl font-bold">{selectedGrade}학년 {selectedClassNum}반 분석 및 기록</h2>
-                 <Card>
-                    <CardHeader className="flex-row items-start justify-between">
-                      <div>
+          )}
+
+          {selectedStudent ? (
+              <div className="space-y-8">
+                  <h2 className="text-2xl font-bold mb-6">{selectedStudent.name} ({selectedStudent.grade}-{selectedStudent.classNum}) 학생 분석</h2>
+                  
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <Card>
+                      <CardHeader>
                         <CardTitle>PAPS 성취도 비교 ({comparisonData.targetLabel} vs 학년 평균)</CardTitle>
                         <CardDescription>100%에 가까울수록 성취도가 높습니다.</CardDescription>
-                      </div>
-                      <AiWelcome 
-                        itemType='paps' 
-                        title="학급 AI 브리핑" 
-                        students={filteredStudentsByClass} 
-                        items={allItems} 
-                        records={allRecords} 
-                      />
-                    </CardHeader>
-                    <CardContent>
-                      <ChartContainer config={comparisonChartConfig} className="h-[300px] w-full">
-                        <BarChart data={comparisonData.data}>
-                          <CartesianGrid vertical={false} />
-                          <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} angle={-45} textAnchor="end" height={80} interval={0} />
-                          <YAxis domain={[0, 100]} unit="%" />
-                          <ChartTooltip 
-                            content={<CustomBarTooltipContent />} 
-                          />
-                          <Legend />
-                          <Bar dataKey="target" name={comparisonChartConfig.target.label} fill="var(--color-target)" radius={4} />
-                          <Bar dataKey="average" name={comparisonChartConfig.average.label} fill="var(--color-average)" radius={4} />
-                        </BarChart>
-                      </ChartContainer>
-                    </CardContent>
+                      </CardHeader>
+                      <CardContent>
+                        <ChartContainer config={comparisonChartConfig} className="h-[300px] w-full">
+                          <BarChart data={comparisonData.data}>
+                            <CartesianGrid vertical={false} />
+                            <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} angle={-45} textAnchor="end" height={80} interval={0} />
+                            <YAxis domain={[0, 100]} unit="%" />
+                            <ChartTooltip 
+                              content={<CustomBarTooltipContent />} 
+                            />
+                            <Legend />
+                            <Bar dataKey="target" name={comparisonChartConfig.target.label} fill="var(--color-target)" radius={4} />
+                            <Bar dataKey="average" name={comparisonChartConfig.average.label} fill="var(--color-average)" radius={4} />
+                          </BarChart>
+                        </ChartContainer>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card>
+                      <CardHeader>
+                        <div className="flex justify-between items-center">
+                          <CardTitle>회차별 등급 변화</CardTitle>
+                          <Select value={progressChartItem} onValueChange={setProgressChartItem}>
+                            <SelectTrigger className="w-[180px]">
+                              <SelectValue placeholder="종목 선택" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {allItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <CardDescription>1등급이 가장 높은 등급입니다.</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <ChartContainer config={{}} className="h-[300px] w-full">
+                          <LineChart data={progressData}>
+                            <CartesianGrid vertical={false} />
+                            <XAxis dataKey="date" />
+                            <YAxis domain={[1, 5]} ticks={[1,2,3,4,5]} tickCount={5} reversed={true} />
+                            <Tooltip content={<CustomTooltipContent />} />
+                            <Legend />
+                            <Line type="monotone" dataKey="value" name={progressChartItem} stroke="hsl(var(--primary))" strokeWidth={2} />
+                          </LineChart>
+                        </ChartContainer>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      <Card>
+                          <CardHeader>
+                              <CardTitle>AI 코칭 어시스턴트</CardTitle>
+                              <CardDescription>학생의 기록을 바탕으로 강점, 약점, 추천 훈련 방법을 분석합니다.</CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                              {isAiLoading ? (
+                                  <div className="flex items-center justify-center h-24">
+                                      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                                  </div>
+                              ) : aiAnalysis ? (
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                                      <div><h4 className="font-bold mb-2 text-green-600">강점</h4><p className="whitespace-pre-wrap">{aiAnalysis.strengths}</p></div>
+                                      <div><h4 className="font-bold mb-2 text-red-600">약점</h4><p className="whitespace-pre-wrap">{aiAnalysis.weaknesses}</p></div>
+                                      <div><h4 className="font-bold mb-2 text-blue-600">추천 훈련 방법</h4><p className="whitespace-pre-wrap">{aiAnalysis.suggestedTrainingMethods}</p></div>
+                                  </div>
+                              ) : (
+                                  <p className="text-center text-muted-foreground">AI 분석을 요청하여 학생 맞춤형 코칭을 받아보세요.</p>
+                              )}
+                          </CardContent>
+                          <CardFooter>
+                              <Button onClick={handleAiAnalysis} disabled={isAiLoading || studentRecords.length === 0}>
+                                  <Wand2 className="mr-2 h-4 w-4" />
+                                  {isAiLoading ? '분석 중...' : 'AI 분석 요청'}
+                              </Button>
+                          </CardFooter>
+                      </Card>
+
+                      <Card>
+                          <CardHeader>
+                              <CardTitle>기록 추가/수정</CardTitle>
+                              <CardDescription>특정 날짜의 기록을 추가하거나, 기존 기록을 수정합니다.</CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                              <Popover>
+                                  <PopoverTrigger asChild>
+                                  <Button
+                                      variant={"outline"}
+                                      className={cn(
+                                      "w-full justify-start text-left font-normal",
+                                      !recordDate && "text-muted-foreground"
+                                      )}
+                                  >
+                                      <CalendarIcon className="mr-2 h-4 w-4" />
+                                      {recordDate ? format(recordDate, "PPP") : <span>날짜 선택</span>}
+                                  </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0">
+                                  <Calendar
+                                      mode="single"
+                                      selected={recordDate}
+                                      onSelect={setRecordDate}
+                                      initialFocus
+                                  />
+                                  </PopoverContent>
+                              </Popover>
+                              <Select onValueChange={setSelectedItemName} value={selectedItemName}>
+                                  <SelectTrigger>
+                                      <SelectValue placeholder="측정 종목 선택" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                      {allItems.map(item => (
+                                      <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
+                                      ))}
+                                  </SelectContent>
+                              </Select>
+                              <Input
+                                  placeholder={inputPlaceholder}
+                                  value={recordValue}
+                                  onChange={e => setRecordValue(e.target.value)}
+                                  type="number"
+                              />
+                          </CardContent>
+                          <CardFooter>
+                              <Button onClick={handleAddRecord} disabled={isSubmitting} className="w-full">
+                                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                  결과 저장
+                              </Button>
+                          </CardFooter>
+                      </Card>
+                  </div>
+                  
+                  <Card>
+                      <CardHeader>
+                          <CardTitle>전체 측정 기록</CardTitle>
+                          <CardDescription>선택된 학생의 모든 측정 기록입니다. 잘못 입력된 기록은 삭제할 수 있습니다.</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                      <Table>
+                          <TableHeader>
+                          <TableRow>
+                              <TableHead>날짜</TableHead>
+                              <TableHead>종목</TableHead>
+                              <TableHead>기록</TableHead>
+                              <TableHead className="text-right">작업</TableHead>
+                          </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                          {sortedStudentRecords.length > 0 ? (
+                              sortedStudentRecords.map((record) => {
+                              const item = allItems.find(i => i.name === record.item);
+                              return (
+                                  <TableRow key={record.id}>
+                                  <TableCell>{record.date}</TableCell>
+                                  <TableCell>{record.item}</TableCell>
+                                  <TableCell>{record.value}{item?.unit}</TableCell>
+                                  <TableCell className="text-right">
+                                      <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                                          <Trash2 className="h-4 w-4 text-destructive" />
+                                          </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                          <AlertDialogHeader>
+                                          <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                              이 작업은 되돌릴 수 없습니다. 이 기록이 영구적으로 삭제됩니다.
+                                          </AlertDialogDescription>
+                                          </AlertDialogHeader>
+                                          <AlertDialogFooter>
+                                          <AlertDialogCancel>취소</AlertDialogCancel>
+                                          <AlertDialogAction onClick={() => handleDeleteRecord(record.id)}>삭제</AlertDialogAction>
+                                          </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                      </AlertDialog>
+                                  </TableCell>
+                                  </TableRow>
+                              );
+                              })
+                          ) : (
+                              <TableRow>
+                              <TableCell colSpan={4} className="h-24 text-center">
+                                  측정된 기록이 없습니다.
+                              </TableCell>
+                              </TableRow>
+                          )}
+                          </TableBody>
+                      </Table>
+                      </CardContent>
+                  </Card>
+              </div>
+          ) : filteredStudentsByClass.length > 0 && (
+              <div className="space-y-8">
+                  <h2 className="text-2xl font-bold">{selectedGrade}학년 {selectedClassNum}반 분석 및 기록</h2>
+                  <Card>
+                      <CardHeader className="flex-row items-start justify-between">
+                        <div>
+                          <CardTitle>PAPS 성취도 비교 ({comparisonData.targetLabel} vs 학년 평균)</CardTitle>
+                          <CardDescription>100%에 가까울수록 성취도가 높습니다.</CardDescription>
+                        </div>
+                        <AiWelcome 
+                          itemType='paps' 
+                          title="학급 AI 브리핑" 
+                          students={filteredStudentsByClass} 
+                          items={allItems} 
+                          records={allRecords} 
+                        />
+                      </CardHeader>
+                      <CardContent>
+                        <ChartContainer config={comparisonChartConfig} className="h-[300px] w-full">
+                          <BarChart data={comparisonData.data}>
+                            <CartesianGrid vertical={false} />
+                            <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} angle={-45} textAnchor="end" height={80} interval={0} />
+                            <YAxis domain={[0, 100]} unit="%" />
+                            <ChartTooltip 
+                              content={<CustomBarTooltipContent />} 
+                            />
+                            <Legend />
+                            <Bar dataKey="target" name={comparisonChartConfig.target.label} fill="var(--color-target)" radius={4} />
+                            <Bar dataKey="average" name={comparisonChartConfig.average.label} fill="var(--color-average)" radius={4} />
+                          </BarChart>
+                        </ChartContainer>
+                      </CardContent>
+                    </Card>
+
+                  <Card>
+                      <CardHeader>
+                          <CardTitle>학급별 측정 기록</CardTitle>
+                          <CardDescription>수업 중 측정한 결과를 학급 전체에 대해 한 번에 입력하고 저장할 수 있습니다.</CardDescription>
+                          <div className="flex flex-wrap items-center gap-2 pt-4">
+                              <Popover>
+                                  <PopoverTrigger asChild>
+                                  <Button variant={"outline"} className={cn("w-[240px] justify-start text-left font-normal", !batchRecordDate && "text-muted-foreground")}>
+                                      <CalendarIcon className="mr-2 h-4 w-4" />
+                                      {batchRecordDate ? format(batchRecordDate, "PPP") : <span>날짜 선택</span>}
+                                  </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0">
+                                      <Calendar mode="single" selected={batchRecordDate} onSelect={setBatchRecordDate} initialFocus />
+                                  </PopoverContent>
+                              </Popover>
+                              <Select value={batchRecordItem} onValueChange={setBatchRecordItem}>
+                                  <SelectTrigger className="w-full sm:w-[180px]">
+                                      <SelectValue placeholder="측정 종목 선택" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                      {allItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
+                                  </SelectContent>
+                              </Select>
+                              <Button onClick={handleSaveBatchRecords} disabled={isBatchSubmitting} className="ml-auto">
+                                  {isBatchSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                  학급 전체 기록 저장
+                              </Button>
+                          </div>
+                      </CardHeader>
+                      <CardContent>
+                          <Table>
+                              <TableHeader>
+                                  <TableRow>
+                                      <TableHead>번호</TableHead>
+                                      <TableHead>이름</TableHead>
+                                      <TableHead>기록 ({allItems.find(i=>i.name === batchRecordItem)?.unit})</TableHead>
+                                  </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                  {filteredStudentsByClass.map(student => (
+                                      <TableRow key={student.id}>
+                                          <TableCell>{student.studentNum}</TableCell>
+                                          <TableCell>{student.name}</TableCell>
+                                          <TableCell>
+                                              <Input
+                                                  type="number"
+                                                  value={batchRecords[student.id] || ''}
+                                                  onChange={(e) => handleBatchRecordChange(student.id, e.target.value)}
+                                                  className="max-w-[120px]"
+                                              />
+                                          </TableCell>
+                                      </TableRow>
+                                  ))}
+                              </TableBody>
+                          </Table>
+                      </CardContent>
                   </Card>
 
-                 <Card>
-                    <CardHeader>
-                        <CardTitle>학급별 측정 기록</CardTitle>
-                        <CardDescription>수업 중 측정한 결과를 학급 전체에 대해 한 번에 입력하고 저장할 수 있습니다.</CardDescription>
-                         <div className="flex flex-wrap items-center gap-2 pt-4">
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                <Button variant={"outline"} className={cn("w-[240px] justify-start text-left font-normal", !batchRecordDate && "text-muted-foreground")}>
-                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                    {batchRecordDate ? format(batchRecordDate, "PPP") : <span>날짜 선택</span>}
-                                </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0">
-                                    <Calendar mode="single" selected={batchRecordDate} onSelect={setBatchRecordDate} initialFocus />
-                                </PopoverContent>
-                            </Popover>
-                            <Select value={batchRecordItem} onValueChange={setBatchRecordItem}>
-                                <SelectTrigger className="w-full sm:w-[180px]">
-                                    <SelectValue placeholder="측정 종목 선택" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {allItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                            <Button onClick={handleSaveBatchRecords} disabled={isBatchSubmitting} className="ml-auto">
-                                {isBatchSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                학급 전체 기록 저장
-                            </Button>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                         <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>번호</TableHead>
-                                    <TableHead>이름</TableHead>
-                                    <TableHead>기록 ({allItems.find(i=>i.name === batchRecordItem)?.unit})</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {filteredStudentsByClass.map(student => (
-                                    <TableRow key={student.id}>
-                                        <TableCell>{student.studentNum}</TableCell>
-                                        <TableCell>{student.name}</TableCell>
-                                        <TableCell>
-                                            <Input
-                                                type="number"
-                                                value={batchRecords[student.id] || ''}
-                                                onChange={(e) => handleBatchRecordChange(student.id, e.target.value)}
-                                                className="max-w-[120px]"
-                                            />
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
-
-                 <Card>
-                    <CardHeader>
-                        <CardTitle>학급 학생 목록 정렬</CardTitle>
-                        <CardDescription>학생을 선택하여 개별 기록을 조회하거나, 목록을 정렬하여 성취도를 비교할 수 있습니다.</CardDescription>
-                         <div className="flex flex-wrap items-center gap-2 pt-4">
-                            <span className="text-sm font-medium">정렬 기준:</span>
-                            <Select value={sortItem} onValueChange={setSortItem}>
-                                <SelectTrigger className="w-full sm:w-[180px]">
-                                    <SelectValue placeholder="정렬 종목 선택" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {allItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
-                            <Button size="sm" variant="outline" onClick={handleSortByRecord} disabled={!sortItem}>
-                                <ArrowUpDown className="mr-2 h-4 w-4" />
-                                기록순 정렬
-                            </Button>
-                             <Button size="sm" variant="outline" onClick={handleSortByAverageGrade}>
-                                <ArrowUpDown className="mr-2 h-4 w-4" />
-                                평균 등급순 정렬
-                            </Button>
-                             {sortedStudents && (
-                                <Button size="sm" variant="ghost" onClick={() => setSortedStudents(null)}>정렬 초기화</Button>
-                             )}
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>번호</TableHead>
-                                    <TableHead>이름</TableHead>
-                                    <TableHead>성별</TableHead>
-                                    {sortType && <TableHead>정렬 기준값</TableHead>}
-                                    <TableHead>기록 조회</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {(sortedStudents || filteredStudentsByClass).map(student => (
-                                    <TableRow key={student.id}>
-                                        <TableCell>{student.studentNum}</TableCell>
-                                        <TableCell>{student.name}</TableCell>
-                                        <TableCell>{student.gender}</TableCell>
-                                        {student.sortValue !== undefined && <TableCell>{student.sortValue}</TableCell>}
-                                        <TableCell>
-                                            <Button variant="link" size="sm" onClick={() => handleSelectStudent(student)}>기록 보기</Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
-            </div>
-        )}
-      </CardContent>
-    </Card>
+                  <Card>
+                      <CardHeader>
+                          <CardTitle>학급 학생 목록 정렬</CardTitle>
+                          <CardDescription>학생을 선택하여 개별 기록을 조회하거나, 목록을 정렬하여 성취도를 비교할 수 있습니다.</CardDescription>
+                          <div className="flex flex-wrap items-center gap-2 pt-4">
+                              <span className="text-sm font-medium">정렬 기준:</span>
+                              <Select value={sortItem} onValueChange={setSortItem}>
+                                  <SelectTrigger className="w-full sm:w-[180px]">
+                                      <SelectValue placeholder="정렬 종목 선택" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                      {allItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
+                                  </SelectContent>
+                              </Select>
+                              <Button size="sm" variant="outline" onClick={handleSortByRecord} disabled={!sortItem}>
+                                  <ArrowUpDown className="mr-2 h-4 w-4" />
+                                  기록순 정렬
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={handleSortByAverageGrade}>
+                                  <ArrowUpDown className="mr-2 h-4 w-4" />
+                                  평균 등급순 정렬
+                              </Button>
+                              {sortedStudents && (
+                                  <Button size="sm" variant="ghost" onClick={() => setSortedStudents(null)}>정렬 초기화</Button>
+                              )}
+                          </div>
+                      </CardHeader>
+                      <CardContent>
+                          <Table>
+                              <TableHeader>
+                                  <TableRow>
+                                      <TableHead>번호</TableHead>
+                                      <TableHead>이름</TableHead>
+                                      <TableHead>성별</TableHead>
+                                      {sortType && <TableHead>정렬 기준값</TableHead>}
+                                      <TableHead>기록 조회</TableHead>
+                                  </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                  {(sortedStudents || filteredStudentsByClass).map(student => (
+                                      <TableRow key={student.id}>
+                                          <TableCell>{student.studentNum}</TableCell>
+                                          <TableCell>{student.name}</TableCell>
+                                          <TableCell>{student.gender}</TableCell>
+                                          {student.sortValue !== undefined && <TableCell>{student.sortValue}</TableCell>}
+                                          <TableCell>
+                                              <Button variant="link" size="sm" onClick={() => handleSelectStudent(student)}>기록 보기</Button>
+                                          </TableCell>
+                                      </TableRow>
+                                  ))}
+                              </TableBody>
+                          </Table>
+                      </CardContent>
+                  </Card>
+              </div>
+          )}
+        </CardContent>
+      </Card>
+    </>
   );
 }
