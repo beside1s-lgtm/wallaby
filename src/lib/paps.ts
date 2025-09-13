@@ -49,6 +49,7 @@ Object.values(papsStandardsByGrade).forEach(gradeData => {
 });
 // 기존에 있던 종목 중 새로운 기준표에 없는 종목 추가
 papsStandards['오래달리기'] = { type: 'time', unit: '초' };
+papsStandards['윗몸 일으키기'] = { type: 'count', unit: '회' };
 papsStandards['팔굽혀펴기'] = { type: 'count', unit: '회' };
 papsStandards['악력'] = { type: 'weight', unit: 'kg' };
 
