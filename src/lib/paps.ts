@@ -18,21 +18,21 @@ const papsStandardsByGrade: Record<
   '4': {
     '왕복오래달리기': { male: [45, 34, 23, 13], female: [34, 25, 16, 9], type: 'count', unit: '회' },
     '앉아윗몸앞으로굽히기': { male: [13.0, 8.5, 4.5, 0.5], female: [15.2, 11.5, 7.5, 3.5], type: 'distance', unit: 'cm' },
-    '윗몸 말아올리기': { male: [80, 40, 22, 7], female: [31, 25, 18, 11], type: 'count', unit: '회' }, // Corrected Male values
+    '윗몸 말아올리기': { male: [31, 24, 16, 8], female: [26, 20, 14, 8], type: 'count', unit: '회' },
     '50m 달리기': { male: [8.9, 9.5, 10.1, 10.7], female: [9.3, 9.9, 10.5, 11.1], type: 'time', unit: '초' },
     '제자리 멀리뛰기': { male: [170, 160, 150, 135], female: [165, 155, 140, 125], type: 'distance', unit: 'cm' },
   },
   '5': {
     '왕복오래달리기': { male: [53, 41, 28, 16], female: [38, 29, 19, 11], type: 'count', unit: '회' },
     '앉아윗몸앞으로굽히기': { male: [14.0, 9.5, 5.0, 0.5], female: [16.5, 12.5, 8.5, 4.5], type: 'distance', unit: 'cm' },
-    '윗몸 말아올리기': { male: [80, 40, 22, 10], female: [35, 27, 19, 11], type: 'count', unit: '회' }, // Corrected Male values
+    '윗몸 말아올리기': { male: [35, 27, 19, 11], female: [31, 25, 18, 11], type: 'count', unit: '회' },
     '50m 달리기': { male: [8.4, 9.0, 9.6, 10.2], female: [9.0, 9.6, 10.2, 10.8], type: 'time', unit: '초' },
     '제자리 멀리뛰기': { male: [185, 170, 155, 140], female: [175, 160, 145, 130], type: 'distance', unit: 'cm' },
   },
   '6': {
     '왕복오래달리기': { male: [60, 47, 34, 20], female: [42, 32, 22, 13], type: 'count', unit: '회' },
     '앉아윗몸앞으로굽히기': { male: [15.0, 10.0, 5.5, 1.0], female: [17.8, 14.0, 10.0, 6.0], type: 'distance', unit: 'cm' },
-    '윗몸 말아올리기': { male: [80, 40, 22, 10], female: [38, 30, 21, 13], type: 'count', unit: '회' }, // Corrected Male values
+    '윗몸 말아올리기': { male: [40, 31, 22, 13], female: [34, 27, 19, 12], type: 'count', unit: '회' },
     '50m 달리기': { male: [8.1, 8.7, 9.3, 9.9], female: [8.7, 9.3, 9.9, 10.5], type: 'time', unit: '초' },
     '제자리 멀리뛰기': { male: [195, 180, 165, 145], female: [180, 165, 150, 135], type: 'distance', unit: 'cm' },
   },
@@ -67,16 +67,16 @@ export function getPapsGrade(item: string, student: Student, value: number): num
   const type = standard.type;
 
   if (type === 'time') { // 낮을수록 좋음
-    if (value <= thresholds[0]) return 1;
-    if (value <= thresholds[1]) return 2;
-    if (value <= thresholds[2]) return 3;
-    if (value <= thresholds[3]) return 4;
+    if (value < thresholds[0]) return 1;
+    if (value < thresholds[1]) return 2;
+    if (value < thresholds[2]) return 3;
+    if (value < thresholds[3]) return 4;
     return 5;
   } else { // 높을수록 좋음 (count, distance, weight)
-    if (value >= thresholds[0]) return 1;
-    if (value >= thresholds[1]) return 2;
-    if (value >= thresholds[2]) return 3;
-    if (value >= thresholds[3]) return 4;
+    if (value > thresholds[0]) return 1;
+    if (value > thresholds[1]) return 2;
+    if (value > thresholds[2]) return 3;
+    if (value > thresholds[3]) return 4;
     return 5;
   }
 }
