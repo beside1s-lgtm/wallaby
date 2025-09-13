@@ -157,6 +157,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
 
   const [foundStudents, setFoundStudents] = useState<Student[]>([]);
   const [isSelectionDialogOpen, setIsSelectionDialogOpen] = useState(false);
+  const [comparisonType, setComparisonType] = useState<'paps' | 'custom'>('paps');
 
   const { grades, classNumsByGrade } = useMemo(() => {
     const grades = [...new Set(allStudents.map(s => s.grade))].sort();
@@ -470,15 +471,15 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
         }
     };
 
-  const calculateAverageGrades = (studentList: Student[]): Record<string, { percentage: number, avgValue: number, unit: string }> => {
+  const calculateAverageGrades = (studentList: Student[], isPaps: boolean): Record<string, { percentage: number, avgValue: number, unit: string }> => {
       if (studentList.length === 0) return {};
       
-      const papsItems = allItems.filter(i => i.isPaps);
+      const itemsToAnalyze = isPaps ? allItems.filter(i => i.isPaps) : allItems.filter(i => !i.isPaps && i.goal);
       const averageData: Record<string, { totalPercentage: number, totalValue: number, count: number, unit: string }> = {};
       
       const studentIds = new Set(studentList.map(s => s.id));
       
-      papsItems.forEach(item => {
+      itemsToAnalyze.forEach(item => {
         if (!averageData[item.name]) {
             averageData[item.name] = { totalPercentage: 0, totalValue: 0, count: 0, unit: item.unit };
         }
@@ -488,12 +489,19 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                 .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
 
             if (latestRecord) {
+              if (isPaps) {
                 const grade = getPapsGrade(item.name, student, latestRecord.value);
                 if (grade !== null) {
-                    averageData[item.name].totalPercentage += gradeToPercentage(grade);
+                    averageData[item.name].totalPercentage += normalizePapsRecord(grade);
                     averageData[item.name].totalValue += latestRecord.value;
                     averageData[item.name].count++;
                 }
+              } else {
+                 const achievement = normalizeCustomRecord(item, latestRecord.value);
+                 averageData[item.name].totalPercentage += achievement;
+                 averageData[item.name].totalValue += latestRecord.value;
+                 averageData[item.name].count++;
+              }
             }
         });
       });
@@ -515,7 +523,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
   const comparisonData = useMemo(() => {
     if (allRecords.length === 0 || !school) return { data: [], targetLabel: '선택 대상'};
     
-    const papsItems = allItems.filter(i => i.isPaps);
+    const itemsToAnalyze = comparisonType === 'paps' ? allItems.filter(i => i.isPaps) : allItems.filter(i => !i.isPaps && i.goal);
 
     let comparisonTargetData: Record<string, { percentage: number, avgValue: number, unit: string, rank?: string }> = {};
     let label = '선택 대상';
@@ -533,14 +541,21 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
             }
         });
 
-        papsItems.forEach(item => {
+        itemsToAnalyze.forEach(item => {
           const record = latestRecords[item.name];
           if (record) {
-            const grade = getPapsGrade(item.name, selectedStudent, record.value);
-            if (grade !== null) {
+            let percentage: number | null = null;
+            if (comparisonType === 'paps') {
+              const grade = getPapsGrade(item.name, selectedStudent, record.value);
+              if (grade !== null) percentage = normalizePapsRecord(grade);
+            } else {
+              percentage = normalizeCustomRecord(item, record.value);
+            }
+
+            if (percentage !== null) {
               const rankInfo = allItemRanks[item.name]?.find(r => r.studentId === selectedStudent.id);
               comparisonTargetData[item.name] = {
-                  percentage: gradeToPercentage(grade),
+                  percentage: percentage,
                   avgValue: record.value,
                   unit: item.unit,
                   rank: rankInfo ? `같은 학년 ${allItemRanks[item.name].length}명 중 ${rankInfo.rank}등` : undefined
@@ -550,14 +565,14 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
         });
     } else if (filteredStudentsByClass.length > 0) {
         label = `${selectedGrade}학년 ${selectedClassNum}반 평균`;
-        comparisonTargetData = calculateAverageGrades(filteredStudentsByClass);
+        comparisonTargetData = calculateAverageGrades(filteredStudentsByClass, comparisonType === 'paps');
     }
     
     const studentsForOverallAverage = selectedGrade ? allStudents.filter(s => s.grade === selectedGrade) : allStudents;
-    const overallAverageData = calculateAverageGrades(studentsForOverallAverage);
+    const overallAverageData = calculateAverageGrades(studentsForOverallAverage, comparisonType === 'paps');
 
     return {
-        data: papsItems.map(item => ({
+        data: itemsToAnalyze.map(item => ({
             name: item.name,
             target: comparisonTargetData[item.name]?.percentage || 0,
             average: overallAverageData[item.name]?.percentage || 0,
@@ -569,7 +584,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
         targetLabel: label
     };
 
-  }, [selectedStudent, selectedGrade, selectedClassNum, filteredStudentsByClass, allRecords, allItems, allStudents, school]);
+  }, [selectedStudent, selectedGrade, selectedClassNum, filteredStudentsByClass, allRecords, allItems, allStudents, school, comparisonType]);
   
   const progressData = useMemo(() => {
     if (!progressChartItem || !selectedStudent || !school) return [];
@@ -726,7 +741,18 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <Card>
                       <CardHeader>
-                        <CardTitle>PAPS 성취도 비교 ({comparisonData.targetLabel} vs 학년 평균)</CardTitle>
+                        <div className="flex justify-between items-center">
+                          <CardTitle>성취도 비교 ({comparisonData.targetLabel} vs 학년 평균)</CardTitle>
+                          <Select value={comparisonType} onValueChange={(v) => setComparisonType(v as 'paps' | 'custom')}>
+                              <SelectTrigger className="w-[120px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="paps">PAPS</SelectItem>
+                                <SelectItem value="custom">기타</SelectItem>
+                              </SelectContent>
+                          </Select>
+                        </div>
                         <CardDescription>100%에 가까울수록 성취도가 높습니다.</CardDescription>
                       </CardHeader>
                       <CardContent>
@@ -927,16 +953,27 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                   <Card>
                       <CardHeader className="flex-row items-start justify-between">
                         <div>
-                          <CardTitle>PAPS 성취도 비교 ({comparisonData.targetLabel} vs 학년 평균)</CardTitle>
+                          <CardTitle>성취도 비교 ({comparisonData.targetLabel} vs 학년 평균)</CardTitle>
                           <CardDescription>100%에 가까울수록 성취도가 높습니다.</CardDescription>
                         </div>
-                        <AiWelcome 
-                          itemType='paps' 
-                          title="학급 AI 브리핑" 
-                          students={filteredStudentsByClass} 
-                          items={allItems} 
-                          records={allRecords} 
-                        />
+                        <div className="flex gap-2">
+                          <Select value={comparisonType} onValueChange={(v) => setComparisonType(v as 'paps' | 'custom')}>
+                              <SelectTrigger className="w-[120px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="paps">PAPS</SelectItem>
+                                <SelectItem value="custom">기타</SelectItem>
+                              </SelectContent>
+                          </Select>
+                          <AiWelcome 
+                            itemType='paps' 
+                            title="학급 AI 브리핑" 
+                            students={filteredStudentsByClass} 
+                            items={allItems} 
+                            records={allRecords} 
+                          />
+                        </div>
                       </CardHeader>
                       <CardContent>
                         <ChartContainer config={comparisonChartConfig} className="h-[300px] w-full">
@@ -954,6 +991,61 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                         </ChartContainer>
                       </CardContent>
                     </Card>
+
+                    <Card>
+                      <CardHeader>
+                          <CardTitle>학급 학생 목록 정렬</CardTitle>
+                          <CardDescription>학생을 선택하여 개별 기록을 조회하거나, 목록을 정렬하여 성취도를 비교할 수 있습니다.</CardDescription>
+                          <div className="flex flex-wrap items-center gap-2 pt-4">
+                              <span className="text-sm font-medium">정렬 기준:</span>
+                              <Select value={sortItem} onValueChange={setSortItem}>
+                                  <SelectTrigger className="w-full sm:w-[180px]">
+                                      <SelectValue placeholder="정렬 종목 선택" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                      {allItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
+                                  </SelectContent>
+                              </Select>
+                              <Button size="sm" variant="outline" onClick={handleSortByRecord} disabled={!sortItem}>
+                                  <ArrowUpDown className="mr-2 h-4 w-4" />
+                                  기록순 정렬
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={handleSortByAverageGrade}>
+                                  <ArrowUpDown className="mr-2 h-4 w-4" />
+                                  평균 등급순 정렬
+                              </Button>
+                              {sortedStudents && (
+                                  <Button size="sm" variant="ghost" onClick={() => setSortedStudents(null)}>정렬 초기화</Button>
+                              )}
+                          </div>
+                      </CardHeader>
+                      <CardContent>
+                          <Table>
+                              <TableHeader>
+                                  <TableRow>
+                                      <TableHead>번호</TableHead>
+                                      <TableHead>이름</TableHead>
+                                      <TableHead>성별</TableHead>
+                                      {sortType && <TableHead>정렬 기준값</TableHead>}
+                                      <TableHead>기록 조회</TableHead>
+                                  </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                  {(sortedStudents || filteredStudentsByClass).map(student => (
+                                      <TableRow key={student.id}>
+                                          <TableCell>{student.studentNum}</TableCell>
+                                          <TableCell>{student.name}</TableCell>
+                                          <TableCell>{student.gender}</TableCell>
+                                          {student.sortValue !== undefined && <TableCell>{student.sortValue}</TableCell>}
+                                          <TableCell>
+                                              <Button variant="link" size="sm" onClick={() => handleSelectStudent(student)}>기록 보기</Button>
+                                          </TableCell>
+                                      </TableRow>
+                                  ))}
+                              </TableBody>
+                          </Table>
+                      </CardContent>
+                  </Card>
 
                   <Card>
                       <CardHeader>
@@ -1006,61 +1098,6 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                                                   onChange={(e) => handleBatchRecordChange(student.id, e.target.value)}
                                                   className="max-w-[120px]"
                                               />
-                                          </TableCell>
-                                      </TableRow>
-                                  ))}
-                              </TableBody>
-                          </Table>
-                      </CardContent>
-                  </Card>
-
-                  <Card>
-                      <CardHeader>
-                          <CardTitle>학급 학생 목록 정렬</CardTitle>
-                          <CardDescription>학생을 선택하여 개별 기록을 조회하거나, 목록을 정렬하여 성취도를 비교할 수 있습니다.</CardDescription>
-                          <div className="flex flex-wrap items-center gap-2 pt-4">
-                              <span className="text-sm font-medium">정렬 기준:</span>
-                              <Select value={sortItem} onValueChange={setSortItem}>
-                                  <SelectTrigger className="w-full sm:w-[180px]">
-                                      <SelectValue placeholder="정렬 종목 선택" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                      {allItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
-                                  </SelectContent>
-                              </Select>
-                              <Button size="sm" variant="outline" onClick={handleSortByRecord} disabled={!sortItem}>
-                                  <ArrowUpDown className="mr-2 h-4 w-4" />
-                                  기록순 정렬
-                              </Button>
-                              <Button size="sm" variant="outline" onClick={handleSortByAverageGrade}>
-                                  <ArrowUpDown className="mr-2 h-4 w-4" />
-                                  평균 등급순 정렬
-                              </Button>
-                              {sortedStudents && (
-                                  <Button size="sm" variant="ghost" onClick={() => setSortedStudents(null)}>정렬 초기화</Button>
-                              )}
-                          </div>
-                      </CardHeader>
-                      <CardContent>
-                          <Table>
-                              <TableHeader>
-                                  <TableRow>
-                                      <TableHead>번호</TableHead>
-                                      <TableHead>이름</TableHead>
-                                      <TableHead>성별</TableHead>
-                                      {sortType && <TableHead>정렬 기준값</TableHead>}
-                                      <TableHead>기록 조회</TableHead>
-                                  </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                  {(sortedStudents || filteredStudentsByClass).map(student => (
-                                      <TableRow key={student.id}>
-                                          <TableCell>{student.studentNum}</TableCell>
-                                          <TableCell>{student.name}</TableCell>
-                                          <TableCell>{student.gender}</TableCell>
-                                          {student.sortValue !== undefined && <TableCell>{student.sortValue}</TableCell>}
-                                          <TableCell>
-                                              <Button variant="link" size="sm" onClick={() => handleSelectStudent(student)}>기록 보기</Button>
                                           </TableCell>
                                       </TableRow>
                                   ))}
