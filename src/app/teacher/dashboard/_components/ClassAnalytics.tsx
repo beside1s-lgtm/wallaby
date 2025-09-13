@@ -729,14 +729,19 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
         </CardHeader>
         <CardContent className="space-y-8">
           {!selectedStudent && !filteredStudentsByClass.length && (
-            <div className="space-y-8">
-              <p className="text-center text-muted-foreground">분석할 학생을 검색하거나 학급을 선택해주세요.</p>
+            <div className="text-center text-muted-foreground py-10">
+              <p>분석할 학생을 검색하거나 학급을 선택해주세요.</p>
             </div>
           )}
 
           {selectedStudent ? (
               <div className="space-y-8">
+                <div className="relative">
                   <h2 className="text-2xl font-bold mb-6">{selectedStudent.name} ({selectedStudent.grade}-{selectedStudent.classNum}) 학생 분석</h2>
+                  <Button variant="ghost" size="icon" className="absolute top-0 left-0 h-9 w-9" onClick={() => { setSearchTerm(''); setSelectedStudent(null); }}>
+                      <XIcon className="h-5 w-5" />
+                  </Button>
+                </div>
                   
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <Card>
@@ -953,7 +958,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                   <Card>
                       <CardHeader className="flex-row items-start justify-between">
                         <div>
-                          <CardTitle>성취도 비교 ({comparisonData.targetLabel} vs 학년 평균)</CardTitle>
+                          <CardTitle>성취도 비교</CardTitle>
                           <CardDescription>100%에 가까울수록 성취도가 높습니다.</CardDescription>
                         </div>
                         <div className="flex gap-2">
