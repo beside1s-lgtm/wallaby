@@ -738,8 +738,8 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                               content={<CustomBarTooltipContent />} 
                             />
                             <Legend />
-                            <Bar dataKey="target" name={comparisonChartConfig.target.label} fill="var(--color-target)" radius={4} />
-                            <Bar dataKey="average" name={comparisonChartConfig.average.label} fill="var(--color-average)" radius={4} />
+                            <Bar dataKey="target" name={comparisonChartConfig.target.label} fill="var(--color-target)" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="average" name={comparisonChartConfig.average.label} fill="var(--color-average)" radius={[4, 4, 0, 0]} />
                           </BarChart>
                         </ChartContainer>
                       </CardContent>
@@ -947,8 +947,8 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                               content={<CustomBarTooltipContent />} 
                             />
                             <Legend />
-                            <Bar dataKey="target" name={comparisonChartConfig.target.label} fill="var(--color-target)" radius={4} />
-                            <Bar dataKey="average" name={comparisonChartConfig.average.label} fill="var(--color-average)" radius={4} />
+                            <Bar dataKey="target" name={comparisonChartConfig.target.label} fill="var(--color-target)" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="average" name={comparisonChartConfig.average.label} fill="var(--color-average)" radius={[4, 4, 0, 0]} />
                           </BarChart>
                         </ChartContainer>
                       </CardContent>
