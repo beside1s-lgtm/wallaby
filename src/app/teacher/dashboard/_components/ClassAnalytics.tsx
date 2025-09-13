@@ -736,11 +736,11 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
 
           {selectedStudent ? (
               <div className="space-y-8">
-                <div className="relative">
-                  <h2 className="text-2xl font-bold mb-6">{selectedStudent.name} ({selectedStudent.grade}-{selectedStudent.classNum}) 학생 분석</h2>
-                  <Button variant="ghost" size="icon" className="absolute top-0 left-0 h-9 w-9" onClick={() => { setSearchTerm(''); setSelectedStudent(null); }}>
-                      <XIcon className="h-5 w-5" />
-                  </Button>
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-2xl font-bold">{selectedStudent.name} ({selectedStudent.grade}-{selectedStudent.classNum}) 학생 분석</h2>
+                    <Button variant="ghost" size="icon" onClick={() => { setSearchTerm(''); setSelectedStudent(null); }}>
+                        <XIcon className="h-5 w-5" />
+                    </Button>
                 </div>
                   
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
