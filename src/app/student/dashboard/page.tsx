@@ -46,27 +46,31 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from '@/components/ui/chart';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { getStudentFeedback } from '@/ai/flows/student-ai-feedback';
 import { Loader2, Wand2, Trash2 } from 'lucide-react';
 import type { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
-import { getPapsGrade, getCustomItemGrade } from '@/lib/paps';
+import { getPapsGrade, getCustomItemGrade, normalizePapsRecord, normalizeCustomRecord } from '@/lib/paps';
 import { getStudents, getRecords } from '@/lib/store';
 
-const chartColors = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
+
+const chartConfig = {
+  grade: { label: "등급", color: "hsl(var(--chart-2))" },
+  achievement: { label: "기록 성취도", color: "hsl(var(--chart-1))" },
+};
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
-    const { originalRecord, rank } = payload[0].payload;
+    const data = payload[0].payload;
+    const gradePayload = payload.find(p => p.dataKey === 'grade');
+    const achievementPayload = payload.find(p => p.dataKey === 'achievement');
+
     return (
       <div className="p-2 text-sm bg-background/90 border rounded-md shadow-lg">
-        <p className="font-bold">{label}</p>
-        {payload.map((p: any) => (
-            <div key={p.dataKey} style={{ color: p.color }}>
-                <p>{`${p.name}: ${p.value}등급 (${originalRecord[p.dataKey]?.value}${originalRecord[p.dataKey]?.unit})`}</p>
-            </div>
-        ))}
-         {rank && <p className="text-muted-foreground mt-1">{rank}</p>}
+        <p className="font-bold">{label} ({data.itemName})</p>
+        {gradePayload && <p style={{ color: gradePayload.color }}>{`등급: ${gradePayload.value}등급`}</p>}
+        {achievementPayload && <p style={{ color: achievementPayload.color }}>{`기록: ${data.value}${data.unit}`}</p>}
+        {data.rank && <p className="text-muted-foreground mt-1">{data.rank}</p>}
       </div>
     );
   }
@@ -110,6 +114,15 @@ export default function StudentDashboardPage() {
                 setFullStudent(stud || null);
                 setAllStudents(allStuds);
                 setAllRecords(allRecs);
+
+                if (items.length > 0 && chartItemFilter === 'all') {
+                  const firstPapsItem = items.find(i => i.isPaps)?.name;
+                  if (firstPapsItem) {
+                    setChartItemFilter(firstPapsItem);
+                  } else {
+                    setChartItemFilter(items[0].name);
+                  }
+                }
             } catch (error) {
                 console.error("Failed to load student data", error);
                 toast({ variant: 'destructive', title: '데이터 로딩 실패' });
@@ -252,71 +265,59 @@ export default function StudentDashboardPage() {
     }
   };
 
-  const { chartData, chartConfig, availableItems } = useMemo(() => {
-    if (!fullStudent || !school) return { chartData: [], chartConfig: {}, availableItems: [] };
-    
-    const allItemRanks = calculateRanks(school, measurementItems, allRecords, allStudents, fullStudent.grade);
+  const { chartData, availableItems } = useMemo(() => {
+    if (!fullStudent || !school || !chartItemFilter || chartItemFilter === 'all') return { chartData: [], availableItems: [] };
 
+    const allItemRanks = calculateRanks(school, measurementItems, allRecords, allStudents, fullStudent.grade);
+    
     const itemsToShow = measurementItems.filter(item => {
         if (chartFilter === 'paps') return item.isPaps;
         if (chartFilter === 'custom') return !item.isPaps;
-        return true; // 'all'
+        return true;
     });
 
-    const recordsToShow = records.filter(r => itemsToShow.some(item => item.name === r.item));
+    const itemInfo = measurementItems.find(i => i.name === chartItemFilter);
+    if (!itemInfo) return { chartData: [], availableItems: itemsToShow };
 
-    const filteredRecords = chartItemFilter === 'all' 
-      ? recordsToShow 
-      : recordsToShow.filter(r => r.item === chartItemFilter);
-    
-    const dataByDate: Record<string, { date: string, originalRecord: Record<string, {value: number, unit: string}>, rank?: string } & Record<string, number>> = {};
+    const itemRanks = allItemRanks[chartItemFilter] || [];
 
-    filteredRecords.forEach(record => {
-        const itemInfo = measurementItems.find(i => i.name === record.item);
-        if (!itemInfo) return;
-
-        let grade = null;
+    const data = records
+      .filter(record => record.item === chartItemFilter)
+      .map(record => {
+        let grade: number | null = null;
+        let achievement: number | null = null;
         if (itemInfo.isPaps) {
             grade = getPapsGrade(record.item, fullStudent, record.value);
+            if (grade) achievement = normalizePapsRecord(grade);
         } else {
             grade = getCustomItemGrade(itemInfo, record.value);
+            if (grade) achievement = normalizeCustomRecord(itemInfo, record.value);
         }
-        
-        if (grade === null) return;
 
-        if (!dataByDate[record.date]) {
-            dataByDate[record.date] = { date: record.date, originalRecord: {} };
-        }
-        dataByDate[record.date][record.item] = grade;
-        dataByDate[record.date].originalRecord[record.item] = { value: record.value, unit: itemInfo.unit };
-        
-        const itemRanks = allItemRanks[record.item];
-        if (itemRanks) {
-            const studentRank = itemRanks.find(r => r.studentId === fullStudent.id && r.value === record.value);
-            if (studentRank) {
-                dataByDate[record.date].rank = `같은 학년 ${itemRanks.length}명 중 ${studentRank.rank}등`;
-            }
-        }
-    });
-    
-    const uniqueItems = [...new Set(Object.values(dataByDate).flatMap(d => Object.keys(d).filter(k => k !== 'date' && k !== 'originalRecord' && k !== 'rank')))];
+        if (grade === null) return null;
 
-    const config: Record<string, any> = {};
-    uniqueItems.forEach((itemName, index) => {
-      config[itemName] = {
-        label: `${itemName}`,
-        color: chartColors[index % chartColors.length],
-      };
-    });
+        const rankInfo = itemRanks.find(r => r.studentId === fullStudent.id && r.value === record.value);
 
-    const data = Object.values(dataByDate).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        return {
+            date: record.date,
+            itemName: record.item,
+            grade: grade,
+            achievement: achievement,
+            value: record.value,
+            unit: itemInfo.unit,
+            rank: rankInfo ? `같은 학년 ${itemRanks.length}명 중 ${rankInfo.rank}등` : undefined
+        };
+    })
+    .filter((d): d is NonNullable<typeof d> => d !== null)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     
     const itemsWithGrade = itemsToShow.filter(item => {
-        if (item.isPaps) return getPapsGrade(item.name, fullStudent, 0) !== null; // check if it's a valid paps item for the gender
+        const tempStudent = { ...fullStudent, gender: '남' as const };
+        if (item.isPaps) return getPapsGrade(item.name, tempStudent, 0) !== null;
         return getCustomItemGrade(item, 0) !== null;
     });
-
-    return { chartData: data, chartConfig: config, availableItems: itemsWithGrade };
+    
+    return { chartData: data, availableItems: itemsWithGrade };
   }, [records, chartFilter, chartItemFilter, measurementItems, fullStudent, school, allRecords, allStudents]);
 
   const sortedRecords = useMemo(() => {
@@ -404,8 +405,8 @@ export default function StudentDashboardPage() {
         <CardHeader>
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-                <CardTitle>나의 성장 기록 (등급)</CardTitle>
-                <CardDescription>지금까지의 측정 결과 변화를 등급으로 확인해보세요. (1등급이 가장 높음)</CardDescription>
+                <CardTitle>나의 성장 기록</CardTitle>
+                <CardDescription>측정 결과의 등급(막대)과 실제 기록의 성취도(선)를 함께 확인해보세요.</CardDescription>
             </div>
             <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
                 <div className="grid grid-cols-3 gap-1 rounded-md bg-muted p-1 w-full sm:w-auto">
@@ -415,10 +416,9 @@ export default function StudentDashboardPage() {
                 </div>
                  <Select onValueChange={setChartItemFilter} value={chartItemFilter}>
                   <SelectTrigger className="w-full sm:w-[200px]">
-                    <SelectValue placeholder="종목 필터" />
+                    <SelectValue placeholder="종목 선택" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">모든 종목</SelectItem>
                     {availableItems.map(item => (
                       <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
                     ))}
@@ -428,20 +428,26 @@ export default function StudentDashboardPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <ChartContainer config={chartConfig} className="h-[400px] w-full">
-            <ResponsiveContainer>
-              <LineChart data={chartData}>
-                <CartesianGrid vertical={false} />
-                <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
-                <YAxis reversed={true} domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} tickCount={5} />
-                <ChartTooltip content={<CustomTooltip />} />
-                <ChartLegend content={<ChartLegendContent />} />
-                {Object.keys(chartConfig).map((key) => (
-                  <Line key={key} dataKey={key} type="monotone" stroke={chartConfig[key].color} strokeWidth={2} dot={false} />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </ChartContainer>
+          {chartData.length > 0 ? (
+            <ChartContainer config={chartConfig} className="h-[400px] w-full">
+              <ResponsiveContainer>
+                <ComposedChart data={chartData}>
+                  <CartesianGrid vertical={false} />
+                  <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
+                  <YAxis yAxisId="left" orientation="left" stroke="hsl(var(--chart-2))" domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} tickCount={5} reversed={true} name="등급" />
+                  <YAxis yAxisId="right" orientation="right" stroke="hsl(var(--chart-1))" domain={[0, 100]} unit="%" name="성취도" />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend />
+                  <Bar dataKey="grade" yAxisId="left" fill="var(--color-grade)" name="등급" radius={[4, 4, 0, 0]} barSize={20} />
+                  <Line dataKey="achievement" yAxisId="right" type="monotone" stroke="var(--color-achievement)" strokeWidth={2} dot={true} name="성취도" />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          ) : (
+            <div className="h-[400px] flex items-center justify-center text-muted-foreground">
+              <p>그래프를 표시할 종목을 선택해주세요.</p>
+            </div>
+          )}
         </CardContent>
       </Card>
       

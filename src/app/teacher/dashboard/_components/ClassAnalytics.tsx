@@ -49,12 +49,12 @@ import {
   ChartContainer,
   ChartTooltip,
 } from '@/components/ui/chart';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { BarChart, Bar, ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { analyzeStudentPerformance } from '@/ai/flows/teacher-ai-assistant';
 import { Button } from '@/components/ui/button';
 import { Loader2, Search, Wand2, X as XIcon, ArrowUpDown, Trash2, Calendar as CalendarIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { getPapsGrade, getCustomItemGrade } from '@/lib/paps';
+import { getPapsGrade, getCustomItemGrade, normalizePapsRecord, normalizeCustomRecord } from '@/lib/paps';
 import AiWelcome from './AiWelcome';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -82,18 +82,23 @@ const gradeToPercentage = (grade: number | null): number => {
     return (5 - grade) * 25;
 };
 
+const chartConfig = {
+  grade: { label: "등급", color: "hsl(var(--chart-2))" },
+  achievement: { label: "기록 성취도", color: "hsl(var(--chart-1))" },
+};
+
 const CustomTooltipContent = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
-    const { originalRecord } = payload[0].payload;
-    const recordKey = payload[0].dataKey;
-    const record = originalRecord?.[recordKey];
+    const data = payload[0].payload;
+    const gradePayload = payload.find(p => p.dataKey === 'grade');
+    const achievementPayload = payload.find(p => p.dataKey === 'achievement');
 
     return (
       <div className="p-2 text-sm bg-background/90 border rounded-md shadow-lg">
-        <p className="font-bold">{label}</p>
-        <p style={{ color: payload[0].color }}>
-            {`${payload[0].name}: ${payload[0].value}등급 (${record?.value ?? 'N/A'}${record?.unit ?? ''})`}
-        </p>
+        <p className="font-bold">{label} ({data.itemName})</p>
+        {gradePayload && <p style={{ color: gradePayload.color }}>{`등급: ${gradePayload.value}등급`}</p>}
+        {achievementPayload && <p style={{ color: achievementPayload.color }}>{`기록: ${data.value}${data.unit}`}</p>}
+        {data.rank && <p className="text-muted-foreground mt-1">{data.rank}</p>}
       </div>
     );
   }
@@ -570,27 +575,41 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
     if (!progressChartItem || !selectedStudent || !school) return [];
     
     const itemInfo = allItems.find(i => i.name === progressChartItem);
-
     if (!itemInfo) return [];
+
+    const itemRanks = calculateRanks(school, allItems, allRecords, allStudents, selectedStudent.grade)[progressChartItem] || [];
 
     return studentRecords
       .filter(r => r.item === progressChartItem)
       .map(r => {
           let grade: number | null = null;
+          let achievement: number | null = null;
+
           if (itemInfo.isPaps) {
             grade = getPapsGrade(r.item, selectedStudent, r.value)
+            if(grade) achievement = normalizePapsRecord(grade);
           } else {
             grade = getCustomItemGrade(itemInfo, r.value);
+            if(grade) achievement = normalizeCustomRecord(itemInfo, r.value);
           }
+          
+          if (grade === null) return null;
+
+          const rankInfo = itemRanks.find(rank => rank.studentId === r.studentId && rank.value === r.value);
+
           return { 
               date: r.date, 
-              [progressChartItem]: grade,
-              originalRecord: { [progressChartItem]: { value: r.value, unit: itemInfo.unit } }
+              itemName: r.item,
+              grade: grade,
+              achievement: achievement,
+              value: r.value,
+              unit: itemInfo.unit,
+              rank: rankInfo ? `같은 학년 ${itemRanks.length}명 중 ${rankInfo.rank}등` : undefined
           }
       })
-      .filter(r => r[progressChartItem] !== null)
+      .filter((r): r is NonNullable<typeof r> => r !== null)
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, [studentRecords, progressChartItem, selectedStudent, allItems]);
+  }, [studentRecords, progressChartItem, selectedStudent, allItems, allRecords, allStudents, school]);
   
     const sortedStudentRecords = useMemo(() => {
         return [...studentRecords].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -729,7 +748,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                     <Card>
                       <CardHeader>
                         <div className="flex justify-between items-center">
-                          <CardTitle>회차별 등급 변화</CardTitle>
+                          <CardTitle>회차별 성장 그래프</CardTitle>
                           <Select value={progressChartItem} onValueChange={setProgressChartItem}>
                             <SelectTrigger className="w-[180px]">
                               <SelectValue placeholder="종목 선택" />
@@ -739,18 +758,20 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                             </SelectContent>
                           </Select>
                         </div>
-                        <CardDescription>1등급이 가장 높은 등급입니다.</CardDescription>
+                        <CardDescription>등급(막대)과 기록 성취도(선)의 변화를 확인하세요.</CardDescription>
                       </CardHeader>
                       <CardContent>
-                        <ChartContainer config={{}} className="h-[300px] w-full">
-                          <LineChart data={progressData}>
+                        <ChartContainer config={chartConfig} className="h-[300px] w-full">
+                          <ComposedChart data={progressData}>
                             <CartesianGrid vertical={false} />
                             <XAxis dataKey="date" />
-                            <YAxis domain={[1, 5]} ticks={[1,2,3,4,5]} tickCount={5} reversed={true} />
+                            <YAxis yAxisId="left" orientation="left" stroke="hsl(var(--chart-2))" domain={[1, 5]} ticks={[1,2,3,4,5]} tickCount={5} reversed={true} name="등급" />
+                            <YAxis yAxisId="right" orientation="right" stroke="hsl(var(--chart-1))" domain={[0, 100]} unit="%" name="성취도" />
                             <Tooltip content={<CustomTooltipContent />} />
                             <Legend />
-                            <Line type="monotone" dataKey={progressChartItem} name={progressChartItem} stroke="hsl(var(--primary))" strokeWidth={2} />
-                          </LineChart>
+                             <Bar dataKey="grade" yAxisId="left" fill="var(--color-grade)" name="등급" radius={[4, 4, 0, 0]} barSize={20}/>
+                             <Line dataKey="achievement" yAxisId="right" type="monotone" stroke="var(--color-achievement)" strokeWidth={2} dot={true} name="성취도" />
+                          </ComposedChart>
                         </ChartContainer>
                       </CardContent>
                     </Card>

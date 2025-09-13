@@ -17,8 +17,8 @@ const papsStandardsByGrade: Record<
   // --- 초등학교 ---
   '4': {
     '왕복오래달리기': { 
-      male: [ { grade: 1, min: 77, max: Infinity }, { grade: 2, min: 69, max: 76 }, { grade: 3, min: 45, max: 68 }, { grade: 4, min: 26, max: 44 }, { grade: 5, min: 1, max: 25 } ],
-      female: [ { grade: 1, min: 60, max: Infinity }, { grade: 2, min: 57, max: 59 }, { grade: 3, min: 40, max: 56 }, { grade: 4, min: 21, max: 39 }, { grade: 5, min: 1, max: 20 } ],
+      male: [ { grade: 1, min: 77, max: Infinity }, { grade: 2, min: 69, max: 76 }, { grade: 3, min: 45, max: 68 }, { grade: 4, min: 26, max: 44 }, { grade: 5, min: -Infinity, max: 25 } ],
+      female: [ { grade: 1, min: 60, max: Infinity }, { grade: 2, min: 57, max: 59 }, { grade: 3, min: 40, max: 56 }, { grade: 4, min: 21, max: 39 }, { grade: 5, min: -Infinity, max: 20 } ],
       type: 'count', unit: '회' 
     },
     '윗몸 말아올리기': { 
@@ -44,8 +44,8 @@ const papsStandardsByGrade: Record<
   },
   '5': {
     '왕복오래달리기': { 
-        male: [ { grade: 1, min: 100, max: 107 }, { grade: 2, min: 73, max: 99 }, { grade: 3, min: 50, max: 72 }, { grade: 4, min: 29, max: 49 }, { grade: 5, min: 1, max: 28 } ],
-        female: [ { grade: 1, min: 66, max: Infinity }, { grade: 2, min: 63, max: 65 }, { grade: 3, min: 45, max: 62 }, { grade: 4, min: 23, max: 44 }, { grade: 5, min: 1, max: 22 } ],
+        male: [ { grade: 1, min: 100, max: 107 }, { grade: 2, min: 73, max: 99 }, { grade: 3, min: 50, max: 72 }, { grade: 4, min: 29, max: 49 }, { grade: 5, min: -Infinity, max: 28 } ],
+        female: [ { grade: 1, min: 66, max: Infinity }, { grade: 2, min: 63, max: 65 }, { grade: 3, min: 45, max: 62 }, { grade: 4, min: 23, max: 44 }, { grade: 5, min: -Infinity, max: 22 } ],
         type: 'count', unit: '회' 
     },
     '윗몸 말아올리기': { 
@@ -279,34 +279,39 @@ export function getPapsGrade(item: string, student: Student, value: number): num
   if (!thresholds || thresholds.length === 0) return null;
 
   for (const range of thresholds) {
-    if (standard.type === 'time') {
-       if (value <= range.max && value >= range.min) {
-        return range.grade;
-      }
-    } else {
-      if (value >= range.min && value <= range.max) {
-        return range.grade;
-      }
+    if (range.min === -Infinity) { // 5등급 처리
+        if (standard.type === 'time') { // 시간이면 max보다 커야 5등급
+             if (value >= range.max) return range.grade;
+        } else { // 나머지는 max보다 작아야 5등급
+             if (value <= range.max) return range.grade;
+        }
+    } else if (range.max === Infinity) { // 1등급 처리
+        if (standard.type === 'time') { // 시간이면 min보다 작아야 1등급
+            if (value <= range.min) return range.grade;
+        } else { // 나머지는 min보다 커야 1등급
+            if (value >= range.min) return range.grade;
+        }
+    } else { // 2,3,4 등급 처리
+        if (standard.type === 'time') {
+            if (value >= range.min && value <= range.max) return range.grade;
+        } else {
+            if (value >= range.min && value <= range.max) return range.grade;
+        }
     }
   }
   
-  // 5등급의 하한값보다 낮거나, 1등급의 상한값보다 높은 경우를 처리
+  // 등급 범위를 벗어난 경우에 대한 예외 처리
   const isTimeType = standard.type === 'time';
   const sortedThresholds = [...thresholds].sort((a,b) => a.grade - b.grade); // 1,2,3,4,5 등급 순으로 정렬
   
   if (sortedThresholds.length < 5) return 5; // 기준표 데이터가 부족하면 5등급으로 처리
 
-  const bestGrade = sortedThresholds[0];
-  const worstGrade = sortedThresholds[4];
-
-  if (isTimeType) {
-    // 시간이므로 낮을수록 좋음
-    if (value < bestGrade.min) return bestGrade.grade;
-    if (value > worstGrade.max) return worstGrade.grade;
-  } else {
-     // 시간이 아니므로 높을수록 좋음
-    if (value > bestGrade.max) return bestGrade.grade;
-    if (value < worstGrade.min) return worstGrade.grade;
+  if (isTimeType) { // 시간이면 낮을수록 좋음
+    if (value < sortedThresholds[0].max) return 1;
+    if (value > sortedThresholds[4].min) return 5;
+  } else { // 시간이 아니면 높을수록 좋음
+    if (value > sortedThresholds[0].min) return 1;
+    if (value < sortedThresholds[4].max) return 5;
   }
 
   return 5;
@@ -320,9 +325,30 @@ export function getCustomItemGrade(item: MeasurementItem, value: number): number
 
   const percentage = (value / item.goal) * 100;
 
-  if (percentage >= 80) return 1;
-  if (percentage >= 60) return 2;
-  if (percentage >= 40) return 3;
-  if (percentage >= 20) return 4;
+  if (percentage >= 100) return 1;
+  if (percentage >= 75) return 2;
+  if (percentage >= 50) return 3;
+  if (percentage >= 25) return 4;
   return 5;
+}
+
+/**
+ * PAPS 등급을 0-100 사이의 성취도로 변환합니다. (1등급 -> 100, 5등급 -> 0)
+ */
+export function normalizePapsRecord(grade: number): number {
+    if (grade >= 5) return 0;
+    if (grade <= 1) return 100;
+    return (5 - grade) * 25;
+}
+
+/**
+ * 기타 종목의 기록을 0-100 사이의 성취도로 변환합니다.
+ */
+export function normalizeCustomRecord(item: MeasurementItem, value: number): number {
+    if (!item.goal || item.goal === 0 || item.recordType === 'time') {
+        return 0;
+    }
+    // 목표치를 초과해도 100%로 제한
+    const achievement = Math.min(100, (value / item.goal) * 100);
+    return parseFloat(achievement.toFixed(2));
 }
