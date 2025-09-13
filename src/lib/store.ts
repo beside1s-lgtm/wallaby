@@ -245,6 +245,24 @@ export const deleteRecord = async (school: string, recordId: string) => {
   await deleteDoc(recordDocRef);
 };
 
+export const deleteRecordsByDateAndItem = async (school: string, date: string, item: string): Promise<number> => {
+    const recordsRef = collection(db, 'schools', school, 'records');
+    const q = query(recordsRef, where('date', '==', date), where('item', '==', item));
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+        return 0;
+    }
+
+    const batch = writeBatch(db);
+    snapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+    });
+
+    await batch.commit();
+    return snapshot.size;
+};
+
 export const addOrUpdateRecords = async (school: string, allStudents: Student[], newRecords: any[]) => {
   const batch = writeBatch(db);
   const studentMap = new Map(allStudents.map(s => [`${s.school}-${s.grade}-${s.classNum}-${s.studentNum}-${s.name}`, s]));

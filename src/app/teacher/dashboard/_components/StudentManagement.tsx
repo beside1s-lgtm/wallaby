@@ -8,6 +8,7 @@ import {
   addStudent,
   addOrUpdateRecords,
   getItems,
+  deleteRecordsByDateAndItem,
 } from '@/lib/store';
 import type { Student, StudentToAdd } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -37,6 +38,17 @@ import {
   DialogFooter,
   DialogClose,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -48,7 +60,11 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { parseCsv, exportToCsv, exportToZip } from '@/lib/utils';
-import { UserPlus, Trash2, FileUp, FileDown, Loader2 } from 'lucide-react';
+import { UserPlus, Trash2, FileUp, FileDown, Loader2, CalendarIcon } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 
 interface StudentManagementProps {
   students: Student[];
@@ -62,6 +78,18 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
   const [isUploading, setIsUploading] = useState(false);
   const [selectedGrade, setSelectedGrade] = useState('');
   const [selectedClassNum, setSelectedClassNum] = useState('');
+
+  // Bulk delete states
+  const [deleteDate, setDeleteDate] = useState<Date | undefined>();
+  const [deleteItem, setDeleteItem] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [allItems, setAllItems] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (school) {
+      getItems(school).then(setAllItems);
+    }
+  }, [school]);
 
   const { grades, classNumsByGrade } = useMemo(() => {
     const grades = [...new Set(students.map(s => s.grade))].sort((a,b) => parseInt(a) - parseInt(b));
@@ -300,6 +328,34 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
     toast({ title: '다운로드 시작', description: '템플릿과 종목 목록을 ZIP 파일로 다운로드합니다.'});
   }
 
+  const handleBulkDelete = async () => {
+    if (!school || !deleteDate || !deleteItem) {
+        toast({ variant: 'destructive', title: '선택 오류', description: '삭제할 날짜와 종목을 모두 선택해주세요.' });
+        return;
+    }
+    setIsDeleting(true);
+    try {
+        const dateStr = format(deleteDate, 'yyyy-MM-dd');
+        const deletedCount = await deleteRecordsByDateAndItem(school, dateStr, deleteItem);
+        
+        onStudentsUpdate(); // Refresh all data
+
+        toast({
+            title: '삭제 완료',
+            description: `${dateStr}의 ${deleteItem} 기록 ${deletedCount}건이 삭제되었습니다.`,
+        });
+
+        setDeleteDate(undefined);
+        setDeleteItem('');
+
+    } catch (error) {
+        console.error('Failed to bulk delete records:', error);
+        toast({ variant: 'destructive', title: '삭제 실패', description: '기록 삭제 중 오류가 발생했습니다.' });
+    } finally {
+        setIsDeleting(false);
+    }
+  };
+
 
   if (!school) return null;
 
@@ -309,30 +365,71 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
           <CardHeader>
               <CardTitle>측정 기록 일괄 관리</CardTitle>
               <CardDescription>
-                CSV 파일을 사용하여 여러 학생의 기록을 한 번에 등록하거나, 전체 학생 기록을 다운로드합니다. CSV 파일은 한글 깨짐 방지를 위해 반드시 UTF-8 형식으로 저장해주세요.
+                CSV 파일을 사용해 기록을 일괄 등록/다운로드하거나, 특정 날짜의 기록을 일괄 삭제합니다. CSV 파일은 UTF-8 형식으로 저장해주세요.
               </CardDescription>
           </CardHeader>
-          <CardFooter className="flex-wrap gap-2">
-              <Button variant="outline" onClick={() => document.getElementById('record-csv-upload')?.click()} disabled={isUploading}>
-                  {isUploading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      등록 중...
-                    </>
-                  ) : (
-                    <>
-                      <FileUp className="mr-2 h-4 w-4" />
-                      기록 일괄 등록
-                    </>
-                  )}
-              </Button>
-              <input type="file" id="record-csv-upload" accept=".csv" onChange={handleRecordCsvUpload} style={{ display: 'none' }} />
-              <Button variant="link" onClick={handleDownloadRecordTemplate}>기록 템플릿</Button>
-              <Button variant="outline" onClick={handleDownloadAllRecords} className="ml-auto">
-                <FileDown className="mr-2 h-4 w-4" />
-                전체 기록 다운로드
-              </Button>
-          </CardFooter>
+          <CardContent className="space-y-6">
+              <div className='border-b pb-6'>
+                <h3 className="text-lg font-semibold mb-2">기록 등록 및 다운로드</h3>
+                <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" onClick={() => document.getElementById('record-csv-upload')?.click()} disabled={isUploading}>
+                        {isUploading ? ( <> <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 등록 중... </> ) : ( <> <FileUp className="mr-2 h-4 w-4" /> 기록 일괄 등록 </> )}
+                    </Button>
+                    <input type="file" id="record-csv-upload" accept=".csv" onChange={handleRecordCsvUpload} style={{ display: 'none' }} />
+                    <Button variant="link" onClick={handleDownloadRecordTemplate}>기록 템플릿</Button>
+                    <Button variant="outline" onClick={handleDownloadAllRecords} className="ml-auto">
+                        <FileDown className="mr-2 h-4 w-4" /> 전체 기록 다운로드
+                    </Button>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-lg font-semibold mb-2">기록 일괄 삭제</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                    <Popover>
+                        <PopoverTrigger asChild>
+                        <Button variant={"outline"} className={cn("w-[240px] justify-start text-left font-normal", !deleteDate && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {deleteDate ? format(deleteDate, "PPP") : <span>삭제할 날짜 선택</span>}
+                        </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                            <Calendar mode="single" selected={deleteDate} onSelect={setDeleteDate} initialFocus />
+                        </PopoverContent>
+                    </Popover>
+
+                     <Select value={deleteItem} onValueChange={setDeleteItem}>
+                        <SelectTrigger className="w-full sm:w-[180px]">
+                            <SelectValue placeholder="삭제할 종목 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {allItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                    
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" disabled={!deleteDate || !deleteItem || isDeleting}>
+                            {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                            일괄 삭제
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {deleteDate && `${format(deleteDate, "yyyy-MM-dd")}`}의 {deleteItem} 기록 전체가 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>취소</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleBulkDelete}>삭제</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                </div>
+              </div>
+          </CardContent>
       </Card>
       <Card>
         <CardHeader>
