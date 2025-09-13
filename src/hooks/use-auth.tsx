@@ -7,7 +7,6 @@ import {
   useEffect,
   ReactNode,
   useCallback,
-  useRef,
 } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Student } from '@/lib/types';
@@ -114,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
-    const currentRole = role; // Capture role before clearing state
+    const currentRole = localStorage.getItem('userRole');
     localStorage.removeItem('userRole');
     localStorage.removeItem('loggedInStudent');
     localStorage.removeItem('userSchool');
@@ -124,13 +123,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSchool(null);
     setUser(null);
     
-    // Redirect based on the role they had before logging out
+    // Use window.location.href for a full page reload to avoid client-side routing issues.
     if (currentRole === 'student') {
-      router.push('/student-login');
+      window.location.href = '/student-login';
     } else {
-      router.push('/');
+      window.location.href = '/';
     }
-  }, [role, router]);
+  }, []);
 
   const value = {
     user,
