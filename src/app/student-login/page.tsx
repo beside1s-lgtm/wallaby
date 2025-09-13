@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -14,7 +13,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  CardFooter,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
@@ -42,7 +40,7 @@ type StudentLoginValues = z.infer<typeof studentLoginSchema>;
 
 export default function StudentLoginPage() {
   const router = useRouter();
-  const { login, role, isLoading } = useAuth();
+  const { login } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -198,11 +196,6 @@ export default function StudentLoginPage() {
             </form>
           </Form>
         </CardContent>
-         <CardFooter className="flex justify-center pt-4 border-t">
-          <Button variant="link" asChild>
-            <Link href="/">교사 로그인 페이지로</Link>
-          </Button>
-        </CardFooter>
       </Card>
     </main>
   );
