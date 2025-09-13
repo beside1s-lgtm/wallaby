@@ -107,6 +107,35 @@ export const getStudentById = async (school: string, studentId: string): Promise
     return docSnap.exists() ? docSnap.data() as Student : undefined;
 }
 
+export const assignMissingAccessCodes = async (school: string): Promise<void> => {
+  const students = await getStudents(school);
+  const studentsWithoutCode = students.filter(s => !s.accessCode);
+
+  if (studentsWithoutCode.length === 0) {
+    return;
+  }
+  
+  console.log(`[${school}] Assigning access codes to ${studentsWithoutCode.length} students...`);
+
+  const existingCodes = new Set(students.map(s => s.accessCode).filter(Boolean));
+  const batch = writeBatch(db);
+
+  studentsWithoutCode.forEach(student => {
+    let newCode: string;
+    do {
+      newCode = Math.floor(10000 + Math.random() * 90000).toString();
+    } while (existingCodes.has(newCode));
+    
+    existingCodes.add(newCode);
+    const studentDocRef = doc(db, 'schools', school, 'students', student.id);
+    batch.update(studentDocRef, { accessCode: newCode });
+  });
+
+  await batch.commit();
+  console.log(`[${school}] Access code assignment complete.`);
+};
+
+
 // Measurement Items
 export const getItems = async (school: string): Promise<MeasurementItem[]> => {
     const itemsRef = collection(db, 'schools', school, 'items');
@@ -178,22 +207,21 @@ export const setRecords = async (school: string, records: MeasurementRecord[]) =
 export const addOrUpdateRecord = async (record: Omit<MeasurementRecord, 'id'>) => {
   const recordDate = record.date || format(new Date(), 'yyyy-MM-dd');
   const recordsRef = collection(db, 'schools', record.school, 'records');
-  const q = query(recordsRef, 
+  
+  await runTransaction(db, async (transaction) => {
+    const q = query(recordsRef, 
       where("studentId", "==", record.studentId), 
       where("item", "==", record.item), 
       where("date", "==", recordDate)
-  );
-
-  await runTransaction(db, async (transaction) => {
+    );
     const snapshot = await getDocs(q);
     if (!snapshot.empty) {
-      // If duplicates exist, update the last one and delete the others.
-      const docs = snapshot.docs;
-      const docToKeep = docs[docs.length - 1];
-      transaction.update(docToKeep.ref, { value: record.value });
+      // If duplicates exist, update the last one (by ID) and delete the others.
+      const docs = snapshot.docs.sort((a,b) => b.id.localeCompare(a.id));
+      const docToKeepRef = docs[0].ref;
+      transaction.update(docToKeepRef, { value: record.value });
       
-      // Delete other duplicates
-      for (let i = 0; i < docs.length - 1; i++) {
+      for (let i = 1; i < docs.length; i++) {
         transaction.delete(docs[i].ref);
       }
     } else {
@@ -342,7 +370,7 @@ export const calculateRanks = (
 export const cleanUpDuplicateRecords = async (school: string): Promise<void> => {
   const recordsRef = collection(db, 'schools', school, 'records');
   const snapshot = await getDocs(recordsRef);
-  const records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MeasurementRecord));
+  const records = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as MeasurementRecord));
 
   const recordsByCompoundKey = new Map<string, MeasurementRecord[]>();
 
@@ -360,9 +388,8 @@ export const cleanUpDuplicateRecords = async (school: string): Promise<void> => 
   for (const [key, recordGroup] of recordsByCompoundKey.entries()) {
     if (recordGroup.length > 1) {
       duplicatesFound = true;
-      // Sort by ID to find the "latest" one. Assuming UUIDs/auto-IDs are roughly chronological.
+      // Sort by ID to find the "latest" one. Assuming auto-IDs are roughly chronological.
       recordGroup.sort((a, b) => b.id.localeCompare(a.id));
-      const recordToKeep = recordGroup[0];
 
       // Mark others for deletion
       for (let i = 1; i < recordGroup.length; i++) {
