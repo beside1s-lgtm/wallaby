@@ -28,6 +28,7 @@ import {
 import { Loader2, Rocket } from 'lucide-react';
 import { initializeData, cleanUpDuplicateRecords, assignMissingAccessCodes } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
+import { Separator } from '@/components/ui/separator';
 
 const teacherLoginSchema = z.object({
   school: z.string().min(1, '학교 이름을 입력해주세요.'),
@@ -111,6 +112,20 @@ export default function LoginPage() {
             </form>
           </Form>
         </CardContent>
+        <CardFooter className="flex-col items-center gap-4">
+          <Separator />
+          <div className="text-center text-sm text-muted-foreground">
+            학생 또는 다른 역할로 접속하시나요?
+          </div>
+          <div className="flex w-full gap-2">
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/student-login">학생 로그인</Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/teacher/dashboard">학급별 측정 기록</Link>
+            </Button>
+          </div>
+        </CardFooter>
       </Card>
     </main>
   );
