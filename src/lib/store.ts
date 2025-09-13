@@ -181,9 +181,27 @@ export const addItem = async (school: string, item: Omit<MeasurementItem, 'id'>)
   return existing.docs[0].data() as MeasurementItem;
 };
 
-export const deleteItem = async (school: string, itemId: string) => {
-  await deleteDoc(doc(db, 'schools', school, 'items', itemId));
+export const deleteItemAndAssociatedRecords = async (school: string, itemToDelete: MeasurementItem) => {
+  const batch = writeBatch(db);
+
+  // 1. Find all records associated with the item
+  const recordsRef = collection(db, 'schools', school, 'records');
+  const q = query(recordsRef, where('item', '==', itemToDelete.name));
+  const recordsSnapshot = await getDocs(q);
+
+  // 2. Delete all found records
+  recordsSnapshot.forEach(doc => {
+    batch.delete(doc.ref);
+  });
+
+  // 3. Delete the item itself
+  const itemDocRef = doc(db, 'schools', school, 'items', itemToDelete.id);
+  batch.delete(itemDocRef);
+
+  // 4. Commit the batch
+  await batch.commit();
 };
+
 
 // Records
 export const getRecords = async (school: string): Promise<MeasurementRecord[]> => {

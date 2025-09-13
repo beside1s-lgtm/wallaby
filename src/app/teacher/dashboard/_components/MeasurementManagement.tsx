@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { addItem as addItemToDb, deleteItem as deleteItemFromDb, getItems, getRecords, setRecords } from '@/lib/store';
+import { addItem as addItemToDb, deleteItemAndAssociatedRecords } from '@/lib/store';
 import {
   Card,
   CardContent,
@@ -63,19 +63,13 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
   const handleDeleteItem = async (itemToDelete: MeasurementItem) => {
     if (!school) return;
     
-    // Delete associated records first
-    const currentRecords = await getRecords(school);
-    const updatedRecords = currentRecords.filter(r => r.item !== itemToDelete.name);
-    await setRecords(school, updatedRecords);
-    
-    // Then delete the item itself
-    await deleteItemFromDb(school, itemToDelete.id);
+    await deleteItemAndAssociatedRecords(school, itemToDelete);
     
     onItemsUpdate(); // Refresh data in parent
     toast({
       variant: 'destructive',
       title: '삭제 완료',
-      description: `"${itemToDelete.name}" 종목이 삭제되었습니다.`,
+      description: `"${itemToDelete.name}" 종목과 관련 기록이 모두 삭제되었습니다.`,
     });
   };
 
