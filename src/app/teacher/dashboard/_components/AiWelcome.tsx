@@ -13,8 +13,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Loader2, Lightbulb, BarChart2, TrendingUp } from 'lucide-react';
 import {
-  LineChart,
-  Line,
   Bar,
   BarChart,
   ResponsiveContainer,
@@ -130,7 +128,10 @@ export default function AiWelcome({ itemType, title, students, items, records }:
         }
         
         const allGrades: { grade: number; student: Student }[] = [];
+        const itemGrades: Record<string, { grade: number; student: Student }[]> = {};
+
         papsItems.forEach(item => {
+            itemGrades[item.name] = [];
             students.forEach(student => {
                 const studentRecords = papsRecords.filter(r => r.studentId === student.id && r.item === item.name);
                 if (studentRecords.length > 0) {
@@ -138,6 +139,7 @@ export default function AiWelcome({ itemType, title, students, items, records }:
                     const grade = getPapsGrade(item.name, student, latestRecord.value);
                     if (grade !== null) {
                         allGrades.push({ grade, student });
+                        itemGrades[item.name].push({ grade, student });
                     }
                 }
             });
@@ -161,6 +163,7 @@ export default function AiWelcome({ itemType, title, students, items, records }:
         };
 
         const overallAnalysis = getAnalysis(allGrades);
+
         const byGradeLevel: Record<string, any> = {};
         const gradeLevels = [...new Set(allGrades.map(g => g.student.grade))];
         gradeLevels.forEach(grade => {
@@ -171,11 +174,20 @@ export default function AiWelcome({ itemType, title, students, items, records }:
             }
         });
         
+        const byItem: Record<string, { averageGrade: number }> = {};
+        Object.entries(itemGrades).forEach(([itemName, gradeList]) => {
+          const analysis = getAnalysis(gradeList);
+          if (analysis) {
+            byItem[itemName] = { averageGrade: analysis.averageGrade };
+          }
+        });
+
         if (!overallAnalysis) return { chartData: [], papsAnalysisData: null, progressAnalysisData: topProgressItems, hasData: false };
 
         const papsAnalysisDataForAI = {
             overall: overallAnalysis,
             byGradeLevel: byGradeLevel,
+            byItem: byItem,
         };
 
         const chartDataForPaps = Object.entries(overallAnalysis.gradeDistribution).map(([name, value]) => ({
@@ -334,7 +346,7 @@ export default function AiWelcome({ itemType, title, students, items, records }:
                                <BarChart data={progressAnalysisData} layout="vertical">
                                     <CartesianGrid strokeDasharray="3 3" />
                                     <XAxis type="number" domain={[0, 100]} unit="%" />
-                                    <YAxis type="category" dataKey="name" width={100} />
+                                    <YAxis type="category" dataKey="name" width={100} tick={{fontSize: 12}} />
                                     <Tooltip
                                         contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}
                                         formatter={(value, name) => [`${value}%`, name === 'past' ? '과거 성취도' : '현재 성취도']}
