@@ -34,7 +34,8 @@ type BriefingData = {
 type AiWelcomeProps = {
     itemType: 'paps' | 'custom';
     title: string;
-    students: Student[];
+    allStudents: Student[];
+    classStudents?: Student[];
     items: MeasurementItem[];
     records: MeasurementRecord[];
 }
@@ -44,36 +45,42 @@ const progressChartConfig = {
   present: { label: "현재", color: "hsl(var(--chart-2))" },
 };
 
-export default function AiWelcome({ itemType, title, students, items, records }: AiWelcomeProps) {
+export default function AiWelcome({ itemType, title, allStudents, classStudents, items, records }: AiWelcomeProps) {
   const { school } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [briefingData, setBriefingData] = useState<BriefingData | null>(null);
+  
+  const isClassBriefing = !!classStudents;
 
-  const { chartData, papsAnalysisData, progressAnalysisData, hasData } = useMemo(() => {
-    if (!school) return { chartData: [], papsAnalysisData: null, progressAnalysisData: null, hasData: false };
-
-    const studentMap = new Map(students.map(s => [s.id, s]));
+  const { chartData, analysisDataForAI, progressAnalysisData, hasData, dialogTitle } = useMemo(() => {
+    if (!school) return { chartData: [], analysisDataForAI: null, progressAnalysisData: null, hasData: false, dialogTitle: title };
     
-    // --- Logic for Progress Analysis ---
-    const progressData: Record<string, { first: number[], last: number[], count: number }> = {};
+    const studentMap = new Map(allStudents.map(s => [s.id, s]));
+    const analysisTargetStudents = classStudents || allStudents;
+    
+    // --- Logic for Progress Analysis (based on the target student group) ---
+    const progressData: Record<string, { first: number[], last: number[] }> = {};
     const itemsWithMultipleRecords = items.filter(item => {
-        const studentRecords = records.filter(r => r.item === item.name);
-        const studentsWithMultiple = new Set(studentRecords.map(r => r.studentId)).size;
-        // At least one student should have more than 1 record for this item
-        return studentRecords.length > studentsWithMultiple;
+        const studentRecords = records.filter(r => r.item === item.name && analysisTargetStudents.some(s => s.id === r.studentId));
+        const studentsWithRecords = new Set(studentRecords.map(r => r.studentId));
+        
+        for (const studentId of studentsWithRecords) {
+            const count = studentRecords.filter(r => r.studentId === studentId).length;
+            if (count > 1) return true;
+        }
+        return false;
     });
 
     itemsWithMultipleRecords.forEach(item => {
         const studentRecordsMap = new Map<string, MeasurementRecord[]>();
-        records.filter(r => r.item === item.name).forEach(r => {
+        records.filter(r => r.item === item.name && analysisTargetStudents.some(s => s.id === r.studentId)).forEach(r => {
             if (!studentRecordsMap.has(r.studentId)) studentRecordsMap.set(r.studentId, []);
             studentRecordsMap.get(r.studentId)!.push(r);
         });
 
         studentRecordsMap.forEach((studentRecords, studentId) => {
             if (studentRecords.length < 2) return;
-
             studentRecords.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
             const firstRecord = studentRecords[0];
             const lastRecord = studentRecords[studentRecords.length - 1];
@@ -94,7 +101,7 @@ export default function AiWelcome({ itemType, title, students, items, records }:
             }
 
             if (firstAchievement !== null && lastAchievement !== null) {
-                if (!progressData[item.name]) progressData[item.name] = { first: [], last: [], count: 0 };
+                if (!progressData[item.name]) progressData[item.name] = { first: [], last: [] };
                 progressData[item.name].first.push(firstAchievement);
                 progressData[item.name].last.push(lastAchievement);
             }
@@ -118,114 +125,147 @@ export default function AiWelcome({ itemType, title, students, items, records }:
         .map(([name, data]) => ({ name, ...data }));
 
 
-    // --- Logic for PAPS & Custom Briefing ---
+    // --- Logic for Main Briefing ---
     if (itemType === 'paps') {
-        const papsItems = items.filter(item => item.isPaps);
-        const papsRecords = records.filter(record => papsItems.some(item => item.name === record.item));
+        const getPapsAnalysis = (studentGroup: Student[]) => {
+            if (studentGroup.length === 0) return null;
+            const papsItems = items.filter(item => item.isPaps);
+            const papsRecords = records.filter(record => papsItems.some(item => item.name === record.item) && studentGroup.some(s => s.id === record.studentId));
 
-        if (papsRecords.length === 0 || papsItems.length === 0 || students.length === 0) {
-            return { chartData: [], papsAnalysisData: null, progressAnalysisData: topProgressItems, hasData: false };
-        }
-        
-        const allGrades: { grade: number; student: Student }[] = [];
-        const itemGrades: Record<string, { grade: number; student: Student }[]> = {};
+            if (papsRecords.length === 0 || papsItems.length === 0) return null;
+            
+            const allGrades: { grade: number; student: Student }[] = [];
+            const itemGrades: Record<string, { grade: number; student: Student }[]> = {};
 
-        papsItems.forEach(item => {
-            itemGrades[item.name] = [];
-            students.forEach(student => {
-                const studentRecords = papsRecords.filter(r => r.studentId === student.id && r.item === item.name);
-                if (studentRecords.length > 0) {
-                    const latestRecord = studentRecords.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-                    const grade = getPapsGrade(item.name, student, latestRecord.value);
-                    if (grade !== null) {
-                        allGrades.push({ grade, student });
-                        itemGrades[item.name].push({ grade, student });
+            papsItems.forEach(item => {
+                itemGrades[item.name] = [];
+                studentGroup.forEach(student => {
+                    const studentRecords = papsRecords.filter(r => r.studentId === student.id && r.item === item.name);
+                    if (studentRecords.length > 0) {
+                        const latestRecord = studentRecords.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+                        const grade = getPapsGrade(item.name, student, latestRecord.value);
+                        if (grade !== null) {
+                            allGrades.push({ grade, student });
+                            itemGrades[item.name].push({ grade, student });
+                        }
                     }
+                });
+            });
+
+            const getAnalysis = (gradeList: { grade: number; student: Student }[]) => {
+                if (gradeList.length === 0) return null;
+                const totalGrade = gradeList.reduce((acc, g) => acc + g.grade, 0);
+                const averageGrade = parseFloat((totalGrade / gradeList.length).toFixed(2));
+                const lowPerformingCount = gradeList.filter(g => g.grade >= 4).length;
+                const lowPerformingPercentage = parseFloat(((lowPerformingCount / gradeList.length) * 100).toFixed(2));
+                
+                const distribution: Record<string, number> = { '1등급': 0, '2등급': 0, '3등급': 0, '4등급': 0, '5등급': 0 };
+                gradeList.forEach(g => {
+                    distribution[`${g.grade}등급`] = (distribution[`${g.grade}등급`] || 0) + 1;
+                });
+                Object.keys(distribution).forEach(key => {
+                    distribution[key] = parseFloat(((distribution[key] / gradeList.length) * 100).toFixed(2));
+                });
+                return { averageGrade, lowPerformingPercentage, gradeDistribution: distribution };
+            };
+
+            const overallAnalysis = getAnalysis(allGrades);
+            if (!overallAnalysis) return null;
+
+            const byItem: Record<string, { averageGrade: number }> = {};
+            Object.entries(itemGrades).forEach(([itemName, gradeList]) => {
+              const analysis = getAnalysis(gradeList);
+              if (analysis) {
+                byItem[itemName] = { averageGrade: analysis.averageGrade };
+              }
+            });
+
+            return { analysis: overallAnalysis, byItem };
+        };
+
+        if (isClassBriefing && classStudents && classStudents.length > 0) {
+            const classGrade = classStudents[0].grade;
+            const gradeStudents = allStudents.filter(s => s.grade === classGrade);
+
+            const classPaps = getPapsAnalysis(classStudents);
+            const gradePaps = getPapsAnalysis(gradeStudents);
+            
+            if (!classPaps) return { chartData: [], analysisDataForAI: null, progressAnalysisData: topProgressItems, hasData: false, dialogTitle: title };
+            
+            const analysisData = {
+                classInfo: { grade: classGrade, classNum: classStudents[0].classNum },
+                paps: {
+                    class: classPaps.analysis,
+                    grade: gradePaps?.analysis,
+                    byItem: classPaps.byItem,
+                },
+            };
+            const chartData = Object.entries(classPaps.analysis.gradeDistribution).map(([name, value]) => ({ name, paps: value }));
+            const currentDialogTitle = `${classGrade}학년 ${classStudents[0].classNum}반 AI 브리핑`;
+
+            return { chartData, analysisDataForAI: analysisData, progressAnalysisData: topProgressItems, hasData: true, dialogTitle: currentDialogTitle };
+
+        } else { // Overall briefing
+            const papsAnalysis = getPapsAnalysis(allStudents);
+            if (!papsAnalysis) return { chartData: [], analysisDataForAI: null, progressAnalysisData: topProgressItems, hasData: false, dialogTitle: title };
+
+            const byGradeLevel: Record<string, any> = {};
+            const gradeLevels = [...new Set(allStudents.map(g => g.grade))];
+            gradeLevels.forEach(grade => {
+                const gradeLevelStudents = allStudents.filter(s => s.grade === grade);
+                const gradeAnalysis = getPapsAnalysis(gradeLevelStudents);
+                if (gradeAnalysis) {
+                    byGradeLevel[grade] = gradeAnalysis.analysis;
                 }
             });
-        });
 
-        const getAnalysis = (gradeList: { grade: number; student: Student }[]) => {
-            if (gradeList.length === 0) return null;
-            const totalGrade = gradeList.reduce((acc, g) => acc + g.grade, 0);
-            const averageGrade = parseFloat((totalGrade / gradeList.length).toFixed(2));
-            const lowPerformingCount = gradeList.filter(g => g.grade >= 4).length;
-            const lowPerformingPercentage = parseFloat(((lowPerformingCount / gradeList.length) * 100).toFixed(2));
-            
-            const distribution: Record<string, number> = { '1등급': 0, '2등급': 0, '3등급': 0, '4등급': 0, '5등급': 0 };
-            gradeList.forEach(g => {
-                distribution[`${g.grade}등급`] = (distribution[`${g.grade}등급`] || 0) + 1;
-            });
-            Object.keys(distribution).forEach(key => {
-                distribution[key] = parseFloat(((distribution[key] / gradeList.length) * 100).toFixed(2));
-            });
-            return { averageGrade, lowPerformingPercentage, gradeDistribution: distribution };
-        };
+            const analysisData = {
+                paps: {
+                    overall: papsAnalysis.analysis,
+                    byGradeLevel,
+                    byItem: papsAnalysis.byItem,
+                },
+            };
 
-        const overallAnalysis = getAnalysis(allGrades);
+            const chartData = Object.entries(papsAnalysis.analysis.gradeDistribution).map(([name, value]) => ({ name, paps: value }));
 
-        const byGradeLevel: Record<string, any> = {};
-        const gradeLevels = [...new Set(allGrades.map(g => g.student.grade))];
-        gradeLevels.forEach(grade => {
-            const gradeLevelGrades = allGrades.filter(g => g.student.grade === grade);
-            const analysis = getAnalysis(gradeLevelGrades);
-            if (analysis) {
-                byGradeLevel[grade] = analysis;
-            }
-        });
-        
-        const byItem: Record<string, { averageGrade: number }> = {};
-        Object.entries(itemGrades).forEach(([itemName, gradeList]) => {
-          const analysis = getAnalysis(gradeList);
-          if (analysis) {
-            byItem[itemName] = { averageGrade: analysis.averageGrade };
-          }
-        });
-
-        if (!overallAnalysis) return { chartData: [], papsAnalysisData: null, progressAnalysisData: topProgressItems, hasData: false };
-
-        const papsAnalysisDataForAI = {
-            overall: overallAnalysis,
-            byGradeLevel: byGradeLevel,
-            byItem: byItem,
-        };
-
-        const chartDataForPaps = Object.entries(overallAnalysis.gradeDistribution).map(([name, value]) => ({
-            name,
-            paps: value,
-        }));
-        
-        return { chartData: chartDataForPaps, papsAnalysisData: papsAnalysisDataForAI, progressAnalysisData: topProgressItems, hasData: true };
+            return { chartData, analysisDataForAI: analysisData, progressAnalysisData: topProgressItems, hasData: true, dialogTitle: title };
+        }
     }
 
     // --- Logic for Custom Items Briefing ---
     const customItems = items.filter(item => !item.isPaps && item.goal && item.recordType !== 'time');
-    const customRecords = records.filter(record => customItems.some(item => item.name === record.item));
+    const customRecords = records.filter(record => customItems.some(item => item.name === record.item) && analysisTargetStudents.some(s => s.id === record.studentId));
     if (customRecords.length === 0) {
-        return { chartData: [], papsAnalysisData: null, progressAnalysisData: topProgressItems, hasData: false };
+        return { chartData: [], analysisDataForAI: null, progressAnalysisData: topProgressItems, hasData: false, dialogTitle: title };
     }
     
     const customInsights: Record<string, { totalPercentage: number, count: number }> = {};
+    const latestRecordMap = new Map<string, string>(); // key: studentId-itemId, value: recordId
+
+    analysisTargetStudents.forEach(student => {
+        customItems.forEach(item => {
+            const latest = records
+                .filter(r => r.studentId === student.id && r.item === item.name)
+                .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+            if (latest) {
+                latestRecordMap.set(`${student.id}-${item.name}`, latest.id);
+            }
+        });
+    });
+
     for (const record of customRecords) {
+        if (latestRecordMap.get(`${record.studentId}-${record.item}`) !== record.id) continue;
+
         const itemInfo = customItems.find(i => i.name === record.item);
         if(!itemInfo || !itemInfo.goal) continue;
         
-        const student = studentMap.get(record.studentId);
-        if (!student) continue;
-
-        // Take only the latest record for each student per item
-        const latestRecord = records
-            .filter(r => r.studentId === student.id && r.item === itemInfo.name)
-            .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-        
-        if (latestRecord.id === record.id) {
-            if (!customInsights[record.item]) {
-                customInsights[record.item] = { totalPercentage: 0, count: 0 };
-            }
-            const percentage = normalizeCustomRecord(itemInfo, record.value);
-            customInsights[record.item].totalPercentage += percentage;
-            customInsights[record.item].count++;
+        if (!customInsights[record.item]) {
+            customInsights[record.item] = { totalPercentage: 0, count: 0 };
         }
+        const percentage = normalizeCustomRecord(itemInfo, record.value);
+        customInsights[record.item].totalPercentage += percentage;
+        customInsights[record.item].count++;
     }
 
     const finalChartData = Object.entries(customInsights).map(([name, data]) => ({
@@ -233,20 +273,20 @@ export default function AiWelcome({ itemType, title, students, items, records }:
         custom: parseFloat((data.totalPercentage / data.count).toFixed(2)),
     }));
     
-    return { chartData: finalChartData, papsAnalysisData: null, progressAnalysisData: topProgressItems, hasData: finalChartData.length > 0 };
+    return { chartData: finalChartData, analysisDataForAI: null, progressAnalysisData: topProgressItems, hasData: finalChartData.length > 0, dialogTitle: title };
 
-  }, [school, itemType, students, items, records]);
+  }, [school, itemType, allStudents, classStudents, items, records]);
 
   const fetchBriefing = async () => {
     if (!school || !hasData) return;
     
     setIsLoading(true);
     try {
-        if (itemType === 'paps' && papsAnalysisData) {
+        if (itemType === 'paps' && analysisDataForAI) {
             const input: any = {
                 school,
-                totalStudentCount: students.length,
-                paps: papsAnalysisData
+                totalStudentCount: allStudents.length,
+                ...analysisDataForAI,
             };
             if (progressAnalysisData && progressAnalysisData.length > 0) {
                 input.progress = progressAnalysisData.reduce((acc, item) => {
@@ -283,15 +323,16 @@ export default function AiWelcome({ itemType, title, students, items, records }:
     }
   }, [isOpen]);
 
+  const isBriefingDisabled = !hasData || (itemType === 'custom' && isClassBriefing);
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button disabled={!hasData} variant="outline">{title}</Button>
+        <Button disabled={isBriefingDisabled} variant="outline">{title}</Button>
       </DialogTrigger>
       <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold font-headline">{school} AI {title}</DialogTitle>
+          <DialogTitle className="text-2xl font-bold font-headline">{school} {dialogTitle}</DialogTitle>
            <DialogDescription>
             {itemType === 'paps' 
                 ? '학생들의 PAPS 등급 분포와 평균, 성장 추이를 기반으로 생성된 AI 분석입니다.' 
@@ -310,7 +351,7 @@ export default function AiWelcome({ itemType, title, students, items, records }:
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <BarChart2 className="w-5 h-5 text-primary" />
-                        {itemType === 'paps' ? '전체 등급 분포 (%)' : '종목별 평균 달성률 (%)'}
+                        {itemType === 'paps' ? '등급 분포 (%)' : '종목별 평균 달성률 (%)'}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>

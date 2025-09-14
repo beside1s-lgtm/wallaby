@@ -742,12 +742,12 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
           {selectedStudent ? (
               <div className="space-y-8" ref={studentDetailRef}>
                 <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
-                    <div className="flex items-center gap-4">
-                        <Button variant="outline" size="icon" onClick={() => setSelectedStudent(null)} className="h-9 w-9">
-                            <XIcon className="h-5 w-5" />
-                        </Button>
+                    <div className="flex items-center gap-4 flex-wrap">
                         <h2 className="text-2xl font-bold">{selectedStudent.name} ({selectedStudent.grade}-{selectedStudent.classNum}) 학생 분석</h2>
                     </div>
+                    <Button variant="outline" size="icon" onClick={() => setSelectedStudent(null)} className="h-9 w-9">
+                        <XIcon className="h-5 w-5" />
+                    </Button>
                 </div>
                   
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -980,8 +980,9 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                           </Select>
                           <AiWelcome 
                             itemType='paps' 
-                            title="학급 AI 브리핑" 
-                            students={filteredStudentsByClass} 
+                            title="학급 AI 브리핑"
+                            allStudents={allStudents}
+                            classStudents={filteredStudentsByClass} 
                             items={allItems} 
                             records={allRecords} 
                           />
