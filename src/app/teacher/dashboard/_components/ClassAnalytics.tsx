@@ -741,7 +741,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
 
           {selectedStudent ? (
               <div className="space-y-8" ref={studentDetailRef}>
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
                     <h2 className="text-2xl font-bold">{selectedStudent.name} ({selectedStudent.grade}-{selectedStudent.classNum}) 학생 분석</h2>
                     <Button variant="ghost" size="icon" onClick={() => { setSearchTerm(''); setSelectedStudent(null); }}>
                         <XIcon className="h-5 w-5" />
