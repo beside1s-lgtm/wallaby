@@ -497,7 +497,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
               if (isPaps) {
                 const grade = getPapsGrade(item.name, student, latestRecord.value);
                 if (grade !== null) {
-                    averageData[item.name].totalPercentage += normalizePapsRecord(grade);
+                    averageData[item.name].totalPercentage += normalizePapsRecord(grade, latestRecord.value, item.name, student);
                     averageData[item.name].totalValue += latestRecord.value;
                     averageData[item.name].count++;
                 }
@@ -552,7 +552,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
             let percentage: number | null = null;
             if (comparisonType === 'paps') {
               const grade = getPapsGrade(item.name, selectedStudent, record.value);
-              if (grade !== null) percentage = normalizePapsRecord(grade);
+              if (grade !== null) percentage = normalizePapsRecord(grade, record.value, item.name, selectedStudent);
             } else {
               percentage = normalizeCustomRecord(item, record.value);
             }
@@ -607,7 +607,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
 
           if (itemInfo.isPaps) {
             grade = getPapsGrade(r.item, selectedStudent, r.value)
-            if(grade) achievement = normalizePapsRecord(grade);
+            if(grade) achievement = normalizePapsRecord(grade, r.value, r.item, selectedStudent);
           } else {
             grade = getCustomItemGrade(itemInfo, r.value);
             if(grade) achievement = normalizeCustomRecord(itemInfo, r.value);
@@ -742,10 +742,12 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
           {selectedStudent ? (
               <div className="space-y-8" ref={studentDetailRef}>
                 <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
-                    <h2 className="text-2xl font-bold">{selectedStudent.name} ({selectedStudent.grade}-{selectedStudent.classNum}) 학생 분석</h2>
-                    <Button variant="ghost" size="icon" onClick={() => { setSearchTerm(''); setSelectedStudent(null); }}>
-                        <XIcon className="h-5 w-5" />
-                    </Button>
+                    <div className="flex items-center gap-4">
+                        <Button variant="outline" size="icon" onClick={() => setSelectedStudent(null)} className="h-9 w-9">
+                            <XIcon className="h-5 w-5" />
+                        </Button>
+                        <h2 className="text-2xl font-bold">{selectedStudent.name} ({selectedStudent.grade}-{selectedStudent.classNum}) 학생 분석</h2>
+                    </div>
                 </div>
                   
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

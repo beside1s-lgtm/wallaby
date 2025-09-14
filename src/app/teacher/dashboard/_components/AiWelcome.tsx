@@ -22,7 +22,7 @@ import {
   Legend
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { getPapsGrade } from '@/lib/paps';
+import { getPapsGrade, normalizePapsRecord, normalizeCustomRecord } from '@/lib/paps';
 import type { Student, MeasurementItem, MeasurementRecord } from '@/lib/types';
 
 type BriefingData = {
@@ -36,11 +36,6 @@ type AiWelcomeProps = {
     students: Student[];
     items: MeasurementItem[];
     records: MeasurementRecord[];
-}
-
-const gradeToPercentage = (grade: number) => {
-    if (grade >= 5) return 0;
-    return (5 - grade) * 25;
 }
 
 export default function AiWelcome({ itemType, title, students, items, records }: AiWelcomeProps) {
@@ -155,7 +150,7 @@ export default function AiWelcome({ itemType, title, students, items, records }:
         if (!customInsights[record.item]) {
             customInsights[record.item] = { totalPercentage: 0, count: 0 };
         }
-        const percentage = Math.min(100, (record.value / itemInfo.goal) * 100);
+        const percentage = normalizeCustomRecord(itemInfo, record.value);
         customInsights[record.item].totalPercentage += percentage;
         customInsights[record.item].count++;
     }

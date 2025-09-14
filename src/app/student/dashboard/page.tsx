@@ -288,7 +288,7 @@ export default function StudentDashboardPage() {
         let achievement: number | null = null;
         if (itemInfo.isPaps) {
             grade = getPapsGrade(record.item, fullStudent, record.value);
-            if (grade) achievement = normalizePapsRecord(grade);
+            if (grade) achievement = normalizePapsRecord(grade, record.value, record.item, fullStudent);
         } else {
             grade = getCustomItemGrade(itemInfo, record.value);
             if (grade) achievement = normalizeCustomRecord(itemInfo, record.value);
