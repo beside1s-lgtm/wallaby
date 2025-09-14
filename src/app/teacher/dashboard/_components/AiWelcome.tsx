@@ -105,6 +105,7 @@ export default function AiWelcome({ itemType, title, students, items, records }:
 
     const finalProgressData: Record<string, { change: number, past: number, present: number }> = {};
     Object.entries(progressData).forEach(([itemName, data]) => {
+        if (data.first.length === 0) return;
         const avgFirst = parseFloat((data.first.reduce((a,b) => a+b, 0) / data.first.length).toFixed(2));
         const avgLast = parseFloat((data.last.reduce((a,b) => a+b, 0) / data.last.length).toFixed(2));
         const change = parseFloat((avgLast - avgFirst).toFixed(2));
@@ -330,18 +331,18 @@ export default function AiWelcome({ itemType, title, students, items, records }:
                         </CardHeader>
                         <CardContent>
                             <ResponsiveContainer width="100%" height={250}>
-                                <LineChart data={progressAnalysisData}>
+                               <BarChart data={progressAnalysisData} layout="vertical">
                                     <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="name" />
-                                    <YAxis domain={[0, 100]} unit="%" />
+                                    <XAxis type="number" domain={[0, 100]} unit="%" />
+                                    <YAxis type="category" dataKey="name" width={100} />
                                     <Tooltip
                                         contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}
                                         formatter={(value, name) => [`${value}%`, name === 'past' ? '과거 성취도' : '현재 성취도']}
                                     />
                                     <Legend />
-                                    <Line type="monotone" dataKey="past" name="과거" stroke="hsl(var(--chart-4))" strokeWidth={2} />
-                                    <Line type="monotone" dataKey="present" name="현재" stroke="hsl(var(--chart-2))" strokeWidth={2} />
-                                </LineChart>
+                                    <Bar dataKey="past" name="과거" fill="hsl(var(--chart-4))" />
+                                    <Bar dataKey="present" name="현재" fill="hsl(var(--chart-2))" />
+                                </BarChart>
                             </ResponsiveContainer>
                         </CardContent>
                     </Card>
