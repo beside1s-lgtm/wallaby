@@ -13,13 +13,16 @@ import {
 import { Button } from '@/components/ui/button';
 import { Loader2, Lightbulb, BarChart2, TrendingUp } from 'lucide-react';
 import {
+  LineChart,
+  Line,
   Bar,
   BarChart,
   ResponsiveContainer,
   XAxis,
   YAxis,
   Tooltip,
-  Legend
+  Legend,
+  CartesianGrid,
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getPapsGrade, normalizePapsRecord, normalizeCustomRecord } from '@/lib/paps';
@@ -37,6 +40,11 @@ type AiWelcomeProps = {
     items: MeasurementItem[];
     records: MeasurementRecord[];
 }
+
+const progressChartConfig = {
+  past: { label: "과거", color: "hsl(var(--chart-4))" },
+  present: { label: "현재", color: "hsl(var(--chart-2))" },
+};
 
 export default function AiWelcome({ itemType, title, students, items, records }: AiWelcomeProps) {
   const { school } = useAuth();
@@ -95,20 +103,20 @@ export default function AiWelcome({ itemType, title, students, items, records }:
         });
     });
 
-    const finalProgressData: Record<string, number> = {};
+    const finalProgressData: Record<string, { change: number, past: number, present: number }> = {};
     Object.entries(progressData).forEach(([itemName, data]) => {
-        const avgFirst = data.first.reduce((a,b) => a+b, 0) / data.first.length;
-        const avgLast = data.last.reduce((a,b) => a+b, 0) / data.last.length;
+        const avgFirst = parseFloat((data.first.reduce((a,b) => a+b, 0) / data.first.length).toFixed(2));
+        const avgLast = parseFloat((data.last.reduce((a,b) => a+b, 0) / data.last.length).toFixed(2));
         const change = parseFloat((avgLast - avgFirst).toFixed(2));
         if (change > 0) { // Only show improvements
-            finalProgressData[itemName] = change;
+            finalProgressData[itemName] = { change, past: avgFirst, present: avgLast };
         }
     });
 
     const topProgressItems = Object.entries(finalProgressData)
-        .sort(([,a], [,b]) => b - a)
+        .sort(([,a], [,b]) => b.change - a.change)
         .slice(0, 3)
-        .map(([name, change]) => ({ name, change }));
+        .map(([name, data]) => ({ name, ...data }));
 
 
     // --- Logic for PAPS & Custom Briefing ---
@@ -317,20 +325,23 @@ export default function AiWelcome({ itemType, title, students, items, records }:
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <TrendingUp className="w-5 h-5 text-green-500" />
-                                주요 성장 종목 (평균 성취도 변화)
+                                주요 성장 종목 (평균 성취도)
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
                             <ResponsiveContainer width="100%" height={250}>
-                                <BarChart data={progressAnalysisData} layout="vertical">
-                                    <XAxis type="number" unit="%p" />
-                                    <YAxis dataKey="name" type="category" width={80} />
+                                <LineChart data={progressAnalysisData}>
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis dataKey="name" />
+                                    <YAxis domain={[0, 100]} unit="%" />
                                     <Tooltip
                                         contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}
-                                        formatter={(value) => [`${value}%p`, '성취도 변화']}
+                                        formatter={(value, name) => [`${value}%`, name === 'past' ? '과거 성취도' : '현재 성취도']}
                                     />
-                                    <Bar dataKey="change" name="성취도 변화" fill="hsl(var(--chart-2))" radius={[0, 4, 4, 0]} />
-                                </BarChart>
+                                    <Legend />
+                                    <Line type="monotone" dataKey="past" name="과거" stroke="hsl(var(--chart-4))" strokeWidth={2} />
+                                    <Line type="monotone" dataKey="present" name="현재" stroke="hsl(var(--chart-2))" strokeWidth={2} />
+                                </LineChart>
                             </ResponsiveContainer>
                         </CardContent>
                     </Card>
