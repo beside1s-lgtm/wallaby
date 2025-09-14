@@ -21,6 +21,11 @@ const PapsAnalysisSchema = z.object({
   gradeDistribution: GradeDistributionSchema.describe('The distribution of PAPS grades as percentages.'),
 });
 
+const ProgressAnalysisSchema = z.record(
+    z.string(),
+    z.number().describe('The average percentage point change in achievement for the item.')
+).describe('Analysis of improvement in subjects with two or more records.');
+
 const TeacherDashboardBriefingInputSchema = z.object({
   school: z.string().describe('The school for which the briefing is generated.'),
   totalStudentCount: z.number().describe('The total number of students with records.'),
@@ -28,6 +33,7 @@ const TeacherDashboardBriefingInputSchema = z.object({
       overall: PapsAnalysisSchema,
       byGradeLevel: z.record(z.string(), PapsAnalysisSchema),
   }).describe('A detailed analysis of PAPS performance, including overall and by-grade-level stats.'),
+  progress: ProgressAnalysisSchema.optional(),
 });
 
 export type TeacherDashboardBriefingInput = z.infer<
@@ -71,6 +77,12 @@ const prompt = ai.definePrompt({
         - 4, 5등급 학생 비율: {{this.lowPerformingPercentage}}%
         - 등급 분포: {{json this.gradeDistribution}}
     {{/each}}
+{{#if progress}}
+- 주요 성장 종목 분석 (2회 이상 측정된 종목 대상, 평균 성취도 변화량):
+    {{#each progress}}
+    - {{@key}}: {{this}}%p 향상
+    {{/each}}
+{{/if}}
 
 ## 평가 기준:
 - **우수한 편:** 평균 등급이 2.5 이하
@@ -81,6 +93,9 @@ const prompt = ai.definePrompt({
 1.  **브리핑:**
     - 먼저, 전체 학생의 평균 등급과 4~5등급 비율을 바탕으로 '평가 기준'에 따라 '우수한 편', '부족한 편', '보통' 중 하나로 전반적인 수준을 평가해주세요.
     - 그 다음, 학년별 분석 데이터를 참고하여 어떤 학년이 특히 우수하거나 부족한지 구체적으로 언급해주세요.
+    {{#if progress}}
+    - 마지막으로, 주요 성장 종목 분석 데이터를 바탕으로 어떤 종목에서 학생들이 가장 큰 성장을 보였는지 긍정적으로 언급해주세요. (예: "특히, {{#each progress}}{{@key}}{{#unless @last}}, {{/unless}}{{/each}} 종목에서 학생들의 성취도가 평균 {{#each progress}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}%p 만큼 크게 향상되는 등 꾸준한 노력이 돋보입니다.")
+    {{/if}}
     - 전체 등급 분포와 학년별 등급 분포를 인용하여 분석을 뒷받침하세요. (예: "전체적으로 1, 2등급 학생이 50%를 차지하여 우수한 편입니다.", "특히 5학년은 4, 5등급 학생 비율이 15%로 나타나 주의가 필요합니다.")
 2.  **조언:**
     - '부족한 편'으로 평가된 경우, 해당 학년이나 전체 학생들을 위한 체력 증진 프로그램을 제안해주세요. (예: '왕복오래달리기'나 '윗몸 말아올리기' 같은 근지구력 및 심폐지구력 강화 운동 추천)

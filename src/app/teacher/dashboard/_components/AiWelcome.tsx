@@ -11,7 +11,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, Lightbulb, BarChart2 } from 'lucide-react';
+import { Loader2, Lightbulb, BarChart2, TrendingUp } from 'lucide-react';
 import {
   Bar,
   BarChart,
@@ -44,37 +44,80 @@ export default function AiWelcome({ itemType, title, students, items, records }:
   const [isLoading, setIsLoading] = useState(false);
   const [briefingData, setBriefingData] = useState<BriefingData | null>(null);
 
-  const { chartData, papsAnalysisData, hasData } = useMemo(() => {
-    if (!school) return { chartData: [], papsAnalysisData: null, hasData: false };
-
-    const papsItems = items.filter(item => item.isPaps);
-    const papsRecords = records.filter(record => papsItems.some(item => item.name === record.item));
-
-    if (papsRecords.length === 0 || papsItems.length === 0 || students.length === 0) {
-      return { chartData: [], papsAnalysisData: null, hasData: false };
-    }
+  const { chartData, papsAnalysisData, progressAnalysisData, hasData } = useMemo(() => {
+    if (!school) return { chartData: [], papsAnalysisData: null, progressAnalysisData: null, hasData: false };
 
     const studentMap = new Map(students.map(s => [s.id, s]));
+    
+    // --- Logic for Progress Analysis ---
+    const progressData: Record<string, { first: number[], last: number[], count: number }> = {};
+    const itemsWithMultipleRecords = items.filter(item => {
+        const studentRecords = records.filter(r => r.item === item.name);
+        const studentsWithMultiple = new Set(studentRecords.map(r => r.studentId)).size;
+        // At least one student should have more than 1 record for this item
+        return studentRecords.length > studentsWithMultiple;
+    });
 
-    // --- Logic for PAPS Briefing ---
-    if (itemType === 'paps') {
-        const latestPapsGradesByStudent: Record<string, { grade: number; student: Student }> = {};
+    itemsWithMultipleRecords.forEach(item => {
+        const studentRecordsMap = new Map<string, MeasurementRecord[]>();
+        records.filter(r => r.item === item.name).forEach(r => {
+            if (!studentRecordsMap.has(r.studentId)) studentRecordsMap.set(r.studentId, []);
+            studentRecordsMap.get(r.studentId)!.push(r);
+        });
 
-        for (const record of papsRecords) {
-            const student = studentMap.get(record.studentId);
-            const itemInfo = papsItems.find(i => i.name === record.item);
-            if (!student || !itemInfo) continue;
+        studentRecordsMap.forEach((studentRecords, studentId) => {
+            if (studentRecords.length < 2) return;
 
-            const grade = getPapsGrade(record.item, student, record.value);
-            if (grade === null) continue;
+            studentRecords.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            const firstRecord = studentRecords[0];
+            const lastRecord = studentRecords[studentRecords.length - 1];
+            const student = studentMap.get(studentId);
+            if (!student) return;
 
-            // Simple average of all grades per student for briefing purposes
-            if (!latestPapsGradesByStudent[student.id]) {
-                latestPapsGradesByStudent[student.id] = { grade, student };
+            let firstAchievement: number | null = null;
+            let lastAchievement: number | null = null;
+
+            if(item.isPaps) {
+                const firstGrade = getPapsGrade(item.name, student, firstRecord.value);
+                const lastGrade = getPapsGrade(item.name, student, lastRecord.value);
+                if (firstGrade) firstAchievement = normalizePapsRecord(firstGrade, firstRecord.value, item.name, student);
+                if (lastGrade) lastAchievement = normalizePapsRecord(lastGrade, lastRecord.value, item.name, student);
             } else {
-                 // For simplicity, we just average the grades of all records.
-                 // A more complex logic could consider latest record per item.
+                firstAchievement = normalizeCustomRecord(item, firstRecord.value);
+                lastAchievement = normalizeCustomRecord(item, lastRecord.value);
             }
+
+            if (firstAchievement !== null && lastAchievement !== null) {
+                if (!progressData[item.name]) progressData[item.name] = { first: [], last: [], count: 0 };
+                progressData[item.name].first.push(firstAchievement);
+                progressData[item.name].last.push(lastAchievement);
+            }
+        });
+    });
+
+    const finalProgressData: Record<string, number> = {};
+    Object.entries(progressData).forEach(([itemName, data]) => {
+        const avgFirst = data.first.reduce((a,b) => a+b, 0) / data.first.length;
+        const avgLast = data.last.reduce((a,b) => a+b, 0) / data.last.length;
+        const change = parseFloat((avgLast - avgFirst).toFixed(2));
+        if (change > 0) { // Only show improvements
+            finalProgressData[itemName] = change;
+        }
+    });
+
+    const topProgressItems = Object.entries(finalProgressData)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 3)
+        .map(([name, change]) => ({ name, change }));
+
+
+    // --- Logic for PAPS & Custom Briefing ---
+    if (itemType === 'paps') {
+        const papsItems = items.filter(item => item.isPaps);
+        const papsRecords = records.filter(record => papsItems.some(item => item.name === record.item));
+
+        if (papsRecords.length === 0 || papsItems.length === 0 || students.length === 0) {
+            return { chartData: [], papsAnalysisData: null, progressAnalysisData: topProgressItems, hasData: false };
         }
         
         const allGrades: { grade: number; student: Student }[] = [];
@@ -90,7 +133,6 @@ export default function AiWelcome({ itemType, title, students, items, records }:
                 }
             });
         });
-
 
         const getAnalysis = (gradeList: { grade: number; student: Student }[]) => {
             if (gradeList.length === 0) return null;
@@ -120,7 +162,7 @@ export default function AiWelcome({ itemType, title, students, items, records }:
             }
         });
         
-        if (!overallAnalysis) return { chartData: [], papsAnalysisData: null, hasData: false };
+        if (!overallAnalysis) return { chartData: [], papsAnalysisData: null, progressAnalysisData: topProgressItems, hasData: false };
 
         const papsAnalysisDataForAI = {
             overall: overallAnalysis,
@@ -131,28 +173,38 @@ export default function AiWelcome({ itemType, title, students, items, records }:
             name,
             paps: value,
         }));
-
-        return { chartData: chartDataForPaps, papsAnalysisData: papsAnalysisDataForAI, hasData: true };
+        
+        return { chartData: chartDataForPaps, papsAnalysisData: papsAnalysisDataForAI, progressAnalysisData: topProgressItems, hasData: true };
     }
 
     // --- Logic for Custom Items Briefing ---
     const customItems = items.filter(item => !item.isPaps && item.goal && item.recordType !== 'time');
     const customRecords = records.filter(record => customItems.some(item => item.name === record.item));
     if (customRecords.length === 0) {
-        return { chartData: [], papsAnalysisData: null, hasData: false };
+        return { chartData: [], papsAnalysisData: null, progressAnalysisData: topProgressItems, hasData: false };
     }
     
     const customInsights: Record<string, { totalPercentage: number, count: number }> = {};
     for (const record of customRecords) {
         const itemInfo = customItems.find(i => i.name === record.item);
         if(!itemInfo || !itemInfo.goal) continue;
+        
+        const student = studentMap.get(record.studentId);
+        if (!student) continue;
 
-        if (!customInsights[record.item]) {
-            customInsights[record.item] = { totalPercentage: 0, count: 0 };
+        // Take only the latest record for each student per item
+        const latestRecord = records
+            .filter(r => r.studentId === student.id && r.item === itemInfo.name)
+            .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+        
+        if (latestRecord.id === record.id) {
+            if (!customInsights[record.item]) {
+                customInsights[record.item] = { totalPercentage: 0, count: 0 };
+            }
+            const percentage = normalizeCustomRecord(itemInfo, record.value);
+            customInsights[record.item].totalPercentage += percentage;
+            customInsights[record.item].count++;
         }
-        const percentage = normalizeCustomRecord(itemInfo, record.value);
-        customInsights[record.item].totalPercentage += percentage;
-        customInsights[record.item].count++;
     }
 
     const finalChartData = Object.entries(customInsights).map(([name, data]) => ({
@@ -160,7 +212,7 @@ export default function AiWelcome({ itemType, title, students, items, records }:
         custom: parseFloat((data.totalPercentage / data.count).toFixed(2)),
     }));
     
-    return { chartData: finalChartData, papsAnalysisData: null, hasData: finalChartData.length > 0 };
+    return { chartData: finalChartData, papsAnalysisData: null, progressAnalysisData: topProgressItems, hasData: finalChartData.length > 0 };
 
   }, [school, itemType, students, items, records]);
 
@@ -170,11 +222,19 @@ export default function AiWelcome({ itemType, title, students, items, records }:
     setIsLoading(true);
     try {
         if (itemType === 'paps' && papsAnalysisData) {
-            const result = await getTeacherDashboardBriefing({
+            const input: any = {
                 school,
                 totalStudentCount: students.length,
                 paps: papsAnalysisData
-            });
+            };
+            if (progressAnalysisData && progressAnalysisData.length > 0) {
+                input.progress = progressAnalysisData.reduce((acc, item) => {
+                    acc[item.name] = item.change;
+                    return acc;
+                }, {} as Record<string, number>);
+            }
+
+            const result = await getTeacherDashboardBriefing(input);
             setBriefingData(result);
         } else {
              setBriefingData({
@@ -213,7 +273,7 @@ export default function AiWelcome({ itemType, title, students, items, records }:
           <DialogTitle className="text-2xl font-bold font-headline">{school} AI {title}</DialogTitle>
            <DialogDescription>
             {itemType === 'paps' 
-                ? '학생들의 PAPS 등급 분포와 평균을 기반으로 생성된 AI 분석입니다.' 
+                ? '학생들의 PAPS 등급 분포와 평균, 성장 추이를 기반으로 생성된 AI 분석입니다.' 
                 : '기타 종목의 평균 목표 달성률을 표시합니다.'}
           </DialogDescription>
         </DialogHeader>
@@ -252,6 +312,30 @@ export default function AiWelcome({ itemType, title, students, items, records }:
                   </CardContent>
                 </Card>
                 
+                {itemType === 'paps' && progressAnalysisData && progressAnalysisData.length > 0 && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <TrendingUp className="w-5 h-5 text-green-500" />
+                                주요 성장 종목 (평균 성취도 변화)
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <ResponsiveContainer width="100%" height={250}>
+                                <BarChart data={progressAnalysisData} layout="vertical">
+                                    <XAxis type="number" unit="%p" />
+                                    <YAxis dataKey="name" type="category" width={80} />
+                                    <Tooltip
+                                        contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}
+                                        formatter={(value) => [`${value}%p`, '성취도 변화']}
+                                    />
+                                    <Bar dataKey="change" name="성취도 변화" fill="hsl(var(--chart-2))" radius={[0, 4, 4, 0]} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </CardContent>
+                    </Card>
+                )}
+
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
