@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>셔틀버스 관리 시스템 소개</title>
+    
+    <!-- 기본 폰트 (모든 결과물에 포함) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fonts-archive/Paperlogy/subsets/Paperlogy-dynamic-subset.css" type="text/css"/>
+
+    <style>
+        :root {
+            /* Vibrant Creative 테마 적용 */
+            --primary-color: #8A2BE2; /* 보라 */
+            --secondary-color: #FF1493; /* 핑크 */
+            --background-color: #f8f7f4;
+            --text-color: #1f2937;
+            --surface-color: #ffffff;
+            --header-text-color: #ffffff;
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: "Paperlogy", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.7;
+            /* overflow-x: hidden; removed to prevent scroll issues */
+        }
+
+        .presentation-container {
+            width: 100%;
+            min-height: 100vh;
+            position: relative;
+            overflow: hidden; /* Hide slides that are not active */
+        }
+
+        .slide {
+            min-height: 100vh;
+            width: 100vw;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4rem 2rem;
+            position: absolute;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            transition: opacity 0.6s ease-in-out;
+            pointer-events: none; /* Prevent interaction with hidden slides */
+        }
+
+        .slide.active {
+            opacity: 1;
+            pointer-events: auto;
+            position: relative; /* Take up space in the document flow */
+            z-index: 1;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: var(--header-text-color);
+            text-align: center;
+            flex-direction: column;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .hero p {
+            font-size: 1.5rem;
+            max-width: 800px;
+        }
+
+        .slide-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            gap: 4rem;
+            width: 100%;
+            max-width: 1200px;
+        }
+        
+        /* 레이아웃 교차 적용 */
+        .slide.right .slide-content {
+            flex-direction: row-reverse;
+        }
+
+        .dominant-visual {
+            flex: 1;
+            text-align: center;
+            color: var(--primary-color);
+        }
+        
+        .dominant-visual .slide-image {
+            max-width: 400px;
+            width: 100%;
+            height: auto;
+            border-radius: 12px;
+            object-fit: cover;
+            opacity: 0.9;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        
+        .slide:hover .dominant-visual .slide-image {
+            transform: scale(1.05) rotate(-5deg);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.2);
+        }
+
+        .text-content {
+            flex: 1;
+            background-color: var(--surface-color);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+        }
+
+        .text-content h2 {
+            font-size: 2.5rem;
+            color: var(--primary-color);
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 3px solid var(--secondary-color);
+            display: inline-block;
+        }
+
+        .text-content ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .text-content li {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            padding-left: 1.5rem;
+            position: relative;
+        }
+
+        .text-content li::before {
+            content: '\f058'; /* Font Awesome check-circle icon - for list style */
+            font-family: 'Font Awesome 6 Free'; /* Fallback if needed, but the main icons are images now */
+            font-weight: 900;
+            color: var(--secondary-color);
+            position: absolute;
+            left: 0;
+            top: 5px;
+        }
+        
+        .qna-slide .slide-content {
+            flex-direction: column;
+        }
+        .qna-slide .text-content {
+            background: transparent;
+            box-shadow: none;
+            text-align: center;
+            flex-grow: 0;
+            padding-top: 1rem;
+        }
+        .qna-slide .text-content h2 {
+            border: none;
+        }
+        /* Link to font awesome for the list bullets */
+        .qna-slide .dominant-visual .slide-image {
+             box-shadow: none;
+        }
+        
+        .slide-nav {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            display: flex;
+            gap: 1rem;
+        }
+
+        .nav-btn {
+            padding: 0.8rem 1.5rem;
+            font-family: "Paperlogy", sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .nav-btn:hover {
+            background-color: var(--secondary-color);
+            transform: translateY(-3px);
+        }
+        
+        .nav-btn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+
+        @media (max-width: 768px) {
+            .slide {
+                padding: 3rem 1rem;
+            }
+            .slide-content, .slide.right .slide-content {
+                flex-direction: column;
+                text-align: center;
+                gap: 2rem;
+            }
+            .dominant-visual .slide-image {
+                max-width: 300px;
+                margin-bottom: 1rem;
+            }
+            .text-content {
+                padding: 1.5rem;
+            }
+            .text-content h2 {
+                font-size: 2rem;
+            }
+            .text-content li {
+                font-size: 1rem;
+                text-align: left;
+            }
+            .slide-nav {
+                bottom: 20px;
+            }
+            .nav-btn {
+                padding: 0.6rem 1.2rem;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body>
+
+    <main class="presentation-container">
+
+        <!-- Hero Section -->
+        <section class="slide hero">
+            <h1>셔틀버스 관리 시스템</h1>
+            <p>Web/App 기반 셔틀버스 통합 관리 솔루션 소개</p>
+        </section>
+
+        <!-- Slide 1: 시스템 개요 -->
+        <section id="s1" class="slide">
+            <div class="slide-content">
+                <div class="dominant-visual">
+                    <img src="assets/ll.png" style="max-width: 100%; height: auto;" alt="시스템 개요" class="slide-image">
+                </div>
+                <div class="text-content">
+                    <h2>1. 시스템 개요</h2>
+                    <ul>
+                        <li>실시간 탑승/하차 정보 제공으로 학부모 불안감 해소함</li>
+                        <li>관리자, 선생님, 학부모 등 모든 사용자를 위한 맞춤형 기능 제공함</li>
+                        <li>반응형 웹과 전용 앱으로 언제 어디서나 편리한 접근성 보장함</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 2: 주요 기능 요약 -->
+        <section id="s2" class="slide right">
+            <div class="slide-content">
+                <div class="dominant-visual">
+                    <img src="assets/l.png" style="max-width: 100%; height: auto;" alt="주요 기능 요약" class="slide-image">
+                </div>
+                <div class="text-content">
+                    <h2>2. 주요 기능 요약</h2>
+                    <ul>
+                        <li>차량 배차, 노선 관리, 요일별 등하교 탑승자 관리를 하나의 페이지에서 해결</li>
+                        <li>화면 터치 방식의 간편하고 정확한 승/하차 체크 시스템 구현함</li>
+                        <li>탑승 신청 기반 좌석 자동 배정 및 수동 조정 기능 제공함</li>
+                        <li>탑승하지 않는 학생을 학부모가 직접 등록하여 원활한 승차 관리 가능</li>
+                        <li>모든 셔틀버스 관련 업무를 하나의 관리체계에 통합</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 3: 사용자 역할별 접근 방법 -->
+        <section id="s3" class="slide">
+            <div class="slide-content">
+                <div class="dominant-visual">
+                    <img src="assets/0.png" style="max-width: 100%; height: auto;"사용자 역할별 접근" class="slide-image">
+                </div>
+                <div class="text-content">
+                    <h2>3. 사용자 역할별 접근</h2>
+                    <ul>
+                        <li><strong>관리자:</strong> 시스템 전체 설정, 노선/사용자/차량 관리 등 총괄</li>
+                        <li><strong>선생님:</strong> 학생 승하차 체크, 좌석 재배치, 미탑승자 관리, 차장 관리, 분실물 등록</li>
+                        <li><strong>학부모/학생:</strong> 학생 승하차 확인, 미탑승 등록, 분실물 확인, 탑승 신청</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 4: 관리자 페이지 상세 -->
+        <section id="s4" class="slide right">
+            <div class="slide-content">
+                <div class="dominant-visual">
+                    <img src="assets/m.png" style="max-width: 130%; height: auto;" alt="관리자 페이지 상세" class="slide-image">
+                </div>
+                <div class="text-content">
+                    <h2>4. 관리자 페이지 상세</h2>
+                    <ul>
+                        <li>차량 등록: 운행 차량 번호와 종류 설정</li>
+                        <li>선생님 관리: 버스 담당 교사 등록/배정</li>
+                        <li>버스 설정: 버스별 노선 설정, 목적지 등록</li>
+                        <li>탑승 학생 관리: 버스/요일별 탑승 학생 등록/좌석 배치</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 5: 선생님 페이지 상세 -->
+        <section id="s5" class="slide">
+            <div class="slide-content">
+                <div class="dominant-visual">
+                    <img src="assets/t.png" style="max-width: 130%; height: auto;" alt="선생님 페이지 상세" class="slide-image">
+                </div>
+                <div class="text-content">
+                    <h2>5. 선생님 페이지 상세</h2>
+                    <ul>
+                        <li>학생 좌석 클릭으로 승/하차 정보 표시</li>
+                        <li>마우스 우클릭으로 학생 좌석 조정 가능</li>
+                        <li>결석 처리, 조장 임명</li>
+                        <li>분실물 등록/관리</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 6: 학부모/학생(탑승 확인) -->
+        <section id="s6" class="slide right">
+            <div class="slide-content">
+                <div class="dominant-visual">
+                    <img src="assets/s1.png" style="max-width: 130%; height: auto;" alt="탑승 확인 기능" class="slide-image">
+                </div>
+                <div class="text-content">
+                    <h2>6. 탑승 확인 기능</h2>
+                    <ul>
+                        <li>버스 탑승 정보를 실시간 확인</li>
+                        <li>자녀의 미탑승 체크</li>
+                        <li>분실물 확인</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 7: 학부모/학생(탑승 신청) -->
+        <section id="s7" class="slide">
+            <div class="slide-content">
+                <div class="dominant-visual">
+                    <img src="assets/s2.png" style="max-width: 130%; height: auto;" alt="탑승 신청 기능" class="slide-image">
+                </div>
+                <div class="text-content">
+                    <h2>7. 탑승 신청 기능</h2>
+                    <ul>
+                        <li>목적지와 등하교/방과후 선택하여 탑승 신청함</li>
+                        <li>원하는 목적지 없을 경우 목적지 신청 가능</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 8: 실제 사용 시나리오 -->
+        <section id="s8" class="slide right">
+            <div class="slide-content">
+                <div class="dominant-visual">
+                    <img src="assets/d.png" style="max-width: 130%; height: auto;" alt="실제 사용 시나리오" class="slide-image">
+                </div>
+                <div class="text-content">
+                    <h2>8. 실제 사용 시나리오</h2>
+                    <ul>
+                        <li><strong>신청:</strong> 학부모가 앱으로 탑승 신청 → 관리자 승인 및 좌석 배정</li>
+                        <li><strong>승차:</strong> 교사가 정류장에서 태블릿 화면으로 탑승 체크 → 탑승 확인 화면에 승차 정보 전송</li>
+                        <li><strong>하차:</strong> 교사가 하차 체크 → 탑승 확인 화면에 하차 정보 전송</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 9: 데이터 관리 -->
+        <section id="s9" class="slide">
+            <div class="slide-content">
+                <div class="dominant-visual">
+                    <img src="assets/f.png" style="max-width: 130%; height: auto;" alt="데이터 관리" class="slide-image">
+                </div>
+                <div class="text-content">
+                    <h2>9. 데이터 관리</h2>
+                    <ul>
+                        <li>모든 탑승/하차 기록은 서버에 안전하게 저장 및 관리됨</li></li>
+                        <li>각종 목록 정보는 엑셀 파일로 일괄 등록 및 다운로드 가능</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Slide 10: 좌석 배정 프로세스 -->
+        <section id="s10" class="slide right">
+            <div class="slide-content">
+                <div class="dominant-visual">
+                    <img src="assets/p.png" alt="좌석 배정 프로세스" class="slide-image">
+                </div>
+                <div class="text-content">
+                    <h2>10. 좌석 배정 프로세스</h2>
+                    <ul>
+                        <li>목적지, 학년, 성별을 고려해 시스템이 좌석을 자동으로 배정함</li>
+                        <li>관리자가 학생 특성(교우관계, 멀미 유무 등)을 고려하여 수동으로 좌석 조정 가능</li>
+                        <li>배정된 좌석 정보를 앱을 통해 학생 및 학부모에게 안내함</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Slide 11: Q&A -->
+        <section id="s11" class="slide qna-slide">
+            <div class="slide-content">
+                <div class="dominant-visual">
+                    <img src="https://placehold.co/400x400/8A2BE2/FFFFFF?text=Q%26A" alt="Q&A" class="slide-image">
+                </div>
+                <div class="text-content">
+                    <h2>Q&A</h2>
+                </div>
+            </div>
+        </section>
+
+    </main>
+    
+    <div class="slide-nav">
+        <button id="prevBtn" class="nav-btn">&larr; 이전</button>
+        <button id="nextBtn" class="nav-btn">다음 &rarr;</button>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const slides = document.querySelectorAll('.slide');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            let currentSlideIndex = 0;
+
+            function showSlide(index) {
+                // Find the currently active slide and remove the active class
+                const currentActive = document.querySelector('.slide.active');
+                if (currentActive) {
+                    currentActive.classList.remove('active');
+                }
+                
+                // Add the active class to the new target slide
+                if (slides[index]) {
+                    slides[index].classList.add('active');
+                }
+
+                // Update the disabled state of the buttons
+                prevBtn.disabled = index === 0;
+                nextBtn.disabled = index === slides.length - 1;
+            }
+
+            nextBtn.addEventListener('click', () => {
+                if (currentSlideIndex < slides.length - 1) {
+                    currentSlideIndex++;
+                    showSlide(currentSlideIndex);
+                }
+            });
+
+            prevBtn.addEventListener('click', () => {
+                if (currentSlideIndex > 0) {
+                    currentSlideIndex--;
+                    showSlide(currentSlideIndex);
+                }
+            });
+
+            // Show the first slide initially
+            showSlide(currentSlideIndex);
+        });
+    </script>
+</body>
+</html>
+
