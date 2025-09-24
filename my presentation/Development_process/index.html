@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FIREBASE STUDIO와 함께 한 KIS 스쿨버스 매니저 개발 여정</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fonts-archive/Paperlogy/subsets/Paperlogy-dynamic-subset.css" type="text/css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #00ffff;
+            --secondary-color: #ff00ff;
+            --background-color: #121212;
+            --text-color: #e0e0e0;
+            --card-background: #1e1e1e;
+        }
+
+        body {
+            font-family: "Paperlogy", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            word-break: keep-all; /* 한글 단어 끊어짐 방지 */
+        }
+
+        .presentation-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .slide {
+            display: none;
+            width: 100%;
+            height: 100%;
+            padding: 5vw;
+            box-sizing: border-box;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: 4rem;
+            opacity: 0;
+            transition: opacity 0.6s ease-in-out;
+            position: absolute;
+        }
+
+        .slide.active {
+            display: flex;
+            opacity: 1;
+        }
+        
+        /* 슬라이드 교차 레이아웃 */
+        .slide:nth-child(even) {
+            flex-direction: row-reverse;
+        }
+
+        .dominant-visual {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .dominant-visual i {
+            font-size: clamp(8rem, 18vw, 12rem); /* 반응형 폰트 크기 */
+            color: var(--primary-color);
+            text-shadow: 0 0 15px var(--primary-color);
+        }
+        
+        .slide-image {
+            max-width: 80%;
+            max-height: 80%;
+            object-fit: contain;
+            border-radius: 15px;
+            box-shadow: 0 0 15px var(--primary-color);
+        }
+
+        .stat-block {
+            color: var(--primary-color);
+        }
+
+        .stat-block .number {
+            font-size: clamp(10rem, 25vw, 15rem); /* 반응형 폰트 크기 */
+            font-weight: bold;
+            line-height: 1;
+            text-shadow: 0 0 20px var(--secondary-color);
+        }
+
+        .stat-block .label {
+            font-size: clamp(2rem, 5vw, 3rem); /* 반응형 폰트 크기 */
+            margin-top: 1rem;
+            color: var(--text-color);
+        }
+
+        .text-content {
+            flex: 1;
+            padding: 2rem;
+        }
+
+        .text-content h1 {
+            font-size: clamp(2.5rem, 5vw, 3.5rem); /* 반응형 폰트 크기 */
+            color: var(--primary-color);
+            margin-bottom: 2rem;
+            font-weight: 700;
+        }
+
+        .text-content ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .text-content li {
+            font-size: clamp(1.1rem, 2.2vw, 1.4rem); /* 반응형 폰트 크기 */
+            margin-bottom: 1.2rem;
+            padding-left: 2rem;
+            position: relative;
+            line-height: 1.6;
+        }
+
+        .text-content li::before {
+            content: '»';
+            position: absolute;
+            left: 0;
+            color: var(--secondary-color);
+            font-weight: bold;
+        }
+
+        /* 내비게이션 */
+        .navigation {
+            position: fixed;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transform: translateY(-50%);
+            padding: 0 2vw; /* 화면 양쪽 끝 여백 */
+            box-sizing: border-box;
+            z-index: 1000;
+            pointer-events: none; /* 컨테이너는 클릭 방지 */
+        }
+
+        .nav-button {
+            background-color: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--primary-color);
+            color: var(--primary-color);
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 8px var(--primary-color);
+            pointer-events: auto; /* 버튼은 클릭 가능하게 */
+        }
+
+        .nav-button:hover {
+            background-color: var(--primary-color);
+            color: var(--background-color);
+            transform: scale(1.1);
+        }
+        
+        .slide-counter {
+            position: fixed;
+            top: 20px;
+            right: 30px;
+            font-size: clamp(1rem, 2vw, 1.2rem); /* 반응형 폰트 크기 */
+            color: var(--text-color);
+            background-color: rgba(0,0,0,0.3);
+            padding: 5px 15px;
+            border-radius: 15px;
+            z-index: 1000;
+        }
+
+        /* 모바일 반응형 */
+        @media (max-width: 768px) {
+            .slide, .slide:nth-child(even) {
+                flex-direction: column;
+                gap: 2rem;
+                padding: 10vw 5vw;
+                text-align: center;
+            }
+            .text-content li {
+                text-align: left;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="presentation-container">
+        <!-- 슬라이드 0: 제목 -->
+        <section class="slide active" style="flex-direction: column; text-align: center; justify-content: center; gap: 1rem;">
+            <div class="dominant-visual" style="flex: 0;">
+                 <img src="assets/f.png" alt="Firebase Studio Logo" style="height: clamp(8rem, 18vw, 12rem); object-fit: contain;">
+            </div>
+            <div class="text-content" style="flex: 0;">
+                <h1 style="font-size: clamp(2.5rem, 5vw, 4rem); color: var(--text-color);">FIREBASE STUDIO와 함께 한<br>KIS 스쿨버스 매니저 개발 과정</h1>
+            </div>
+        </section>
+
+        <!-- 슬라이드 1: 어떻게 시작되었나 -->
+        <section class="slide active">
+            <div class="dominant-visual">
+                <i class="fa-solid fa-bus-simple"></i>
+            </div>
+            <div class="text-content">
+                <h1>1. 어떻게 시작되었나</h1>
+                <ul>
+                    <li><strong>개발 동기:</strong> 복잡한 스쿨버스 운행 및 탑승 현황의 직관적, 통합 관리 시스템 필요</li>
+                    <li><strong>핵심 사용자:</strong> 관리자, 교사, 학부모/학생</li>
+                    <li><strong>개발 방식:</strong> Firebase Studio에 탑재된 AI 어시스턴트(Gemini)와의 대화</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- 슬라이드 2: 개발 과정 1 -->
+        <section class="slide">
+            <div class="dominant-visual">
+                <img src="assets/t.png" alt="최초 프롬프트 이미지" class="slide-image" style="max-height: 50%;">
+            </div>
+            <div class="text-content">
+                <h1>2. 어떻게 만들었나?</h1>
+                <ul>
+                    <li>첫 프롬프트에서 구체적인 목표와 메뉴 구성 등을 입력</li>
+                    <li>미리보기 창을 보며 테스트를 하고 계속 수정 요구</li>
+                    <li>여러 디바이스에서 테스트를 하면서 오류를 개선</li>
+                    <li>바꾼 방식이 마음에 안 들면 이전 버전을 되돌리기</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- 슬라이드 3: 개발 과정 2 -->
+        <section class="slide">
+            <div class="dominant-visual">
+                <i class="fa-solid fa-puzzle-piece"></i>
+            </div>
+            <div class="text-content">
+                <h1>3. 가장 짜증나는 것을 해결</h1>
+                <ul>
+                    <li>학부모용 탑승 신청 페이지: 신청서 없음</li>
+                    <li>학부모가 직접 미탑승 표시(선생님도 가능)</li>
+                    <li>학생이 탑승하며 자기이름 직접 체크-학부모가 바로 확인</li>
+                    <li>분실물 등록 및 학생용 확인 기능</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- 슬라이드 4: 기술적 과제 -->
+        <section class="slide">
+            <div class="dominant-visual" style="flex-direction: column; gap: 2rem;">
+                <!-- 여기에 원하는 이미지 URL을 넣어주세요 -->
+                <img src="assets/s.png" alt="개발 스트레스 이미지" class="slide-image" style="max-height: 50%;">
+                <div class="stat-block">
+                    <div class="label">개발 스트레스</div>
+                </div>
+            </div>
+            <div class="text-content">
+                <h1>4. 가끔은 답답한 Gemini 내가 하고 만다</h1>
+                <ul>
+                    <li><strong>불안정한 좌석표 UI:</strong> 드래그 앤 드롭을 '좌석 클릭 → 학생 클릭' 방식으로 변경</li>
+                    <li><strong>심각한 성능 저하:</strong> 구글 시트에서처럼 단순하게 만들라고 하니까 해결</li>
+                    <li><strong>로그인 인증 실패:</strong> 안 돼, 다시 해, 다시 해 반복해서 해결</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- 슬라이드 5: 최종 기능 요약 -->
+        <section class="slide">
+            <div class="dominant-visual">
+                <i class="fa-solid fa-list-check"></i>
+            </div>
+            <div class="text-content">
+                <h1>5. 최종 애플리케이션 기능</h1>
+                <ul>
+                    <li><strong>관리자:</strong> 역할 기반 접근, 버스/교사/목적지/좌석의 정교한 관리</li>
+                    <li><strong>교사:</strong> 실시간 출결, 학생 검색, 조장 관리, 분실물 등록</li>
+                    <li><strong>학부모/학생:</strong> 전용 포털, 실시간 탑승 정보 확인, '탑승 안 함' 알림</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- 슬라이드 6: 결론 및 제언 -->
+        <section class="slide">
+            <div class="dominant-visual">
+                <i class="fa-solid fa-rocket"></i>
+            </div>
+            <div class="text-content">
+                <h1>6. Gemini와 함께 한 소감</h1>
+                <ul>
+                    <li><strong>너무나 쉬운 개발:</strong> 아이디어만 있으면 바로 만들어 줍니다</li>
+                    <li><strong>코딩을 알면 더 쉽다:</strong> AI도 실수를 합니다</li>
+                    <li><strong>예시를 잘 들면 좋다:</strong> 참고할 사이트나 프로그램을 알려주세요</li>
+                    <li><strong>친구처럼:</strong> 기왕이면 마음에 드는 말투로</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- 슬라이드 8: Q&A -->
+        <section class="slide">
+            <div class="dominant-visual">
+                <i class="fa-solid fa-circle-question"></i>
+            </div>
+            <div class="text-content">
+                <h1>질의응답 (Q&A)</h1>
+                <ul>
+                    <li>감사합니다.</li>
+                </ul>
+            </div>
+        </section>
+    </div>
+
+    <div class="navigation">
+        <button id="prevBtn" class="nav-button"><i class="fas fa-arrow-left"></i></button>
+        <button id="nextBtn" class="nav-button"><i class="fas fa-arrow-right"></i></button>
+    </div>
+    
+    <div id="slideCounter" class="slide-counter"></div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const slides = document.querySelectorAll('.slide');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const slideCounter = document.getElementById('slideCounter');
+            
+            let currentSlide = 0;
+            const totalSlides = slides.length;
+
+            function showSlide(index) {
+                if (!slides.length || !slideCounter) return;
+
+                slides.forEach((slide, i) => {
+                    slide.classList.remove('active');
+                });
+                
+                if(slides[index]) {
+                    slides[index].classList.add('active');
+                }
+                
+                slideCounter.textContent = `${index + 1} / ${totalSlides}`;
+            }
+
+            function nextSlide() {
+                currentSlide = (currentSlide + 1) % totalSlides;
+                showSlide(currentSlide);
+            }
+
+            function prevSlide() {
+                currentSlide = (currentSlide - 1 + totalSlides) % totalSlides;
+                showSlide(currentSlide);
+            }
+
+            if (prevBtn && nextBtn) {
+                prevBtn.addEventListener('click', prevSlide);
+                nextBtn.addEventListener('click', nextSlide);
+            }
+            
+            // 키보드 네비게이션
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowRight' || e.key === ' ') {
+                    nextSlide();
+                } else if (e.key === 'ArrowLeft') {
+                    prevSlide();
+                }
+            });
+
+            // 초기 슬라이드 표시
+            showSlide(currentSlide);
+        });
+    </script>
+</body>
+</html>
+
+
+
+
