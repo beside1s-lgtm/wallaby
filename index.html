@@ -1,12 +1,20 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
     <meta charset="UTF-8">
     <title>지욱님의 웹프레젠테이션 모음</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
-        body { font-family: Arial, sans-serif; padding: 40px; background-color: #f0f8ff; }
-        h1 { color: #333; }
-        a { text-decoration: none; color: #007acc; font-size: 18px; }
+        :root {
+            --bg: #f0f8ff;
+            --text: #333;
+            --link: #007acc;
+        }
+        body { font-family: Arial, sans-serif; padding: 40px; background-color: var(--bg); }
+        h1 { color: var(--text); margin-bottom: 12px; }
+        p { color: #444; }
+        ul { padding-left: 20px; }
+        a { text-decoration: none; color: var(--link); font-size: 18px; }
         a:hover { text-decoration: underline; }
     </style>
 </head>
@@ -14,7 +22,11 @@
     <h1>지욱님의 웹프레젠테이션 모음</h1>
     <p>아래 링크를 클릭하면 프레젠테이션 페이지로 이동합니다:</p>
     <ul>
-        <li>https://beside1s-lgtm.github.io/wallaby/my%20presentation/schoolbus%20Intro/스쿨버스 소개</a></li>
+        <!-- 올바른 a 태그 + URL 인코딩 적용 -->
+        <li>
+            <a href="https://beside1s-lgtm.github.io/wallaby/my%20presentation/schoolbus%20Intro/%EC%8A%A4%EC%BF%A8%EB%B2%84%EC%8A%A4%20%EC%86%8C%EA%B0%9C"
+               target="_blank
+        </li>
     </ul>
 </body>
 </html>
