@@ -232,21 +232,18 @@
             // 읽기 실패하면 건너뜀
             continue;
           }
-
           if (hasIndexFile(childEntries)) {
-            results.push({
-              path: childPath,
-              url: toPagesUrl(childPath),
-              title: prettyTitle(childPath)
-            });
+            const depthFromBase = childPath.replace(/^\/|\/$/g, '').split('/').length
+                                   - (CONFIG.basePath ? CONFIG.basePath.split('/').length : 0);
+            // 손자 폴더만 수집하려면 depthFromBase === 2 조건을 사용
+            if (depthFromBase === 2) {
+              results.push({
+                path: childPath,
+                url: toPagesUrl(childPath),
+                title: prettyTitle(childPath)
+              });
+            }
           }
-
-          // 더 깊게 탐색
-          if (d + 1 < CONFIG.maxDepth) {
-            queue.push({ path: childPath, depth: d + 1 });
-          }
-        }
-      }
 
       // 정렬: 제목 기준
       results.sort((a, b) => a.title.localeCompare(b.title, 'ko'));
