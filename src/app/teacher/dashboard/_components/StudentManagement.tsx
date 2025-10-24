@@ -9,8 +9,10 @@ import {
   addOrUpdateRecords,
   getItems,
   deleteRecordsByDateAndItem,
+  cleanUpDuplicateRecords,
+  assignMissingAccessCodes,
 } from '@/lib/store';
-import type { Student, StudentToAdd } from '@/lib/types';
+import type { Student, StudentToAdd, MeasurementItem } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -60,7 +62,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { parseCsv, exportToCsv, exportToZip } from '@/lib/utils';
-import { UserPlus, Trash2, FileUp, FileDown, Loader2, CalendarIcon } from 'lucide-react';
+import { UserPlus, Trash2, FileUp, FileDown, Loader2, CalendarIcon, Sparkles, KeyRound } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
@@ -76,6 +78,7 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
   const [selection, setSelection] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [selectedGrade, setSelectedGrade] = useState('');
   const [selectedClassNum, setSelectedClassNum] = useState('');
 
@@ -83,7 +86,7 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
   const [deleteDate, setDeleteDate] = useState<Date | undefined>();
   const [deleteItem, setDeleteItem] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
-  const [allItems, setAllItems] = useState<any[]>([]);
+  const [allItems, setAllItems] = useState<MeasurementItem[]>([]);
 
   useEffect(() => {
     if (school) {
@@ -356,6 +359,42 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
     }
   };
 
+  const handleCleanDuplicates = async () => {
+    if (!school) return;
+    setIsProcessing(true);
+    try {
+      const count = await cleanUpDuplicateRecords(school);
+      await onStudentsUpdate();
+      toast({
+        title: '중복 기록 정리 완료',
+        description: `중복된 기록 ${count}건을 정리했습니다.`,
+      });
+    } catch (error) {
+      console.error('Failed to clean duplicates', error);
+      toast({ variant: 'destructive', title: '정리 실패', description: '중복 기록 정리 중 오류가 발생했습니다.' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+  
+  const handleAssignCodes = async () => {
+    if (!school) return;
+    setIsProcessing(true);
+    try {
+      await assignMissingAccessCodes(school);
+      await onStudentsUpdate();
+      toast({
+        title: '접속 코드 할당 완료',
+        description: '접속 코드가 없는 모든 학생에게 새 코드를 할당했습니다.',
+      });
+    } catch (error) {
+      console.error('Failed to assign codes', error);
+      toast({ variant: 'destructive', title: '할당 실패', description: '접속 코드 할당 중 오류가 발생했습니다.' });
+    } finally {
+      setIsProcessing(false);
+    }
+  }
+
 
   if (!school) return null;
 
@@ -363,7 +402,7 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
     <>
       <Card className="mb-6">
           <CardHeader>
-              <CardTitle>측정 기록 일괄 관리</CardTitle>
+              <CardTitle>데이터 관리</CardTitle>
               <CardDescription>
                 CSV 파일을 사용해 기록을 일괄 등록/다운로드하거나, 특정 날짜의 기록을 일괄 삭제합니다. CSV 파일은 UTF-8 형식으로 저장해주세요.
               </CardDescription>
@@ -383,7 +422,7 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
                 </div>
               </div>
 
-              <div>
+              <div className='border-b pb-6'>
                 <h3 className="text-lg font-semibold mb-2">기록 일괄 삭제</h3>
                 <div className="flex flex-wrap items-center gap-2">
                     <Popover>
@@ -428,6 +467,19 @@ export default function StudentManagement({ students, onStudentsUpdate }: Studen
                       </AlertDialogContent>
                     </AlertDialog>
                 </div>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold mb-2">데이터베이스 유틸리티</h3>
+                 <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" onClick={handleCleanDuplicates} disabled={isProcessing}>
+                        {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                        중복 기록 정리
+                    </Button>
+                     <Button variant="outline" onClick={handleAssignCodes} disabled={isProcessing}>
+                        {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <KeyRound className="mr-2 h-4 w-4" />}
+                        미할당 접속 코드 생성
+                    </Button>
+                 </div>
               </div>
           </CardContent>
       </Card>

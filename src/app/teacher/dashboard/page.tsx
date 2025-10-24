@@ -11,7 +11,7 @@ import MeasurementManagement from './_components/MeasurementManagement';
 import ClassAnalytics from './_components/ClassAnalytics';
 import Ranking from './_components/Ranking';
 import AiWelcome from './_components/AiWelcome';
-import { Users, ClipboardList, BarChart3, Bot, Trophy } from 'lucide-react';
+import { Users, ClipboardList, BarChart3, Bot, Trophy, Database } from 'lucide-react';
 import { DashboardHeaderContents } from '@/components/DashboardHeader';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -94,7 +94,7 @@ export default function TeacherDashboardPage() {
         </Card>
 
         <Tabs defaultValue="class-analytics" className="w-full">
-          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-4 mb-6">
+          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-5 mb-6">
             <TabsTrigger value="class-analytics">
               <BarChart3 className="mr-2 h-4 w-4" />
               학급별 분석
@@ -105,11 +105,15 @@ export default function TeacherDashboardPage() {
             </TabsTrigger>
             <TabsTrigger value="students">
               <Users className="mr-2 h-4 w-4" />
-              학생 관리
+              학생 명단
             </TabsTrigger>
             <TabsTrigger value="measurements">
               <ClipboardList className="mr-2 h-4 w-4" />
-              측정 종목 관리
+              측정 종목
+            </TabsTrigger>
+            <TabsTrigger value="database-management">
+              <Database className="mr-2 h-4 w-4" />
+              데이터 관리
             </TabsTrigger>
           </TabsList>
 
@@ -122,11 +126,14 @@ export default function TeacherDashboardPage() {
           </TabsContent>
 
           <TabsContent value="students">
-            <StudentManagement students={students} onStudentsUpdate={forceUpdate} />
+             <StudentManagement students={students} onStudentsUpdate={forceUpdate} />
           </TabsContent>
 
           <TabsContent value="measurements">
             <MeasurementManagement items={items} onItemsUpdate={forceUpdate} />
+          </TabsContent>
+          <TabsContent value="database-management">
+             <StudentManagement students={students} onStudentsUpdate={forceUpdate} />
           </TabsContent>
         </Tabs>
       </div>

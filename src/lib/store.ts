@@ -17,7 +17,8 @@ import {
   writeBatch,
   runTransaction,
   collectionGroup,
-  limit
+  limit,
+  updateDoc
 } from 'firebase/firestore';
 import { errorEmitter } from './error-emitter';
 import { FirestorePermissionError } from './errors';
@@ -147,7 +148,7 @@ export const addStudent = async (school: string, studentData: StudentToAdd, allS
 
     const studentWithId = { ...studentData, school, id: uuidv4(), accessCode: newCode };
     const studentDocRef = doc(db, 'schools', school, 'students', studentWithId.id);
-    setDoc(studentDocRef, studentWithId).catch(e => {
+    await setDoc(studentDocRef, studentWithId).catch(e => {
         if (e.code === 'permission-denied') {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: studentDocRef.path,
@@ -355,12 +356,8 @@ export const addOrUpdateRecord = async (record: Omit<MeasurementRecord, 'id'>) =
       const existingDocs = querySnapshot.docs;
       
       if (!querySnapshot.empty) {
-        const docs = existingDocs.sort((a,b) => b.id.localeCompare(a.id));
-        const docToKeepRef = docs[0].ref;
-        transaction.update(docToKeepRef, { value: record.value });
-        for (let i = 1; i < docs.length; i++) {
-          transaction.delete(docs[i].ref);
-        }
+        const docToUpdateRef = existingDocs[0].ref;
+        transaction.update(docToUpdateRef, { value: record.value });
       } else {
         const newRecordRef = doc(recordsRef);
         const newRecord = { ...record, id: newRecordRef.id, date: recordDate };
@@ -564,7 +561,7 @@ export const calculateRanks = (
   return allRanks;
 };
 
-export const cleanUpDuplicateRecords = async (school: string): Promise<void> => {
+export const cleanUpDuplicateRecords = async (school: string): Promise<number> => {
   const recordsRef = collection(db, 'schools', school, 'records');
   const snapshot = await getDocs(recordsRef);
   const records = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as MeasurementRecord));
@@ -580,11 +577,12 @@ export const cleanUpDuplicateRecords = async (school: string): Promise<void> => 
   });
 
   const batch = writeBatch(db);
-  let duplicatesFound = false;
+  let duplicatesFound = 0;
 
   for (const [key, recordGroup] of recordsByCompoundKey.entries()) {
     if (recordGroup.length > 1) {
-      duplicatesFound = true;
+      duplicatesFound += recordGroup.length - 1;
+      // Keep the one with the latest ID (or any other logic, here latest ID means latest write)
       recordGroup.sort((a, b) => b.id.localeCompare(a.id));
       for (let i = 1; i < recordGroup.length; i++) {
         const docToDeleteRef = doc(db, 'schools', school, 'records', recordGroup[i].id);
@@ -593,7 +591,7 @@ export const cleanUpDuplicateRecords = async (school: string): Promise<void> => 
     }
   }
 
-  if (duplicatesFound) {
+  if (duplicatesFound > 0) {
     await batch.commit().catch(e => {
         if (e.code === 'permission-denied') {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -605,4 +603,5 @@ export const cleanUpDuplicateRecords = async (school: string): Promise<void> => 
         throw e;
     });
   }
+  return duplicatesFound;
 };

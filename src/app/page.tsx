@@ -26,7 +26,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Loader2, Rocket } from 'lucide-react';
-import { initializeData, cleanUpDuplicateRecords, assignMissingAccessCodes } from '@/lib/store';
+import { initializeData } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { FirestorePermissionError } from '@/lib/errors';
@@ -56,8 +56,6 @@ export default function LoginPage() {
     try {
       await signIn();
       await initializeData(values.school);
-      await cleanUpDuplicateRecords(values.school);
-      await assignMissingAccessCodes(values.school);
       login('teacher', { name: '교사', school: values.school }, values.school);
       router.push('/teacher/dashboard');
     } catch (error) {
