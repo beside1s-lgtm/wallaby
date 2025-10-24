@@ -19,35 +19,52 @@ import {
   collectionGroup,
   limit
 } from 'firebase/firestore';
+import { errorEmitter } from './error-emitter';
+import { FirestorePermissionError } from './errors';
 
 
 // This function now only seeds data if the schools collection is empty for that school.
 export const initializeData = async (school: string) => {
   const schoolDocRef = doc(db, 'schools', school);
-  const snapshot = await getDoc(schoolDocRef);
   
-  if (!snapshot.exists()) {
-    const batch = writeBatch(db);
-    batch.set(schoolDocRef, { name: school, createdAt: new Date() });
+  try {
+    await runTransaction(db, async (transaction) => {
+      const schoolDoc = await transaction.get(schoolDocRef);
+      if (schoolDoc.exists()) {
+        // School already exists, do nothing.
+        return;
+      }
+      
+      // If school does not exist, create it along with initial data.
+      transaction.set(schoolDocRef, { name: school, createdAt: new Date() });
 
-    const schoolStudents = initialStudents.filter(s => s.school === school);
-    schoolStudents.forEach(student => {
-      const studentDocRef = doc(db, 'schools', school, 'students', student.id);
-      batch.set(studentDocRef, student);
-    });
-    
-    initialItems.forEach(item => {
-        const itemDocRef = doc(db, 'schools', school, 'items', item.id);
-        batch.set(itemDocRef, item);
-    });
+      const schoolStudents = initialStudents.map(s => ({...s, school}));
+      schoolStudents.forEach(student => {
+        const studentDocRef = doc(db, 'schools', school, 'students', student.id);
+        transaction.set(studentDocRef, student);
+      });
+      
+      initialItems.forEach(item => {
+          const itemDocRef = doc(db, 'schools', school, 'items', item.id);
+          transaction.set(itemDocRef, item);
+      });
 
-    const schoolRecords = initialRecords.filter(r => r.school === school);
-    schoolRecords.forEach(record => {
-        const recordDocRef = doc(collection(db, 'schools', school, 'records')); 
-        batch.set(recordDocRef, { ...record, id: recordDocRef.id });
+      const schoolRecords = initialRecords.map(r => ({...r, school}));
+      schoolRecords.forEach(record => {
+          const recordDocRef = doc(collection(db, 'schools', school, 'records')); 
+          transaction.set(recordDocRef, { ...record, id: recordDocRef.id });
+      });
     });
-
-    await batch.commit();
+  } catch (e: any) {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: schoolDocRef.path,
+        operation: 'write', // A transaction can be a complex write operation
+        requestResourceData: { name: school, message: "Initial data setup for new school." }
+      }));
+    }
+    // Re-throw other errors
+    throw e;
   }
 };
 
@@ -55,7 +72,15 @@ export const initializeData = async (school: string) => {
 // --- Student Functions ---
 export const getStudents = async (school: string): Promise<Student[]> => {
     const studentsRef = collection(db, 'schools', school, 'students');
-    const snapshot = await getDocs(studentsRef);
+    const snapshot = await getDocs(studentsRef).catch((e) => {
+        if (e.code === 'permission-denied') {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: studentsRef.path,
+                operation: 'list',
+            }));
+        }
+        throw e;
+    });
     return snapshot.docs.map(doc => doc.data() as Student);
 };
 
@@ -70,7 +95,16 @@ export const setStudents = async (school: string, students: Student[]) => {
         const studentDocRef = doc(db, 'schools', school, 'students', student.id);
         batch.set(studentDocRef, student);
     });
-    await batch.commit();
+    await batch.commit().catch((e) => {
+        if (e.code === 'permission-denied') {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: studentsRef.path,
+                operation: 'write',
+                requestResourceData: { message: "Batch deleting and setting students." }
+            }));
+        }
+        throw e;
+    });
 }
 
 
@@ -87,7 +121,17 @@ export const getStudent = async (
     where('name', '==', loginInfo.name),
     where('accessCode', '==', loginInfo.accessCode)
   );
-  const snapshot = await getDocs(q);
+  const snapshot = await getDocs(q).catch(e => {
+    if (e.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: studentsRef.path,
+            operation: 'list',
+            requestResourceData: { query: "student login query" }
+        }));
+    }
+    throw e;
+  });
+
   if (snapshot.empty) {
     return undefined;
   }
@@ -103,13 +147,30 @@ export const addStudent = async (school: string, studentData: StudentToAdd, allS
 
     const studentWithId = { ...studentData, school, id: uuidv4(), accessCode: newCode };
     const studentDocRef = doc(db, 'schools', school, 'students', studentWithId.id);
-    await setDoc(studentDocRef, studentWithId);
+    setDoc(studentDocRef, studentWithId).catch(e => {
+        if (e.code === 'permission-denied') {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: studentDocRef.path,
+                operation: 'create',
+                requestResourceData: studentWithId
+            }));
+        }
+        throw e;
+    });
     return studentWithId;
 };
 
 export const getStudentById = async (school: string, studentId: string): Promise<Student | undefined> => {
     const studentDocRef = doc(db, 'schools', school, 'students', studentId);
-    const docSnap = await getDoc(studentDocRef);
+    const docSnap = await getDoc(studentDocRef).catch(e => {
+        if (e.code === 'permission-denied') {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: studentDocRef.path,
+                operation: 'get'
+            }));
+        }
+        throw e;
+    });
     return docSnap.exists() ? docSnap.data() as Student : undefined;
 }
 
@@ -121,8 +182,6 @@ export const assignMissingAccessCodes = async (school: string): Promise<void> =>
     return;
   }
   
-  console.log(`[${school}] Assigning access codes to ${studentsWithoutCode.length} students...`);
-
   const existingCodes = new Set(students.map(s => s.accessCode).filter(Boolean));
   const batch = writeBatch(db);
 
@@ -137,15 +196,31 @@ export const assignMissingAccessCodes = async (school: string): Promise<void> =>
     batch.update(studentDocRef, { accessCode: newCode });
   });
 
-  await batch.commit();
-  console.log(`[${school}] Access code assignment complete.`);
+  await batch.commit().catch(e => {
+    if (e.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: `schools/${school}/students`,
+            operation: 'write',
+            requestResourceData: { message: "Batch updating access codes." }
+        }));
+    }
+    throw e;
+  });
 };
 
 
 // Measurement Items
 export const getItems = async (school: string): Promise<MeasurementItem[]> => {
     const itemsRef = collection(db, 'schools', school, 'items');
-    const snapshot = await getDocs(itemsRef);
+    const snapshot = await getDocs(itemsRef).catch(e => {
+        if (e.code === 'permission-denied') {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: itemsRef.path,
+                operation: 'list'
+            }));
+        }
+        throw e;
+    });
     if(snapshot.empty) {
         return [];
     }
@@ -163,7 +238,16 @@ export const setItems = async (school: string, items: MeasurementItem[]) => {
         const itemDocRef = doc(db, 'schools', school, 'items', item.id);
         batch.set(itemDocRef, item);
     });
-    await batch.commit();
+    await batch.commit().catch(e => {
+        if (e.code === 'permission-denied') {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: itemsRef.path,
+                operation: 'write',
+                requestResourceData: { message: "Batch setting items." }
+            }));
+        }
+        throw e;
+    });
 }
 
 
@@ -175,7 +259,16 @@ export const addItem = async (school: string, item: Omit<MeasurementItem, 'id'>)
   if (existing.empty) {
     const newItemRef = doc(itemsRef);
     const newItem = { ...item, id: newItemRef.id };
-    await setDoc(newItemRef, newItem);
+    await setDoc(newItemRef, newItem).catch(e => {
+        if (e.code === 'permission-denied') {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: newItemRef.path,
+                operation: 'create',
+                requestResourceData: newItem
+            }));
+        }
+        throw e;
+    });
     return newItem;
   }
   return existing.docs[0].data() as MeasurementItem;
@@ -183,30 +276,40 @@ export const addItem = async (school: string, item: Omit<MeasurementItem, 'id'>)
 
 export const deleteItemAndAssociatedRecords = async (school: string, itemToDelete: MeasurementItem) => {
   const batch = writeBatch(db);
-
-  // 1. Find all records associated with the item
   const recordsRef = collection(db, 'schools', school, 'records');
   const q = query(recordsRef, where('item', '==', itemToDelete.name));
   const recordsSnapshot = await getDocs(q);
 
-  // 2. Delete all found records
-  recordsSnapshot.forEach(doc => {
-    batch.delete(doc.ref);
-  });
+  recordsSnapshot.forEach(doc => batch.delete(doc.ref));
 
-  // 3. Delete the item itself
   const itemDocRef = doc(db, 'schools', school, 'items', itemToDelete.id);
   batch.delete(itemDocRef);
 
-  // 4. Commit the batch
-  await batch.commit();
+  await batch.commit().catch(e => {
+    if (e.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: `schools/${school}`,
+            operation: 'write',
+            requestResourceData: { message: `Deleting item ${itemToDelete.name} and its records.` }
+        }));
+    }
+    throw e;
+  });
 };
 
 
 // Records
 export const getRecords = async (school: string): Promise<MeasurementRecord[]> => {
     const recordsRef = collection(db, 'schools', school, 'records');
-    const snapshot = await getDocs(recordsRef);
+    const snapshot = await getDocs(recordsRef).catch(e => {
+        if (e.code === 'permission-denied') {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: recordsRef.path,
+                operation: 'list'
+            }));
+        }
+        throw e;
+    });
     if(snapshot.empty) {
         return [];
     }
@@ -224,7 +327,16 @@ export const setRecords = async (school: string, records: MeasurementRecord[]) =
         const recordDocRef = doc(db, 'schools', school, 'records', record.id);
         batch.set(recordDocRef, record);
     });
-    await batch.commit();
+    await batch.commit().catch(e => {
+        if (e.code === 'permission-denied') {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: recordsRef.path,
+                operation: 'write',
+                requestResourceData: { message: 'Batch setting records.' }
+            }));
+        }
+        throw e;
+    });
 }
 
 
@@ -232,35 +344,52 @@ export const addOrUpdateRecord = async (record: Omit<MeasurementRecord, 'id'>) =
   const recordDate = record.date || format(new Date(), 'yyyy-MM-dd');
   const recordsRef = collection(db, 'schools', record.school, 'records');
   
-  await runTransaction(db, async (transaction) => {
-    const q = query(recordsRef, 
-      where("studentId", "==", record.studentId), 
-      where("item", "==", record.item), 
-      where("date", "==", recordDate)
-    );
-    const querySnapshot = await getDocs(q);
-    const existingDocs = querySnapshot.docs;
-    
-    if (!querySnapshot.empty) {
-      // If duplicates exist, update the last one (by ID) and delete the others.
-      const docs = existingDocs.sort((a,b) => b.id.localeCompare(a.id));
-      const docToKeepRef = docs[0].ref;
-      transaction.update(docToKeepRef, { value: record.value });
+  try {
+    await runTransaction(db, async (transaction) => {
+      const q = query(recordsRef, 
+        where("studentId", "==", record.studentId), 
+        where("item", "==", record.item), 
+        where("date", "==", recordDate)
+      );
+      const querySnapshot = await getDocs(q);
+      const existingDocs = querySnapshot.docs;
       
-      for (let i = 1; i < docs.length; i++) {
-        transaction.delete(docs[i].ref);
+      if (!querySnapshot.empty) {
+        const docs = existingDocs.sort((a,b) => b.id.localeCompare(a.id));
+        const docToKeepRef = docs[0].ref;
+        transaction.update(docToKeepRef, { value: record.value });
+        for (let i = 1; i < docs.length; i++) {
+          transaction.delete(docs[i].ref);
+        }
+      } else {
+        const newRecordRef = doc(recordsRef);
+        const newRecord = { ...record, id: newRecordRef.id, date: recordDate };
+        transaction.set(newRecordRef, newRecord);
       }
-    } else {
-      const newRecordRef = doc(recordsRef);
-      const newRecord = { ...record, id: newRecordRef.id, date: recordDate };
-      transaction.set(newRecordRef, newRecord);
+    });
+  } catch (e: any) {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: recordsRef.path,
+        operation: 'write',
+        requestResourceData: { record }
+      }));
     }
-  });
+    throw e;
+  }
 };
 
 export const deleteRecord = async (school: string, recordId: string) => {
   const recordDocRef = doc(db, 'schools', school, 'records', recordId);
-  await deleteDoc(recordDocRef);
+  await deleteDoc(recordDocRef).catch(e => {
+    if (e.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: recordDocRef.path,
+            operation: 'delete'
+        }));
+    }
+    throw e;
+  });
 };
 
 export const deleteRecordsByDateAndItem = async (school: string, date: string, item: string): Promise<number> => {
@@ -277,7 +406,16 @@ export const deleteRecordsByDateAndItem = async (school: string, date: string, i
         batch.delete(doc.ref);
     });
 
-    await batch.commit();
+    await batch.commit().catch(e => {
+        if (e.code === 'permission-denied') {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: recordsRef.path,
+                operation: 'write',
+                requestResourceData: { message: `Deleting records for item ${item} on date ${date}.` }
+            }));
+        }
+        throw e;
+    });
     return snapshot.size;
 };
 
@@ -287,7 +425,6 @@ export const addOrUpdateRecords = async (school: string, allStudents: Student[],
   const currentItems = await getItems(school);
   const itemMap = new Map(currentItems.map(i => [i.name, i]));
   
-  // Pre-fetch all existing records for performance
   const allExistingRecords = await getRecords(school);
   const existingRecordsMap = new Map<string, MeasurementRecord>();
   allExistingRecords.forEach(rec => {
@@ -296,7 +433,6 @@ export const addOrUpdateRecords = async (school: string, allStudents: Student[],
   });
 
   const newItemsToAdd: Omit<MeasurementItem, 'id'>[] = [];
-  // Find new items to create
   for (const record of newRecords) {
     if (record.item && !itemMap.has(record.item) && !newItemsToAdd.some(i => i.name === record.item)) {
        newItemsToAdd.push({
@@ -308,7 +444,6 @@ export const addOrUpdateRecords = async (school: string, allStudents: Student[],
     }
   }
 
-  // Add new items to DB and update the local map
   if (newItemsToAdd.length > 0) {
     const itemPromises = newItemsToAdd.map(item => addItem(school, item));
     const addedItems = await Promise.all(itemPromises);
@@ -349,13 +484,31 @@ export const addOrUpdateRecords = async (school: string, allStudents: Student[],
     }
   }
 
-  await batch.commit();
+  await batch.commit().catch(e => {
+    if (e.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: `schools/${school}/records`,
+            operation: 'write',
+            requestResourceData: { message: `Batch add/update records.` }
+        }));
+    }
+    throw e;
+  });
 };
 
 export const getRecordsByStudent = async (school: string, studentId: string): Promise<MeasurementRecord[]> => {
   const recordsRef = collection(db, 'schools', school, 'records');
   const q = query(recordsRef, where("studentId", "==", studentId));
-  const snapshot = await getDocs(q);
+  const snapshot = await getDocs(q).catch(e => {
+    if (e.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: recordsRef.path,
+            operation: 'list',
+            requestResourceData: { query: `records for student ${studentId}` }
+        }));
+    }
+    throw e;
+  });
   return snapshot.docs.map(doc => doc.data() as MeasurementRecord);
 };
 
@@ -432,10 +585,7 @@ export const cleanUpDuplicateRecords = async (school: string): Promise<void> => 
   for (const [key, recordGroup] of recordsByCompoundKey.entries()) {
     if (recordGroup.length > 1) {
       duplicatesFound = true;
-      // Sort by ID to find the "latest" one. Assuming auto-IDs are roughly chronological.
       recordGroup.sort((a, b) => b.id.localeCompare(a.id));
-
-      // Mark others for deletion
       for (let i = 1; i < recordGroup.length; i++) {
         const docToDeleteRef = doc(db, 'schools', school, 'records', recordGroup[i].id);
         batch.delete(docToDeleteRef);
@@ -444,8 +594,15 @@ export const cleanUpDuplicateRecords = async (school: string): Promise<void> => 
   }
 
   if (duplicatesFound) {
-    console.log(`[${school}] Cleaning up duplicate records...`);
-    await batch.commit();
-    console.log(`[${school}] Cleanup complete.`);
+    await batch.commit().catch(e => {
+        if (e.code === 'permission-denied') {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: recordsRef.path,
+                operation: 'write',
+                requestResourceData: { message: "Cleaning up duplicate records." }
+            }));
+        }
+        throw e;
+    });
   }
 };

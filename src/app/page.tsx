@@ -29,6 +29,7 @@ import { Loader2, Rocket } from 'lucide-react';
 import { initializeData, cleanUpDuplicateRecords, assignMissingAccessCodes } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
+import { FirestorePermissionError } from '@/lib/errors';
 
 const teacherLoginSchema = z.object({
   school: z.string().min(1, '학교 이름을 입력해주세요.'),
@@ -55,10 +56,14 @@ export default function LoginPage() {
       await initializeData(values.school);
       await cleanUpDuplicateRecords(values.school);
       await assignMissingAccessCodes(values.school);
-      // For now, teacher login is simple. We can add verification later if needed.
       login('teacher', { name: '교사', school: values.school }, values.school);
       router.push('/teacher/dashboard');
     } catch (error) {
+      if (error instanceof FirestorePermissionError) {
+        // This will be caught by the FirebaseErrorListener and shown in the dev overlay.
+        // So we just re-throw it.
+        throw error;
+      }
       console.error("Login failed: ", error);
       toast({
         variant: 'destructive',
