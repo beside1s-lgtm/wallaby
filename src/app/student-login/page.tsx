@@ -26,6 +26,7 @@ import {
 import { Loader2, Rocket } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getStudent } from '@/lib/store';
+import { signIn } from '@/lib/firebase';
 
 const studentLoginSchema = z.object({
   school: z.string().min(1, '학교 이름을 입력해주세요.'),
@@ -59,6 +60,7 @@ export default function StudentLoginPage() {
   const handleStudentLogin = async (values: StudentLoginValues) => {
     setIsSubmitting(true);
     try {
+      await signIn();
       const student = await getStudent(values);
 
       if (student) {

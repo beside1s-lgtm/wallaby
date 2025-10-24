@@ -30,6 +30,7 @@ import { initializeData, cleanUpDuplicateRecords, assignMissingAccessCodes } fro
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { FirestorePermissionError } from '@/lib/errors';
+import { signIn } from '@/lib/firebase';
 
 const teacherLoginSchema = z.object({
   school: z.string().min(1, '학교 이름을 입력해주세요.'),
@@ -53,6 +54,7 @@ export default function LoginPage() {
   const handleTeacherLogin = async (values: TeacherLoginValues) => {
     setIsSubmitting(true);
     try {
+      await signIn();
       await initializeData(values.school);
       await cleanUpDuplicateRecords(values.school);
       await assignMissingAccessCodes(values.school);
