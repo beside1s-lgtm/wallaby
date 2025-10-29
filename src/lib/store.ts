@@ -1,5 +1,5 @@
 'use client';
-import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentToAdd } from './types';
+import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentToAdd, School } from './types';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { initialItems, initialStudents, initialRecords } from './initial-data';
@@ -18,15 +18,15 @@ import {
   runTransaction,
   collectionGroup,
   limit,
-  updateDoc
+  updateDoc,
+  serverTimestamp
 } from 'firebase/firestore';
 import { errorEmitter } from './error-emitter';
 import { FirestorePermissionError } from './errors';
 
-
 // This function now only seeds data if the schools collection is empty for that school.
-export const initializeData = async (school: string) => {
-  const schoolDocRef = doc(db, 'schools', school);
+export const initializeData = async (schoolName: string, password?: string) => {
+  const schoolDocRef = doc(db, 'schools', schoolName);
   
   try {
     await runTransaction(db, async (transaction) => {
@@ -37,22 +37,30 @@ export const initializeData = async (school: string) => {
       }
       
       // If school does not exist, create it along with initial data.
-      transaction.set(schoolDocRef, { name: school, createdAt: new Date() });
+      const schoolData: School = {
+        id: schoolName,
+        name: schoolName,
+        createdAt: serverTimestamp(),
+      };
+      if (password) {
+        schoolData.password = password;
+      }
+      transaction.set(schoolDocRef, schoolData);
 
-      const schoolStudents = initialStudents.map(s => ({...s, school}));
+      const schoolStudents = initialStudents.map(s => ({...s, school: schoolName}));
       schoolStudents.forEach(student => {
-        const studentDocRef = doc(db, 'schools', school, 'students', student.id);
+        const studentDocRef = doc(db, 'schools', schoolName, 'students', student.id);
         transaction.set(studentDocRef, student);
       });
       
       initialItems.forEach(item => {
-          const itemDocRef = doc(db, 'schools', school, 'items', item.id);
+          const itemDocRef = doc(db, 'schools', schoolName, 'items', item.id);
           transaction.set(itemDocRef, item);
       });
 
-      const schoolRecords = initialRecords.map(r => ({...r, school}));
+      const schoolRecords = initialRecords.map(r => ({...r, school: schoolName}));
       schoolRecords.forEach(record => {
-          const recordDocRef = doc(collection(db, 'schools', school, 'records')); 
+          const recordDocRef = doc(collection(db, 'schools', schoolName, 'records')); 
           transaction.set(recordDocRef, { ...record, id: recordDocRef.id });
       });
     });
@@ -61,13 +69,32 @@ export const initializeData = async (school: string) => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: schoolDocRef.path,
         operation: 'write', // A transaction can be a complex write operation
-        requestResourceData: { name: school, message: "Initial data setup for new school." }
+        requestResourceData: { name: schoolName, message: "Initial data setup for new school." }
       }));
     }
     // Re-throw other errors
     throw e;
   }
 };
+
+export const getSchoolByName = async (schoolName: string): Promise<School | null> => {
+  const schoolRef = doc(db, 'schools', schoolName);
+  try {
+    const schoolSnap = await getDoc(schoolRef);
+    if (schoolSnap.exists()) {
+      return schoolSnap.data() as School;
+    }
+    return null;
+  } catch (e: any) {
+    if (e.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: schoolRef.path,
+            operation: 'get'
+        }));
+    }
+    throw e;
+  }
+}
 
 
 // --- Student Functions ---

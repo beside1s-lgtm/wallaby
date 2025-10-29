@@ -32,3 +32,10 @@ export type MeasurementRecord = {
 };
 
 export type StudentLogin = Omit<Student, 'id' | 'gender'>;
+
+export type School = {
+  id: string;
+  name: string;
+  password?: string;
+  createdAt: any; // Can be a Date or a server timestamp
+};

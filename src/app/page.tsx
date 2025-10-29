@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { z } from 'zod';
@@ -26,14 +26,16 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Loader2, Rocket } from 'lucide-react';
-import { initializeData } from '@/lib/store';
+import { initializeData, getSchoolByName } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { FirestorePermissionError } from '@/lib/errors';
 import { signIn } from '@/lib/firebase';
+import type { School } from '@/lib/types';
 
 const teacherLoginSchema = z.object({
   school: z.string().min(1, '학교 이름을 입력해주세요.'),
+  password: z.string().optional(),
 });
 
 type TeacherLoginValues = z.infer<typeof teacherLoginSchema>;
@@ -43,33 +45,78 @@ export default function LoginPage() {
   const { login } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [existingSchool, setExistingSchool] = useState<School | null | undefined>(undefined);
 
-  const teacherForm = useForm<TeacherLoginValues>({
+  const form = useForm<TeacherLoginValues>({
     resolver: zodResolver(teacherLoginSchema),
     defaultValues: {
       school: '',
+      password: '',
     },
   });
+
+  const schoolName = form.watch('school');
+
+  useEffect(() => {
+    const debounce = setTimeout(() => {
+      if (schoolName) {
+        getSchoolByName(schoolName).then(setExistingSchool);
+      } else {
+        setExistingSchool(undefined);
+      }
+    }, 500);
+
+    return () => clearTimeout(debounce);
+  }, [schoolName]);
+
+  const dynamicLoginSchema = z.object({
+      school: z.string().min(1, '학교 이름을 입력해주세요.'),
+      password: existingSchool?.password
+          ? z.string().min(1, '비밀번호를 입력해주세요.')
+          : (existingSchool === null 
+              ? z.string().min(4, '비밀번호는 4자 이상이어야 합니다.')
+              : z.string().optional()),
+  });
+
+  form.trigger(); // Re-validate form when schema changes
 
   const handleTeacherLogin = async (values: TeacherLoginValues) => {
     setIsSubmitting(true);
     try {
+      // Validate again with the dynamic schema
+      dynamicLoginSchema.parse(values);
+
       await signIn();
-      await initializeData(values.school);
+
+      if (existingSchool) { // Existing school
+        if (existingSchool.password && existingSchool.password !== values.password) {
+          toast({ variant: 'destructive', title: '로그인 실패', description: '비밀번호가 일치하지 않습니다.' });
+          setIsSubmitting(false);
+          return;
+        }
+        // If password matches or no password is required, proceed to login
+      } else { // New school
+        await initializeData(values.school, values.password);
+      }
+      
       login('teacher', { name: '교사', school: values.school }, values.school);
       router.push('/teacher/dashboard');
     } catch (error) {
-      if (error instanceof FirestorePermissionError) {
-        // This will be caught by the FirebaseErrorListener and shown in the dev overlay.
-        // So we just re-throw it.
+       if (error instanceof z.ZodError) {
+        // This is for developer feedback, not usually shown to user
+        console.error("Zod validation failed: ", error.flatten());
+        toast({ variant: 'destructive', title: '입력 오류', description: '입력값을 확인해주세요.' });
+      } else if (error instanceof FirestorePermissionError) {
         throw error;
+      } else {
+        console.error("Login failed: ", error);
+        toast({
+          variant: 'destructive',
+          title: '로그인 실패',
+          description: '데이터베이스 연결 중 오류가 발생했습니다. 다시 시도해주세요.',
+        });
       }
-      console.error("Login failed: ", error);
-      toast({
-        variant: 'destructive',
-        title: '로그인 실패',
-        description: '데이터베이스 초기화 또는 연결 중 오류가 발생했습니다. 다시 시도해주세요.',
-      });
     } finally {
       setIsSubmitting(false);
     }
@@ -85,14 +132,17 @@ export default function LoginPage() {
         <CardHeader>
           <CardTitle>교사 로그인</CardTitle>
           <CardDescription>
-            학교명을 입력하여 로그인하고 학생들의 기록을 관리하세요.
+            {existingSchool === undefined && "학교명을 입력하여 로그인하세요."}
+            {existingSchool === null && "새로운 학교입니다. 비밀번호를 설정하여 등록하세요."}
+            {existingSchool && !existingSchool.password && "등록된 학교입니다. 비밀번호 없이 로그인할 수 있습니다."}
+            {existingSchool && existingSchool.password && "등록된 학교입니다. 비밀번호를 입력하여 로그인하세요."}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Form {...teacherForm}>
-            <form onSubmit={teacherForm.handleSubmit(handleTeacherLogin)} className="space-y-4">
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleTeacherLogin)} className="space-y-4">
               <FormField
-                control={teacherForm.control}
+                control={form.control}
                 name="school"
                 render={({ field }) => (
                   <FormItem>
@@ -104,14 +154,29 @@ export default function LoginPage() {
                   </FormItem>
                 )}
               />
+              {(existingSchool === null || existingSchool?.password) && (
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{existingSchool === null ? '새 비밀번호 설정' : '비밀번호'}</FormLabel>
+                      <FormControl>
+                        <Input type="password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
               <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    로그인 중...
+                    {existingSchool === null ? '등록 및 로그인 중...' : '로그인 중...'}
                   </>
                 ) : (
-                  '교사로 로그인'
+                  existingSchool === null ? '신규 등록 및 로그인' : '교사로 로그인'
                 )}
               </Button>
             </form>
