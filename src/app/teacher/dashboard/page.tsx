@@ -125,30 +125,30 @@ export default function TeacherDashboardPage() {
         </Card>
 
         <Tabs defaultValue="class-analytics" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 mb-6">
+          <TabsList className="grid w-full grid-cols-6 mb-6">
             <TabsTrigger value="class-analytics">
-              <BarChart3 className="mr-0 sm:mr-2 h-4 w-4" />
-              <span className="hidden sm:inline">학급별 분석</span>
+              <BarChart3 className="h-4 w-4" />
+              <span className="hidden sm:inline ml-2">학급별 분석</span>
             </TabsTrigger>
             <TabsTrigger value="record-input">
-              <Edit className="mr-0 sm:mr-2 h-4 w-4" />
-              <span className="hidden sm:inline">기록 입력</span>
+              <Edit className="h-4 w-4" />
+              <span className="hidden sm:inline ml-2">기록 입력</span>
             </TabsTrigger>
             <TabsTrigger value="ranking">
-              <Trophy className="mr-0 sm:mr-2 h-4 w-4" />
-              <span className="hidden sm:inline">종목별 순위</span>
+              <Trophy className="h-4 w-4" />
+              <span className="hidden sm:inline ml-2">종목별 순위</span>
             </TabsTrigger>
             <TabsTrigger value="students">
-              <Users className="mr-0 sm:mr-2 h-4 w-4" />
-              <span className="hidden sm:inline">학생 명단</span>
+              <Users className="h-4 w-4" />
+              <span className="hidden sm:inline ml-2">학생 명단</span>
             </TabsTrigger>
             <TabsTrigger value="measurements">
-              <ClipboardList className="mr-0 sm:mr-2 h-4 w-4" />
-              <span className="hidden sm:inline">측정 종목</span>
+              <ClipboardList className="h-4 w-4" />
+              <span className="hidden sm:inline ml-2">측정 종목</span>
             </TabsTrigger>
             <TabsTrigger value="database-management">
-              <Database className="mr-0 sm:mr-2 h-4 w-4" />
-              <span className="hidden sm:inline">데이터 관리</span>
+              <Database className="h-4 w-4" />
+              <span className="hidden sm:inline ml-2">데이터 관리</span>
             </TabsTrigger>
           </TabsList>
 
