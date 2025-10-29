@@ -3,45 +3,39 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
-    function isSignedIn() {
-      return request.auth != null;
-    }
+    // schools 컬렉션:
+    // - 모든 인증된 사용자는 학교 정보를 읽거나 새로 생성할 수 있습니다. (로그인 및 신규 등록용)
+    // - 업데이트 및 삭제는 향후 '소유자' 개념이 도입될 경우를 대비해 규칙을 마련합니다.
+    match /schools/{schoolId} {
+      allow get, create: if request.auth != null;
+      // allow update, delete: if get(/databases/$(database)/documents/schools/$(schoolId)).data.ownerId == request.auth.uid;
+      allow update, delete: if request.auth.token.role == 'teacher' && request.auth.token.school == schoolId;
 
-    function isTeacher(school) {
-      return request.auth.token.role == 'teacher' && request.auth.token.school == school;
-    }
-
-    function isStudent(school) {
-        return request.auth.token.role == 'student' && request.auth.token.school == school;
-    }
-
-    function isOwner(userId) {
-        return request.auth.uid == userId;
-    }
-
-    match /schools/{school} {
-      // 누구나 학교 정보를 읽고, 신규 학교를 생성할 수 있습니다.
-      allow read, create: if isSignedIn();
-      // 교사만 학교 정보를 수정하거나 삭제할 수 있습니다.
-      allow update, delete: if isTeacher(school);
-
+      // students 하위 컬렉션: 해당 학교의 교사만 접근 가능
       match /students/{studentId} {
-        // 교사만 학생 정보를 생성, 수정, 삭제할 수 있습니다.
-        allow read, write: if isTeacher(school);
+        allow read, write: if request.auth.token.role == 'teacher' && request.auth.token.school == schoolId;
       }
 
+      // items 하위 컬렉션: 해당 학교의 교사만 접근 가능
       match /items/{itemId} {
-          // 교사만 측정 종목을 생성, 수정, 삭제할 수 있습니다.
-          allow read, write: if isTeacher(school);
+        allow read, write: if request.auth.token.role == 'teacher' && request.auth.token.school == schoolId;
       }
-      
+
+      // records 하위 컬렉션:
+      // - 교사는 모든 기록에 접근 가능합니다.
+      // - 학생은 자신의 기록에만 접근 가능합니다.
       match /records/{recordId} {
-        // 교사는 모든 기록을 읽고 쓸 수 있습니다.
-        allow read, write: if isTeacher(school);
-        // 학생은 자신의 기록만 생성, 수정, 삭제할 수 있습니다.
-        allow create, update, delete: if isStudent(school) && request.resource.data.studentId == request.auth.token.studentId;
+        allow read, write, delete: if (request.auth.token.role == 'teacher' && request.auth.token.school == schoolId) || 
+                                     (request.auth.token.role == 'student' && resource.data.studentId == request.auth.uid);
+        allow create: if (request.auth.token.role == 'teacher' && request.auth.token.school == schoolId) || 
+                         (request.auth.token.role == 'student' && request.resource.data.studentId == request.auth.uid);
       }
+    }
+
+    // 학생 로그인을 위한 쿼리를 허용하는 규칙
+    // 학생이 자신의 정보를 사용하여 로그인할 때 필요합니다.
+    match /schools/{schoolId}/students/{studentId} {
+       allow get: if request.auth != null;
     }
   }
 }
