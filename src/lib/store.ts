@@ -96,6 +96,22 @@ export const getSchoolByName = async (schoolName: string): Promise<School | null
   }
 }
 
+export const updateSchoolPassword = async (schoolName: string, password: string): Promise<void> => {
+  const schoolRef = doc(db, 'schools', schoolName);
+  try {
+    await updateDoc(schoolRef, { password });
+  } catch (e: any) {
+    if (e.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: schoolRef.path,
+            operation: 'update',
+            requestResourceData: { password: '***' } // Don't leak password in error
+        }));
+    }
+    throw e;
+  }
+}
+
 
 // --- Student Functions ---
 export const getStudents = async (school: string): Promise<Student[]> => {

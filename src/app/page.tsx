@@ -26,7 +26,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Loader2, Rocket } from 'lucide-react';
-import { initializeData, getSchoolByName } from '@/lib/store';
+import { initializeData, getSchoolByName, updateSchoolPassword } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { FirestorePermissionError } from '@/lib/errors';
@@ -81,9 +81,13 @@ export default function LoginPage() {
   const handleTeacherLogin = async (values: LoginValues) => {
     setIsSubmitting(true);
     
+    // Determine if password is required based on school status
+    const isNewSchool = existingSchool === null;
+    const isExistingWithoutPassword = existingSchool && !existingSchool.password;
+
     const dynamicLoginSchema = z.object({
         school: z.string().min(1, '학교 이름을 입력해주세요.'),
-        password: existingSchool === null 
+        password: (isNewSchool || isExistingWithoutPassword)
             ? z.string().min(4, '새 비밀번호는 4자 이상이어야 합니다.')
             : (existingSchool?.password ? z.string().min(1, '비밀번호를 입력해주세요.') : z.string().optional()),
     });
@@ -94,10 +98,14 @@ export default function LoginPage() {
       await signIn();
 
       if (existingSchool) { // Existing school
-        if (existingSchool.password && existingSchool.password !== values.password) {
-          toast({ variant: 'destructive', title: '로그인 실패', description: '비밀번호가 일치하지 않습니다.' });
-          setIsSubmitting(false);
-          return;
+        if (existingSchool.password) { // Has password
+            if (existingSchool.password !== values.password) {
+                toast({ variant: 'destructive', title: '로그인 실패', description: '비밀번호가 일치하지 않습니다.' });
+                setIsSubmitting(false);
+                return;
+            }
+        } else { // No password, so we are setting it now
+            await updateSchoolPassword(values.school, values.password!);
         }
       } else { // New school
         await initializeData(values.school, values.password);
@@ -125,6 +133,26 @@ export default function LoginPage() {
     }
   };
 
+  const showPasswordInput = !isCheckingSchool && (existingSchool === null || !existingSchool?.password || !!existingSchool?.password);
+
+  const getDescription = () => {
+    if (isCheckingSchool) return "학교 정보를 확인 중입니다...";
+    if (existingSchool === undefined) return "학교명을 입력하여 로그인 또는 신규 등록하세요.";
+    if (existingSchool === null) return "새로운 학교입니다. 사용할 비밀번호를 설정하세요.";
+    if (existingSchool && !existingSchool.password) return "등록된 학교지만 비밀번호가 없습니다. 사용할 새 비밀번호를 설정하세요.";
+    if (existingSchool && existingSchool.password) return "등록된 학교입니다. 비밀번호를 입력하여 로그인하세요.";
+    return "학교명을 입력하여 로그인 또는 신규 등록하세요.";
+  };
+  
+  const getButtonText = () => {
+      if (isSubmitting || isCheckingSchool) {
+          return isSubmitting ? '처리 중...' : '확인 중...';
+      }
+      if (existingSchool === null) return '신규 등록 및 로그인';
+      if (existingSchool && !existingSchool.password) return '비밀번호 설정 및 로그인';
+      return '교사로 로그인';
+  }
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
       <div className="flex items-center gap-4 mb-8 text-4xl font-bold text-primary">
@@ -135,11 +163,7 @@ export default function LoginPage() {
         <CardHeader>
           <CardTitle>교사 로그인</CardTitle>
           <CardDescription>
-            {isCheckingSchool && "학교 정보를 확인 중입니다..."}
-            {!isCheckingSchool && existingSchool === undefined && "학교명을 입력하여 로그인 또는 신규 등록하세요."}
-            {!isCheckingSchool && existingSchool === null && "새로운 학교입니다. 사용할 비밀번호를 설정하세요."}
-            {!isCheckingSchool && existingSchool && !existingSchool.password && "등록된 학교입니다. 비밀번호 없이 로그인할 수 있습니다."}
-            {!isCheckingSchool && existingSchool && existingSchool.password && "등록된 학교입니다. 비밀번호를 입력하여 로그인하세요."}
+            {getDescription()}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -158,13 +182,17 @@ export default function LoginPage() {
                   </FormItem>
                 )}
               />
-              {!isCheckingSchool && (existingSchool === null || !!existingSchool?.password) && (
+              {!isCheckingSchool && (existingSchool === null || !!existingSchool?.password || (existingSchool && !existingSchool.password)) && (
                 <FormField
                   control={form.control}
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{existingSchool === null ? '새 비밀번호 설정 (4자 이상)' : '비밀번호'}</FormLabel>
+                      <FormLabel>
+                        {existingSchool === null && '새 비밀번호 설정 (4자 이상)'}
+                        {existingSchool && !existingSchool.password && '새 비밀번호 설정 (4자 이상)'}
+                        {existingSchool && existingSchool.password && '비밀번호'}
+                      </FormLabel>
                       <FormControl>
                         <Input type="password" {...field} value={field.value ?? ''} />
                       </FormControl>
@@ -175,13 +203,9 @@ export default function LoginPage() {
               )}
               <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={isSubmitting || isCheckingSchool}>
                 {isSubmitting || isCheckingSchool ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {isSubmitting ? (existingSchool === null ? '등록 및 로그인 중...' : '로그인 중...') : '확인 중...'}
-                  </>
-                ) : (
-                  existingSchool === null ? '신규 등록 및 로그인' : '교사로 로그인'
-                )}
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : null}
+                {getButtonText()}
               </Button>
             </form>
           </Form>
