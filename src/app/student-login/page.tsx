@@ -64,7 +64,7 @@ export default function StudentLoginPage() {
       const student = await getStudent(values);
 
       if (student) {
-        login('student', student, values.school);
+        login('student', { ...student, school: values.school });
         router.push('/student/dashboard');
       } else {
         toast({

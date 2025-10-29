@@ -41,7 +41,7 @@ export function DashboardHeader() {
         </div>
         <div className="flex items-center gap-2 text-sm font-medium">
           <UserCircle className="h-5 w-5" />
-          <span>{user?.name}님</span>
+          <span>{user?.school} {user?.name}님</span>
         </div>
         <Button variant="ghost" size="sm" onClick={logout}>
           <LogOut className="mr-2 h-4 w-4" />

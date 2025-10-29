@@ -73,7 +73,7 @@ export default function LoginPage() {
         return;
       }
       
-      login('teacher', { name: '교사', school: values.school }, values.school);
+      login('teacher', { name: '교사', school: values.school });
       router.push('/teacher/dashboard');
 
     } catch (error) {

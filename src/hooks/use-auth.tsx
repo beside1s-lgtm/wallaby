@@ -18,7 +18,7 @@ interface AuthContextType {
   user: User | null;
   role: Role;
   school: string | null;
-  login: (role: 'teacher' | 'student', userData: User, school: string) => void;
+  login: (role: 'teacher' | 'student', userData: Omit<User, 'school'> & { school: string }) => void;
   logout: () => void;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -71,9 +71,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isLoading) return;
 
-    const isAuthPage = pathname === '/' || pathname === '/student-login';
+    const isAuthPage = pathname === '/' || pathname === '/student-login' || pathname === '/teacher/register';
     
-    // User is logged in, but on an auth page, redirect them away
     if (role && isAuthPage) {
         if (role === 'teacher') {
             router.replace('/teacher/dashboard');
@@ -83,14 +82,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
     }
     
-    // User is logged out, but not on an auth page, redirect them
     if (!role && !isAuthPage) {
-        // A simple redirect to the main login page is sufficient
         router.replace('/');
         return;
     }
 
-    // Additional checks for logged-in users on wrong dashboards
     if (role === 'teacher' && pathname.startsWith('/student')) {
       router.replace('/teacher/dashboard');
     }
@@ -101,14 +97,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [role, pathname, router, isLoading]);
 
 
-  const login = useCallback((role: 'teacher' | 'student', userData: User, school: string) => {
+  const login = useCallback((role: 'teacher' | 'student', userData: Omit<User, 'school'> & { school: string }) => {
     localStorage.setItem('userRole', role);
-    localStorage.setItem('userSchool', school);
+    localStorage.setItem('userSchool', userData.school);
     if (role === 'student') {
       localStorage.setItem('loggedInStudent', JSON.stringify(userData));
     }
     setRole(role);
-    setSchool(school);
+    setSchool(userData.school);
     setUser(userData);
   }, []);
 
@@ -123,7 +119,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSchool(null);
     setUser(null);
     
-    // Use window.location.href for a full page reload to avoid client-side routing issues.
     if (currentRole === 'student') {
       window.location.href = '/student-login';
     } else {

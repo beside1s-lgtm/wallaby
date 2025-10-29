@@ -14,6 +14,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
@@ -68,7 +69,7 @@ export default function RegisterPage() {
 
       await initializeData(values.school, values.password);
       
-      login('teacher', { name: '교사', school: values.school }, values.school);
+      login('teacher', { name: '교사', school: values.school });
 
       toast({
         title: '등록 성공',
