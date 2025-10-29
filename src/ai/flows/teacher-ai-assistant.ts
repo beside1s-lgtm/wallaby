@@ -9,6 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'zod';
 
 const AnalyzeStudentPerformanceInputSchema = z.object({
@@ -42,6 +43,7 @@ const analyzeStudentPerformancePrompt = ai.definePrompt({
   name: 'analyzeStudentPerformancePrompt',
   input: {schema: AnalyzeStudentPerformanceInputSchema},
   output: {schema: AnalyzeStudentPerformanceOutputSchema},
+  model: googleAI.model('gemini-2.5-flash'),
   prompt: `당신은 {{school}}의 체육 교사를 위한 AI 조수입니다. 학생의 경기력 데이터를 바탕으로 강점과 약점을 분석하고, 경기력 향상을 위한 훈련 방법을 제안하는 임무를 맡고 있습니다. 답변은 아주 간략하게 핵심만 요약해주세요.
 
 학생 이름: {{{studentName}}}

@@ -9,6 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'zod';
 
 const StudentFeedbackInputSchema = z.object({
@@ -39,6 +40,7 @@ const prompt = ai.definePrompt({
   name: 'studentFeedbackPrompt',
   input: {schema: StudentFeedbackInputSchema},
   output: {schema: StudentFeedbackOutputSchema},
+  model: googleAI.model('gemini-2.5-flash'),
   prompt: `당신은 학생의 운동 성과에 대해 한국어로 동기 부여가 되는 피드백을 제공하는 AI 코치입니다.
 
 학생 정보:
