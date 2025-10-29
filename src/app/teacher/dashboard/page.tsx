@@ -6,7 +6,7 @@ import { getStudents, getItems, getRecords } from '@/lib/store';
 import type { Student, MeasurementItem, MeasurementRecord } from '@/lib/types';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import StudentManagement from './_components/StudentManagement';
+import StudentManagement, { DatabaseManagement } from './_components/StudentManagement';
 import MeasurementManagement from './_components/MeasurementManagement';
 import ClassAnalytics from './_components/ClassAnalytics';
 import Ranking from './_components/Ranking';
@@ -133,7 +133,7 @@ export default function TeacherDashboardPage() {
             <MeasurementManagement items={items} onItemsUpdate={forceUpdate} />
           </TabsContent>
           <TabsContent value="database-management">
-             <StudentManagement students={students} onStudentsUpdate={forceUpdate} />
+             <DatabaseManagement students={students} onStudentsUpdate={forceUpdate} />
           </TabsContent>
         </Tabs>
       </div>

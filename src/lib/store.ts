@@ -209,6 +209,42 @@ export const assignMissingAccessCodes = async (school: string): Promise<void> =>
   });
 };
 
+export const promoteStudents = async (school: string, allStudents: Student[], promotionData: any[]): Promise<number> => {
+  const batch = writeBatch(db);
+  const studentMapByName = new Map(allStudents.map(s => [`${s.school}-${s.grade}-${s.classNum}-${s.studentNum}-${s.name}`, s]));
+  
+  let updatedCount = 0;
+
+  for (const promo of promotionData) {
+    const studentKey = `${promo.school}-${promo.grade}-${promo.classNum}-${promo.studentNum}-${promo.name}`;
+    const student = studentMapByName.get(studentKey);
+    
+    if (student && promo.newGrade && promo.newClassNum) {
+      const studentDocRef = doc(db, 'schools', school, 'students', student.id);
+      batch.update(studentDocRef, {
+        grade: promo.newGrade,
+        classNum: promo.newClassNum,
+      });
+      updatedCount++;
+    }
+  }
+
+  if (updatedCount > 0) {
+    await batch.commit().catch(e => {
+      if (e.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: `schools/${school}/students`,
+          operation: 'write',
+          requestResourceData: { message: "Batch promoting students." }
+        }));
+      }
+      throw e;
+    });
+  }
+
+  return updatedCount;
+};
+
 
 // Measurement Items
 export const getItems = async (school: string): Promise<MeasurementItem[]> => {
