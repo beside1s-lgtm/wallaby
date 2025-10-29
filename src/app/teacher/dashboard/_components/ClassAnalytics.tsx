@@ -1,7 +1,7 @@
 'use client';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { addOrUpdateRecord, calculateRanks, getRecordsByStudent, deleteRecord, addOrUpdateRecords } from '@/lib/store';
+import { calculateRanks, getRecordsByStudent, deleteRecord } from '@/lib/store';
 import { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
 import { Input } from '@/components/ui/input';
 import {
@@ -52,15 +52,10 @@ import {
 import { BarChart, Bar, ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { analyzeStudentPerformance } from '@/ai/flows/teacher-ai-assistant';
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, Wand2, X as XIcon, ArrowUpDown, Trash2, Calendar as CalendarIcon } from 'lucide-react';
+import { Loader2, Search, Wand2, X as XIcon, ArrowUpDown, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getPapsGrade, getCustomItemGrade, normalizePapsRecord, normalizeCustomRecord } from '@/lib/paps';
 import AiWelcome from './AiWelcome';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
-
 
 type AiAnalysis = {
   strengths: string;
@@ -74,13 +69,6 @@ interface ClassAnalyticsProps {
     allRecords: MeasurementRecord[];
     onRecordUpdate: () => void;
 }
-
-const gradeToPercentage = (grade: number | null): number => {
-    if (grade === null) return 0;
-    // 1등급: 100%, 2등급: 75%, 3등급: 50%, 4등급: 25%, 5등급: 0%
-    if (grade >= 5) return 0;
-    return (5 - grade) * 25;
-};
 
 const chartConfig = {
   score: { label: "등급", color: "hsl(var(--chart-2))" },
@@ -137,18 +125,6 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
   
   const [aiAnalysis, setAiAnalysis] = useState<AiAnalysis | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
-
-  // States for adding a new record (for single student)
-  const [selectedItemName, setSelectedItemName] = useState('');
-  const [recordValue, setRecordValue] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [recordDate, setRecordDate] = useState<Date | undefined>(new Date());
-
-  // States for batch recording
-  const [batchRecordItem, setBatchRecordItem] = useState('');
-  const [batchRecordDate, setBatchRecordDate] = useState<Date | undefined>(new Date());
-  const [batchRecords, setBatchRecords] = useState<Record<string, string>>({});
-  const [isBatchSubmitting, setIsBatchSubmitting] = useState(false);
   
   // States for sorting
   const [sortedStudents, setSortedStudents] = useState<(Student & { sortValue?: string | number })[] | null>(null);
@@ -181,7 +157,6 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
     setSortType(null);
     // When class selection changes, reset student selection
     setSelectedStudent(null);
-    setBatchRecords({}); // Clear batch records on class change
   }, [selectedGrade, selectedClassNum]);
 
 
@@ -192,12 +167,10 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
             const firstPapsItem = papsItems[0].name;
             setProgressChartItem(firstPapsItem);
             setSortItem(firstPapsItem);
-            setBatchRecordItem(firstPapsItem);
         } else if (allItems.length > 0) {
             const firstItem = allItems[0].name;
             setProgressChartItem(firstItem);
             setSortItem(firstItem);
-            setBatchRecordItem(firstItem);
         }
     }
   }, [allItems]);
@@ -209,16 +182,6 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
         setSelectedStudent(null);
     }
   }, [selectedGrade, selectedClassNum]);
-
-  const selectedItemForSingleAdd = useMemo(() => {
-      return allItems.find(item => item.name === selectedItemName);
-  }, [selectedItemName, allItems]);
-
-  const inputPlaceholder = useMemo(() => {
-    if (!selectedItemForSingleAdd) return "측정 결과 (숫자만 입력)";
-    if (selectedItemForSingleAdd.recordType === 'level') return "결과 (예: 1=상, 2=중, 3=하)";
-    return `결과 (${selectedItemForSingleAdd.unit})`;
-  }, [selectedItemForSingleAdd]);
 
   const refreshStudentRecords = (studentId: string) => {
     if(!school) return;
@@ -270,54 +233,6 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
     setSelectedClassNum('');
     setIsSelectionDialogOpen(false);
     setFoundStudents([]);
-  };
-
-  const handleAddRecord = async () => {
-    if (!selectedItemName || !recordValue || !school || !selectedStudent || !recordDate) {
-      toast({
-        variant: 'destructive',
-        title: '입력 오류',
-        description: '날짜, 측정 종목, 결과를 모두 입력해주세요.',
-      });
-      return;
-    }
-    
-    setIsSubmitting(true);
-    const numericValue = parseFloat(recordValue);
-    if (isNaN(numericValue)) {
-      toast({
-        variant: 'destructive',
-        title: '입력 오류',
-        description: '결과는 숫자로 입력해주세요.',
-      });
-      setIsSubmitting(false);
-      return;
-    }
-    
-    try {
-        await addOrUpdateRecord({
-          studentId: selectedStudent.id,
-          school: school,
-          item: selectedItemName,
-          value: numericValue,
-          date: format(recordDate, 'yyyy-MM-dd'),
-        });
-
-        await onRecordUpdate(); // This will re-fetch all records in parent and pass down
-        
-        toast({
-          title: '기록 저장 완료',
-          description: `${selectedStudent.name} 학생의 ${selectedItemName} 기록이 저장/업데이트되었습니다.`,
-        });
-        
-        setRecordValue('');
-        setSelectedItemName('');
-    } catch(error) {
-         console.error("Failed to save record:", error);
-        toast({ variant: 'destructive', title: '저장 실패', description: '기록 저장 중 오류가 발생했습니다.'})
-    } finally {
-        setIsSubmitting(false);
-    }
   };
 
   const handleDeleteRecord = async (recordId: string) => {
@@ -433,59 +348,11 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
       setSortType('averageGrade');
   };
   
-    const handleBatchRecordChange = (studentId: string, value: string) => {
-        setBatchRecords(prev => ({
-            ...prev,
-            [studentId]: value,
-        }));
-    };
-
-    const handleSaveBatchRecords = async () => {
-        if (!school || !batchRecordItem || !batchRecordDate || Object.keys(batchRecords).length === 0) {
-            toast({ variant: 'destructive', title: '입력 오류', description: '날짜, 종목을 선택하고 하나 이상의 기록을 입력해주세요.' });
-            return;
-        }
-
-        setIsBatchSubmitting(true);
-        try {
-            const recordsToSave = Object.entries(batchRecords)
-                .map(([studentId, value]) => {
-                    const student = filteredStudentsByClass.find(s => s.id === studentId);
-                    const numericValue = parseFloat(value);
-                    if (!student || value.trim() === '' || isNaN(numericValue)) return null;
-
-                    return {
-                        ...student,
-                        item: batchRecordItem,
-                        value: numericValue,
-                        date: format(batchRecordDate, 'yyyy-MM-dd'),
-                    };
-                })
-                .filter((r): r is (Student & { item: string; value: number; date: string; }) => r !== null);
-            
-            if (recordsToSave.length > 0) {
-                await addOrUpdateRecords(school, allStudents, recordsToSave);
-                await onRecordUpdate();
-                toast({ title: '저장 완료', description: `${batchRecordItem}에 대한 ${recordsToSave.length}개의 기록이 저장/업데이트되었습니다.` });
-                setBatchRecords({}); // Clear inputs after saving
-            } else {
-                toast({ variant: 'destructive', title: '저장할 기록 없음', description: '유효한 기록을 입력해주세요.' });
-            }
-        } catch (error) {
-            console.error('Failed to save batch records:', error);
-            toast({ variant: 'destructive', title: '일괄 저장 실패', description: '기록 저장 중 오류가 발생했습니다.' });
-        } finally {
-            setIsBatchSubmitting(false);
-        }
-    };
-
   const calculateAverageGrades = (studentList: Student[], isPaps: boolean): Record<string, { percentage: number, avgValue: number, unit: string }> => {
       if (studentList.length === 0) return {};
       
       const itemsToAnalyze = isPaps ? allItems.filter(i => i.isPaps) : allItems.filter(i => !i.isPaps && i.goal);
       const averageData: Record<string, { totalPercentage: number, totalValue: number, count: number, unit: string }> = {};
-      
-      const studentIds = new Set(studentList.map(s => s.id));
       
       itemsToAnalyze.forEach(item => {
         if (!averageData[item.name]) {
@@ -819,88 +686,33 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                     </Card>
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                      <Card>
-                          <CardHeader>
-                              <CardTitle>AI 코칭 어시스턴트</CardTitle>
-                              <CardDescription>학생의 기록을 바탕으로 강점, 약점, 추천 훈련 방법을 분석합니다.</CardDescription>
-                          </CardHeader>
-                          <CardContent>
-                              {isAiLoading ? (
-                                  <div className="flex items-center justify-center h-24">
-                                      <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                                  </div>
-                              ) : aiAnalysis ? (
-                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                                      <div><h4 className="font-bold mb-2 text-green-600">강점</h4><p className="whitespace-pre-wrap">{aiAnalysis.strengths}</p></div>
-                                      <div><h4 className="font-bold mb-2 text-red-600">약점</h4><p className="whitespace-pre-wrap">{aiAnalysis.weaknesses}</p></div>
-                                      <div><h4 className="font-bold mb-2 text-blue-600">추천 훈련 방법</h4><p className="whitespace-pre-wrap">{aiAnalysis.suggestedTrainingMethods}</p></div>
-                                  </div>
-                              ) : (
-                                  <p className="text-center text-muted-foreground">AI 분석을 요청하여 학생 맞춤형 코칭을 받아보세요.</p>
-                              )}
-                          </CardContent>
-                          <CardFooter>
-                              <Button onClick={handleAiAnalysis} disabled={isAiLoading || studentRecords.length === 0}>
-                                  <Wand2 className="mr-2 h-4 w-4" />
-                                  {isAiLoading ? '분석 중...' : 'AI 분석 요청'}
-                              </Button>
-                          </CardFooter>
-                      </Card>
-
-                      <Card>
-                          <CardHeader>
-                              <CardTitle>기록 추가/수정</CardTitle>
-                              <CardDescription>특정 날짜의 기록을 추가하거나, 기존 기록을 수정합니다.</CardDescription>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                              <Popover>
-                                  <PopoverTrigger asChild>
-                                  <Button
-                                      variant={"outline"}
-                                      className={cn(
-                                      "w-full justify-start text-left font-normal",
-                                      !recordDate && "text-muted-foreground"
-                                      )}
-                                  >
-                                      <CalendarIcon className="mr-2 h-4 w-4" />
-                                      {recordDate ? format(recordDate, "PPP") : <span>날짜 선택</span>}
-                                  </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-auto p-0">
-                                  <Calendar
-                                      mode="single"
-                                      selected={recordDate}
-                                      onSelect={setRecordDate}
-                                      initialFocus
-                                  />
-                                  </PopoverContent>
-                              </Popover>
-                              <Select onValueChange={setSelectedItemName} value={selectedItemName}>
-                                  <SelectTrigger>
-                                      <SelectValue placeholder="측정 종목 선택" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                      {allItems.map(item => (
-                                      <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
-                                      ))}
-                                  </SelectContent>
-                              </Select>
-                              <Input
-                                  placeholder={inputPlaceholder}
-                                  value={recordValue}
-                                  onChange={e => setRecordValue(e.target.value)}
-                                  type="number"
-                              />
-                          </CardContent>
-                          <CardFooter>
-                              <Button onClick={handleAddRecord} disabled={isSubmitting} className="w-full">
-                                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                  결과 저장
-                              </Button>
-                          </CardFooter>
-                      </Card>
-                  </div>
+                  <Card>
+                      <CardHeader>
+                          <CardTitle>AI 코칭 어시스턴트</CardTitle>
+                          <CardDescription>학생의 기록을 바탕으로 강점, 약점, 추천 훈련 방법을 분석합니다.</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                          {isAiLoading ? (
+                              <div className="flex items-center justify-center h-24">
+                                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                              </div>
+                          ) : aiAnalysis ? (
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                                  <div><h4 className="font-bold mb-2 text-green-600">강점</h4><p className="whitespace-pre-wrap">{aiAnalysis.strengths}</p></div>
+                                  <div><h4 className="font-bold mb-2 text-red-600">약점</h4><p className="whitespace-pre-wrap">{aiAnalysis.weaknesses}</p></div>
+                                  <div><h4 className="font-bold mb-2 text-blue-600">추천 훈련 방법</h4><p className="whitespace-pre-wrap">{aiAnalysis.suggestedTrainingMethods}</p></div>
+                              </div>
+                          ) : (
+                              <p className="text-center text-muted-foreground">AI 분석을 요청하여 학생 맞춤형 코칭을 받아보세요.</p>
+                          )}
+                      </CardContent>
+                      <CardFooter>
+                          <Button onClick={handleAiAnalysis} disabled={isAiLoading || studentRecords.length === 0}>
+                              <Wand2 className="mr-2 h-4 w-4" />
+                              {isAiLoading ? '분석 중...' : 'AI 분석 요청'}
+                          </Button>
+                      </CardFooter>
+                  </Card>
                   
                   <Card>
                       <CardHeader>
@@ -969,7 +781,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
               </div>
           ) : filteredStudentsByClass.length > 0 && (
               <div className="space-y-8">
-                  <h2 className="text-2xl font-bold">{selectedGrade}학년 {selectedClassNum}반 분석 및 기록</h2>
+                  <h2 className="text-2xl font-bold">{selectedGrade}학년 {selectedClassNum}반 분석</h2>
                   <Card>
                       <CardHeader className="flex-row items-start justify-between">
                         <div>
@@ -1060,66 +872,6 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                                           {student.sortValue !== undefined && <TableCell>{student.sortValue}</TableCell>}
                                           <TableCell>
                                               <Button variant="link" size="sm" onClick={() => handleSelectStudent(student)}>기록 보기</Button>
-                                          </TableCell>
-                                      </TableRow>
-                                  ))}
-                              </TableBody>
-                          </Table>
-                      </CardContent>
-                  </Card>
-
-                  <Card>
-                      <CardHeader>
-                          <CardTitle>학급별 측정 기록</CardTitle>
-                          <CardDescription>수업 중 측정한 결과를 학급 전체에 대해 한 번에 입력하고 저장할 수 있습니다.</CardDescription>
-                          <div className="flex flex-wrap items-center gap-2 pt-4">
-                              <Popover>
-                                  <PopoverTrigger asChild>
-                                  <Button variant={"outline"} className={cn("w-[240px] justify-start text-left font-normal", !batchRecordDate && "text-muted-foreground")}>
-                                      <CalendarIcon className="mr-2 h-4 w-4" />
-                                      {batchRecordDate ? format(batchRecordDate, "PPP") : <span>날짜 선택</span>}
-                                  </Button>
-                                  </PopoverTrigger>
-                                  <PopoverContent className="w-auto p-0">
-                                      <Calendar mode="single" selected={batchRecordDate} onSelect={setBatchRecordDate} initialFocus />
-                                  </PopoverContent>
-                              </Popover>
-                              <Select value={batchRecordItem} onValueChange={setBatchRecordItem}>
-                                  <SelectTrigger className="w-full sm:w-[180px]">
-                                      <SelectValue placeholder="측정 종목 선택" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                      {allItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
-                                  </SelectContent>
-                              </Select>
-                              <Button onClick={handleSaveBatchRecords} disabled={isBatchSubmitting} className="ml-auto">
-                                  {isBatchSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                  학급 전체 기록 저장
-                              </Button>
-                          </div>
-                      </CardHeader>
-                      <CardContent>
-                          <Table>
-                              <TableHeader>
-                                  <TableRow>
-                                      <TableHead>번호</TableHead>
-                                      <TableHead>이름</TableHead>
-                                      <TableHead>기록 ({allItems.find(i=>i.name === batchRecordItem)?.unit})</TableHead>
-                                  </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                  {filteredStudentsByClass.map(student => (
-                                      <TableRow key={student.id}>
-                                          <TableCell>{student.studentNum}</TableCell>
-                                          <TableCell>{student.name}</TableCell>
-                                          <TableCell>
-                                              <Input
-                                                  type="number"
-                                                  value={batchRecords[student.id] || ''}
-                                                  onChange={(e) => handleBatchRecordChange(student.id, e.target.value)}
-                                                  className="max-w-[120px]"
-                                                  placeholder={allItems.find(i=>i.name === batchRecordItem)?.recordType === 'level' ? '1:상, 2:중, 3:하' : ''}
-                                              />
                                           </TableCell>
                                       </TableRow>
                                   ))}

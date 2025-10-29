@@ -10,8 +10,9 @@ import StudentManagement, { DatabaseManagement } from './_components/StudentMana
 import MeasurementManagement from './_components/MeasurementManagement';
 import ClassAnalytics from './_components/ClassAnalytics';
 import Ranking from './_components/Ranking';
+import RecordInput from './_components/RecordInput';
 import AiWelcome from './_components/AiWelcome';
-import { Users, ClipboardList, BarChart3, Bot, Trophy, Database } from 'lucide-react';
+import { Users, ClipboardList, BarChart3, Bot, Trophy, Database, Edit } from 'lucide-react';
 import { DashboardHeaderContents } from '@/components/DashboardHeader';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -94,10 +95,14 @@ export default function TeacherDashboardPage() {
         </Card>
 
         <Tabs defaultValue="class-analytics" className="w-full">
-          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-5 mb-6">
+          <TabsList className="grid w-full grid-cols-1 sm:grid-cols-6 mb-6">
             <TabsTrigger value="class-analytics">
               <BarChart3 className="mr-2 h-4 w-4" />
               학급별 분석
+            </TabsTrigger>
+             <TabsTrigger value="record-input">
+              <Edit className="mr-2 h-4 w-4" />
+              기록 입력
             </TabsTrigger>
              <TabsTrigger value="ranking">
               <Trophy className="mr-2 h-4 w-4" />
@@ -119,6 +124,10 @@ export default function TeacherDashboardPage() {
 
           <TabsContent value="class-analytics">
             <ClassAnalytics allStudents={students} allItems={items} allRecords={records} onRecordUpdate={forceUpdate} />
+          </TabsContent>
+          
+          <TabsContent value="record-input">
+            <RecordInput allStudents={students} allItems={items} onRecordUpdate={forceUpdate} />
           </TabsContent>
 
           <TabsContent value="ranking">
