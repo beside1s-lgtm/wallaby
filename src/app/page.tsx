@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { z } from 'zod';
@@ -47,6 +47,8 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [existingSchool, setExistingSchool] = useState<School | null | undefined>(undefined);
+  const [isCheckingSchool, setIsCheckingSchool] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -59,14 +61,19 @@ export default function LoginPage() {
   const schoolName = form.watch('school');
 
   useEffect(() => {
-    // Debounce to prevent excessive DB calls while typing
     const debounce = setTimeout(() => {
       if (schoolName) {
-        getSchoolByName(schoolName).then(setExistingSchool);
+        setIsCheckingSchool(true);
+        startTransition(() => {
+          getSchoolByName(schoolName).then(school => {
+            setExistingSchool(school);
+            setIsCheckingSchool(false);
+          });
+        });
       } else {
         setExistingSchool(undefined);
       }
-    }, 300);
+    }, 500);
 
     return () => clearTimeout(debounce);
   }, [schoolName]);
@@ -74,14 +81,11 @@ export default function LoginPage() {
   const handleTeacherLogin = async (values: LoginValues) => {
     setIsSubmitting(true);
     
-    // Define dynamic schema for validation inside the handler
     const dynamicLoginSchema = z.object({
         school: z.string().min(1, '학교 이름을 입력해주세요.'),
-        password: existingSchool?.password
-            ? z.string().min(1, '비밀번호를 입력해주세요.')
-            : (existingSchool === null 
-                ? z.string().min(4, '새 비밀번호는 4자 이상이어야 합니다.')
-                : z.string().optional()),
+        password: existingSchool === null 
+            ? z.string().min(4, '새 비밀번호는 4자 이상이어야 합니다.')
+            : (existingSchool?.password ? z.string().min(1, '비밀번호를 입력해주세요.') : z.string().optional()),
     });
 
     try {
@@ -95,7 +99,6 @@ export default function LoginPage() {
           setIsSubmitting(false);
           return;
         }
-        // If password matches or no password is required, proceed to login
       } else { // New school
         await initializeData(values.school, values.password);
       }
@@ -122,8 +125,6 @@ export default function LoginPage() {
     }
   };
 
-  const showPasswordInput = existingSchool === null || !!existingSchool?.password;
-
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
       <div className="flex items-center gap-4 mb-8 text-4xl font-bold text-primary">
@@ -134,10 +135,11 @@ export default function LoginPage() {
         <CardHeader>
           <CardTitle>교사 로그인</CardTitle>
           <CardDescription>
-            {existingSchool === undefined && "학교명을 입력하여 로그인하세요."}
-            {existingSchool === null && "새로운 학교입니다. 사용할 비밀번호를 설정하세요."}
-            {existingSchool && !existingSchool.password && "등록된 학교입니다. 비밀번호 없이 로그인할 수 있습니다."}
-            {existingSchool && existingSchool.password && "등록된 학교입니다. 비밀번호를 입력하여 로그인하세요."}
+            {isCheckingSchool && "학교 정보를 확인 중입니다..."}
+            {!isCheckingSchool && existingSchool === undefined && "학교명을 입력하여 로그인 또는 신규 등록하세요."}
+            {!isCheckingSchool && existingSchool === null && "새로운 학교입니다. 사용할 비밀번호를 설정하세요."}
+            {!isCheckingSchool && existingSchool && !existingSchool.password && "등록된 학교입니다. 비밀번호 없이 로그인할 수 있습니다."}
+            {!isCheckingSchool && existingSchool && existingSchool.password && "등록된 학교입니다. 비밀번호를 입력하여 로그인하세요."}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -156,7 +158,7 @@ export default function LoginPage() {
                   </FormItem>
                 )}
               />
-              {showPasswordInput && (
+              {!isCheckingSchool && (existingSchool === null || !!existingSchool?.password) && (
                 <FormField
                   control={form.control}
                   name="password"
@@ -171,11 +173,11 @@ export default function LoginPage() {
                   )}
                 />
               )}
-              <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={isSubmitting}>
-                {isSubmitting ? (
+              <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={isSubmitting || isCheckingSchool}>
+                {isSubmitting || isCheckingSchool ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {existingSchool === null ? '등록 및 로그인 중...' : '로그인 중...'}
+                    {isSubmitting ? (existingSchool === null ? '등록 및 로그인 중...' : '로그인 중...') : '확인 중...'}
                   </>
                 ) : (
                   existingSchool === null ? '신규 등록 및 로그인' : '교사로 로그인'
