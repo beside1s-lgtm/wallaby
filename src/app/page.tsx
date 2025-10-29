@@ -33,12 +33,12 @@ import { FirestorePermissionError } from '@/lib/errors';
 import { signIn } from '@/lib/firebase';
 import type { School } from '@/lib/types';
 
-const teacherLoginSchema = z.object({
+const loginSchema = z.object({
   school: z.string().min(1, '학교 이름을 입력해주세요.'),
   password: z.string().optional(),
 });
 
-type TeacherLoginValues = z.infer<typeof teacherLoginSchema>;
+type LoginValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
   const router = useRouter();
@@ -48,8 +48,8 @@ export default function LoginPage() {
   
   const [existingSchool, setExistingSchool] = useState<School | null | undefined>(undefined);
 
-  const form = useForm<TeacherLoginValues>({
-    resolver: zodResolver(teacherLoginSchema),
+  const form = useForm<LoginValues>({
+    resolver: zodResolver(loginSchema),
     defaultValues: {
       school: '',
       password: '',
@@ -59,32 +59,32 @@ export default function LoginPage() {
   const schoolName = form.watch('school');
 
   useEffect(() => {
+    // Debounce to prevent excessive DB calls while typing
     const debounce = setTimeout(() => {
       if (schoolName) {
         getSchoolByName(schoolName).then(setExistingSchool);
       } else {
         setExistingSchool(undefined);
       }
-    }, 500);
+    }, 300);
 
     return () => clearTimeout(debounce);
   }, [schoolName]);
 
-  const dynamicLoginSchema = z.object({
-      school: z.string().min(1, '학교 이름을 입력해주세요.'),
-      password: existingSchool?.password
-          ? z.string().min(1, '비밀번호를 입력해주세요.')
-          : (existingSchool === null 
-              ? z.string().min(4, '비밀번호는 4자 이상이어야 합니다.')
-              : z.string().optional()),
-  });
-
-  form.trigger(); // Re-validate form when schema changes
-
-  const handleTeacherLogin = async (values: TeacherLoginValues) => {
+  const handleTeacherLogin = async (values: LoginValues) => {
     setIsSubmitting(true);
+    
+    // Define dynamic schema for validation inside the handler
+    const dynamicLoginSchema = z.object({
+        school: z.string().min(1, '학교 이름을 입력해주세요.'),
+        password: existingSchool?.password
+            ? z.string().min(1, '비밀번호를 입력해주세요.')
+            : (existingSchool === null 
+                ? z.string().min(4, '새 비밀번호는 4자 이상이어야 합니다.')
+                : z.string().optional()),
+    });
+
     try {
-      // Validate again with the dynamic schema
       dynamicLoginSchema.parse(values);
 
       await signIn();
@@ -104,10 +104,10 @@ export default function LoginPage() {
       router.push('/teacher/dashboard');
     } catch (error) {
        if (error instanceof z.ZodError) {
-        // This is for developer feedback, not usually shown to user
-        console.error("Zod validation failed: ", error.flatten());
-        toast({ variant: 'destructive', title: '입력 오류', description: '입력값을 확인해주세요.' });
-      } else if (error instanceof FirestorePermissionError) {
+        error.errors.forEach((err) => {
+          form.setError(err.path[0] as keyof LoginValues, { message: err.message });
+        });
+       } else if (error instanceof FirestorePermissionError) {
         throw error;
       } else {
         console.error("Login failed: ", error);
@@ -122,6 +122,8 @@ export default function LoginPage() {
     }
   };
 
+  const showPasswordInput = existingSchool === null || !!existingSchool?.password;
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
       <div className="flex items-center gap-4 mb-8 text-4xl font-bold text-primary">
@@ -133,7 +135,7 @@ export default function LoginPage() {
           <CardTitle>교사 로그인</CardTitle>
           <CardDescription>
             {existingSchool === undefined && "학교명을 입력하여 로그인하세요."}
-            {existingSchool === null && "새로운 학교입니다. 비밀번호를 설정하여 등록하세요."}
+            {existingSchool === null && "새로운 학교입니다. 사용할 비밀번호를 설정하세요."}
             {existingSchool && !existingSchool.password && "등록된 학교입니다. 비밀번호 없이 로그인할 수 있습니다."}
             {existingSchool && existingSchool.password && "등록된 학교입니다. 비밀번호를 입력하여 로그인하세요."}
           </CardDescription>
@@ -154,15 +156,15 @@ export default function LoginPage() {
                   </FormItem>
                 )}
               />
-              {(existingSchool === null || existingSchool?.password) && (
+              {showPasswordInput && (
                 <FormField
                   control={form.control}
                   name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{existingSchool === null ? '새 비밀번호 설정' : '비밀번호'}</FormLabel>
+                      <FormLabel>{existingSchool === null ? '새 비밀번호 설정 (4자 이상)' : '비밀번호'}</FormLabel>
                       <FormControl>
-                        <Input type="password" {...field} />
+                        <Input type="password" {...field} value={field.value ?? ''} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

@@ -69,7 +69,7 @@ export const initializeData = async (schoolName: string, password?: string) => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: schoolDocRef.path,
         operation: 'write', // A transaction can be a complex write operation
-        requestResourceData: { name: schoolName, message: "Initial data setup for new school." }
+        requestResourceData: { name: schoolName, password, message: "Initial data setup for new school." }
       }));
     }
     // Re-throw other errors
