@@ -39,6 +39,14 @@ interface MeasurementManagementProps {
   onItemsUpdate: () => void;
 }
 
+const recordTypeDisplay: Record<RecordType, string> = {
+    time: "시간",
+    count: "횟수",
+    distance: "거리",
+    weight: "무게",
+    level: "상중하"
+};
+
 export default function MeasurementManagement({ items, onItemsUpdate }: MeasurementManagementProps) {
   const { school } = useAuth();
   const { toast } = useToast();
@@ -94,7 +102,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
                       <li key={item.id} className="flex items-center justify-between p-2 bg-secondary rounded-md text-sm">
                           <div>
                               <span className="font-semibold">{item.name}</span>
-                              <span className="text-muted-foreground ml-2">({item.unit}, {item.recordType}{item.goal ? `, 목표:${item.goal}`: ''})</span>
+                              <span className="text-muted-foreground ml-2">({item.unit}, {recordTypeDisplay[item.recordType]}{item.goal ? `, 목표:${item.goal}`: ''})</span>
                           </div>
                           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteItem(item)}>
                              <X className="h-4 w-4" />
@@ -237,10 +245,11 @@ function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measurement
                     <SelectItem value="count">횟수 (높을수록 좋음)</SelectItem>
                     <SelectItem value="distance">거리 (높을수록 좋음)</SelectItem>
                     <SelectItem value="weight">무게 (높을수록 좋음)</SelectItem>
+                    <SelectItem value="level">상-중-하</SelectItem>
                 </SelectContent>
             </Select>
           </div>
-           {recordType && recordType !== 'time' && (
+           {recordType && recordType !== 'time' && recordType !== 'level' && (
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="goal" className="text-right">목표값(선택)</Label>
               <Input

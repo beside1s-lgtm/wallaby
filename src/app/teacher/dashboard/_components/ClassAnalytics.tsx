@@ -216,6 +216,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
 
   const inputPlaceholder = useMemo(() => {
     if (!selectedItemForSingleAdd) return "측정 결과 (숫자만 입력)";
+    if (selectedItemForSingleAdd.recordType === 'level') return "결과 (예: 1=상, 2=중, 3=하)";
     return `결과 (${selectedItemForSingleAdd.unit})`;
   }, [selectedItemForSingleAdd]);
 
@@ -306,7 +307,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
         
         toast({
           title: '기록 저장 완료',
-          description: `${selectedStudent.name} 학생의 ${selectedItemName} 기록이 ${numericValue}${selectedItemForSingleAdd?.unit}으로 저장/업데이트되었습니다.`,
+          description: `${selectedStudent.name} 학생의 ${selectedItemName} 기록이 저장/업데이트되었습니다.`,
         });
         
         setRecordValue('');
@@ -393,7 +394,9 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
 
 
     studentRecs.sort((a, b) => {
-      return itemInfo.recordType === 'time' ? a._sortValue - b._sortValue : b._sortValue - a._sortValue;
+      return itemInfo.recordType === 'time' || itemInfo.recordType === 'level' 
+        ? a._sortValue - b._sortValue 
+        : b._sortValue - a._sortValue;
     });
 
     setSortedStudents(studentRecs);
@@ -613,7 +616,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
             if(grade) achievement = normalizeCustomRecord(itemInfo, r.value);
           }
           
-          if (grade === null) return null;
+          if (grade === null && itemInfo.recordType !== 'level') return null;
 
           const rankInfo = itemRanks.find(rank => rank.studentId === r.studentId && rank.value === r.value);
 
@@ -621,7 +624,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
               date: r.date, 
               itemName: r.item,
               grade: grade,
-              score: 6 - grade, // 1등급 -> 5점, 5등급 -> 1점
+              score: grade ? 6 - grade : undefined, // 1등급 -> 5점, 5등급 -> 1점
               achievement: achievement,
               value: r.value,
               unit: itemInfo.unit,
@@ -922,7 +925,12 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                                   <TableRow key={record.id}>
                                   <TableCell>{record.date}</TableCell>
                                   <TableCell>{record.item}</TableCell>
-                                  <TableCell>{record.value}{item?.unit}</TableCell>
+                                  <TableCell>
+                                    {item?.recordType === 'level' 
+                                      ? (record.value === 1 ? '상' : record.value === 2 ? '중' : '하')
+                                      : `${record.value}${item?.unit}`
+                                    }
+                                  </TableCell>
                                   <TableCell className="text-right">
                                       <AlertDialog>
                                       <AlertDialogTrigger asChild>
@@ -1110,6 +1118,7 @@ export default function ClassAnalytics({ allStudents, allItems, allRecords, onRe
                                                   value={batchRecords[student.id] || ''}
                                                   onChange={(e) => handleBatchRecordChange(student.id, e.target.value)}
                                                   className="max-w-[120px]"
+                                                  placeholder={allItems.find(i=>i.name === batchRecordItem)?.recordType === 'level' ? '1:상, 2:중, 3:하' : ''}
                                               />
                                           </TableCell>
                                       </TableRow>

@@ -11,7 +11,7 @@ export type Student = {
 
 export type StudentToAdd = Omit<Student, 'id' | 'accessCode'>;
 
-export type RecordType = 'time' | 'count' | 'distance' | 'weight';
+export type RecordType = 'time' | 'count' | 'distance' | 'weight' | 'level';
 
 export type MeasurementItem = {
   id: string;

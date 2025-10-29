@@ -353,9 +353,21 @@ export function getPapsGrade(item: string, student: Student, value: number): num
 
 
 export function getCustomItemGrade(item: MeasurementItem, value: number): number | null {
-  if (item.isPaps || !item.goal || item.recordType === 'time') {
+  if (item.isPaps || item.recordType === 'time') {
     return null;
   }
+  
+  if (item.recordType === 'level') {
+    if(value === 1) return 1;
+    if(value === 2) return 2;
+    if(value === 3) return 3;
+    if(value === 4) return 4;
+    if(value === 5) return 5;
+    return null;
+  }
+  
+  if (!item.goal) return null;
+
 
   const percentage = (value / item.goal) * 100;
 
@@ -431,6 +443,13 @@ export function normalizePapsRecord(grade: number, value: number, item: string, 
  * 기타 종목의 기록을 0-100 사이의 성취도로 변환합니다.
  */
 export function normalizeCustomRecord(item: MeasurementItem, value: number): number {
+    if (item.recordType === 'level') {
+        if (value === 1) return 100; // 상
+        if (value === 2) return 75;  // 중
+        if (value === 3) return 50;  // 하
+        return 0;
+    }
+    
     if (!item.goal || item.goal === 0 || item.recordType === 'time') {
         return 0;
     }
