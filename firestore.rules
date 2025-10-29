@@ -2,8 +2,46 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isTeacher(school) {
+      return request.auth.token.role == 'teacher' && request.auth.token.school == school;
+    }
+
+    function isStudent(school) {
+        return request.auth.token.role == 'student' && request.auth.token.school == school;
+    }
+
+    function isOwner(userId) {
+        return request.auth.uid == userId;
+    }
+
+    match /schools/{school} {
+      // 누구나 학교 정보를 읽고, 신규 학교를 생성할 수 있습니다.
+      allow read, create: if isSignedIn();
+      // 교사만 학교 정보를 수정하거나 삭제할 수 있습니다.
+      allow update, delete: if isTeacher(school);
+
+      match /students/{studentId} {
+        // 교사만 학생 정보를 생성, 수정, 삭제할 수 있습니다.
+        allow read, write: if isTeacher(school);
+      }
+
+      match /items/{itemId} {
+          // 교사만 측정 종목을 생성, 수정, 삭제할 수 있습니다.
+          allow read, write: if isTeacher(school);
+      }
+      
+      match /records/{recordId} {
+        // 교사는 모든 기록을 읽고 쓸 수 있습니다.
+        allow read, write: if isTeacher(school);
+        // 학생은 자신의 기록만 생성, 수정, 삭제할 수 있습니다.
+        allow create, update, delete: if isStudent(school) && request.resource.data.studentId == request.auth.token.studentId;
+      }
     }
   }
 }
