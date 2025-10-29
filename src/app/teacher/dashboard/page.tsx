@@ -133,7 +133,7 @@ export default function TeacherDashboardPage() {
             <MeasurementManagement items={items} onItemsUpdate={forceUpdate} />
           </TabsContent>
           <TabsContent value="database-management">
-             <DatabaseManagement students={students} onStudentsUpdate={forceUpdate} />
+             <DatabaseManagement students={students} records={records} items={items} onUpdate={forceUpdate} />
           </TabsContent>
         </Tabs>
       </div>

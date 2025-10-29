@@ -13,7 +13,7 @@ import {
   assignMissingAccessCodes,
   promoteStudents,
 } from '@/lib/store';
-import type { Student, StudentToAdd, MeasurementItem } from '@/lib/types';
+import type { Student, StudentToAdd, MeasurementItem, MeasurementRecord } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -423,24 +423,19 @@ function AddStudentDialog({ onAddStudent }: { onAddStudent: (data: StudentToAdd)
   );
 }
 
-export function DatabaseManagement({ students, onStudentsUpdate }: { students: Student[]; onStudentsUpdate: () => void; }) {
+export function DatabaseManagement({ students, records, items, onUpdate }: { students: Student[]; records: MeasurementRecord[]; items: MeasurementItem[]; onUpdate: () => void; }) {
   const { school } = useAuth();
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Bulk delete states
   const [deleteDate, setDeleteDate] = useState<Date | undefined>();
   const [deleteItem, setDeleteItem] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
-  const [allItems, setAllItems] = useState<MeasurementItem[]>([]);
-
-  useEffect(() => {
-    if (school) {
-      getItems(school).then(setAllItems);
-    }
-  }, [school]);
   
+  const [downloadItem, setDownloadItem] = useState('');
+
+
   const handleRecordCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (file && school) {
@@ -453,7 +448,7 @@ export function DatabaseManagement({ students, onStudentsUpdate }: { students: S
                   if (parsedRecords.length === 0) throw new Error("No data in CSV");
 
                   await addOrUpdateRecords(school, students, parsedRecords);
-                  onStudentsUpdate();
+                  onUpdate();
                   toast({ title: '등록 되었습니다', description: `기록 일괄 등록이 완료되었습니다.` });
               } catch (error) {
                   console.error('CSV 처리 오류', error);
@@ -469,15 +464,14 @@ export function DatabaseManagement({ students, onStudentsUpdate }: { students: S
 
   const handleDownloadAllRecords = async () => {
     if (!school) return;
-    const allRecords = await getRecords(school);
-    if(allRecords.length === 0){
+    if(records.length === 0){
         toast({variant: 'destructive', title: '데이터 없음', description: '다운로드할 기록이 없습니다.'})
         return;
     }
     
     const studentMap = new Map(students.map(s => [s.id, s]));
     
-    const dataToExport = allRecords.map(record => {
+    const dataToExport = records.map(record => {
         const student = studentMap.get(record.studentId);
         return {
             학교: record.school,
@@ -496,6 +490,40 @@ export function DatabaseManagement({ students, onStudentsUpdate }: { students: S
     toast({ title: '다운로드 시작', description: '전체 학생 기록을 CSV 파일로 다운로드합니다.'});
   }
 
+  const handleDownloadItemRecords = async () => {
+    if (!school || !downloadItem) {
+        toast({ variant: 'destructive', title: '선택 오류', description: '다운로드할 종목을 선택해주세요.' });
+        return;
+    }
+
+    const itemRecords = records.filter(r => r.item === downloadItem);
+    
+    if(itemRecords.length === 0){
+        toast({variant: 'destructive', title: '데이터 없음', description: `'${downloadItem}' 종목에 대한 기록이 없습니다.`})
+        return;
+    }
+    
+    const studentMap = new Map(students.map(s => [s.id, s]));
+    
+    const dataToExport = itemRecords.map(record => {
+        const student = studentMap.get(record.studentId);
+        return {
+            학교: record.school,
+            학년: student?.grade || '',
+            반: student?.classNum || '',
+            번호: student?.studentNum || '',
+            이름: student?.name || '알수없음',
+            성별: student?.gender || '',
+            측정종목: record.item,
+            기록: record.value,
+            측정일: record.date,
+        }
+    });
+    
+    exportToCsv(`${school}_${downloadItem}_기록.csv`, dataToExport);
+    toast({ title: '다운로드 시작', description: `'${downloadItem}' 종목 기록을 CSV 파일로 다운로드합니다.`});
+  }
+
   const handleDownloadRecordTemplate = async () => {
     if(!school) return;
     const templateData = [{
@@ -509,7 +537,6 @@ export function DatabaseManagement({ students, onStudentsUpdate }: { students: S
       date: '2024-01-01'
     }];
     
-    const items = await getItems(school);
     const itemsData = items.map(item => ({
         종목명: item.name,
         단위: item.unit
@@ -534,7 +561,7 @@ export function DatabaseManagement({ students, onStudentsUpdate }: { students: S
         const dateStr = format(deleteDate, 'yyyy-MM-dd');
         const deletedCount = await deleteRecordsByDateAndItem(school, dateStr, deleteItem);
         
-        onStudentsUpdate(); // Refresh all data
+        onUpdate(); // Refresh all data
 
         toast({
             title: '삭제 완료',
@@ -557,7 +584,7 @@ export function DatabaseManagement({ students, onStudentsUpdate }: { students: S
     setIsProcessing(true);
     try {
       const count = await cleanUpDuplicateRecords(school);
-      await onStudentsUpdate();
+      await onUpdate();
       toast({
         title: '중복 기록 정리 완료',
         description: `중복된 기록 ${count}건을 정리했습니다.`,
@@ -575,7 +602,7 @@ export function DatabaseManagement({ students, onStudentsUpdate }: { students: S
     setIsProcessing(true);
     try {
       await assignMissingAccessCodes(school);
-      await onStudentsUpdate();
+      await onUpdate();
       toast({
         title: '접속 코드 할당 완료',
         description: '접속 코드가 없는 모든 학생에게 새 코드를 할당했습니다.',
@@ -600,7 +627,7 @@ export function DatabaseManagement({ students, onStudentsUpdate }: { students: S
           if (promotionData.length === 0) throw new Error("CSV 파일에 데이터가 없습니다.");
 
           const updatedCount = await promoteStudents(school, students, promotionData);
-          onStudentsUpdate();
+          onUpdate();
           toast({
             title: "진급 처리 완료",
             description: `${updatedCount}명의 학생 정보가 업데이트되었습니다.`
@@ -663,7 +690,7 @@ export function DatabaseManagement({ students, onStudentsUpdate }: { students: S
               <div className='border-b pb-6'>
                 <h3 className="text-lg font-semibold mb-2">기록 등록 및 다운로드</h3>
                 <p className="text-sm text-muted-foreground mb-4">
-                    CSV 파일을 사용하여 여러 학생의 기록을 한 번에 등록하거나, 전체 기록을 다운로드합니다.
+                    CSV 파일을 사용하여 여러 학생의 기록을 한 번에 등록하거나, 전체 또는 특정 종목의 기록을 다운로드합니다.
                 </p>
                 <div className="flex flex-wrap gap-2">
                     <Button variant="outline" onClick={() => document.getElementById('record-csv-upload')?.click()} disabled={isUploading}>
@@ -671,9 +698,23 @@ export function DatabaseManagement({ students, onStudentsUpdate }: { students: S
                     </Button>
                     <input type="file" id="record-csv-upload" accept=".csv" onChange={handleRecordCsvUpload} style={{ display: 'none' }} />
                     <Button variant="link" onClick={handleDownloadRecordTemplate}>기록용 템플릿</Button>
-                    <Button variant="outline" onClick={handleDownloadAllRecords} className="ml-auto">
-                        <FileDown className="mr-2 h-4 w-4" /> 전체 기록 다운로드
-                    </Button>
+                    
+                    <div className="flex flex-wrap gap-2 items-center ml-auto">
+                        <Select value={downloadItem} onValueChange={setDownloadItem}>
+                            <SelectTrigger className="w-full sm:w-[180px]">
+                                <SelectValue placeholder="종목 선택 (선택 사항)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {items.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        <Button variant="outline" onClick={handleDownloadItemRecords} disabled={!downloadItem}>
+                            <FileDown className="mr-2 h-4 w-4" /> 선택 종목 기록
+                        </Button>
+                        <Button variant="outline" onClick={handleDownloadAllRecords}>
+                            <FileDown className="mr-2 h-4 w-4" /> 전체 기록
+                        </Button>
+                    </div>
                 </div>
               </div>
 
@@ -700,7 +741,7 @@ export function DatabaseManagement({ students, onStudentsUpdate }: { students: S
                             <SelectValue placeholder="삭제할 종목 선택" />
                         </SelectTrigger>
                         <SelectContent>
-                            {allItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
+                            {items.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
                         </SelectContent>
                     </Select>
                     
