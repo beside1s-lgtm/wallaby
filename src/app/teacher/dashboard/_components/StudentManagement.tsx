@@ -2,8 +2,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import {
-  setStudents as setStudentsInDb,
-  setRecords as setRecordsInDb,
+  deleteStudentAndAssociatedRecords,
   getRecords,
   addStudent,
   updateStudent,
@@ -182,26 +181,30 @@ export default function StudentManagement({
   };
 
   const handleDeleteSelected = async () => {
-    if (!school) return;
-    const studentsToDelete = students.filter((s) => selectedIds.includes(s.id));
-    const studentNames = studentsToDelete.map((s) => s.name).join(", ");
+    if (!school || selectedIds.length === 0) return;
 
-    const currentStudents = students.filter((s) => !selectedIds.includes(s.id));
-    await setStudentsInDb(school, currentStudents);
+    setIsProcessing(true);
+    try {
+      const deletePromises = selectedIds.map(id => deleteStudentAndAssociatedRecords(school, id));
+      await Promise.all(deletePromises);
 
-    const currentRecords = await getRecords(school);
-    const updatedRecords = currentRecords.filter(
-      (r) => !selectedIds.includes(r.studentId)
-    );
-    await setRecordsInDb(school, updatedRecords);
-
-    setSelection({});
-    onStudentsUpdate(); // Refresh data in parent
-    toast({
-      variant: "destructive",
-      title: "삭제 완료",
-      description: `${studentNames} 학생 정보를 삭제했습니다.`,
-    });
+      setSelection({});
+      onStudentsUpdate();
+      toast({
+        variant: "destructive",
+        title: "삭제 완료",
+        description: `${selectedIds.length}명의 학생 정보와 관련 기록을 모두 삭제했습니다.`,
+      });
+    } catch (error) {
+      console.error("Failed to delete students:", error);
+      toast({
+        variant: "destructive",
+        title: "삭제 실패",
+        description: "학생 정보 삭제 중 오류가 발생했습니다.",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleSelectAll = (checked: boolean) => {
@@ -419,15 +422,33 @@ export default function StudentManagement({
                   <FileDown className="mr-2 h-4 w-4" />
                   학급 명단
                 </Button>
-                <Button
-                  className="w-full"
-                  variant="destructive"
-                  disabled={selectedIds.length === 0}
-                  onClick={handleDeleteSelected}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  선택 삭제 ({selectedIds.length})
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      disabled={selectedIds.length === 0 || isProcessing}
+                    >
+                      {isProcessing ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="mr-2 h-4 w-4" />
+                      )}
+                      선택 삭제 ({selectedIds.length})
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        선택한 {selectedIds.length}명의 학생 정보와 관련된 모든 측정 기록이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>취소</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDeleteSelected}>삭제</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </div>
           </div>

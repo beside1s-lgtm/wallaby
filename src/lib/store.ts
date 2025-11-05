@@ -128,28 +128,28 @@ export const getStudents = async (school: string): Promise<Student[]> => {
     return snapshot.docs.map(doc => doc.data() as Student);
 };
 
-export const setStudents = async (school: string, students: Student[]) => {
-    const batch = writeBatch(db);
-    const studentsRef = collection(db, 'schools', school, 'students');
-    const currentStudentsSnapshot = await getDocs(studentsRef);
-    currentStudentsSnapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-    });
-    students.forEach(student => {
-        const studentDocRef = doc(db, 'schools', school, 'students', student.id);
-        batch.set(studentDocRef, student);
-    });
-    await batch.commit().catch((e) => {
-        if (e.code === 'permission-denied') {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: studentsRef.path,
-                operation: 'write',
-                requestResourceData: { message: "Batch deleting and setting students." }
-            }));
-        }
-        throw e;
-    });
-}
+export const deleteStudentAndAssociatedRecords = async (school: string, studentId: string) => {
+  const batch = writeBatch(db);
+  const recordsRef = collection(db, 'schools', school, 'records');
+  const q = query(recordsRef, where('studentId', '==', studentId));
+  
+  const recordsSnapshot = await getDocs(q);
+  recordsSnapshot.forEach(doc => batch.delete(doc.ref));
+
+  const studentDocRef = doc(db, 'schools', school, 'students', studentId);
+  batch.delete(studentDocRef);
+
+  await batch.commit().catch(e => {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: `schools/${school}`,
+        operation: 'write',
+        requestResourceData: { message: `Deleting student ${studentId} and their records.` }
+      }));
+    }
+    throw e;
+  });
+};
 
 
 export const getStudent = async (
