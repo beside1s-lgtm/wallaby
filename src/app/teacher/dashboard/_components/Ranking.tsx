@@ -194,7 +194,7 @@ function TeamBalancer({ allStudents, allItems, allRecords, grades }: RankingProp
   useEffect(() => {
     if (selectedGrade && selectedItemNames.length > 0) {
       const gradeStudents = allStudents.filter(s => s.grade === selectedGrade);
-      const studentIdToScores = new Map<string, { totalScore: number, scores: { item: string, score: number }[] }>();
+      const studentIdToRawScores = new Map<string, { totalScore: number, scores: { item: string, score: number }[] }>();
 
       selectedItemNames.forEach(itemName => {
         const itemInfo = allItems.find(i => i.name === itemName);
@@ -207,20 +207,19 @@ function TeamBalancer({ allStudents, allItems, allRecords, grades }: RankingProp
           const totalInRank = itemRanks.length;
           itemRanks.forEach(rankInfo => {
             const score = Math.round((1 - (rankInfo.rank - 1) / totalInRank) * 100);
-            if (!studentIdToScores.has(rankInfo.studentId)) {
-              studentIdToScores.set(rankInfo.studentId, { totalScore: 0, scores: [] });
+            if (!studentIdToRawScores.has(rankInfo.studentId)) {
+              studentIdToRawScores.set(rankInfo.studentId, { totalScore: 0, scores: [] });
             }
-            const studentData = studentIdToScores.get(rankInfo.studentId)!;
+            const studentData = studentIdToRawScores.get(rankInfo.studentId)!;
             studentData.scores.push({ item: itemName, score: score });
           });
         }
       });
       
-      // Calculate total score and add students who might not have scores for all selected items
+      let maxRawTotalScore = 0;
       gradeStudents.forEach(student => {
-        const studentData = studentIdToScores.get(student.id) || { totalScore: 0, scores: [] };
+        const studentData = studentIdToRawScores.get(student.id) || { totalScore: 0, scores: [] };
         
-        // Add 0 score for missing items
         selectedItemNames.forEach(itemName => {
             if (!studentData.scores.some(s => s.item === itemName)) {
                 studentData.scores.push({ item: itemName, score: 0 });
@@ -228,10 +227,21 @@ function TeamBalancer({ allStudents, allItems, allRecords, grades }: RankingProp
         });
 
         studentData.totalScore = studentData.scores.reduce((acc, s) => acc + s.score, 0);
-        studentIdToScores.set(student.id, studentData);
+        studentIdToRawScores.set(student.id, studentData);
+
+        if (studentData.totalScore > maxRawTotalScore) {
+            maxRawTotalScore = studentData.totalScore;
+        }
       });
 
-      setStudentScores(studentIdToScores);
+      const finalStudentScores = new Map<string, { totalScore: number, scores: { item: string, score: number }[] }>();
+      studentIdToRawScores.forEach((data, studentId) => {
+          const finalScore = maxRawTotalScore > 0 ? Math.round((data.totalScore / maxRawTotalScore) * 100) : 0;
+          finalStudentScores.set(studentId, { ...data, totalScore: finalScore });
+      });
+
+      setStudentScores(finalStudentScores);
+
     } else {
       setStudentScores(new Map());
     }
