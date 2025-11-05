@@ -201,7 +201,6 @@ export default function Ranking({
         allStudents={allStudents}
         allItems={allItems}
         allRecords={allRecords}
-        grades={grades}
       />
     </div>
   );
@@ -211,12 +210,15 @@ function TeamBalancer({
   allStudents,
   allItems,
   allRecords,
-  grades,
-}: RankingProps & { grades: string[] }) {
+}: RankingProps) {
   const { school } = useAuth();
   const { toast } = useToast();
 
+  const [analysisScope, setAnalysisScope] = useState<"all" | "grade" | "class">("grade");
   const [selectedGrade, setSelectedGrade] = useState("");
+  const [selectedClassNum, setSelectedClassNum] = useState("");
+  const [excludeNonParticipants, setExcludeNonParticipants] = useState(true);
+
   const [selectedItemNames, setSelectedItemNames] = useState<string[]>([]);
   const [numTeams, setNumTeams] = useState(2);
   const [teams, setTeams] = useState<Student[][]>([]);
@@ -229,22 +231,43 @@ function TeamBalancer({
   const [balanceStrategy, setBalanceStrategy] = useState<"uniform" | "level">(
     "uniform"
   );
+  
+  const { grades, classNumsByGrade } = useMemo(() => {
+    const grades = [...new Set(allStudents.map(s => s.grade))].sort();
+    const classNumsByGrade: Record<string, string[]> = {};
+    grades.forEach(grade => {
+        classNumsByGrade[grade] = [...new Set(allStudents.filter(s => s.grade === grade).map(s => s.classNum))].sort();
+    });
+    return { grades, classNumsByGrade };
+  }, [allStudents]);
 
-  const handleToggleItem = (itemName: string) => {
-    setSelectedItemNames((prev) =>
-      prev.includes(itemName)
-        ? prev.filter((name) => name !== itemName)
-        : [...prev, itemName]
-    );
-  };
+  const targetStudents = useMemo(() => {
+    switch (analysisScope) {
+      case 'all':
+        return allStudents;
+      case 'grade':
+        return selectedGrade ? allStudents.filter(s => s.grade === selectedGrade) : [];
+      case 'class':
+        return selectedGrade && selectedClassNum ? allStudents.filter(s => s.grade === selectedGrade && s.classNum === selectedClassNum) : [];
+      default:
+        return [];
+    }
+  }, [analysisScope, selectedGrade, selectedClassNum, allStudents]);
 
   useEffect(() => {
-    if (selectedGrade && selectedItemNames.length > 0) {
-      const gradeStudents = allStudents.filter((s) => s.grade === selectedGrade);
+    if (targetStudents.length > 0 && selectedItemNames.length > 0) {
       const studentIdToRawScores = new Map<
         string,
         { totalScore: number; scores: { item: string; score: number }[] }
       >();
+      
+      const studentsForAnalysis = targetStudents.filter(student => {
+        if (!excludeNonParticipants) return true;
+        // 선택된 모든 종목에 대한 기록이 하나라도 있는지 확인
+        return selectedItemNames.some(itemName => 
+          allRecords.some(r => r.studentId === student.id && r.item === itemName)
+        );
+      });
 
       selectedItemNames.forEach((itemName) => {
         const itemInfo = allItems.find((i) => i.name === itemName);
@@ -255,13 +278,15 @@ function TeamBalancer({
           allItems,
           allRecords,
           allStudents,
-          selectedGrade
+          analysisScope === 'class' || analysisScope === 'grade' ? selectedGrade : undefined
         );
         const itemRanks = ranksByItem[itemName];
 
         if (itemRanks) {
           const totalInRank = itemRanks.length;
           itemRanks.forEach((rankInfo) => {
+             if (!studentsForAnalysis.some(s => s.id === rankInfo.studentId)) return;
+
             const score = Math.round(
               (1 - (rankInfo.rank - 1) / totalInRank) * 100
             );
@@ -278,7 +303,7 @@ function TeamBalancer({
       });
 
       let maxRawTotalScore = 0;
-      gradeStudents.forEach((student) => {
+      studentsForAnalysis.forEach((student) => {
         const studentData = studentIdToRawScores.get(student.id) || {
           totalScore: 0,
           scores: [],
@@ -319,7 +344,16 @@ function TeamBalancer({
     }
     setTeams([]);
     setSelectedStudentId(null);
-  }, [selectedGrade, selectedItemNames, allStudents, allItems, allRecords, school]);
+  }, [targetStudents, selectedItemNames, excludeNonParticipants, allRecords, allItems, school, allStudents, analysisScope, selectedGrade]);
+
+
+  const handleToggleItem = (itemName: string) => {
+    setSelectedItemNames((prev) =>
+      prev.includes(itemName)
+        ? prev.filter((name) => name !== itemName)
+        : [...prev, itemName]
+    );
+  };
 
   const selectedStudentData = useMemo(() => {
     if (!selectedStudentId) return null;
@@ -332,7 +366,7 @@ function TeamBalancer({
       toast({
         variant: "destructive",
         title: "팀 편성 불가",
-        description: "학년, 종목을 선택하고 팀 수를 2 이상으로 설정해주세요.",
+        description: "분석 대상과 종목을 선택하고 팀 수를 2 이상으로 설정해주세요.",
       });
       return;
     }
@@ -391,6 +425,13 @@ function TeamBalancer({
       return;
     }
 
+    let fileName = `${school}_자동편성팀.csv`;
+    if (analysisScope === 'grade' && selectedGrade) {
+        fileName = `${school}_${selectedGrade}학년_자동편성팀.csv`;
+    } else if (analysisScope === 'class' && selectedGrade && selectedClassNum) {
+        fileName = `${school}_${selectedGrade}-${selectedClassNum}_자동편성팀.csv`;
+    }
+
     const dataToExport = teams.flatMap((team, index) =>
       team.map((student) => ({
         "팀 번호": index + 1,
@@ -402,10 +443,7 @@ function TeamBalancer({
       }))
     );
 
-    exportToCsv(
-      `${school}_${selectedGrade}학년_자동편성팀.csv`,
-      dataToExport
-    );
+    exportToCsv(fileName, dataToExport);
   };
 
   return (
@@ -423,31 +461,66 @@ function TeamBalancer({
         <div className="space-y-4 p-4 border rounded-md">
           <h3 className="font-semibold">1. 분석 대상 설정</h3>
           <div className="flex flex-wrap items-end gap-4">
-            <div>
-              <Label>학년 선택</Label>
-              <Select value={selectedGrade} onValueChange={setSelectedGrade}>
-                <SelectTrigger className="w-full sm:w-[120px]">
-                  <SelectValue placeholder="학년" />
-                </SelectTrigger>
-                <SelectContent>
-                  {grades.map((grade) => (
-                    <SelectItem key={grade} value={grade}>
-                      {grade}학년
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+             <div>
+                <Label>편성 범위</Label>
+                <Select value={analysisScope} onValueChange={(v) => setAnalysisScope(v as any)}>
+                    <SelectTrigger className="w-full sm:w-[120px]">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">전체</SelectItem>
+                        <SelectItem value="grade">학년별</SelectItem>
+                        <SelectItem value="class">학급별</SelectItem>
+                    </SelectContent>
+                </Select>
             </div>
-            <div>
+
+            {(analysisScope === 'grade' || analysisScope === 'class') && (
+                <div>
+                    <Label>학년</Label>
+                    <Select value={selectedGrade} onValueChange={(v) => { setSelectedGrade(v); setSelectedClassNum(''); }}>
+                        <SelectTrigger className="w-full sm:w-[120px]">
+                            <SelectValue placeholder="학년 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {grades.map((grade) => (
+                                <SelectItem key={grade} value={grade}>{grade}학년</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            )}
+
+            {analysisScope === 'class' && (
+                <div>
+                    <Label>학급</Label>
+                    <Select value={selectedClassNum} onValueChange={setSelectedClassNum} disabled={!selectedGrade}>
+                        <SelectTrigger className="w-full sm:w-[120px]">
+                            <SelectValue placeholder="반 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {classNumsByGrade[selectedGrade]?.map((classNum) => (
+                                <SelectItem key={classNum} value={classNum}>{classNum}반</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            )}
+             <div className="flex items-center space-x-2">
+                <Checkbox id="exclude" checked={excludeNonParticipants} onCheckedChange={(c) => setExcludeNonParticipants(!!c)} />
+                <Label htmlFor="exclude">기록 없는 학생 제외</Label>
+            </div>
+          </div>
+          <div className="space-y-2">
               <Label>종목 선택</Label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 p-2 border rounded-md mt-1">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 p-2 border rounded-md mt-1">
                 {allItems.map((item) => (
                   <div key={item.id} className="flex items-center space-x-2">
                     <Checkbox
                       id={`item-${item.id}`}
                       checked={selectedItemNames.includes(item.name)}
                       onCheckedChange={() => handleToggleItem(item.name)}
-                      disabled={!selectedGrade}
+                      disabled={targetStudents.length === 0}
                     />
                     <Label
                       htmlFor={`item-${item.id}`}
@@ -458,7 +531,6 @@ function TeamBalancer({
                   </div>
                 ))}
               </div>
-            </div>
           </div>
         </div>
 
@@ -480,8 +552,7 @@ function TeamBalancer({
                       const student = allStudents.find((s) => s.id === studentId);
                       return student ? (
                         <SelectItem key={student.id} value={student.id}>
-                          {student.name} ({student.classNum}반{" "}
-                          {student.studentNum}번)
+                          {student.name} ({student.grade}-{student.classNum}-{student.studentNum})
                         </SelectItem>
                       ) : null;
                     })}
