@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { addItem as addItemToDb, deleteItemAndAssociatedRecords } from '@/lib/store';
 import {
@@ -33,6 +33,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { papsStandards } from '@/lib/paps';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
 
 interface MeasurementManagementProps {
   items: MeasurementItem[];
@@ -81,6 +87,31 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
     });
   };
 
+  const groupedItems = useMemo(() => {
+    const groups: Record<string, MeasurementItem[]> = {
+      PAPS: [],
+    };
+
+    items.forEach(item => {
+      const category = item.category || (item.isPaps ? 'PAPS' : '기타');
+      if (!groups[category]) {
+        groups[category] = [];
+      }
+      groups[category].push(item);
+    });
+
+    // Move PAPS to the front
+    const orderedGroups: Record<string, MeasurementItem[]> = { PAPS: groups['PAPS'] };
+    Object.keys(groups).forEach(key => {
+        if (key !== 'PAPS') {
+            orderedGroups[key] = groups[key];
+        }
+    });
+
+    return orderedGroups;
+  }, [items]);
+
+
   if (!school) return null;
 
   return (
@@ -97,19 +128,46 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
         <div className="border rounded-md p-4 space-y-2">
             <h3 className="font-semibold">현재 종목 목록</h3>
             {items.length > 0 ? (
-                <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                    {items.map((item) => (
-                      <li key={item.id} className="flex items-center justify-between p-2 bg-secondary rounded-md text-sm">
-                          <div>
-                              <span className="font-semibold">{item.name}</span>
-                              <span className="text-muted-foreground ml-2">({item.unit}, {recordTypeDisplay[item.recordType]}{item.goal ? `, 목표:${item.goal}`: ''})</span>
-                          </div>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleDeleteItem(item)}>
-                             <X className="h-4 w-4" />
-                          </Button>
-                      </li>
+                <Accordion type="multiple" defaultValue={Object.keys(groupedItems)} className="w-full">
+                    {Object.entries(groupedItems).map(([category, categoryItems]) => (
+                        categoryItems.length > 0 && (
+                            <AccordionItem value={category} key={category}>
+                                <AccordionTrigger className="font-semibold">{category} ({categoryItems.length})</AccordionTrigger>
+                                <AccordionContent>
+                                    <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pl-2">
+                                        {categoryItems.map((item) => (
+                                          <li key={item.id} className="flex items-center justify-between p-2 bg-secondary rounded-md text-sm">
+                                              <div>
+                                                  <span className="font-semibold">{item.name}</span>
+                                                  <span className="text-muted-foreground ml-2">({item.unit}, {recordTypeDisplay[item.recordType]}{item.goal ? `, 목표:${item.goal}`: ''})</span>
+                                              </div>
+                                              <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-7 w-7">
+                                                        <X className="h-4 w-4 text-destructive" />
+                                                    </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                    <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        "{item.name}" 종목과 관련된 모든 학생 기록이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                                                    </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                    <AlertDialogCancel>취소</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleDeleteItem(item)}>삭제</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                                </AlertDialog>
+                                          </li>
+                                        ))}
+                                    </ul>
+                                </AccordionContent>
+                            </AccordionItem>
+                        )
                     ))}
-                </ul>
+                </Accordion>
             ) : (
                 <p className="text-sm text-muted-foreground text-center py-4">등록된 종목이 없습니다.</p>
             )}
@@ -140,6 +198,7 @@ function AddPapsItemDialog({ onAddItem, currentItems }: { onAddItem: (item: Omit
             unit: standard.unit,
             recordType: standard.type,
             isPaps: true,
+            category: 'PAPS',
         };
         await onAddItem(newItem);
         setSelectedItemName('');
@@ -193,16 +252,17 @@ function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measurement
   const [unit, setUnit] = useState('');
   const [recordType, setRecordType] = useState<RecordType | ''>('');
   const [goal, setGoal] = useState('');
+  const [category, setCategory] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
   const handleSubmit = async () => {
-    if (!name || !unit || !recordType) {
-      toast({ variant: 'destructive', title: '입력 오류', description: '이름, 단위, 기록 유형은 필수입니다.' });
+    if (!name || !unit || !recordType || !category) {
+      toast({ variant: 'destructive', title: '입력 오류', description: '종목명, 단위, 기록 유형, 카테고리는 필수입니다.' });
       return;
     }
     setIsSubmitting(true);
-    const newItem: Omit<MeasurementItem, 'id'> = { name, unit, recordType, isPaps: false };
+    const newItem: Omit<MeasurementItem, 'id'> = { name, unit, recordType, isPaps: false, category };
     if (goal) {
         newItem.goal = parseFloat(goal);
     }
@@ -211,6 +271,7 @@ function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measurement
     setUnit('');
     setRecordType('');
     setGoal('');
+    setCategory('');
     setIsSubmitting(false);
     document.getElementById('add-custom-item-dialog-close')?.click();
   };
@@ -227,8 +288,12 @@ function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measurement
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="category" className="text-right">카테고리</Label>
+            <Input id="category" value={category} onChange={(e) => setCategory(e.target.value)} className="col-span-3" placeholder="예: 농구, 배구, 야구" />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="name" className="text-right">종목명</Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" placeholder="예: 농구 자유투" />
+            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" placeholder="예: 자유투" />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="unit" className="text-right">단위</Label>

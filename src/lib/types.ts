@@ -21,6 +21,7 @@ export type MeasurementItem = {
   recordType: RecordType;
   goal?: number; // Optional goal for non-PAPS items
   isPaps: boolean;
+  category?: string; // Optional category for custom items
 };
 
 export type MeasurementRecord = {

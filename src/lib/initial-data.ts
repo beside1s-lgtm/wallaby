@@ -9,12 +9,12 @@ export const initialStudents: Student[] = [
 ];
 
 export const initialItems: MeasurementItem[] = [
-    { id: '1', name: '50m 달리기', unit: '초', recordType: 'time', isPaps: true },
-    { id: '2', name: '윗몸 말아올리기', unit: '회', recordType: 'count', isPaps: true },
-    { id: '3', name: '왕복오래달리기', unit: '회', recordType: 'count', isPaps: true },
-    { id: '4', name: '제자리 멀리뛰기', unit: 'cm', recordType: 'distance', isPaps: true },
-    { id: '5', name: '앉아윗몸앞으로굽히기', unit: 'cm', recordType: 'distance', isPaps: true },
-    { id: '6', name: '농구 자유투', unit: '성공', recordType: 'count', isPaps: false, goal: 10 },
+    { id: '1', name: '50m 달리기', unit: '초', recordType: 'time', isPaps: true, category: 'PAPS' },
+    { id: '2', name: '윗몸 말아올리기', unit: '회', recordType: 'count', isPaps: true, category: 'PAPS' },
+    { id: '3', name: '왕복오래달리기', unit: '회', recordType: 'count', isPaps: true, category: 'PAPS' },
+    { id: '4', name: '제자리 멀리뛰기', unit: 'cm', recordType: 'distance', isPaps: true, category: 'PAPS' },
+    { id: '5', name: '앉아윗몸앞으로굽히기', unit: 'cm', recordType: 'distance', isPaps: true, category: 'PAPS' },
+    { id: '6', name: '자유투', unit: '성공', recordType: 'count', isPaps: false, goal: 10, category: '농구' },
 ];
 
 export const initialRecords: MeasurementRecord[] = [
