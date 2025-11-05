@@ -350,20 +350,30 @@ export default function ClassAnalytics({
       );
       
       const studentRanks: Record<string, string> = {};
-      const levelTypeItemNames = new Set(allItems.filter(item => item.recordType === 'level').map(item => item.name));
-
       Object.entries(allItemRanks).forEach(([item, ranks]) => {
-        // Exclude level type items from ranks passed to AI
-        if (levelTypeItemNames.has(item)) return;
-
         const rankInfo = ranks.find((r) => r.studentId === selectedStudent.id);
         if (rankInfo) {
           studentRanks[item] = `${ranks.length}명 중 ${rankInfo.rank}등`;
         }
       });
 
+      const papsRecords = studentRecords.filter(r => {
+        const itemInfo = allItems.find(item => item.name === r.item);
+        return itemInfo?.isPaps;
+      });
+
+      if (papsRecords.length === 0) {
+        toast({
+          variant: "destructive",
+          title: "AI 분석 불가",
+          description: "분석할 PAPS 기록이 없습니다.",
+        });
+        setIsAiLoading(false);
+        return;
+      }
+
       const performanceData = JSON.stringify(
-        studentRecords.map((r) => {
+        papsRecords.map((r) => {
           const itemInfo = allItems.find((item) => item.name === r.item);
           return {
             item: r.item,
@@ -374,6 +384,7 @@ export default function ClassAnalytics({
           };
         })
       );
+
       const result = await analyzeStudentPerformance({
         school,
         studentName: selectedStudent.name,
@@ -1041,7 +1052,7 @@ export default function ClassAnalytics({
                 <CardHeader>
                   <CardTitle>AI 코칭 어시스턴트</CardTitle>
                   <CardDescription>
-                    학생의 기록을 바탕으로 강점, 약점, 추천 훈련 방법을
+                    학생의 PAPS 기록을 바탕으로 강점, 약점, 추천 훈련 방법을
                     분석합니다.
                   </CardDescription>
                 </CardHeader>
