@@ -10,6 +10,7 @@ export type Student = {
 };
 
 export type StudentToAdd = Omit<Student, 'id' | 'accessCode'>;
+export type StudentToUpdate = Omit<Student, 'id' | 'accessCode' | 'school'>;
 
 export type RecordType = 'time' | 'count' | 'distance' | 'weight' | 'level';
 

@@ -6,6 +6,7 @@ import {
   setRecords as setRecordsInDb,
   getRecords,
   addStudent,
+  updateStudent,
   addOrUpdateRecords,
   getItems,
   deleteRecordsByDateAndItem,
@@ -16,6 +17,7 @@ import {
 import type {
   Student,
   StudentToAdd,
+  StudentToUpdate,
   MeasurementItem,
   MeasurementRecord,
 } from "@/lib/types";
@@ -78,6 +80,7 @@ import {
   Sparkles,
   KeyRound,
   ArrowRight,
+  Pencil,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -147,6 +150,15 @@ export default function StudentManagement({
     () => Object.keys(selection).filter((id) => selection[id]),
     [selection]
   );
+  
+  const selectedStudentForEdit = useMemo(() => {
+    if (selectedIds.length !== 1) return null;
+    return students.find(s => s.id === selectedIds[0]) || null;
+  }, [selectedIds, students]);
+
+  useEffect(() => {
+    setSelection({});
+  }, [selectedGrade, selectedClassNum]);
 
   const handleAddStudent = async (studentData: StudentToAdd) => {
     if (!school) return;
@@ -155,6 +167,17 @@ export default function StudentManagement({
     toast({
       title: "학생 추가 완료",
       description: `${studentData.name} 학생을 등록했습니다.`,
+    });
+  };
+  
+  const handleUpdateStudent = async (studentData: StudentToUpdate) => {
+    if (!school || !selectedStudentForEdit) return;
+    await updateStudent(school, selectedStudentForEdit.id, studentData);
+    setSelection({});
+    onStudentsUpdate();
+    toast({
+      title: "학생 정보 수정 완료",
+      description: `${studentData.name} 학생의 정보가 수정되었습니다.`,
     });
   };
 
@@ -313,6 +336,12 @@ export default function StudentManagement({
           <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-2 mb-4">
             <div className="flex flex-wrap items-center gap-2">
               <AddStudentDialog onAddStudent={handleAddStudent} />
+              {selectedStudentForEdit && (
+                <EditStudentDialog 
+                  student={selectedStudentForEdit}
+                  onUpdateStudent={handleUpdateStudent}
+                />
+              )}
               <Button
                 variant="outline"
                 onClick={() =>
@@ -588,6 +617,136 @@ function AddStudentDialog({
     </Dialog>
   );
 }
+
+function EditStudentDialog({ 
+  student,
+  onUpdateStudent,
+}: { 
+  student: Student;
+  onUpdateStudent: (data: StudentToUpdate) => Promise<void>;
+}) {
+  const [grade, setGrade] = useState(student.grade);
+  const [classNum, setClassNum] = useState(student.classNum);
+  const [studentNum, setStudentNum] = useState(student.studentNum);
+  const [name, setName] = useState(student.name);
+  const [gender, setGender] = useState<"남" | "여" | "">(student.gender);
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  
+  useEffect(() => {
+    if (student) {
+      setGrade(student.grade);
+      setClassNum(student.classNum);
+      setStudentNum(student.studentNum);
+      setName(student.name);
+      setGender(student.gender);
+    }
+  }, [student, isOpen]);
+
+  const handleSubmit = async () => {
+    if (!grade || !classNum || !studentNum || !name || !gender) {
+      toast({
+        variant: "destructive",
+        title: "입력 오류",
+        description: "모든 필드를 입력해주세요.",
+      });
+      return;
+    }
+    setIsSubmitting(true);
+    await onUpdateStudent({ grade, classNum, studentNum, name, gender });
+    setIsSubmitting(false);
+    setIsOpen(false);
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" disabled={!student}>
+          <Pencil className="mr-2 h-4 w-4" /> 학생 정보 수정
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>학생 정보 수정</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="edit-grade" className="text-right">
+              학년
+            </Label>
+            <Input
+              id="edit-grade"
+              value={grade}
+              onChange={(e) => setGrade(e.target.value)}
+              className="col-span-3"
+            />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="edit-classNum" className="text-right">
+              반
+            </Label>
+            <Input
+              id="edit-classNum"
+              value={classNum}
+              onChange={(e) => setClassNum(e.target.value)}
+              className="col-span-3"
+            />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="edit-studentNum" className="text-right">
+              번호
+            </Label>
+            <Input
+              id="edit-studentNum"
+              value={studentNum}
+              onChange={(e) => setStudentNum(e.target.value)}
+              className="col-span-3"
+            />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="edit-name" className="text-right">
+              이름
+            </Label>
+            <Input
+              id="edit-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="col-span-3"
+            />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="edit-gender" className="text-right">
+              성별
+            </Label>
+            <Select
+              onValueChange={(value) => setGender(value as "남" | "여")}
+              value={gender}
+            >
+              <SelectTrigger className="col-span-3">
+                <SelectValue placeholder="성별 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="남">남</SelectItem>
+                <SelectItem value="여">여</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline">취소</Button>
+          </DialogClose>
+          <Button onClick={handleSubmit} disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            저장
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 export function DatabaseManagement({
   students,

@@ -1,5 +1,5 @@
 'use client';
-import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentToAdd, School } from './types';
+import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentToAdd, School, StudentToUpdate } from './types';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { initialItems, initialStudents, initialRecords } from './initial-data';
@@ -202,6 +202,20 @@ export const addStudent = async (school: string, studentData: StudentToAdd, allS
         throw e;
     });
     return studentWithId;
+};
+
+export const updateStudent = async (school: string, studentId: string, studentData: StudentToUpdate) => {
+  const studentDocRef = doc(db, 'schools', school, 'students', studentId);
+  await updateDoc(studentDocRef, studentData).catch(e => {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: studentDocRef.path,
+        operation: 'update',
+        requestResourceData: studentData
+      }));
+    }
+    throw e;
+  });
 };
 
 export const getStudentById = async (school: string, studentId: string): Promise<Student | undefined> => {
