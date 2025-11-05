@@ -351,6 +351,10 @@ export default function ClassAnalytics({
       
       const studentRanks: Record<string, string> = {};
       Object.entries(allItemRanks).forEach(([item, ranks]) => {
+        const itemInfo = allItems.find(i => i.name === item);
+        if (itemInfo && !itemInfo.isPaps) {
+            return;
+        }
         const rankInfo = ranks.find((r) => r.studentId === selectedStudent.id);
         if (rankInfo) {
           studentRanks[item] = `${ranks.length}명 중 ${rankInfo.rank}등`;
