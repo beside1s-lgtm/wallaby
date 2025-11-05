@@ -231,6 +231,7 @@ function TeamBalancer({
   const [balanceStrategy, setBalanceStrategy] = useState<"uniform" | "level">(
     "uniform"
   );
+  const [balancingSelection, setBalancingSelection] = useState<Record<string, boolean>>({});
   
   const { grades, classNumsByGrade } = useMemo(() => {
     const grades = [...new Set(allStudents.map(s => s.grade))].sort();
@@ -263,7 +264,6 @@ function TeamBalancer({
       
       const studentsForAnalysis = targetStudents.filter(student => {
         if (!excludeNonParticipants) return true;
-        // 선택된 모든 종목에 대한 기록이 하나라도 있는지 확인
         return selectedItemNames.some(itemName => 
           allRecords.some(r => r.studentId === student.id && r.item === itemName)
         );
@@ -339,8 +339,16 @@ function TeamBalancer({
       });
 
       setStudentScores(finalStudentScores);
+      
+      const newSelection: Record<string, boolean> = {};
+      finalStudentScores.forEach((_, studentId) => {
+          newSelection[studentId] = true;
+      });
+      setBalancingSelection(newSelection);
+
     } else {
       setStudentScores(new Map());
+      setBalancingSelection({});
     }
     setTeams([]);
     setSelectedStudentId(null);
@@ -362,16 +370,21 @@ function TeamBalancer({
   }, [selectedStudentId, studentScores]);
 
   const handleBalanceTeams = () => {
-    if (studentScores.size === 0 || numTeams < 2) {
+    const selectedStudentIds = Object.entries(balancingSelection)
+        .filter(([, isSelected]) => isSelected)
+        .map(([studentId]) => studentId);
+
+    if (selectedStudentIds.length === 0 || numTeams < 2) {
       toast({
         variant: "destructive",
         title: "팀 편성 불가",
-        description: "분석 대상과 종목을 선택하고 팀 수를 2 이상으로 설정해주세요.",
+        description: "분석 대상, 종목, 편성할 학생을 선택하고 팀 수를 2 이상으로 설정해주세요.",
       });
       return;
     }
 
     const sortedStudents = [...studentScores.entries()]
+      .filter(([id]) => selectedStudentIds.includes(id))
       .map(([id, data]) => ({ id, ...data }))
       .sort((a, b) => b.totalScore - a.totalScore);
 
@@ -444,6 +457,16 @@ function TeamBalancer({
     );
 
     exportToCsv(fileName, dataToExport);
+  };
+  
+  const handleSelectAllForBalancing = (checked: boolean) => {
+    const newSelection: Record<string, boolean> = {};
+    if (checked) {
+      studentScores.forEach((_, studentId) => {
+        newSelection[studentId] = true;
+      });
+    }
+    setBalancingSelection(newSelection);
   };
 
   return (
@@ -592,6 +615,12 @@ function TeamBalancer({
                 <Table>
                   <TableHeader className="sticky top-0 bg-muted">
                     <TableRow>
+                      <TableHead className="w-[50px]">
+                        <Checkbox 
+                           checked={studentScores.size > 0 && Object.values(balancingSelection).every(Boolean)}
+                           onCheckedChange={(c) => handleSelectAllForBalancing(!!c)}
+                        />
+                      </TableHead>
                       <TableHead>이름</TableHead>
                       <TableHead>총점</TableHead>
                       {selectedItemNames.map((name) => (
@@ -616,6 +645,12 @@ function TeamBalancer({
                               selectedStudentId === studentId ? "selected" : ""
                             }
                           >
+                             <TableCell>
+                                <Checkbox
+                                    checked={balancingSelection[studentId] || false}
+                                    onCheckedChange={(c) => setBalancingSelection(prev => ({ ...prev, [studentId]: !!c }))}
+                                />
+                            </TableCell>
                             <TableCell>{student.name}</TableCell>
                             <TableCell className="font-bold">
                               {data.totalScore}
