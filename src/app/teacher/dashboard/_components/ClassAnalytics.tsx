@@ -5,6 +5,7 @@ import {
   calculateRanks,
   getRecordsByStudent,
   deleteRecord,
+  addOrUpdateRecord,
 } from "@/lib/store";
 import { Student, MeasurementRecord, MeasurementItem } from "@/lib/types";
 import { Input } from "@/components/ui/input";
@@ -48,6 +49,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
+  DialogClose,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
 import {
@@ -71,6 +75,8 @@ import {
   X as XIcon,
   ArrowUpDown,
   Trash2,
+  Pencil,
+  CalendarIcon,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -80,6 +86,11 @@ import {
   normalizeCustomRecord,
 } from "@/lib/paps";
 import AiWelcome from "./AiWelcome";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 
 type AiAnalysis = {
   strengths: string;
@@ -1077,7 +1088,7 @@ export default function ClassAnalytics({
                   <CardTitle>전체 측정 기록</CardTitle>
                   <CardDescription>
                     선택된 학생의 모든 측정 기록입니다. 잘못 입력된 기록은
-                    삭제할 수 있습니다.
+                    수정하거나 삭제할 수 있습니다.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1109,7 +1120,13 @@ export default function ClassAnalytics({
                                     : "하"
                                   : `${record.value}${item?.unit}`}
                               </TableCell>
-                              <TableCell className="text-right">
+                              <TableCell className="text-right space-x-1">
+                                <EditRecordDialog 
+                                  record={record}
+                                  student={selectedStudent}
+                                  allItems={allItems}
+                                  onRecordUpdate={onRecordUpdate}
+                                />
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
                                     <Button
@@ -1326,5 +1343,131 @@ export default function ClassAnalytics({
         </CardContent>
       </Card>
     </>
+  );
+}
+
+function EditRecordDialog({ 
+  record, 
+  student, 
+  allItems, 
+  onRecordUpdate
+}: { 
+  record: MeasurementRecord, 
+  student: Student,
+  allItems: MeasurementItem[], 
+  onRecordUpdate: () => void 
+}) {
+  const { school } = useAuth();
+  const { toast } = useToast();
+  const [isOpen, setIsOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [date, setDate] = useState<Date | undefined>(new Date(record.date));
+  const [itemName, setItemName] = useState(record.item);
+  const [value, setValue] = useState(record.value.toString());
+
+  const selectedItem = allItems.find(item => item.name === itemName);
+  const inputPlaceholder = useMemo(() => {
+    if (!selectedItem) return "측정 결과 (숫자만 입력)";
+    if (selectedItem.recordType === 'level') return "결과 (예: 1=상, 2=중, 3=하)";
+    return `결과 (${selectedItem.unit})`;
+  }, [selectedItem]);
+
+
+  useEffect(() => {
+    if (isOpen) {
+      setDate(new Date(record.date));
+      setItemName(record.item);
+      setValue(record.value.toString());
+    }
+  }, [isOpen, record]);
+
+  const handleUpdate = async () => {
+    if (!school || !date || !itemName || !value) {
+      toast({ variant: 'destructive', title: '입력 오류', description: '모든 필드를 입력해주세요.' });
+      return;
+    }
+    
+    const numericValue = parseFloat(value);
+    if (isNaN(numericValue)) {
+      toast({ variant: 'destructive', title: '입력 오류', description: '기록은 숫자로 입력해야 합니다.' });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await addOrUpdateRecord({
+        id: record.id,
+        studentId: student.id,
+        school: school,
+        item: itemName,
+        value: numericValue,
+        date: format(date, 'yyyy-MM-dd'),
+      });
+      await onRecordUpdate();
+      toast({ title: '수정 완료', description: '기록이 성공적으로 수정되었습니다.' });
+      setIsOpen(false);
+    } catch (error) {
+      console.error("Failed to update record", error);
+      toast({ variant: 'destructive', title: '수정 실패', description: '기록 수정 중 오류가 발생했습니다.' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-8 w-8">
+          <Pencil className="h-4 w-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>기록 수정</DialogTitle>
+          <DialogDescription>{student.name} 학생의 기록을 수정합니다.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="date" className="text-right">날짜</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant={"outline"} className={cn("col-span-3 justify-start text-left font-normal", !date && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {date ? format(date, "PPP") : <span>날짜 선택</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar mode="single" selected={date} onSelect={setDate} initialFocus />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="item" className="text-right">종목</Label>
+            <Select value={itemName} onValueChange={setItemName}>
+              <SelectTrigger className="col-span-3">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {allItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="value" className="text-right">기록</Label>
+            <Input id="value" type="number" value={value} onChange={(e) => setValue(e.target.value)} className="col-span-3" placeholder={inputPlaceholder}/>
+          </div>
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline">취소</Button>
+          </DialogClose>
+          <Button onClick={handleUpdate} disabled={isSubmitting}>
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            저장
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

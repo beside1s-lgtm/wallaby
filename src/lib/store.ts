@@ -434,10 +434,31 @@ export const setRecords = async (school: string, records: MeasurementRecord[]) =
 }
 
 
-export const addOrUpdateRecord = async (record: Omit<MeasurementRecord, 'id'>) => {
+export const addOrUpdateRecord = async (record: Partial<MeasurementRecord> & Pick<MeasurementRecord, 'school' | 'studentId' | 'item' | 'value'>) => {
   const recordDate = record.date || format(new Date(), 'yyyy-MM-dd');
   const recordsRef = collection(db, 'schools', record.school, 'records');
   
+  // If an ID is provided, it's a direct update.
+  if (record.id) {
+    const recordDocRef = doc(db, 'schools', record.school, 'records', record.id);
+    const dataToUpdate = {
+      item: record.item,
+      value: record.value,
+      date: recordDate,
+    };
+    return updateDoc(recordDocRef, dataToUpdate).catch(e => {
+       if (e.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: recordDocRef.path,
+          operation: 'update',
+          requestResourceData: dataToUpdate
+        }));
+      }
+      throw e;
+    });
+  }
+
+  // If no ID, it's an upsert based on date, student, and item.
   try {
     await runTransaction(db, async (transaction) => {
       const q = query(recordsRef, 
