@@ -364,6 +364,7 @@ export default function ClassAnalytics({
             value: r.value,
             date: r.date,
             recordType: itemInfo?.recordType || "count",
+            isPaps: itemInfo?.isPaps || false,
           };
         })
       );
