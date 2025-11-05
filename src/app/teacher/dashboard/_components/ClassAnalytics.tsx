@@ -348,8 +348,14 @@ export default function ClassAnalytics({
         allStudents,
         selectedStudent.grade
       );
+      
       const studentRanks: Record<string, string> = {};
+      const levelTypeItemNames = new Set(allItems.filter(item => item.recordType === 'level').map(item => item.name));
+
       Object.entries(allItemRanks).forEach(([item, ranks]) => {
+        // Exclude level type items from ranks passed to AI
+        if (levelTypeItemNames.has(item)) return;
+
         const rankInfo = ranks.find((r) => r.studentId === selectedStudent.id);
         if (rankInfo) {
           studentRanks[item] = `${ranks.length}명 중 ${rankInfo.rank}등`;
