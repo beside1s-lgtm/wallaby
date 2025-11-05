@@ -185,8 +185,6 @@ function TeamBalancer({ allStudents, allItems, allRecords, grades }: RankingProp
   const [studentScores, setStudentScores] = useState<Map<string, { totalScore: number, scores: { item: string, score: number }[] }>>(new Map());
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
-  const customItems = useMemo(() => allItems.filter(item => !item.isPaps), [allItems]);
-
   const handleToggleItem = (itemName: string) => {
     setSelectedItemNames(prev => 
       prev.includes(itemName) ? prev.filter(name => name !== itemName) : [...prev, itemName]
@@ -308,7 +306,7 @@ function TeamBalancer({ allStudents, allItems, allRecords, grades }: RankingProp
         <CardHeader>
             <CardTitle className="flex items-center gap-2"><Shuffle /> 팀 자동 편성</CardTitle>
             <CardDescription>
-                기타 기능 종목의 기록을 바탕으로 학생별 능력치를 분석하고, 균형잡힌 팀을 자동으로 편성합니다.
+                선택한 종목의 기록을 바탕으로 학생별 능력치를 분석하고, 균형잡힌 팀을 자동으로 편성합니다.
             </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -327,9 +325,9 @@ function TeamBalancer({ allStudents, allItems, allRecords, grades }: RankingProp
                         </Select>
                     </div>
                     <div>
-                        <Label>종목 선택 (기타 종목)</Label>
+                        <Label>종목 선택</Label>
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 p-2 border rounded-md mt-1">
-                            {customItems.map(item => (
+                            {allItems.map(item => (
                                 <div key={item.id} className="flex items-center space-x-2">
                                     <Checkbox
                                         id={`item-${item.id}`}
@@ -451,4 +449,3 @@ function TeamBalancer({ allStudents, allItems, allRecords, grades }: RankingProp
     </Card>
   );
 }
-
