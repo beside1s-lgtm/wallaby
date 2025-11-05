@@ -55,7 +55,7 @@ const analyzeStudentPerformancePrompt = ai.definePrompt({
     -   'recordType' 필드는 기록의 유형을 나타냅니다.
         -   'time': 기록이 짧을수록 좋습니다 (예: 달리기).
         -   'distance', 'count', 'weight': 기록이 클수록 좋습니다 (예: 멀리뛰기, 윗몸 일으키기).
-        -   'level': 1(상), 2(중), 3(하) 등급으로 평가하며, 1이 가장 좋습니다.
+        -   'level': 1(상), 2(중), 3(하) 등급으로 평가하며, **1이 가장 좋습니다.**
     -   'isPaps' 필드는 해당 종목이 PAPS(학생건강체력평가)에 속하는지 여부를 나타냅니다. 'true'이면 체력 종목, 'false'이면 기능 종목입니다.
 
 2.  **강점 및 약점 분석:**
