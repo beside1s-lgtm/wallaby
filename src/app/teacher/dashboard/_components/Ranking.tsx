@@ -461,11 +461,9 @@ function TeamBalancer({
   
   const handleSelectAllForBalancing = (checked: boolean) => {
     const newSelection: Record<string, boolean> = {};
-    if (checked) {
-      studentScores.forEach((_, studentId) => {
-        newSelection[studentId] = true;
-      });
-    }
+    studentScores.forEach((_, studentId) => {
+      newSelection[studentId] = checked;
+    });
     setBalancingSelection(newSelection);
   };
 
@@ -617,7 +615,7 @@ function TeamBalancer({
                     <TableRow>
                       <TableHead className="w-[50px]">
                         <Checkbox 
-                           checked={studentScores.size > 0 && Object.values(balancingSelection).every(Boolean)}
+                           checked={studentScores.size > 0 && Object.keys(balancingSelection).length === studentScores.size && Object.values(balancingSelection).every(Boolean)}
                            onCheckedChange={(c) => handleSelectAllForBalancing(!!c)}
                         />
                       </TableHead>
