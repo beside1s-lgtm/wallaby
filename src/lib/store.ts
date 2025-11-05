@@ -23,6 +23,7 @@ import {
 } from 'firebase/firestore';
 import { errorEmitter } from './error-emitter';
 import { FirestorePermissionError } from './errors';
+import { exportToCsv as exportToCsvUtil } from './utils';
 
 // This function now only seeds data if the schools collection is empty for that school.
 export const initializeData = async (schoolName: string, password?: string) => {
@@ -76,6 +77,10 @@ export const initializeData = async (schoolName: string, password?: string) => {
     throw e;
   }
 };
+
+export const exportToCsv = (filename: string, rows: object[]) => {
+  exportToCsvUtil(filename, rows);
+}
 
 export const getSchoolByName = async (schoolName: string): Promise<School | null> => {
   const schoolRef = doc(db, 'schools', schoolName);
@@ -653,6 +658,8 @@ export const calculateRanks = (
 
     if (item.recordType === 'time') {
       studentValues.sort((a, b) => a.value - b.value); // Lower is better
+    } else if (item.recordType === 'level') {
+        studentValues.sort((a, b) => a.value - b.value); // Lower is better (1=상, 2=중, 3=하)
     } else {
       studentValues.sort((a, b) => b.value - a.value); // Higher is better
     }
