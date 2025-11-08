@@ -220,6 +220,7 @@ function TeamBalancer({
   const [analysisScope, setAnalysisScope] = useState<"all" | "grade" | "class">("grade");
   const [selectedGrade, setSelectedGrade] = useState("");
   const [selectedClassNum, setSelectedClassNum] = useState("");
+  const [selectedGender, setSelectedGender] = useState<'all' | '남' | '여'>('all');
   const [excludeNonParticipants, setExcludeNonParticipants] = useState(true);
 
   const [selectedItemNames, setSelectedItemNames] = useState<string[]>([]);
@@ -263,17 +264,27 @@ function TeamBalancer({
 
 
   const targetStudents = useMemo(() => {
+    let students = allStudents;
     switch (analysisScope) {
       case 'all':
-        return allStudents;
+        students = allStudents;
+        break;
       case 'grade':
-        return selectedGrade ? allStudents.filter(s => s.grade === selectedGrade) : [];
+        students = selectedGrade ? allStudents.filter(s => s.grade === selectedGrade) : [];
+        break;
       case 'class':
-        return selectedGrade && selectedClassNum ? allStudents.filter(s => s.grade === selectedGrade && s.classNum === selectedClassNum) : [];
+        students = selectedGrade && selectedClassNum ? allStudents.filter(s => s.grade === selectedGrade && s.classNum === selectedClassNum) : [];
+        break;
       default:
-        return [];
+        students = [];
     }
-  }, [analysisScope, selectedGrade, selectedClassNum, allStudents]);
+
+    if (selectedGender !== 'all') {
+      students = students.filter(s => s.gender === selectedGender);
+    }
+    
+    return students;
+  }, [analysisScope, selectedGrade, selectedClassNum, selectedGender, allStudents]);
 
   useEffect(() => {
     if (targetStudents.length > 0 && selectedItemNames.length > 0) {
@@ -289,7 +300,7 @@ function TeamBalancer({
         );
       });
 
-      const gradeForRanking = analysisScope === 'all' ? undefined : selectedGrade;
+      const gradeForRanking = analysisScope === 'all' ? undefined : (analysisScope === 'grade' ? selectedGrade : (targetStudents[0]?.grade || ''));
       const allRanks = calculateRanks(school, allItems, allRecords, allStudents, gradeForRanking);
 
 
@@ -412,7 +423,8 @@ function TeamBalancer({
         if (!student) return;
 
         const studentRanks: Record<string, string> = {};
-        const ranksByItem = calculateRanks(school, allItems, allRecords, allStudents, student.grade);
+        const gradeForRanking = analysisScope === 'all' ? undefined : (analysisScope === 'grade' ? selectedGrade : (student.grade || ''));
+        const ranksByItem = calculateRanks(school, allItems, allRecords, allStudents, gradeForRanking);
         
         selectedItemNames.forEach(item => {
             const rankInfo = ranksByItem[item]?.find(r => r.studentId === student.id);
@@ -537,9 +549,11 @@ function TeamBalancer({
   
   const handleSelectAllForBalancing = (checked: boolean) => {
     const newSelection: Record<string, boolean> = {};
-    studentScores.forEach((_, studentId) => {
-        newSelection[studentId] = checked;
-    });
+    if (checked) {
+        studentScores.forEach((_, studentId) => {
+            newSelection[studentId] = true;
+        });
+    }
     setBalancingSelection(newSelection);
   };
 
@@ -603,6 +617,19 @@ function TeamBalancer({
                     </Select>
                 </div>
             )}
+            <div>
+                <Label>성별</Label>
+                <Select value={selectedGender} onValueChange={(v) => setSelectedGender(v as any)}>
+                    <SelectTrigger className="w-full sm:w-[120px]">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">전체(혼성)</SelectItem>
+                        <SelectItem value="남">남</SelectItem>
+                        <SelectItem value="여">여</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
              <div className="flex items-center space-x-2">
                 <Checkbox id="exclude" checked={excludeNonParticipants} onCheckedChange={(c) => setExcludeNonParticipants(!!c)} />
                 <Label htmlFor="exclude">기록 없는 학생 제외</Label>
