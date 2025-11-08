@@ -558,53 +558,38 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
         .filter((s) => s.scoreData)
         .sort((a, b) => b.scoreData!.totalScore - a.scoreData!.totalScore)
         .map((s) => studentMap.get(s.id)!);
-
+      
+      const studentsToDistribute = [...sortedStudents];
+      
       if (divideBy === "teams") {
         const newTeams: Student[][] = Array.from({ length: numTeams }, () => []);
-        sortedStudents.forEach((student, index) => {
-          const teamIndex = index % numTeams;
-          newTeams[teamIndex].push(student);
+        studentsToDistribute.forEach((student, index) => {
+          newTeams[index % numTeams].push(student);
         });
         return { teams: newTeams, leftovers: [] };
-      } else {
-        // divide by members
+      } else { // divide by members
         const numTeamsForGroup = Math.floor(
-          sortedStudents.length / membersPerTeam
+          studentsToDistribute.length / membersPerTeam
         );
         if (numTeamsForGroup === 0) {
-          return { teams: [], leftovers: sortedStudents };
+          return { teams: [], leftovers: studentsToDistribute };
         }
 
-        const studentsToDistribute = [...sortedStudents];
         const newTeams: Student[][] = Array.from(
           { length: numTeamsForGroup },
           () => []
         );
 
-        if (balanceStrategy === "uniform") {
-          // Zigzag/Snake distribution
-          let currentTeam = 0;
-          let direction = 1;
-          while (studentsToDistribute.length > 0 && currentTeam < newTeams.length) {
-            if (newTeams[currentTeam].length < membersPerTeam) {
-                const student = studentsToDistribute.shift();
-                if (student) newTeams[currentTeam].push(student);
+        if (balanceStrategy === 'level') {
+            for (let i = 0; i < numTeamsForGroup; i++) {
+                newTeams[i] = studentsToDistribute.splice(0, membersPerTeam);
             }
-            
-            currentTeam += direction;
-            
-            if (currentTeam >= numTeamsForGroup || currentTeam < 0) {
-              direction *= -1;
-              currentTeam += direction;
-            }
-          }
-
-        } else {
-          // Level/Sequential distribution
-          for (let i = 0; i < numTeamsForGroup; i++) {
-            newTeams[i] = studentsToDistribute.splice(0, membersPerTeam);
-          }
+        } else { // uniform
+            studentsToDistribute.splice(0, numTeamsForGroup * membersPerTeam).forEach((student, index) => {
+                newTeams[index % numTeamsForGroup].push(student);
+            });
         }
+        
         return { teams: newTeams, leftovers: studentsToDistribute };
       }
     };
