@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import {
   calculateRanks,
@@ -641,6 +641,29 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
     });
   };
 
+  const sortedTeams = useMemo(() => {
+    return [...teams].sort((teamA, teamB) => {
+      const studentA = teamA[0];
+      const studentB = teamB[0];
+      if (!studentA || !studentB) return 0;
+
+      const gradeA = parseInt(studentA.grade);
+      const gradeB = parseInt(studentB.grade);
+      if (gradeA !== gradeB) return gradeA - gradeB;
+
+      const classA = parseInt(studentA.classNum);
+      const classB = parseInt(studentB.classNum);
+      if (classA !== classB) return classA - classB;
+
+      // To sort by team index within the same class, we need to find their original relative index.
+      const teamsInClassA = teams.filter(t => t.length > 0 && t[0].grade === studentA.grade && t[0].classNum === studentA.classNum);
+      const indexA = teamsInClassA.indexOf(teamA);
+      const indexB = teamsInClassA.indexOf(teamB);
+      
+      return indexA - indexB;
+    });
+  }, [teams]);
+
   const handleAssignLeftover = (studentId: string, teamIndex: number) => {
     const studentToMove = leftoverStudents.find((s) => s.id === studentId);
     if (!studentToMove) return;
@@ -673,10 +696,12 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
       fileName = `${school}_${selectedGrade}-${selectedClassNum}_자동편성팀.csv`;
     }
 
-    const dataToExport = teams.flatMap((team, index) => {
+    const dataToExport = sortedTeams.flatMap((team, index) => {
       const firstStudent = team[0];
+       const teamsInClass = sortedTeams.filter(t => t.length > 0 && t[0].grade === firstStudent.grade && t[0].classNum === firstStudent.classNum);
+      const relativeIndex = teamsInClass.findIndex(t => t === team);
       const teamName = firstStudent
-        ? `${firstStudent.grade}-${firstStudent.classNum}반 ${index + 1}팀`
+        ? `${firstStudent.grade}-${firstStudent.classNum}반 ${relativeIndex + 1}팀`
         : `${index + 1}팀`;
       return team.map((student) => ({
         "팀명": teamName,
@@ -1201,8 +1226,8 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
                 <h4 className="font-semibold text-orange-600">남은 학생 배정</h4>
                 <div className="flex flex-wrap gap-2 p-2 border border-dashed border-orange-400 rounded-md">
                   {leftoverStudents.map((student) => {
-                    const studentClassTeams = teams
-                      .map((team, index) => ({ team, index }))
+                    const studentClassTeams = sortedTeams
+                      .map((team, index) => ({ team, originalIndex: teams.indexOf(team) }))
                       .filter(({ team }) => 
                         team.length > 0 &&
                         team[0].grade === student.grade &&
@@ -1216,18 +1241,20 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
                         className="flex items-center gap-2 p-2 bg-secondary rounded"
                       >
                         <span className="font-medium">{student.name}</span>
-                        {studentClassTeams.map(({ team, index }) => {
+                        {studentClassTeams.map(({ team, originalIndex }) => {
                           const firstStudent = team[0];
+                          const teamsInClass = sortedTeams.filter(t => t.length > 0 && t[0].grade === firstStudent.grade && t[0].classNum === firstStudent.classNum);
+                          const relativeIndex = teamsInClass.findIndex(t => t === team);
                           const teamName = firstStudent
-                            ? `${firstStudent.grade}-${firstStudent.classNum}반 ${index + 1}팀`
-                            : `${index + 1}팀`;
+                            ? `${firstStudent.grade}-${firstStudent.classNum}반 ${relativeIndex + 1}팀`
+                            : `${originalIndex + 1}팀`;
                           return (
                             <Button
-                              key={index}
+                              key={originalIndex}
                               size="sm"
                               variant="outline"
                               onClick={() =>
-                                handleAssignLeftover(student.id, index)
+                                handleAssignLeftover(student.id, originalIndex)
                               }
                             >
                               <PlusCircle className="mr-1 h-4 w-4" />
@@ -1242,16 +1269,16 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
               </div>
             )}
 
-            {teams.length > 0 && (
+            {sortedTeams.length > 0 && (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pt-4">
-                {teams.map((team, index) => {
-                  const firstStudent = team[0];
-                  const teamName = firstStudent
-                    ? `${firstStudent.grade}-${firstStudent.classNum}반 ${
-                        // Find the relative team index within the class
-                        teams.filter(t => t.length > 0 && t[0].grade === firstStudent.grade && t[0].classNum === firstStudent.classNum).findIndex(t => t === team) + 1
-                      }팀`
-                    : `${index + 1}팀`;
+                {sortedTeams.map((team, index) => {
+                   const firstStudent = team[0];
+                   if (!firstStudent) return null; // Should not happen if team is not empty
+                   
+                   const teamsInClass = sortedTeams.filter(t => t.length > 0 && t[0].grade === firstStudent.grade && t[0].classNum === firstStudent.classNum);
+                   const relativeIndex = teamsInClass.findIndex(t => t === team);
+
+                   const teamName = `${firstStudent.grade}-${firstStudent.classNum}반 ${relativeIndex + 1}팀`;
                   
                   return (
                     <div key={index} className="border rounded-md p-3">
