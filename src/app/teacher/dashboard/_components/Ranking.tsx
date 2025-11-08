@@ -585,14 +585,20 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
           // Zigzag/Snake distribution
           let currentTeam = 0;
           let direction = 1;
-          studentsToDistribute.forEach((student) => {
-            newTeams[currentTeam].push(student);
+          while (studentsToDistribute.length > 0 && currentTeam < newTeams.length) {
+            if (newTeams[currentTeam].length < membersPerTeam) {
+                const student = studentsToDistribute.shift();
+                if (student) newTeams[currentTeam].push(student);
+            }
+            
             currentTeam += direction;
+            
             if (currentTeam >= numTeamsForGroup || currentTeam < 0) {
               direction *= -1;
               currentTeam += direction;
             }
-          });
+          }
+
         } else {
           // Level/Sequential distribution
           for (let i = 0; i < numTeamsForGroup; i++) {
