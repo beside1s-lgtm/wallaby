@@ -38,9 +38,10 @@ import {
   Radar,
   Tooltip,
 } from "recharts";
-import { FileDown, Users, Shuffle } from "lucide-react";
+import { FileDown, Users, Shuffle, Loader2, Wand2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { getScoutingReport } from "@/ai/flows/scouting-report-flow";
 
 type RankedStudent = {
   rank: number;
@@ -206,6 +207,10 @@ export default function Ranking({
   );
 }
 
+type ScoutingReport = {
+    report: string;
+};
+
 function TeamBalancer({
   allStudents,
   allItems,
@@ -232,15 +237,32 @@ function TeamBalancer({
     "uniform"
   );
   const [balancingSelection, setBalancingSelection] = useState<Record<string, boolean>>({});
+
+  const [scoutingReport, setScoutingReport] = useState<ScoutingReport | null>(null);
+  const [isReportLoading, setIsReportLoading] = useState(false);
   
-  const { grades, classNumsByGrade } = useMemo(() => {
+  const { grades, classNumsByGrade, groupedItems } = useMemo(() => {
     const grades = [...new Set(allStudents.map(s => s.grade))].sort();
     const classNumsByGrade: Record<string, string[]> = {};
     grades.forEach(grade => {
         classNumsByGrade[grade] = [...new Set(allStudents.filter(s => s.grade === grade).map(s => s.classNum))].sort();
     });
-    return { grades, classNumsByGrade };
-  }, [allStudents]);
+
+    const grouped: Record<string, MeasurementItem[]> = { PAPS: [] };
+    allItems.forEach(item => {
+        const category = item.category || (item.isPaps ? 'PAPS' : '기타');
+        if (!grouped[category]) grouped[category] = [];
+        grouped[category].push(item);
+    });
+    const orderedGroups: Record<string, MeasurementItem[]> = { PAPS: grouped['PAPS'] };
+    Object.keys(grouped).forEach(key => {
+        if (key !== 'PAPS' && key !== '기타') orderedGroups[key] = grouped[key];
+    });
+    if (grouped['기타']?.length > 0) orderedGroups['기타'] = grouped['기타'];
+
+    return { grades, classNumsByGrade, groupedItems: orderedGroups };
+  }, [allStudents, allItems]);
+
 
   const targetStudents = useMemo(() => {
     switch (analysisScope) {
@@ -362,12 +384,64 @@ function TeamBalancer({
         : [...prev, itemName]
     );
   };
+  
+  const handleToggleCategory = (category: string, checked: boolean) => {
+      const categoryItems = groupedItems[category].map(item => item.name);
+      if(checked) {
+          setSelectedItemNames(prev => [...new Set([...prev, ...categoryItems])]);
+      } else {
+          setSelectedItemNames(prev => prev.filter(name => !categoryItems.includes(name)));
+      }
+  }
 
   const selectedStudentData = useMemo(() => {
     if (!selectedStudentId) return null;
     const scores = studentScores.get(selectedStudentId);
     return scores ? scores.scores : null;
   }, [selectedStudentId, studentScores]);
+
+  useEffect(() => {
+    // Clear AI report when student selection changes
+    setScoutingReport(null);
+  }, [selectedStudentId]);
+
+  const handleAiReport = async () => {
+    if (!selectedStudentId || !selectedStudentData) {
+        toast({ variant: 'destructive', title: 'AI 리포트 생성 불가', description: '학생을 먼저 선택해주세요.' });
+        return;
+    }
+    setIsReportLoading(true);
+    setScoutingReport(null);
+    try {
+        const student = allStudents.find(s => s.id === selectedStudentId);
+        if (!student) return;
+
+        const studentRanks: Record<string, string> = {};
+        const ranksByItem = calculateRanks(school, allItems, allRecords, allStudents, student.grade);
+        
+        selectedItemNames.forEach(item => {
+            const rankInfo = ranksByItem[item]?.find(r => r.studentId === student.id);
+            if (rankInfo) {
+                studentRanks[item] = `${ranksByItem[item].length}명 중 ${rankInfo.rank}등`;
+            }
+        });
+
+        const input = {
+            studentName: student.name,
+            abilityScores: selectedStudentData.map(s => ({ item: s.item, score: s.score })),
+            ranks: studentRanks,
+            allItems,
+        };
+        const result = await getScoutingReport(input);
+        setScoutingReport(result);
+    } catch (error) {
+        console.error('Failed to get AI Scouting Report:', error);
+        toast({ variant: 'destructive', title: 'AI 리포트 생성 실패' });
+    } finally {
+        setIsReportLoading(false);
+    }
+  };
+
 
   const handleBalanceTeams = () => {
     const selectedStudentIds = Object.entries(balancingSelection)
@@ -461,9 +535,11 @@ function TeamBalancer({
   
   const handleSelectAllForBalancing = (checked: boolean) => {
     const newSelection: Record<string, boolean> = {};
-    studentScores.forEach((_, studentId) => {
-      newSelection[studentId] = checked;
-    });
+    if (checked) {
+        studentScores.forEach((_, studentId) => {
+            newSelection[studentId] = true;
+        });
+    }
     setBalancingSelection(newSelection);
   };
 
@@ -533,52 +609,74 @@ function TeamBalancer({
             </div>
           </div>
           <div className="space-y-2">
-              <Label>종목 선택</Label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 p-2 border rounded-md mt-1">
-                {allItems.map((item) => (
-                  <div key={item.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`item-${item.id}`}
-                      checked={selectedItemNames.includes(item.name)}
-                      onCheckedChange={() => handleToggleItem(item.name)}
-                      disabled={targetStudents.length === 0}
-                    />
-                    <Label
-                      htmlFor={`item-${item.id}`}
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                      {item.name}
-                    </Label>
-                  </div>
-                ))}
-              </div>
+            <Label>종목 선택</Label>
+            <div className="space-y-2 p-2 border rounded-md mt-1">
+                {Object.entries(groupedItems).map(([category, items]) => {
+                    const categoryItems = items.map(item => item.name);
+                    const isAllSelected = categoryItems.every(name => selectedItemNames.includes(name));
+                    return (
+                        <div key={category}>
+                            <div className="flex items-center space-x-2">
+                                <Checkbox 
+                                    id={`category-${category}`}
+                                    checked={isAllSelected}
+                                    onCheckedChange={(c) => handleToggleCategory(category, !!c)}
+                                    disabled={targetStudents.length === 0}
+                                />
+                                <Label htmlFor={`category-${category}`} className="font-semibold">{category}</Label>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 p-2 pl-6">
+                                {items.map((item) => (
+                                <div key={item.id} className="flex items-center space-x-2">
+                                    <Checkbox
+                                    id={`item-${item.id}`}
+                                    checked={selectedItemNames.includes(item.name)}
+                                    onCheckedChange={() => handleToggleItem(item.name)}
+                                    disabled={targetStudents.length === 0}
+                                    />
+                                    <Label
+                                    htmlFor={`item-${item.id}`}
+                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                    >
+                                    {item.name}
+                                    </Label>
+                                </div>
+                                ))}
+                            </div>
+                        </div>
+                    )
+                })}
+            </div>
           </div>
         </div>
 
         {studentScores.size > 0 && (
           <div className="space-y-4 p-4 border rounded-md">
-            <h3 className="font-semibold">2. 학생별 능력치 확인 (100점 만점)</h3>
+            <h3 className="font-semibold">2. 학생별 능력치 확인 및 AI 스카우팅 리포트</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <Label>학생 선택</Label>
-                <Select
-                  onValueChange={setSelectedStudentId}
-                  value={selectedStudentId || ""}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="학생을 선택하여 능력치 그래프 보기" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[...studentScores.keys()].map((studentId) => {
-                      const student = allStudents.find((s) => s.id === studentId);
-                      return student ? (
-                        <SelectItem key={student.id} value={student.id}>
-                          {student.name} ({student.grade}-{student.classNum}-{student.studentNum})
-                        </SelectItem>
-                      ) : null;
-                    })}
-                  </SelectContent>
-                </Select>
+                 <div className="flex gap-2">
+                    <Select onValueChange={setSelectedStudentId} value={selectedStudentId || ""}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="학생을 선택하여 능력치 그래프 보기" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {[...studentScores.keys()].map((studentId) => {
+                            const student = allStudents.find((s) => s.id === studentId);
+                            return student ? (
+                                <SelectItem key={student.id} value={student.id}>
+                                {student.name} ({student.grade}-{student.classNum}-{student.studentNum})
+                                </SelectItem>
+                            ) : null;
+                            })}
+                        </SelectContent>
+                    </Select>
+                    <Button onClick={handleAiReport} disabled={!selectedStudentId || isReportLoading}>
+                        <Wand2 className="mr-2 h-4 w-4" />
+                        {isReportLoading ? '분석 중...' : 'AI 리포트'}
+                    </Button>
+                </div>
                 {selectedStudentData && (
                   <div className="mt-4 h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
@@ -608,8 +706,23 @@ function TeamBalancer({
                     </ResponsiveContainer>
                   </div>
                 )}
+                 {isReportLoading && (
+                    <div className="flex justify-center items-center h-24">
+                        <Loader2 className="animate-spin" />
+                    </div>
+                )}
+                {scoutingReport && (
+                    <Card className="mt-4">
+                        <CardHeader>
+                            <CardTitle className="text-lg">AI 스카우팅 리포트</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-sm whitespace-pre-wrap">{scoutingReport.report}</p>
+                        </CardContent>
+                    </Card>
+                )}
               </div>
-              <div className="max-h-[350px] overflow-y-auto border rounded-md">
+              <div className="max-h-[450px] overflow-y-auto border rounded-md">
                 <Table>
                   <TableHeader className="sticky top-0 bg-muted">
                     <TableRow>
@@ -621,7 +734,7 @@ function TeamBalancer({
                       </TableHead>
                       <TableHead>이름</TableHead>
                       <TableHead>총점</TableHead>
-                      {selectedItemNames.map((name) => (
+                      {selectedItemNames.slice(0, 2).map((name) => (
                         <TableHead key={name}>{name}</TableHead>
                       ))}
                     </TableRow>
@@ -647,13 +760,14 @@ function TeamBalancer({
                                 <Checkbox
                                     checked={balancingSelection[studentId] || false}
                                     onCheckedChange={(c) => setBalancingSelection(prev => ({ ...prev, [studentId]: !!c }))}
+                                    onClick={(e) => e.stopPropagation()}
                                 />
                             </TableCell>
                             <TableCell>{student.name}</TableCell>
                             <TableCell className="font-bold">
                               {data.totalScore}
                             </TableCell>
-                            {selectedItemNames.map((itemName) => (
+                            {selectedItemNames.slice(0, 2).map((itemName) => (
                               <TableCell key={itemName}>
                                 {data.scores.find((s) => s.item === itemName)
                                   ?.score || 0}
