@@ -100,15 +100,20 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
 
   useEffect(() => {
     if (allItems.length > 0) {
-        const papsItems = allItems.filter(i => i.isPaps);
-        if (papsItems.length > 0) {
-            const firstPapsItem = papsItems[0].name;
-            setSelectedItemName(firstPapsItem);
-            setBatchRecordItem(firstPapsItem);
-        } else if (allItems.length > 0) {
-            const firstItem = allItems[0].name;
-            setSelectedItemName(firstItem);
-            setBatchRecordItem(firstItem);
+        const bmiItem = allItems.find(i => i.isCompound);
+        if (bmiItem) {
+            setBatchRecordItem(bmiItem.name);
+            setSelectedItemName(bmiItem.name);
+        } else {
+            const firstPapsItem = allItems.find(i => i.isPaps);
+            if (firstPapsItem) {
+                setBatchRecordItem(firstPapsItem.name);
+                setSelectedItemName(firstPapsItem.name);
+            } else if (allItems.length > 0) {
+                const firstItem = allItems[0].name;
+                setSelectedItemName(firstItem);
+                setBatchRecordItem(firstItem);
+            }
         }
     }
   }, [allItems]);
