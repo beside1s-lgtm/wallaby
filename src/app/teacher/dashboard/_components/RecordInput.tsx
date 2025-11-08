@@ -454,7 +454,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                                         value={studentRecords.value || ''}
                                                         onChange={(e) => handleBatchRecordChange(student.id, 'value', e.target.value)}
                                                         className="max-w-[120px]"
-                                                        placeholder={selectedItemForBatchAdd?.recordType === 'level' ? '1:상, 2:중, 3:하' : ''}
+                                                        placeholder={selectedItemForBatchAdd?.recordType === 'level' ? '1:상, 2:중, 3:하' : `기록 (${selectedItemForBatchAdd?.unit})`}
                                                     />
                                                 </TableCell>
                                             </TableRow>
