@@ -1494,7 +1494,7 @@ function EditRecordDialog({
           </div>
             {selectedItem?.isCompound ? (
                 <div className="grid grid-cols-4 items-center gap-4">
-                    <Label className="text-right">기록</Label>
+                    <Label className="text-right col-span-1">기록</Label>
                     <div className="col-span-3 grid grid-cols-2 gap-2">
                         <Input id="height" type="number" placeholder="키(cm)" value={height} onChange={e => setHeight(e.target.value)} />
                         <Input id="weight" type="number" placeholder="몸무게(kg)" value={weight} onChange={e => setWeight(e.target.value)} />
