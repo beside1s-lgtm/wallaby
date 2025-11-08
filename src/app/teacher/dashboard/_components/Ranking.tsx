@@ -289,7 +289,7 @@ function TeamBalancer({
         );
       });
 
-      const gradeForRanking = analysisScope === 'class' ? selectedGrade : (analysisScope === 'grade' ? selectedGrade : undefined);
+      const gradeForRanking = analysisScope === 'all' ? undefined : selectedGrade;
       const allRanks = calculateRanks(school, allItems, allRecords, allStudents, gradeForRanking);
 
 
@@ -537,11 +537,9 @@ function TeamBalancer({
   
   const handleSelectAllForBalancing = (checked: boolean) => {
     const newSelection: Record<string, boolean> = {};
-    if (checked) {
-        studentScores.forEach((_, studentId) => {
-            newSelection[studentId] = true;
-        });
-    }
+    studentScores.forEach((_, studentId) => {
+        newSelection[studentId] = checked;
+    });
     setBalancingSelection(newSelection);
   };
 
