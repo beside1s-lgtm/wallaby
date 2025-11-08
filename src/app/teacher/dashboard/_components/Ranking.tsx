@@ -289,18 +289,15 @@ function TeamBalancer({
         );
       });
 
+      const gradeForRanking = analysisScope === 'class' ? selectedGrade : (analysisScope === 'grade' ? selectedGrade : undefined);
+      const allRanks = calculateRanks(school, allItems, allRecords, allStudents, gradeForRanking);
+
+
       selectedItemNames.forEach((itemName) => {
         const itemInfo = allItems.find((i) => i.name === itemName);
         if (!itemInfo) return;
 
-        const ranksByItem = calculateRanks(
-          school,
-          allItems,
-          allRecords,
-          allStudents,
-          analysisScope === 'class' || analysisScope === 'grade' ? selectedGrade : undefined
-        );
-        const itemRanks = ranksByItem[itemName];
+        const itemRanks = allRanks[itemName];
 
         if (itemRanks) {
           const totalInRank = itemRanks.length;
@@ -540,9 +537,11 @@ function TeamBalancer({
   
   const handleSelectAllForBalancing = (checked: boolean) => {
     const newSelection: Record<string, boolean> = {};
-    studentScores.forEach((_, studentId) => {
-        newSelection[studentId] = checked;
-    });
+    if (checked) {
+        studentScores.forEach((_, studentId) => {
+            newSelection[studentId] = true;
+        });
+    }
     setBalancingSelection(newSelection);
   };
 
@@ -625,10 +624,10 @@ function TeamBalancer({
                             <div className="flex items-center space-x-2">
                                 <Checkbox 
                                     id={`category-${category}`}
-                                    checked={isAllSelected || isIndeterminate}
+                                    checked={isAllSelected}
                                     onCheckedChange={(c) => handleToggleCategory(category, !!c)}
-                                    disabled={targetStudents.length === 0}
                                     aria-checked={isIndeterminate ? "mixed" : isAllSelected}
+                                    disabled={targetStudents.length === 0}
                                 />
                                 <Label htmlFor={`category-${category}`} className="font-semibold">{category}</Label>
                             </div>
@@ -878,5 +877,3 @@ function TeamBalancer({
     </Card>
   );
 }
-
-    
