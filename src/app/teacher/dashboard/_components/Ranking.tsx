@@ -42,6 +42,7 @@ import { FileDown, Users, Shuffle, Loader2, Wand2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { getScoutingReport } from "@/ai/flows/scouting-report-flow";
+import type { ScoutingReportOutput } from "@/ai/flows/scouting-report-flow";
 
 type RankedStudent = {
   rank: number;
@@ -207,9 +208,6 @@ export default function Ranking({
   );
 }
 
-type ScoutingReport = {
-    report: string;
-};
 
 function TeamBalancer({
   allStudents,
@@ -238,7 +236,7 @@ function TeamBalancer({
   );
   const [balancingSelection, setBalancingSelection] = useState<Record<string, boolean>>({});
 
-  const [scoutingReport, setScoutingReport] = useState<ScoutingReport | null>(null);
+  const [scoutingReport, setScoutingReport] = useState<ScoutingReportOutput | null>(null);
   const [isReportLoading, setIsReportLoading] = useState(false);
   
   const { grades, classNumsByGrade, groupedItems } = useMemo(() => {
@@ -428,7 +426,14 @@ function TeamBalancer({
 
         const input = {
             studentName: student.name,
-            abilityScores: selectedStudentData.map(s => ({ item: s.item, score: s.score })),
+            abilityScores: selectedStudentData.map(s => {
+                const itemInfo = allItems.find(i => i.name === s.item);
+                return {
+                    item: s.item,
+                    score: s.score,
+                    category: itemInfo?.category || (itemInfo?.isPaps ? 'PAPS' : '기타'),
+                };
+            }),
             ranks: studentRanks,
             allItems,
         };
@@ -535,11 +540,9 @@ function TeamBalancer({
   
   const handleSelectAllForBalancing = (checked: boolean) => {
     const newSelection: Record<string, boolean> = {};
-    if (checked) {
-        studentScores.forEach((_, studentId) => {
-            newSelection[studentId] = true;
-        });
-    }
+    studentScores.forEach((_, studentId) => {
+        newSelection[studentId] = checked;
+    });
     setBalancingSelection(newSelection);
   };
 
@@ -612,16 +615,20 @@ function TeamBalancer({
             <Label>종목 선택</Label>
             <div className="space-y-2 p-2 border rounded-md mt-1">
                 {Object.entries(groupedItems).map(([category, items]) => {
+                    if (items.length === 0) return null;
                     const categoryItems = items.map(item => item.name);
                     const isAllSelected = categoryItems.every(name => selectedItemNames.includes(name));
+                    const isIndeterminate = categoryItems.some(name => selectedItemNames.includes(name)) && !isAllSelected;
+                    
                     return (
                         <div key={category}>
                             <div className="flex items-center space-x-2">
                                 <Checkbox 
                                     id={`category-${category}`}
-                                    checked={isAllSelected}
+                                    checked={isAllSelected || isIndeterminate}
                                     onCheckedChange={(c) => handleToggleCategory(category, !!c)}
                                     disabled={targetStudents.length === 0}
+                                    aria-checked={isIndeterminate ? "mixed" : isAllSelected}
                                 />
                                 <Label htmlFor={`category-${category}`} className="font-semibold">{category}</Label>
                             </div>
@@ -707,7 +714,7 @@ function TeamBalancer({
                   </div>
                 )}
                  {isReportLoading && (
-                    <div className="flex justify-center items-center h-24">
+                    <div className="flex justify-center items-center h-48">
                         <Loader2 className="animate-spin" />
                     </div>
                 )}
@@ -716,8 +723,23 @@ function TeamBalancer({
                         <CardHeader>
                             <CardTitle className="text-lg">AI 스카우팅 리포트</CardTitle>
                         </CardHeader>
-                        <CardContent>
-                            <p className="text-sm whitespace-pre-wrap">{scoutingReport.report}</p>
+                        <CardContent className="space-y-4 text-sm">
+                            <div>
+                                <h4 className="font-bold">핵심 강점</h4>
+                                <p className="whitespace-pre-wrap">{scoutingReport.strengths}</p>
+                            </div>
+                             <div>
+                                <h4 className="font-bold">보완점</h4>
+                                <p className="whitespace-pre-wrap">{scoutingReport.weaknesses}</p>
+                            </div>
+                             <div>
+                                <h4 className="font-bold">종합 평가</h4>
+                                <p className="whitespace-pre-wrap">{scoutingReport.assessment}</p>
+                            </div>
+                             <div>
+                                <h4 className="font-bold">추천 포지션</h4>
+                                <p className="whitespace-pre-wrap">{scoutingReport.position}</p>
+                            </div>
                         </CardContent>
                     </Card>
                 )}
@@ -856,3 +878,5 @@ function TeamBalancer({
     </Card>
   );
 }
+
+    

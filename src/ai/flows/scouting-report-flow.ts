@@ -15,6 +15,7 @@ import type { MeasurementItem } from '@/lib/types';
 const AbilityScoreSchema = z.object({
   item: z.string().describe('The name of the measurement item.'),
   score: z.number().describe('The ability score for the item (0-100).'),
+  category: z.string().describe('The category of the measurement item (e.g., PAPS, 농구, 배구).'),
 });
 
 const ScoutingReportInputSchema = z.object({
@@ -26,7 +27,10 @@ const ScoutingReportInputSchema = z.object({
 export type ScoutingReportInput = z.infer<typeof ScoutingReportInputSchema>;
 
 const ScoutingReportOutputSchema = z.object({
-  report: z.string().describe("A brief, insightful scouting report on the student's athletic abilities."),
+    strengths: z.string().describe("Key strengths of the student, summarized in 1-2 bullet points."),
+    weaknesses: z.string().describe("Areas for improvement for the student, summarized in 1-2 bullet points."),
+    assessment: z.string().describe("An overall assessment of the student's athletic type."),
+    position: z.string().describe("A recommended position based on the analysis.")
 });
 export type ScoutingReportOutput = z.infer<typeof ScoutingReportOutputSchema>;
 
@@ -51,7 +55,7 @@ const prompt = ai.definePrompt({
   input: { schema: ScoutingReportInputSchema },
   output: { schema: ScoutingReportOutputSchema },
   model: googleAI.model('gemini-2.5-flash-lite'),
-  prompt: `당신은 학생 선수의 잠재력을 분석하는 전문 스카우터입니다. 주어진 데이터를 바탕으로 {{studentName}} 학생에 대한 간결하고 통찰력 있는 스카우팅 리포트를 한국어로 작성해주세요.
+  prompt: `당신은 학생 선수의 잠재력을 분석하는 전문 스카우터입니다. 주어진 데이터를 바탕으로 {{studentName}} 학생에 대한 스카우팅 리포트를 개조식으로 작성해주세요.
 
 ### 분석 데이터:
 - **학생 이름:** {{studentName}}
@@ -59,28 +63,22 @@ const prompt = ai.definePrompt({
 - **학년 내 종목별 등수:** {{json ranks}}
 
 ### 리포트 작성 가이드라인:
-1.  **핵심 강점 식별:**
-    -   '능력치 점수'가 가장 높은 1~2개 종목을 학생의 '핵심 강점'으로 파악하세요.
-    -   PAPS 종목인 경우, 아래 체력 요소를 참고하여 강점을 구체적으로 서술하세요.
-        -   순발력: 50m 달리기, 제자리 멀리뛰기
-        -   근지구력: 윗몸 말아올리기, 팔굽혀펴기
-        -   심폐지구력: 왕복오래달리기, 오래달리기
-        -   유연성: 앉아윗몸앞으로굽히기
-        -   근력: 악력
-        -   (예: "50m 달리기 점수가 높은 것은 뛰어난 순발력을 의미하며, 단거리 스퍼트가 요구되는 상황에서 두각을 나타낼 수 있습니다.")
-    -   기타 종목(예: 농구, 배구)인 경우, 해당 스포츠에서 그 능력이 어떤 이점으로 작용할지 서술하세요. (예: "자유투 점수가 높은 것은 높은 집중력과 안정적인 슈팅 메커니즘을 갖췄음을 보여줍니다.")
+1.  **분석 우선순위:**
+    -   만약 '농구', '배구' 등 특정 스포츠 카테고리가 포함되어 있다면, 해당 카테고리의 능력치를 중심으로 리포트를 작성하세요. PAPS 종목은 보조적인 체력 요소로만 간략히 언급합니다.
+    -   PAPS 종목만 있다면, PAPS 체력 요소를 중심으로 분석합니다.
 
-2.  **잠재적 약점 및 보완점:**
-    -   '능력치 점수'가 상대적으로 낮은 1~2개 종목을 '보완점'으로 언급하세요.
-    -   강점에 비해 점수가 현저히 낮은 종목을 중심으로 간략하게 언급하세요.
+2.  **항목별 작성법 (개조식, 간결하게 1-2 문장 요약):**
+    -   **핵심 강점:** 가장 점수가 높은 1~2개 종목을 강점으로 분석합니다. 등수 정보를 활용하여 객관성을 부여하세요. (예: "- 서전트 점프(85점)는 학년 내 최상위권(3등)으로, 높은 타점의 공격과 블로킹에 결정적인 이점을 제공합니다.")
+    -   **보완점:** 상대적으로 점수가 낮은 1~2개 종목을 약점으로 분석합니다.
+    -   **종합 평가 (선수 유형):** 강점을 종합하여 학생의 선수 유형을 한 문장으로 정의합니다. (예: "폭발적인 순발력과 파워를 겸비한 공격형 선수.")
+    -   **추천 포지션:** 분석 내용을 바탕으로 가장 적합한 포지션을 추천합니다. (예: "아포짓 스파이커(라이트 공격수) 또는 미들 블로커")
 
-3.  **종합 평가:**
-    -   학생의 전반적인 운동 능력을 한 문장으로 요약하여 선수 유형을 제시하세요. (예: "종합적으로 볼 때, {{studentName}} 학생은 뛰어난 순발력을 바탕으로 한 파워형 선수입니다." 또는 "심폐지구력을 강점으로 내세우는 지구력형 선수입니다.")
-    -   등수 정보를 활용하여 학생의 재능을 객관적으로 어필하세요. (예: "특히 제자리 멀리뛰기는 학년 전체 50명 중 3등을 차지할 정도로 최상위권의 재능을 보입니다.")
-
-4.  **스타일:**
-    -   전문적이고 긍정적인 톤을 유지하되, 내용은 3~4문장으로 매우 간결하게 작성해주세요.
-    -   "스카우팅 리포트:" 라는 제목으로 시작해주세요.
+3.  **PAPS 체력 요소 참고:**
+    -   순발력: 50m 달리기, 제자리 멀리뛰기
+    -   근지구력: 윗몸 말아올리기, 팔굽혀펴기
+    -   심폐지구력: 왕복오래달리기
+    -   유연성: 앉아윗몸앞으로굽히기
+    -   근력: 악력
 `,
 });
 
@@ -91,15 +89,11 @@ const scoutingReportFlow = ai.defineFlow(
     outputSchema: ScoutingReportOutputSchema,
   },
   async (input) => {
-    // Enrich input with PAPS factor information before calling the prompt
     const enrichedScores = input.abilityScores.map(score => {
-        const factor = papsFactorMap[score.item];
         const itemInfo = input.allItems.find(i => i.name === score.item);
-        const category = itemInfo?.category || (itemInfo?.isPaps ? 'PAPS' : '기타');
         return {
             ...score,
-            factor: factor || '해당 없음',
-            category: category,
+            category: itemInfo?.category || (itemInfo?.isPaps ? 'PAPS' : '기타'),
         };
     });
     
@@ -109,3 +103,5 @@ const scoutingReportFlow = ai.defineFlow(
     return output!;
   }
 );
+
+    
