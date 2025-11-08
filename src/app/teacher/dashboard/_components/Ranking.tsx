@@ -924,8 +924,7 @@ function TeamBalancer({
                     <ul className="space-y-1 text-sm">
                       {team.map((student) => (
                         <li key={student.id}>
-                          {student.name} (
-                          {studentScores.get(student.id)?.totalScore || 0}점)
+                          {student.name}
                         </li>
                       ))}
                     </ul>
