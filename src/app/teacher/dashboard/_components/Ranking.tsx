@@ -38,7 +38,7 @@ import {
   Radar,
   Tooltip,
 } from "recharts";
-import { FileDown, Users, Shuffle, Loader2, Wand2, Send } from "lucide-react";
+import { FileDown, Users, Shuffle, Loader2, Wand2, Send, PlusCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { getScoutingReport } from "@/ai/flows/scouting-report-flow";
@@ -225,7 +225,11 @@ function TeamBalancer({
 
   const [selectedItemNames, setSelectedItemNames] = useState<string[]>([]);
   const [numTeams, setNumTeams] = useState(2);
+  const [membersPerTeam, setMembersPerTeam] = useState(4);
+  const [divideBy, setDivideBy] = useState<'teams' | 'members'>('teams');
+
   const [teams, setTeams] = useState<Student[][]>([]);
+  const [leftoverStudents, setLeftoverStudents] = useState<Student[]>([]);
   const [studentScores, setStudentScores] = useState<
     Map<string, { totalScore: number; scores: { item: string; score: number }[] }>
   >(new Map());
@@ -330,8 +334,7 @@ function TeamBalancer({
           });
         }
       });
-
-      let maxRawTotalScore = 0;
+      
       studentsForAnalysis.forEach((student) => {
         const studentData = studentIdToRawScores.get(student.id) || {
           totalScore: 0,
@@ -351,16 +354,13 @@ function TeamBalancer({
         studentIdToRawScores.set(student.id, studentData);
       });
       
-      studentIdToRawScores.forEach((data) => {
-        if (data.totalScore > maxRawTotalScore) {
-            maxRawTotalScore = data.totalScore;
-        }
-      });
-
       const finalStudentScores = new Map<
         string,
         { totalScore: number; scores: { item: string; score: number }[] }
       >();
+
+      const maxRawTotalScore = Math.max(...Array.from(studentIdToRawScores.values()).map(d => d.totalScore));
+      
       studentIdToRawScores.forEach((data, studentId) => {
         const finalScore =
           maxRawTotalScore > 0
@@ -382,6 +382,7 @@ function TeamBalancer({
       setBalancingSelection({});
     }
     setTeams([]);
+    setLeftoverStudents([]);
     setSelectedStudentId(null);
   }, [targetStudents, selectedItemNames, excludeNonParticipants, allRecords, allItems, school, allStudents, analysisScope, selectedGrade]);
 
@@ -460,64 +461,117 @@ function TeamBalancer({
   };
 
 
-  const handleBalanceTeams = () => {
+ const handleBalanceTeams = () => {
     const selectedStudentIds = Object.entries(balancingSelection)
         .filter(([, isSelected]) => isSelected)
         .map(([studentId]) => studentId);
 
-    if (selectedStudentIds.length === 0 || numTeams < 2) {
-      toast({
-        variant: "destructive",
-        title: "팀 편성 불가",
-        description: "분석 대상, 종목, 편성할 학생을 선택하고 팀 수를 2 이상으로 설정해주세요.",
-      });
-      return;
+    if (selectedStudentIds.length === 0 || (divideBy === 'teams' && numTeams < 2) || (divideBy === 'members' && membersPerTeam < 1)) {
+        toast({
+            variant: "destructive",
+            title: "팀 편성 불가",
+            description: "분석/편성 대상 학생, 종목, 팀 나누기 기준을 올바르게 설정해주세요.",
+        });
+        return;
     }
 
-    const sortedStudents = [...studentScores.entries()]
-      .filter(([id]) => selectedStudentIds.includes(id))
-      .map(([id, data]) => ({ id, ...data }))
-      .sort((a, b) => b.totalScore - a.totalScore);
-
-    const newTeams: Student[][] = Array.from({ length: numTeams }, () => []);
     const studentMap = new Map(allStudents.map((s) => [s.id, s]));
 
-    if (balanceStrategy === "uniform") {
-      let direction = 1;
-      let teamIndex = 0;
-      sortedStudents.forEach((scoredStudent) => {
-        const student = studentMap.get(scoredStudent.id);
-        if (student) {
-          newTeams[teamIndex].push(student);
-        }
-        if (teamIndex + direction >= numTeams || teamIndex + direction < 0) {
-          direction *= -1;
-        }
-        teamIndex += direction;
-      });
-    } else {
-      // level strategy
-      const studentsPerTeam = Math.ceil(sortedStudents.length / numTeams);
-      for (let i = 0; i < numTeams; i++) {
-        const start = i * studentsPerTeam;
-        const end = start + studentsPerTeam;
-        const teamStudentIds = sortedStudents.slice(start, end);
+    const createTeamsForGroup = (studentGroup: Student[]) => {
+        const sortedStudents = studentGroup
+            .map(s => ({ id: s.id, scoreData: studentScores.get(s.id) }))
+            .filter(s => s.scoreData)
+            .sort((a, b) => b.scoreData!.totalScore - a.scoreData!.totalScore)
+            .map(s => studentMap.get(s.id)!);
         
-        teamStudentIds.forEach(scoredStudent => {
-            const student = studentMap.get(scoredStudent.id);
-            if (student) {
-                newTeams[i].push(student);
+        if (divideBy === 'teams') {
+            const newTeams: Student[][] = Array.from({ length: numTeams }, () => []);
+            let direction = 1;
+            let teamIndex = 0;
+            sortedStudents.forEach((student) => {
+                newTeams[teamIndex].push(student);
+                if (teamIndex + direction >= numTeams || teamIndex + direction < 0) {
+                    direction *= -1;
+                }
+                teamIndex += direction;
+            });
+            return { teams: newTeams, leftovers: [] };
+        } else { // divide by members
+            const numTeamsForGroup = Math.floor(sortedStudents.length / membersPerTeam);
+            if (numTeamsForGroup === 0) {
+                return { teams: [], leftovers: sortedStudents };
+            }
+
+            const studentsToDistribute = [...sortedStudents];
+            const newTeams: Student[][] = Array.from({ length: numTeamsForGroup }, () => []);
+
+            if (balanceStrategy === 'uniform') {
+                let direction = 1;
+                let teamIndex = 0;
+                let assignedCount = 0;
+                while(assignedCount < numTeamsForGroup * membersPerTeam && studentsToDistribute.length > 0) {
+                    if (newTeams[teamIndex].length < membersPerTeam) {
+                        newTeams[teamIndex].push(studentsToDistribute.shift()!);
+                        assignedCount++;
+                    }
+                    if (teamIndex + direction >= numTeamsForGroup || teamIndex + direction < 0) {
+                        direction *= -1;
+                    }
+                    teamIndex += direction;
+                }
+            } else { // level strategy
+                for (let i = 0; i < numTeamsForGroup; i++) {
+                    newTeams[i] = studentsToDistribute.splice(0, membersPerTeam);
+                }
+            }
+            return { teams: newTeams, leftovers: studentsToDistribute };
+        }
+    };
+
+    if (analysisScope === 'grade' && selectedGrade) {
+        const classesInGrade = [...new Set(targetStudents.map(s => s.classNum))];
+        let allNewTeams: Student[][] = [];
+        let allLeftovers: Student[] = [];
+
+        classesInGrade.forEach(classNum => {
+            const classStudents = targetStudents.filter(s => 
+                s.classNum === classNum && selectedStudentIds.includes(s.id)
+            );
+            if (classStudents.length > 0) {
+                const { teams: classTeams, leftovers: classLeftovers } = createTeamsForGroup(classStudents);
+                allNewTeams = [...allNewTeams, ...classTeams];
+                allLeftovers = [...allLeftovers, ...classLeftovers];
             }
         });
-      }
-    }
+        setTeams(allNewTeams);
+        setLeftoverStudents(allLeftovers);
 
-    setTeams(newTeams);
+    } else { // 'all' or 'class' scope
+        const studentsToBalance = targetStudents.filter(s => selectedStudentIds.includes(s.id));
+        const { teams: newTeams, leftovers } = createTeamsForGroup(studentsToBalance);
+        setTeams(newTeams);
+        setLeftoverStudents(leftovers);
+    }
+    
     toast({
-      title: "팀 편성 완료",
-      description: `${numTeams}개의 팀이 자동으로 편성되었습니다.`,
+        title: "팀 편성 완료",
+        description: "팀이 자동으로 편성되었습니다. 남은 학생이 있는 경우 수동으로 배정해주세요.",
     });
   };
+
+  const handleAssignLeftover = (studentId: string, teamIndex: number) => {
+    const studentToMove = leftoverStudents.find(s => s.id === studentId);
+    if (!studentToMove) return;
+
+    setTeams(prevTeams => {
+        const newTeams = [...prevTeams];
+        newTeams[teamIndex] = [...newTeams[teamIndex], studentToMove];
+        return newTeams;
+    });
+
+    setLeftoverStudents(prevLeftovers => prevLeftovers.filter(s => s.id !== studentId));
+  };
+
 
   const handleDownloadTeams = () => {
     if (teams.length === 0) {
@@ -555,6 +609,10 @@ function TeamBalancer({
         toast({ variant: 'destructive', title: '전달 실패', description: '먼저 팀을 편성해야 합니다.' });
         return;
     }
+    if (leftoverStudents.length > 0) {
+        toast({ variant: 'destructive', title: '전달 실패', description: '남은 학생을 모두 팀에 배정한 후 전달해주세요.' });
+        return;
+    }
     setIsSending(true);
     try {
         let description = '팀 편성 결과';
@@ -584,9 +642,11 @@ function TeamBalancer({
 
   const handleSelectAllForBalancing = (checked: boolean) => {
     const newSelection: Record<string, boolean> = {};
-    studentScores.forEach((_, studentId) => {
-        newSelection[studentId] = checked;
-    });
+    if(checked) {
+        studentScores.forEach((_, studentId) => {
+            newSelection[studentId] = true;
+        });
+    }
     setBalancingSelection(newSelection);
   };
 
@@ -604,6 +664,9 @@ function TeamBalancer({
       <CardContent className="space-y-6">
         <div className="space-y-4 p-4 border rounded-md">
           <h3 className="font-semibold">1. 분석 대상 설정</h3>
+           <p className="text-sm text-muted-foreground">
+            편성 범위를 '학년별'로 선택 시, 해당 학년의 각 반별로 팀이 독립적으로 생성됩니다.
+          </p>
           <div className="flex flex-wrap items-end gap-4">
              <div>
                 <Label>편성 범위</Label>
@@ -866,53 +929,60 @@ function TeamBalancer({
           <div className="space-y-4 p-4 border rounded-md">
             <h3 className="font-semibold">3. 팀 편성</h3>
             <div className="flex flex-wrap items-end gap-4">
+               <div>
+                  <Label>팀 나누기 기준</Label>
+                  <RadioGroup defaultValue="teams" onValueChange={(v) => setDivideBy(v as any)} className="flex items-center gap-4 mt-2">
+                    <div className="flex items-center space-x-2"><RadioGroupItem value="teams" id="teams" /><Label htmlFor="teams">팀 수로 나누기</Label></div>
+                    <div className="flex items-center space-x-2"><RadioGroupItem value="members" id="members" /><Label htmlFor="members">팀원 수로 나누기</Label></div>
+                  </RadioGroup>
+              </div>
+
+              {divideBy === 'teams' ? (
+                <div>
+                  <Label htmlFor="num-teams">팀 수</Label>
+                  <Input id="num-teams" type="number" value={numTeams} onChange={(e) => setNumTeams(Math.max(2, parseInt(e.target.value) || 2))} min="2" className="w-[100px]" />
+                </div>
+              ) : (
+                <div>
+                  <Label htmlFor="members-per-team">팀원 수</Label>
+                  <Input id="members-per-team" type="number" value={membersPerTeam} onChange={(e) => setMembersPerTeam(Math.max(1, parseInt(e.target.value) || 1))} min="1" className="w-[100px]" />
+                </div>
+              )}
+
               <div>
                 <Label>편성 방식</Label>
-                <RadioGroup
-                  defaultValue="uniform"
-                  onValueChange={(value) =>
-                    setBalanceStrategy(value as "uniform" | "level")
-                  }
-                  className="flex items-center gap-4 mt-2"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="uniform" id="uniform" />
-                    <Label htmlFor="uniform">균등 편성</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="level" id="level" />
-                    <Label htmlFor="level">레벨 편성</Label>
-                  </div>
+                <RadioGroup defaultValue="uniform" onValueChange={(value) => setBalanceStrategy(value as "uniform" | "level")} className="flex items-center gap-4 mt-2">
+                  <div className="flex items-center space-x-2"><RadioGroupItem value="uniform" id="uniform" /><Label htmlFor="uniform">균등 편성</Label></div>
+                  <div className="flex items-center space-x-2"><RadioGroupItem value="level" id="level" /><Label htmlFor="level">레벨 편성</Label></div>
                 </RadioGroup>
               </div>
-              <div>
-                <Label htmlFor="num-teams">팀 수</Label>
-                <Input
-                  id="num-teams"
-                  type="number"
-                  value={numTeams}
-                  onChange={(e) =>
-                    setNumTeams(Math.max(2, parseInt(e.target.value) || 2))
-                  }
-                  min="2"
-                  className="w-[100px]"
-                />
-              </div>
-              <Button onClick={handleBalanceTeams}>
-                <Shuffle /> 팀 나누기
-              </Button>
-              <Button
-                onClick={handleDownloadTeams}
-                variant="outline"
-                disabled={teams.length === 0}
-              >
-                <FileDown /> 팀 명단 다운로드
-              </Button>
-               <Button onClick={handleSendTeams} disabled={teams.length === 0 || isSending}>
+
+              <Button onClick={handleBalanceTeams}><Shuffle /> 팀 나누기</Button>
+              <Button onClick={handleDownloadTeams} variant="outline" disabled={teams.length === 0}><FileDown /> 팀 명단 다운로드</Button>
+               <Button onClick={handleSendTeams} disabled={teams.length === 0 || isSending || leftoverStudents.length > 0}>
                 {isSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                 학생들에게 전달
               </Button>
             </div>
+
+            {leftoverStudents.length > 0 && (
+                <div className="pt-4 space-y-2">
+                    <h4 className="font-semibold text-orange-600">남은 학생 배정</h4>
+                    <div className="flex flex-wrap gap-2 p-2 border border-dashed border-orange-400 rounded-md">
+                        {leftoverStudents.map(student => (
+                            <div key={student.id} className="flex items-center gap-2 p-2 bg-secondary rounded">
+                                <span className="font-medium">{student.name}</span>
+                                {teams.map((_, teamIndex) => (
+                                    <Button key={teamIndex} size="sm" variant="outline" onClick={() => handleAssignLeftover(student.id, teamIndex)}>
+                                        <PlusCircle className="mr-1 h-4 w-4" />
+                                        {teamIndex + 1}팀
+                                    </Button>
+                                ))}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {teams.length > 0 && (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pt-4">
