@@ -425,6 +425,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                                     value={studentRecords.height || ''}
                                                     onChange={(e) => handleBatchRecordChange(student.id, 'height', e.target.value)}
                                                     className="max-w-[100px]"
+                                                    placeholder="키 입력"
                                                 />
                                             </TableCell>
                                             <TableCell>
@@ -433,6 +434,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                                     value={studentRecords.weight || ''}
                                                     onChange={(e) => handleBatchRecordChange(student.id, 'weight', e.target.value)}
                                                     className="max-w-[100px]"
+                                                    placeholder="몸무게 입력"
                                                 />
                                             </TableCell>
                                             <TableCell>
