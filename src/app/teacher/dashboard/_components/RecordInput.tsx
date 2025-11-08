@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { addOrUpdateRecord, addOrUpdateRecords, getRecordsByStudent } from '@/lib/store';
 import { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Card,
   CardContent,
@@ -62,13 +63,16 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
   const [recordValue, setRecordValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [recordDate, setRecordDate] = useState<Date | undefined>(new Date());
+  const [height, setHeight] = useState('');
+  const [weight, setWeight] = useState('');
+
 
   // States for batch recording
   const [selectedGrade, setSelectedGrade] = useState('');
   const [selectedClassNum, setSelectedClassNum] = useState('');
   const [batchRecordItem, setBatchRecordItem] = useState('');
   const [batchRecordDate, setBatchRecordDate] = useState<Date | undefined>(new Date());
-  const [batchRecords, setBatchRecords] = useState<Record<string, string>>({});
+  const [batchRecords, setBatchRecords] = useState<Record<string, { value?: string, height?: string, weight?: string }>>({});
   const [isBatchSubmitting, setIsBatchSubmitting] = useState(false);
 
   const [foundStudents, setFoundStudents] = useState<Student[]>([]);
@@ -112,6 +116,10 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
   const selectedItemForSingleAdd = useMemo(() => {
       return allItems.find(item => item.name === selectedItemName);
   }, [selectedItemName, allItems]);
+  
+  const selectedItemForBatchAdd = useMemo(() => {
+    return allItems.find(item => item.name === batchRecordItem);
+  }, [batchRecordItem, allItems]);
 
   const inputPlaceholder = useMemo(() => {
     if (!selectedItemForSingleAdd) return "측정 결과 (숫자만 입력)";
@@ -155,33 +163,44 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
   };
 
   const handleAddRecord = async () => {
-    if (!selectedItemName || !recordValue || !school || !selectedStudent || !recordDate) {
-      toast({
-        variant: 'destructive',
-        title: '입력 오류',
-        description: '날짜, 측정 종목, 결과를 모두 입력해주세요.',
-      });
+    if (!selectedItemName || !school || !selectedStudent || !recordDate) {
+      toast({ variant: 'destructive', title: '입력 오류', description: '날짜, 측정 종목을 모두 입력해주세요.' });
       return;
     }
     
-    setIsSubmitting(true);
-    const numericValue = parseFloat(recordValue);
-    if (isNaN(numericValue)) {
-      toast({
-        variant: 'destructive',
-        title: '입력 오류',
-        description: '결과는 숫자로 입력해주세요.',
-      });
-      setIsSubmitting(false);
-      return;
+    let valueToSave: number | null = null;
+    if (selectedItemForSingleAdd?.isCompound) {
+      const h = parseFloat(height);
+      const w = parseFloat(weight);
+      if (isNaN(h) || isNaN(w) || h <= 0 || w <= 0) {
+        toast({ variant: 'destructive', title: '입력 오류', description: '유효한 키와 몸무게를 입력해주세요.' });
+        return;
+      }
+      const heightInMeters = h / 100;
+      valueToSave = parseFloat((w / (heightInMeters * heightInMeters)).toFixed(2));
+    } else {
+      if (!recordValue) {
+        toast({ variant: 'destructive', title: '입력 오류', description: '결과를 입력해주세요.' });
+        return;
+      }
+      const numericValue = parseFloat(recordValue);
+      if (isNaN(numericValue)) {
+        toast({ variant: 'destructive', title: '입력 오류', description: '결과는 숫자로 입력해주세요.' });
+        return;
+      }
+      valueToSave = numericValue;
     }
+
+    if (valueToSave === null) return;
+    
+    setIsSubmitting(true);
     
     try {
         await addOrUpdateRecord({
           studentId: selectedStudent.id,
           school: school,
           item: selectedItemName,
-          value: numericValue,
+          value: valueToSave,
           date: format(recordDate, 'yyyy-MM-dd'),
         });
 
@@ -193,6 +212,9 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
         });
         
         setRecordValue('');
+        setHeight('');
+        setWeight('');
+
     } catch(error) {
          console.error("Failed to save record:", error);
         toast({ variant: 'destructive', title: '저장 실패', description: '기록 저장 중 오류가 발생했습니다.'})
@@ -201,12 +223,15 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
     }
   };
   
-    const handleBatchRecordChange = (studentId: string, value: string) => {
-        setBatchRecords(prev => ({
-            ...prev,
-            [studentId]: value,
-        }));
-    };
+  const handleBatchRecordChange = (studentId: string, field: 'value' | 'height' | 'weight', inputValue: string) => {
+    setBatchRecords(prev => ({
+      ...prev,
+      [studentId]: {
+        ...prev[studentId],
+        [field]: inputValue,
+      },
+    }));
+  };
 
     const handleSaveBatchRecords = async () => {
         if (!school || !batchRecordItem || !batchRecordDate || Object.keys(batchRecords).length === 0) {
@@ -217,15 +242,32 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
         setIsBatchSubmitting(true);
         try {
             const recordsToSave = Object.entries(batchRecords)
-                .map(([studentId, value]) => {
+                .map(([studentId, values]) => {
                     const student = filteredStudentsByClass.find(s => s.id === studentId);
-                    const numericValue = parseFloat(value);
-                    if (!student || value.trim() === '' || isNaN(numericValue)) return null;
+                    if (!student) return null;
+
+                    let valueToSave: number | null = null;
+
+                    if (selectedItemForBatchAdd?.isCompound) {
+                        const h = parseFloat(values.height || '');
+                        const w = parseFloat(values.weight || '');
+                        if (!isNaN(h) && !isNaN(w) && h > 0 && w > 0) {
+                            const heightInMeters = h / 100;
+                            valueToSave = parseFloat((w / (heightInMeters * heightInMeters)).toFixed(2));
+                        }
+                    } else {
+                        const numericValue = parseFloat(values.value || '');
+                        if (!isNaN(numericValue)) {
+                            valueToSave = numericValue;
+                        }
+                    }
+
+                    if (valueToSave === null) return null;
 
                     return {
                         ...student,
                         item: batchRecordItem,
-                        value: numericValue,
+                        value: valueToSave,
                         date: format(batchRecordDate, 'yyyy-MM-dd'),
                     };
                 })
@@ -349,7 +391,14 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                             <TableRow>
                                 <TableHead>번호</TableHead>
                                 <TableHead>이름</TableHead>
-                                <TableHead>기록 ({allItems.find(i=>i.name === batchRecordItem)?.unit})</TableHead>
+                                {selectedItemForBatchAdd?.isCompound ? (
+                                    <>
+                                        <TableHead>키(cm)</TableHead>
+                                        <TableHead>몸무게(kg)</TableHead>
+                                    </>
+                                ) : (
+                                    <TableHead>기록 ({selectedItemForBatchAdd?.unit})</TableHead>
+                                )}
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -357,19 +406,40 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                 <TableRow key={student.id}>
                                     <TableCell>{student.studentNum}</TableCell>
                                     <TableCell>{student.name}</TableCell>
-                                    <TableCell>
-                                        <Input
-                                            type="number"
-                                            value={batchRecords[student.id] || ''}
-                                            onChange={(e) => handleBatchRecordChange(student.id, e.target.value)}
-                                            className="max-w-[120px]"
-                                            placeholder={allItems.find(i=>i.name === batchRecordItem)?.recordType === 'level' ? '1:상, 2:중, 3:하' : ''}
-                                        />
-                                    </TableCell>
+                                    {selectedItemForBatchAdd?.isCompound ? (
+                                        <>
+                                            <TableCell>
+                                                <Input
+                                                    type="number"
+                                                    value={batchRecords[student.id]?.height || ''}
+                                                    onChange={(e) => handleBatchRecordChange(student.id, 'height', e.target.value)}
+                                                    className="max-w-[120px]"
+                                                />
+                                            </TableCell>
+                                            <TableCell>
+                                                <Input
+                                                    type="number"
+                                                    value={batchRecords[student.id]?.weight || ''}
+                                                    onChange={(e) => handleBatchRecordChange(student.id, 'weight', e.target.value)}
+                                                    className="max-w-[120px]"
+                                                />
+                                            </TableCell>
+                                        </>
+                                    ) : (
+                                        <TableCell>
+                                            <Input
+                                                type="number"
+                                                value={batchRecords[student.id]?.value || ''}
+                                                onChange={(e) => handleBatchRecordChange(student.id, 'value', e.target.value)}
+                                                className="max-w-[120px]"
+                                                placeholder={selectedItemForBatchAdd?.recordType === 'level' ? '1:상, 2:중, 3:하' : ''}
+                                            />
+                                        </TableCell>
+                                    )}
                                 </TableRow>
                             )) : (
                                 <TableRow>
-                                    <TableCell colSpan={3} className="h-24 text-center">
+                                    <TableCell colSpan={selectedItemForBatchAdd?.isCompound ? 4 : 3} className="h-24 text-center">
                                         기록을 입력할 학급을 선택해주세요.
                                     </TableCell>
                                 </TableRow>
@@ -437,12 +507,25 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                     ))}
                                 </SelectContent>
                             </Select>
-                            <Input
-                                placeholder={inputPlaceholder}
-                                value={recordValue}
-                                onChange={e => setRecordValue(e.target.value)}
-                                type="number"
-                            />
+                            {selectedItemForSingleAdd?.isCompound ? (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <Label htmlFor="height">키 (cm)</Label>
+                                        <Input id="height" type="number" value={height} onChange={e => setHeight(e.target.value)} />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="weight">몸무게 (kg)</Label>
+                                        <Input id="weight" type="number" value={weight} onChange={e => setWeight(e.target.value)} />
+                                    </div>
+                                </div>
+                            ) : (
+                                <Input
+                                    placeholder={inputPlaceholder}
+                                    value={recordValue}
+                                    onChange={e => setRecordValue(e.target.value)}
+                                    type="number"
+                                />
+                            )}
                         </CardContent>
                         <CardFooter>
                             <Button onClick={handleAddRecord} disabled={isSubmitting} className="w-full">

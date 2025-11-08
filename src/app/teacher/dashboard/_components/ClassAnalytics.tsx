@@ -1387,34 +1387,51 @@ function EditRecordDialog({
   const [date, setDate] = useState<Date | undefined>(new Date(record.date));
   const [itemName, setItemName] = useState(record.item);
   const [value, setValue] = useState(record.value.toString());
+  const [height, setHeight] = useState('');
+  const [weight, setWeight] = useState('');
 
   const selectedItem = allItems.find(item => item.name === itemName);
-  const inputPlaceholder = useMemo(() => {
-    if (!selectedItem) return "측정 결과 (숫자만 입력)";
-    if (selectedItem.recordType === 'level') return "결과 (예: 1=상, 2=중, 3=하)";
-    return `결과 (${selectedItem.unit})`;
-  }, [selectedItem]);
-
 
   useEffect(() => {
     if (isOpen) {
       setDate(new Date(record.date));
       setItemName(record.item);
       setValue(record.value.toString());
+      setHeight('');
+      setWeight('');
     }
   }, [isOpen, record]);
 
   const handleUpdate = async () => {
-    if (!school || !date || !itemName || !value) {
-      toast({ variant: 'destructive', title: '입력 오류', description: '모든 필드를 입력해주세요.' });
+    if (!school || !date || !itemName) {
+      toast({ variant: 'destructive', title: '입력 오류', description: '날짜와 종목을 입력해주세요.' });
       return;
     }
     
-    const numericValue = parseFloat(value);
-    if (isNaN(numericValue)) {
-      toast({ variant: 'destructive', title: '입력 오류', description: '기록은 숫자로 입력해야 합니다.' });
-      return;
+    let valueToSave: number | null = null;
+    if (selectedItem?.isCompound) {
+      const h = parseFloat(height);
+      const w = parseFloat(weight);
+      if (isNaN(h) || isNaN(w) || h <= 0 || w <= 0) {
+        toast({ variant: 'destructive', title: '입력 오류', description: '유효한 키와 몸무게를 입력해주세요.' });
+        return;
+      }
+      const heightInMeters = h / 100;
+      valueToSave = parseFloat((w / (heightInMeters * heightInMeters)).toFixed(2));
+    } else {
+        if (!value) {
+            toast({ variant: 'destructive', title: '입력 오류', description: '결과를 입력해주세요.' });
+            return;
+        }
+        const numericValue = parseFloat(value);
+        if (isNaN(numericValue)) {
+            toast({ variant: 'destructive', title: '입력 오류', description: '기록은 숫자로 입력해야 합니다.' });
+            return;
+        }
+        valueToSave = numericValue;
     }
+
+    if(valueToSave === null) return;
 
     setIsSubmitting(true);
     try {
@@ -1423,7 +1440,7 @@ function EditRecordDialog({
         studentId: student.id,
         school: school,
         item: itemName,
-        value: numericValue,
+        value: valueToSave,
         date: format(date, 'yyyy-MM-dd'),
       });
       await onRecordUpdate();
@@ -1447,7 +1464,7 @@ function EditRecordDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>기록 수정</DialogTitle>
-          <DialogDescription>{student.name} 학생의 기록을 수정합니다.</DialogDescription>
+          <DialogDescription>{student.name} 학생의 기록을 수정합니다. BMI의 경우, 수정 시 키와 몸무게를 다시 입력해야 합니다.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
@@ -1477,7 +1494,14 @@ function EditRecordDialog({
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="value" className="text-right">기록</Label>
-            <Input id="value" type="number" value={value} onChange={(e) => setValue(e.target.value)} className="col-span-3" placeholder={inputPlaceholder}/>
+             {selectedItem?.isCompound ? (
+                <div className="col-span-3 grid grid-cols-2 gap-2">
+                    <Input id="height" type="number" placeholder="키(cm)" value={height} onChange={e => setHeight(e.target.value)} />
+                    <Input id="weight" type="number" placeholder="몸무게(kg)" value={weight} onChange={e => setWeight(e.target.value)} />
+                </div>
+            ) : (
+                <Input id="value" type="number" value={value} onChange={(e) => setValue(e.target.value)} className="col-span-3" />
+            )}
           </div>
         </div>
         <DialogFooter>

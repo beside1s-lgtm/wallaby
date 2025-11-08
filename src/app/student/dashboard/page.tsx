@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -85,6 +86,8 @@ export default function StudentDashboardPage() {
   const [measurementItems, setMeasurementItems] = useState<MeasurementItem[]>([]);
   const [selectedItemName, setSelectedItemName] = useState('');
   const [value, setValue] = useState('');
+  const [height, setHeight] = useState('');
+  const [weight, setWeight] = useState('');
   const [records, setRecords] = useState<MeasurementRecord[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -178,33 +181,44 @@ export default function StudentDashboardPage() {
   }
 
   const handleSubmit = async () => {
-    if (!selectedItemName || !value || !school || !student) {
-      toast({
-        variant: 'destructive',
-        title: '입력 오류',
-        description: '측정 종목과 결과를 모두 입력해주세요.',
-      });
+    if (!selectedItemName || !school || !student) {
+      toast({ variant: 'destructive', title: '입력 오류', description: '측정 종목을 선택해주세요.' });
       return;
     }
     
-    setIsSubmitting(true);
-    const numericValue = parseFloat(value);
-    if (isNaN(numericValue)) {
-      toast({
-        variant: 'destructive',
-        title: '입력 오류',
-        description: '결과는 숫자로 입력해주세요.',
-      });
-      setIsSubmitting(false);
-      return;
+    let valueToSave: number | null = null;
+    if (selectedItem?.isCompound) {
+      const h = parseFloat(height);
+      const w = parseFloat(weight);
+      if (isNaN(h) || isNaN(w) || h <= 0 || w <= 0) {
+        toast({ variant: 'destructive', title: '입력 오류', description: '유효한 키와 몸무게를 입력해주세요.' });
+        return;
+      }
+      const heightInMeters = h / 100;
+      valueToSave = parseFloat((w / (heightInMeters * heightInMeters)).toFixed(2));
+    } else {
+      if (!value) {
+        toast({ variant: 'destructive', title: '입력 오류', description: '결과를 입력해주세요.' });
+        return;
+      }
+      const numericValue = parseFloat(value);
+      if (isNaN(numericValue)) {
+        toast({ variant: 'destructive', title: '입력 오류', description: '결과는 숫자로 입력해주세요.' });
+        return;
+      }
+      valueToSave = numericValue;
     }
+
+    if (valueToSave === null) return;
+    
+    setIsSubmitting(true);
     
     try {
         await addOrUpdateRecord({
             studentId: student.id,
             school: school,
             item: selectedItemName,
-            value: numericValue,
+            value: valueToSave,
         });
 
         await fetchRecords();
@@ -212,10 +226,12 @@ export default function StudentDashboardPage() {
         
         toast({
             title: '기록 저장 완료',
-            description: `${selectedItemName} 기록이 ${numericValue}${selectedItem?.unit}으로 저장/업데이트되었습니다.`,
+            description: `${selectedItemName} 기록이 저장/업데이트되었습니다.`,
         });
         
         setValue('');
+        setHeight('');
+        setWeight('');
         setSelectedItemName('');
     } catch(error) {
         console.error("Failed to save record:", error);
@@ -435,12 +451,25 @@ export default function StudentDashboardPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Input
-              placeholder={inputPlaceholder}
-              value={value}
-              onChange={e => setValue(e.target.value)}
-              type="number"
-            />
+            {selectedItem?.isCompound ? (
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <Label htmlFor="height">키 (cm)</Label>
+                        <Input id="height" type="number" value={height} onChange={e => setHeight(e.target.value)} />
+                    </div>
+                    <div>
+                        <Label htmlFor="weight">몸무게 (kg)</Label>
+                        <Input id="weight" type="number" value={weight} onChange={e => setWeight(e.target.value)} />
+                    </div>
+                </div>
+            ) : (
+                <Input
+                placeholder={inputPlaceholder}
+                value={value}
+                onChange={e => setValue(e.target.value)}
+                type="number"
+                />
+            )}
           </CardContent>
           <CardFooter>
             <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full">

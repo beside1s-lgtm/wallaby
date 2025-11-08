@@ -47,6 +47,11 @@ const papsStandardsByGrade: Record<
       female: [ { grade: 1, min: 29.0, max: Infinity }, { grade: 2, min: 18.0, max: 28.9 }, { grade: 3, min: 13.5, max: 17.9 }, { grade: 4, min: 10.5, max: 13.4 }, { grade: 5, min: 0, max: 10.4 } ],
       type: 'weight', unit: 'kg'
     },
+    '체질량지수(BMI)': {
+        male: [ { grade: 1, min: 14.1, max: 18.0 }, { grade: 2, min: 18.1, max: 19.9 }, { grade: 3, min: 12.8, max: 14.0 }, { grade: 4, min: 20.0, max: 21.6 }, { grade: 5, min: -Infinity, max: 12.7 }, { grade: 5, min: 21.7, max: Infinity } ],
+        female: [ { grade: 1, min: 14.0, max: 18.2 }, { grade: 2, min: 18.3, max: 20.3 }, { grade: 3, min: 12.7, max: 13.9 }, { grade: 4, min: 20.4, max: 22.1 }, { grade: 5, min: -Infinity, max: 12.6 }, { grade: 5, min: 22.2, max: Infinity } ],
+        type: 'count', unit: 'kg/m²'
+    }
   },
   '5': {
     '왕복오래달리기': { 
@@ -79,6 +84,11 @@ const papsStandardsByGrade: Record<
       female: [ { grade: 1, min: 29.0, max: Infinity }, { grade: 2, min: 19.0, max: 28.9 }, { grade: 3, min: 15.5, max: 18.9 }, { grade: 4, min: 12.0, max: 15.4 }, { grade: 5, min: 0, max: 11.9 } ],
       type: 'weight', unit: 'kg'
     },
+    '체질량지수(BMI)': {
+        male: [ { grade: 1, min: 14.5, max: 18.9 }, { grade: 2, min: 19.0, max: 20.9 }, { grade: 3, min: 13.2, max: 14.4 }, { grade: 4, min: 21.0, max: 22.7 }, { grade: 5, min: -Infinity, max: 13.1 }, { grade: 5, min: 22.8, max: Infinity } ],
+        female: [ { grade: 1, min: 14.4, max: 19.2 }, { grade: 2, min: 19.3, max: 21.4 }, { grade: 3, min: 13.1, max: 14.3 }, { grade: 4, min: 21.5, max: 23.3 }, { grade: 5, min: -Infinity, max: 13.0 }, { grade: 5, min: 23.4, max: Infinity } ],
+        type: 'count', unit: 'kg/m²'
+    }
   },
   '6': {
     '왕복오래달리기': { 
@@ -111,6 +121,11 @@ const papsStandardsByGrade: Record<
       female: [ { grade: 1, min: 33.0, max: Infinity }, { grade: 2, min: 22.0, max: 32.9 }, { grade: 3, min: 19.0, max: 21.9 }, { grade: 4, min: 14.0, max: 18.9 }, { grade: 5, min: 0, max: 13.9 } ],
       type: 'weight', unit: 'kg'
     },
+     '체질량지수(BMI)': {
+        male: [ { grade: 1, min: 15.0, max: 19.9 }, { grade: 2, min: 20.0, max: 21.9 }, { grade: 3, min: 13.6, max: 14.9 }, { grade: 4, min: 22.0, max: 23.8 }, { grade: 5, min: -Infinity, max: 13.5 }, { grade: 5, min: 23.9, max: Infinity } ],
+        female: [ { grade: 1, min: 14.9, max: 20.1 }, { grade: 2, min: 20.2, max: 22.4 }, { grade: 3, min: 13.5, max: 14.8 }, { grade: 4, min: 22.5, max: 24.4 }, { grade: 5, min: -Infinity, max: 13.4 }, { grade: 5, min: 24.5, max: Infinity } ],
+        type: 'count', unit: 'kg/m²'
+    }
   },
   // --- 중학교 (7,8,9) ---
   '7': { // 중1
@@ -139,6 +154,11 @@ const papsStandardsByGrade: Record<
         female: [ { grade: 1, min: 36.0, max: Infinity }, { grade: 2, min: 23.0, max: 35.9 }, { grade: 3, min: 19.0, max: 22.9 }, { grade: 4, min: 14.0, max: 18.9 }, { grade: 5, min: 0, max: 13.9 } ],
         type: 'weight', unit: 'kg'
     },
+    '체질량지수(BMI)': {
+        male: [ { grade: 1, min: 15.6, max: 20.8 }, { grade: 2, min: 20.9, max: 22.8 }, { grade: 3, min: 14.1, max: 15.5 }, { grade: 4, min: 22.9, max: 24.8 }, { grade: 5, min: -Infinity, max: 14.0 }, { grade: 5, min: 24.9, max: Infinity } ],
+        female: [ { grade: 1, min: 15.4, max: 20.9 }, { grade: 2, min: 21.0, max: 23.0 }, { grade: 3, min: 14.0, max: 15.3 }, { grade: 4, min: 23.1, max: 25.0 }, { grade: 5, min: -Infinity, max: 13.9 }, { grade: 5, min: 25.1, max: Infinity } ],
+        type: 'count', unit: 'kg/m²'
+    }
   },
   '8': { // 중2
     '왕복오래달리기': { 
@@ -166,6 +186,11 @@ const papsStandardsByGrade: Record<
         female: [ { grade: 1, min: 36.0, max: Infinity }, { grade: 2, min: 25.5, max: 35.9 }, { grade: 3, min: 19.5, max: 25.4 }, { grade: 4, min: 14.0, max: 19.4 }, { grade: 5, min: 0, max: 13.9 } ],
         type: 'weight', unit: 'kg'
     },
+     '체질량지수(BMI)': {
+        male: [ { grade: 1, min: 16.2, max: 21.6 }, { grade: 2, min: 21.7, max: 23.6 }, { grade: 3, min: 14.6, max: 16.1 }, { grade: 4, min: 23.7, max: 25.6 }, { grade: 5, min: -Infinity, max: 14.5 }, { grade: 5, min: 25.7, max: Infinity } ],
+        female: [ { grade: 1, min: 15.9, max: 21.6 }, { grade: 2, min: 21.7, max: 23.7 }, { grade: 3, min: 14.5, max: 15.8 }, { grade: 4, min: 23.8, max: 25.7 }, { grade: 5, min: -Infinity, max: 14.4 }, { grade: 5, min: 25.8, max: Infinity } ],
+        type: 'count', unit: 'kg/m²'
+    }
   },
   '9': { // 중3
     '왕복오래달리기': { 
@@ -193,6 +218,11 @@ const papsStandardsByGrade: Record<
         female: [ { grade: 1, min: 36.0, max: Infinity }, { grade: 2, min: 27.5, max: 35.9 }, { grade: 3, min: 19.5, max: 27.4 }, { grade: 4, min: 16.0, max: 19.4 }, { grade: 5, min: 0, max: 15.9 } ],
         type: 'weight', unit: 'kg'
     },
+    '체질량지수(BMI)': {
+        male: [ { grade: 1, min: 16.8, max: 22.3 }, { grade: 2, min: 22.4, max: 24.3 }, { grade: 3, min: 15.2, max: 16.7 }, { grade: 4, min: 24.4, max: 26.3 }, { grade: 5, min: -Infinity, max: 15.1 }, { grade: 5, min: 26.4, max: Infinity } ],
+        female: [ { grade: 1, min: 16.4, max: 22.2 }, { grade: 2, min: 22.3, max: 24.3 }, { grade: 3, min: 15.0, max: 16.3 }, { grade: 4, min: 24.4, max: 26.3 }, { grade: 5, min: -Infinity, max: 14.9 }, { grade: 5, min: 26.4, max: Infinity } ],
+        type: 'count', unit: 'kg/m²'
+    }
   },
   // --- 고등학교 (10,11,12) ---
   '10': { // 고1
@@ -221,6 +251,11 @@ const papsStandardsByGrade: Record<
         female: [ { grade: 1, min: 36.0, max: Infinity }, { grade: 2, min: 29.0, max: 35.9 }, { grade: 3, min: 23.0, max: 28.9 }, { grade: 4, min: 16.5, max: 22.9 }, { grade: 5, min: 0, max: 16.4 } ],
         type: 'weight', unit: 'kg'
     },
+    '체질량지수(BMI)': {
+        male: [ { grade: 1, min: 17.3, max: 22.9 }, { grade: 2, min: 23.0, max: 24.9 }, { grade: 3, min: 15.7, max: 17.2 }, { grade: 4, min: 25.0, max: 26.9 }, { grade: 5, min: -Infinity, max: 15.6 }, { grade: 5, min: 27.0, max: Infinity } ],
+        female: [ { grade: 1, min: 16.8, max: 22.7 }, { grade: 2, min: 22.8, max: 24.7 }, { grade: 3, min: 15.4, max: 16.7 }, { grade: 4, min: 24.8, max: 26.7 }, { grade: 5, min: -Infinity, max: 15.3 }, { grade: 5, min: 26.8, max: Infinity } ],
+        type: 'count', unit: 'kg/m²'
+    }
   },
   '11': { // 고2
     '왕복오래달리기': { 
@@ -248,6 +283,11 @@ const papsStandardsByGrade: Record<
         female: [ { grade: 1, min: 37.5, max: Infinity }, { grade: 2, min: 29.5, max: 37.4 }, { grade: 3, min: 25.0, max: 29.4 }, { grade: 4, min: 18.0, max: 24.9 }, { grade: 5, min: 0, max: 17.9 } ],
         type: 'weight', unit: 'kg'
     },
+    '체질량지수(BMI)': {
+        male: [ { grade: 1, min: 17.8, max: 23.4 }, { grade: 2, min: 23.5, max: 25.4 }, { grade: 3, min: 16.2, max: 17.7 }, { grade: 4, min: 25.5, max: 27.4 }, { grade: 5, min: -Infinity, max: 16.1 }, { grade: 5, min: 27.5, max: Infinity } ],
+        female: [ { grade: 1, min: 17.1, max: 23.0 }, { grade: 2, min: 23.1, max: 25.0 }, { grade: 3, min: 15.7, max: 17.0 }, { grade: 4, min: 25.1, max: 27.0 }, { grade: 5, min: -Infinity, max: 15.6 }, { grade: 5, min: 27.1, max: Infinity } ],
+        type: 'count', unit: 'kg/m²'
+    }
   },
   '12': { // 고3
     '왕복오래달리기': { 
@@ -275,6 +315,11 @@ const papsStandardsByGrade: Record<
         female: [ { grade: 1, min: 37.5, max: Infinity }, { grade: 2, min: 29.5, max: 37.4 }, { grade: 3, min: 25.0, max: 29.4 }, { grade: 4, min: 18.0, max: 24.9 }, { grade: 5, min: 0, max: 17.9 } ],
         type: 'weight', unit: 'kg'
     },
+    '체질량지수(BMI)': {
+        male: [ { grade: 1, min: 18.2, max: 23.8 }, { grade: 2, min: 23.9, max: 25.8 }, { grade: 3, min: 16.6, max: 18.1 }, { grade: 4, min: 25.9, max: 27.8 }, { grade: 5, min: -Infinity, max: 16.5 }, { grade: 5, min: 27.9, max: Infinity } ],
+        female: [ { grade: 1, min: 17.4, max: 23.3 }, { grade: 2, min: 23.4, max: 25.3 }, { grade: 3, min: 16.0, max: 17.3 }, { grade: 4, min: 25.4, max: 27.3 }, { grade: 5, min: -Infinity, max: 15.9 }, { grade: 5, min: 27.4, max: Infinity } ],
+        type: 'count', unit: 'kg/m²'
+    }
   },
 };
 
@@ -293,6 +338,7 @@ papsStandards['50m 달리기'] = { type: 'time', unit: '초' };
 papsStandards['제자리 멀리뛰기'] = { type: 'distance', unit: 'cm' };
 papsStandards['팔굽혀펴기'] = { type: 'count', unit: '회' };
 papsStandards['악력'] = { type: 'weight', unit: 'kg' };
+papsStandards['체질량지수(BMI)'] = { type: 'count', unit: 'kg/m²' };
 
 // 기존에 있던 종목 중 새로운 기준표에 없는 종목 추가 (레거시 호환)
 papsStandards['오래달리기'] = { type: 'time', unit: '초' };
@@ -325,7 +371,17 @@ export function getPapsGrade(item: string, student: Student, value: number): num
   if (!thresholds || thresholds.length === 0) return null;
 
   for (const range of thresholds) {
-    if (standard.type === 'time') { // 시간이면 낮을수록 좋음
+    // BMI의 경우, grade 5는 두 개의 범위(저체중, 비만)를 가질 수 있음
+    if (item === '체질량지수(BMI)') {
+        // 1-4 등급 (정상, 과체중, 저체중, 비만)
+        if (value >= range.min && value <= range.max) {
+             // 2등급과 4등급은 과체중/비만, 3등급과 5등급(저체중)은 낮을수록 안좋음. 1등급은 정상.
+            if(range.grade === 2 || range.grade === 4) return range.grade;
+            if(range.grade === 3) return range.grade;
+            if(range.grade === 1) return range.grade;
+            if(range.grade === 5) return range.grade;
+        }
+    } else if (standard.type === 'time') { // 시간이면 낮을수록 좋음
         if (value <= range.max && value >= range.min) {
             return range.grade;
         }
@@ -334,6 +390,16 @@ export function getPapsGrade(item: string, student: Student, value: number): num
             return range.grade;
         }
     }
+  }
+
+  // BMI 5등급 처리 (범위를 벗어나는 경우)
+  if (item === '체질량지수(BMI)') {
+      const grade5Ranges = thresholds.filter(r => r.grade === 5);
+      for (const range of grade5Ranges) {
+          if (value >= range.min && value <= range.max) {
+              return 5;
+          }
+      }
   }
   
   // 등급 범위를 벗어난 경우 (1등급 초과 or 5등급 미만)
@@ -397,6 +463,15 @@ export function normalizePapsRecord(grade: number, value: number, item: string, 
     
     const standard = gradeStandard[item === '무릎 대고 팔굽혀펴기' ? '팔굽혀펴기' : item];
     if (!standard) return (5 - grade) * 25;
+    
+    if (item === '체질량지수(BMI)') {
+        // BMI: 1등급(정상) 100점, 2/3등급 75점, 4/5등급(비만/저체중) 50점
+        if (grade === 1) return 100;
+        if (grade === 2 || grade === 3) return 75;
+        if (grade === 4 || grade === 5) return 50;
+        return 0;
+    }
+
 
     const thresholds = (student.gender === '남' ? standard.male : standard.female).sort((a,b) => a.grade - b.grade);
     if (thresholds.length < 5) return (5 - grade) * 25;
