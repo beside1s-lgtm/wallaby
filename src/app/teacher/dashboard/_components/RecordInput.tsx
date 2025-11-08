@@ -529,12 +529,12 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                             {selectedItemForSingleAdd?.isCompound ? (
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <Label htmlFor="height">키 (cm)</Label>
-                                        <Input id="height" type="number" value={height} onChange={e => setHeight(e.target.value)} />
+                                        <Label htmlFor="height-single">키 (cm)</Label>
+                                        <Input id="height-single" type="number" value={height} onChange={e => setHeight(e.target.value)} />
                                     </div>
                                     <div>
-                                        <Label htmlFor="weight">몸무게 (kg)</Label>
-                                        <Input id="weight" type="number" value={weight} onChange={e => setWeight(e.target.value)} />
+                                        <Label htmlFor="weight-single">몸무게 (kg)</Label>
+                                        <Input id="weight-single" type="number" value={weight} onChange={e => setWeight(e.target.value)} />
                                     </div>
                                 </div>
                             ) : (
