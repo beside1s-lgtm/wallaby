@@ -463,12 +463,16 @@ export default function StudentDashboardPage() {
                     </div>
                 </div>
             ) : (
-                <Input
-                placeholder={inputPlaceholder}
-                value={value}
-                onChange={e => setValue(e.target.value)}
-                type="number"
-                />
+                <div>
+                  <Label htmlFor="value">결과 ({selectedItem?.unit})</Label>
+                  <Input
+                    id="value"
+                    placeholder={inputPlaceholder}
+                    value={value}
+                    onChange={e => setValue(e.target.value)}
+                    type="number"
+                  />
+                </div>
             )}
           </CardContent>
           <CardFooter>

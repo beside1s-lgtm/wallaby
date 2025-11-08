@@ -538,12 +538,15 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                     </div>
                                 </div>
                             ) : (
-                                <Input
-                                    placeholder={inputPlaceholder}
-                                    value={recordValue}
-                                    onChange={e => setRecordValue(e.target.value)}
-                                    type="number"
-                                />
+                                <div>
+                                    <Label>{selectedItemForSingleAdd?.unit ? `기록 (${selectedItemForSingleAdd.unit})` : '기록'}</Label>
+                                    <Input
+                                        placeholder={inputPlaceholder}
+                                        value={recordValue}
+                                        onChange={e => setRecordValue(e.target.value)}
+                                        type="number"
+                                    />
+                                </div>
                             )}
                         </CardContent>
                         <CardFooter>

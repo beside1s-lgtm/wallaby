@@ -1492,17 +1492,20 @@ function EditRecordDialog({
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="value" className="text-right">기록</Label>
-             {selectedItem?.isCompound ? (
-                <div className="col-span-3 grid grid-cols-2 gap-2">
-                    <Input id="height" type="number" placeholder="키(cm)" value={height} onChange={e => setHeight(e.target.value)} />
-                    <Input id="weight" type="number" placeholder="몸무게(kg)" value={weight} onChange={e => setWeight(e.target.value)} />
+            {selectedItem?.isCompound ? (
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label className="text-right">기록</Label>
+                    <div className="col-span-3 grid grid-cols-2 gap-2">
+                        <Input id="height" type="number" placeholder="키(cm)" value={height} onChange={e => setHeight(e.target.value)} />
+                        <Input id="weight" type="number" placeholder="몸무게(kg)" value={weight} onChange={e => setWeight(e.target.value)} />
+                    </div>
                 </div>
             ) : (
-                <Input id="value" type="number" value={value} onChange={(e) => setValue(e.target.value)} className="col-span-3" />
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="value" className="text-right">기록</Label>
+                    <Input id="value" type="number" value={value} onChange={(e) => setValue(e.target.value)} className="col-span-3" />
+                </div>
             )}
-          </div>
         </div>
         <DialogFooter>
           <DialogClose asChild>
