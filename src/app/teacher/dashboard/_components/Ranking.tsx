@@ -486,14 +486,9 @@ function TeamBalancer({
         
         if (divideBy === 'teams') {
             const newTeams: Student[][] = Array.from({ length: numTeams }, () => []);
-            let direction = 1;
-            let teamIndex = 0;
-            sortedStudents.forEach((student) => {
-                newTeams[teamIndex].push(student);
-                if (teamIndex + direction >= numTeams || teamIndex + direction < 0) {
-                    direction *= -1;
-                }
-                teamIndex += direction;
+            sortedStudents.forEach((student, index) => {
+              const teamIndex = index % numTeams;
+              newTeams[teamIndex].push(student);
             });
             return { teams: newTeams, leftovers: [] };
         } else { // divide by members
@@ -590,16 +585,18 @@ function TeamBalancer({
         fileName = `${school}_${selectedGrade}-${selectedClassNum}_자동편성팀.csv`;
     }
 
-    const dataToExport = teams.flatMap((team, index) =>
-      team.map((student) => ({
-        "팀 번호": index + 1,
+    const dataToExport = teams.flatMap((team, index) => {
+      const firstStudent = team[0];
+      const teamName = firstStudent ? `${firstStudent.grade}-${firstStudent.classNum}반 ${index + 1}팀` : `${index + 1}팀`;
+      return team.map((student) => ({
+        "팀명": teamName,
         이름: student.name,
         학년: student.grade,
         반: student.classNum,
         번호: student.studentNum,
         총점: studentScores.get(student.id)?.totalScore || 0,
       }))
-    );
+    });
 
     exportToCsv(fileName, dataToExport);
   };
@@ -642,11 +639,9 @@ function TeamBalancer({
 
   const handleSelectAllForBalancing = (checked: boolean) => {
     const newSelection: Record<string, boolean> = {};
-    if(checked) {
-        studentScores.forEach((_, studentId) => {
-            newSelection[studentId] = true;
-        });
-    }
+    studentScores.forEach((_, studentId) => {
+        newSelection[studentId] = checked;
+    });
     setBalancingSelection(newSelection);
   };
 
@@ -972,12 +967,17 @@ function TeamBalancer({
                         {leftoverStudents.map(student => (
                             <div key={student.id} className="flex items-center gap-2 p-2 bg-secondary rounded">
                                 <span className="font-medium">{student.name}</span>
-                                {teams.map((_, teamIndex) => (
+                                {teams.map((team, teamIndex) => {
+                                  const firstStudent = team[0];
+                                  const teamName = firstStudent
+                                      ? `${firstStudent.grade}-${firstStudent.classNum}반 ${teamIndex + 1}팀`
+                                      : `${teamIndex + 1}팀`;
+                                  return (
                                     <Button key={teamIndex} size="sm" variant="outline" onClick={() => handleAssignLeftover(student.id, teamIndex)}>
                                         <PlusCircle className="mr-1 h-4 w-4" />
-                                        {teamIndex + 1}팀
+                                        {teamName}
                                     </Button>
-                                ))}
+                                )})}
                             </div>
                         ))}
                     </div>
@@ -986,10 +986,16 @@ function TeamBalancer({
 
             {teams.length > 0 && (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pt-4">
-                {teams.map((team, index) => (
+                {teams.map((team, index) => {
+                   const firstStudent = team[0];
+                   const teamName = firstStudent
+                     ? `${firstStudent.grade}-${firstStudent.classNum}반 ${index + 1}팀`
+                     : `${index + 1}팀`;
+
+                  return (
                   <div key={index} className="border rounded-md p-3">
                     <h4 className="font-bold mb-2 border-b pb-2">
-                      팀 {index + 1}
+                      {teamName}
                     </h4>
                     <ul className="space-y-1 text-sm">
                       {team.map((student) => (
@@ -999,7 +1005,7 @@ function TeamBalancer({
                       ))}
                     </ul>
                   </div>
-                ))}
+                )})}
               </div>
             )}
           </div>
