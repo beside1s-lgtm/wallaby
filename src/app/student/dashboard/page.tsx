@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { getItems, addOrUpdateRecord, getRecordsByStudent, getStudentById, calculateRanks, deleteRecord } from '@/lib/store';
+import { getItems, addOrUpdateRecord, getRecordsByStudent, getStudentById, calculateRanks, deleteRecord, getLatestTeamGroupForStudent } from '@/lib/store';
 import {
   Card,
   CardContent,
@@ -48,8 +48,8 @@ import {
 } from '@/components/ui/chart';
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { getStudentFeedback } from '@/ai/flows/student-ai-feedback';
-import { Loader2, Wand2, Trash2 } from 'lucide-react';
-import type { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
+import { Loader2, Wand2, Trash2, Users } from 'lucide-react';
+import type { Student, MeasurementRecord, MeasurementItem, TeamGroup } from '@/lib/types';
 import { getPapsGrade, getCustomItemGrade, normalizePapsRecord, normalizeCustomRecord } from '@/lib/paps';
 import { getStudents, getRecords } from '@/lib/store';
 
@@ -98,16 +98,23 @@ export default function StudentDashboardPage() {
   const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [allRecords, setAllRecords] = useState<MeasurementRecord[]>([]);
 
+  const [teamGroup, setTeamGroup] = useState<TeamGroup | null>(null);
+  const [myTeam, setMyTeam] = useState<{ teamIndex: number, members: Student[] } | null>(null);
+  const [selectedTeamIndex, setSelectedTeamIndex] = useState<number | null>(null);
+  const [isTeamLoading, setIsTeamLoading] = useState(true);
+
   useEffect(() => {
     async function loadData() {
         if (student?.id && school) {
+            setIsTeamLoading(true);
             try {
-                const [items, recs, stud, allStuds, allRecs] = await Promise.all([
+                const [items, recs, stud, allStuds, allRecs, teamData] = await Promise.all([
                     getItems(school),
                     getRecordsByStudent(school, student.id),
                     getStudentById(school, student.id),
                     getStudents(school),
                     getRecords(school),
+                    getLatestTeamGroupForStudent(school, student.id)
                 ]);
                 setMeasurementItems(items);
                 setRecords(recs);
@@ -123,9 +130,30 @@ export default function StudentDashboardPage() {
                     setChartItemFilter(items[0].name);
                   }
                 }
+                
+                if (teamData) {
+                    const studentMap = new Map(allStuds.map(s => [s.id, s]));
+                    const populatedTeamGroup: TeamGroup = {
+                        ...teamData,
+                        teams: teamData.teams.map(team => ({
+                            ...team,
+                            members: team.memberIds.map(id => studentMap.get(id)).filter((s): s is Student => !!s)
+                        }))
+                    };
+                    setTeamGroup(populatedTeamGroup);
+                    
+                    const studentTeam = populatedTeamGroup.teams.find(t => t.memberIds.includes(student.id));
+                    if (studentTeam) {
+                        setMyTeam(studentTeam);
+                        setSelectedTeamIndex(studentTeam.teamIndex);
+                    }
+                }
+
             } catch (error) {
                 console.error("Failed to load student data", error);
                 toast({ variant: 'destructive', title: '데이터 로딩 실패' });
+            } finally {
+                setIsTeamLoading(false);
             }
         }
     }
@@ -325,6 +353,11 @@ export default function StudentDashboardPage() {
     return [...records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [records]);
 
+  const displayedTeam = useMemo(() => {
+    if (!teamGroup || selectedTeamIndex === null) return null;
+    return teamGroup.teams.find(t => t.teamIndex === selectedTeamIndex) || null;
+  }, [teamGroup, selectedTeamIndex]);
+
 
   if (!fullStudent || !school) {
     return (
@@ -339,6 +372,51 @@ export default function StudentDashboardPage() {
       <h1 className="text-3xl font-bold text-primary font-headline">
         {school} {fullStudent.name} 학생 대시보드
       </h1>
+
+      <Card>
+        <CardHeader className='flex-row items-center justify-between'>
+            <div>
+                <CardTitle className="flex items-center gap-2"><Users /> 나의 팀 확인</CardTitle>
+                <CardDescription>{teamGroup?.description || '전달된 팀 편성 정보가 없습니다.'}</CardDescription>
+            </div>
+            {teamGroup && (
+                <Select
+                    value={selectedTeamIndex !== null ? String(selectedTeamIndex) : undefined}
+                    onValueChange={(value) => setSelectedTeamIndex(Number(value))}
+                >
+                    <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="팀 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {teamGroup.teams.map(team => (
+                            <SelectItem key={team.teamIndex} value={String(team.teamIndex)}>
+                                팀 {team.teamIndex + 1} {myTeam?.teamIndex === team.teamIndex ? '(나의 팀)' : ''}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            )}
+        </CardHeader>
+        <CardContent>
+            {isTeamLoading ? (
+                <div className="flex items-center justify-center h-24">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+            ) : displayedTeam ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    {displayedTeam.members.map(member => (
+                        <div key={member.id} className={`p-3 rounded-md text-center ${member.id === student.id ? 'bg-primary/20' : 'bg-secondary'}`}>
+                           <p className="font-semibold">{member.name}</p>
+                           <p className="text-sm text-muted-foreground">{member.grade}-{member.classNum}</p>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <p className="text-sm text-muted-foreground text-center py-8">팀 정보가 없습니다. 선생님이 팀을 편성하고 전달할 때까지 기다려주세요.</p>
+            )}
+        </CardContent>
+      </Card>
+
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card className="flex flex-col">

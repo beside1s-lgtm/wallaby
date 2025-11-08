@@ -41,3 +41,21 @@ export type School = {
   password?: string;
   createdAt: any; // Can be a Date or a server timestamp
 };
+
+export type Team = {
+  teamIndex: number;
+  memberIds: string[];
+  members?: Student[]; // Optional, populated on client
+};
+
+export type TeamGroup = {
+  id: string;
+  school: string;
+  description: string;
+  teams: Team[];
+  createdAt: any;
+};
+
+export type TeamGroupInput = Omit<TeamGroup, 'id' | 'createdAt' | 'teams'> & {
+  teams: { teamIndex: number; memberIds: string[] }[];
+};

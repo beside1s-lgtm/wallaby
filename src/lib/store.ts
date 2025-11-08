@@ -1,5 +1,5 @@
 'use client';
-import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentToAdd, School, StudentToUpdate } from './types';
+import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentToAdd, School, StudentToUpdate, TeamGroup, TeamGroupInput } from './types';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { initialItems, initialStudents, initialRecords } from './initial-data';
@@ -19,7 +19,8 @@ import {
   collectionGroup,
   limit,
   updateDoc,
-  serverTimestamp
+  serverTimestamp,
+  orderBy
 } from 'firebase/firestore';
 import { errorEmitter } from './error-emitter';
 import { FirestorePermissionError } from './errors';
@@ -725,4 +726,65 @@ export const cleanUpDuplicateRecords = async (school: string): Promise<number> =
     });
   }
   return duplicatesFound;
+};
+
+// --- Team Groups ---
+export const saveTeamGroup = async (teamGroupData: TeamGroupInput): Promise<void> => {
+  const teamGroupsRef = collection(db, 'schools', teamGroupData.school, 'teamGroups');
+  const newTeamGroupRef = doc(teamGroupsRef);
+  const dataToSave = {
+    ...teamGroupData,
+    id: newTeamGroupRef.id,
+    createdAt: serverTimestamp(),
+  };
+
+  await setDoc(newTeamGroupRef, dataToSave).catch(e => {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: newTeamGroupRef.path,
+        operation: 'create',
+        requestResourceData: dataToSave
+      }));
+    }
+    throw e;
+  });
+};
+
+export const getLatestTeamGroupForStudent = async (school: string, studentId: string): Promise<TeamGroup | null> => {
+  const teamGroupsRef = collection(db, 'schools', school, 'teamGroups');
+  const q = query(
+    teamGroupsRef,
+    where('teams', 'array-contains-any', [{ memberIds: [studentId] }]), // This is a trick, may not work directly
+    orderBy('createdAt', 'desc'),
+    limit(1)
+  );
+
+  try {
+    // Firestore doesn't support array-contains-any on a list of maps in this way.
+    // We have to fetch all groups and filter client-side, or denormalize data.
+    // For simplicity here, we'll fetch recent groups and filter. A more scalable solution
+    // would involve having a 'members' array at the top level of the teamGroup document.
+    const allGroupsQuery = query(teamGroupsRef, orderBy('createdAt', 'desc'), limit(10));
+    const snapshot = await getDocs(allGroupsQuery);
+    
+    for (const doc of snapshot.docs) {
+        const group = doc.data() as TeamGroup;
+        for (const team of group.teams) {
+            if (team.memberIds.includes(studentId)) {
+                return group;
+            }
+        }
+    }
+
+    return null;
+  } catch (e: any) {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: teamGroupsRef.path,
+        operation: 'list',
+        requestResourceData: { query: `latest team group for student ${studentId}` }
+      }));
+    }
+    throw e;
+  }
 };

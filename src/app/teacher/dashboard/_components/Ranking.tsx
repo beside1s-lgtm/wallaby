@@ -1,7 +1,7 @@
 "use client";
 import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { calculateRanks, exportToCsv } from "@/lib/store";
+import { calculateRanks, exportToCsv, saveTeamGroup } from "@/lib/store";
 import { Student, MeasurementItem, MeasurementRecord } from "@/lib/types";
 import {
   Card,
@@ -38,7 +38,7 @@ import {
   Radar,
   Tooltip,
 } from "recharts";
-import { FileDown, Users, Shuffle, Loader2, Wand2 } from "lucide-react";
+import { FileDown, Users, Shuffle, Loader2, Wand2, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { getScoutingReport } from "@/ai/flows/scouting-report-flow";
@@ -239,6 +239,7 @@ function TeamBalancer({
 
   const [scoutingReport, setScoutingReport] = useState<ScoutingReportOutput | null>(null);
   const [isReportLoading, setIsReportLoading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   
   const { grades, classNumsByGrade, groupedItems } = useMemo(() => {
     const grades = [...new Set(allStudents.map(s => s.grade))].sort();
@@ -348,9 +349,11 @@ function TeamBalancer({
           0
         );
         studentIdToRawScores.set(student.id, studentData);
-
-        if (studentData.totalScore > maxRawTotalScore) {
-          maxRawTotalScore = studentData.totalScore;
+      });
+      
+      studentIdToRawScores.forEach((data) => {
+        if (data.totalScore > maxRawTotalScore) {
+            maxRawTotalScore = data.totalScore;
         }
       });
 
@@ -547,13 +550,43 @@ function TeamBalancer({
     exportToCsv(fileName, dataToExport);
   };
   
+  const handleSendTeams = async () => {
+    if (!school || teams.length === 0) {
+        toast({ variant: 'destructive', title: '전달 실패', description: '먼저 팀을 편성해야 합니다.' });
+        return;
+    }
+    setIsSending(true);
+    try {
+        let description = '팀 편성 결과';
+        if(analysisScope === 'class' && selectedGrade && selectedClassNum) {
+            description = `${selectedGrade}학년 ${selectedClassNum}반 팀`;
+        } else if (analysisScope === 'grade' && selectedGrade) {
+            description = `${selectedGrade}학년 팀`;
+        }
+        
+        const teamData = {
+            school,
+            description,
+            teams: teams.map((team, index) => ({
+                teamIndex: index,
+                memberIds: team.map(student => student.id)
+            }))
+        };
+        await saveTeamGroup(teamData);
+        toast({ title: '전달 완료', description: '편성된 팀 명단이 학생들에게 전달되었습니다.' });
+    } catch (error) {
+        console.error('Failed to send teams:', error);
+        toast({ variant: 'destructive', title: '전달 실패', description: '오류가 발생했습니다. 다시 시도해주세요.' });
+    } finally {
+        setIsSending(false);
+    }
+  };
+
   const handleSelectAllForBalancing = (checked: boolean) => {
     const newSelection: Record<string, boolean> = {};
-    if (checked) {
-        studentScores.forEach((_, studentId) => {
-            newSelection[studentId] = true;
-        });
-    }
+    studentScores.forEach((_, studentId) => {
+        newSelection[studentId] = checked;
+    });
     setBalancingSelection(newSelection);
   };
 
@@ -874,6 +907,10 @@ function TeamBalancer({
                 disabled={teams.length === 0}
               >
                 <FileDown /> 팀 명단 다운로드
+              </Button>
+               <Button onClick={handleSendTeams} disabled={teams.length === 0 || isSending}>
+                {isSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                학생들에게 전달
               </Button>
             </div>
 
