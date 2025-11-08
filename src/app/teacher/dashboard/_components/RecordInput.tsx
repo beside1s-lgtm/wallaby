@@ -388,13 +388,14 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                 <CardContent>
                     <Table>
                         <TableHeader>
-                            <TableRow>
+                             <TableRow>
                                 <TableHead>번호</TableHead>
                                 <TableHead>이름</TableHead>
                                 {selectedItemForBatchAdd?.isCompound ? (
                                     <>
                                         <TableHead>키(cm)</TableHead>
                                         <TableHead>몸무게(kg)</TableHead>
+                                        <TableHead>BMI</TableHead>
                                     </>
                                 ) : (
                                     <TableHead>기록 ({selectedItemForBatchAdd?.unit})</TableHead>
@@ -402,7 +403,17 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {filteredStudentsByClass.length > 0 ? filteredStudentsByClass.map(student => (
+                            {filteredStudentsByClass.length > 0 ? filteredStudentsByClass.map(student => {
+                                const studentRecords = batchRecords[student.id] || {};
+                                let bmiResult = '';
+                                if (selectedItemForBatchAdd?.isCompound && studentRecords.height && studentRecords.weight) {
+                                    const h = parseFloat(studentRecords.height);
+                                    const w = parseFloat(studentRecords.weight);
+                                    if (!isNaN(h) && !isNaN(w) && h > 0) {
+                                        bmiResult = (w / ((h/100) * (h/100))).toFixed(2);
+                                    }
+                                }
+                                return (
                                 <TableRow key={student.id}>
                                     <TableCell>{student.studentNum}</TableCell>
                                     <TableCell>{student.name}</TableCell>
@@ -411,25 +422,28 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                             <TableCell>
                                                 <Input
                                                     type="number"
-                                                    value={batchRecords[student.id]?.height || ''}
+                                                    value={studentRecords.height || ''}
                                                     onChange={(e) => handleBatchRecordChange(student.id, 'height', e.target.value)}
-                                                    className="max-w-[120px]"
+                                                    className="max-w-[100px]"
                                                 />
                                             </TableCell>
                                             <TableCell>
                                                 <Input
                                                     type="number"
-                                                    value={batchRecords[student.id]?.weight || ''}
+                                                    value={studentRecords.weight || ''}
                                                     onChange={(e) => handleBatchRecordChange(student.id, 'weight', e.target.value)}
-                                                    className="max-w-[120px]"
+                                                    className="max-w-[100px]"
                                                 />
+                                            </TableCell>
+                                            <TableCell>
+                                                {bmiResult}
                                             </TableCell>
                                         </>
                                     ) : (
                                         <TableCell>
                                             <Input
                                                 type="number"
-                                                value={batchRecords[student.id]?.value || ''}
+                                                value={studentRecords.value || ''}
                                                 onChange={(e) => handleBatchRecordChange(student.id, 'value', e.target.value)}
                                                 className="max-w-[120px]"
                                                 placeholder={selectedItemForBatchAdd?.recordType === 'level' ? '1:상, 2:중, 3:하' : ''}
@@ -437,9 +451,10 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                         </TableCell>
                                     )}
                                 </TableRow>
-                            )) : (
+                                )
+                            }) : (
                                 <TableRow>
-                                    <TableCell colSpan={selectedItemForBatchAdd?.isCompound ? 4 : 3} className="h-24 text-center">
+                                    <TableCell colSpan={selectedItemForBatchAdd?.isCompound ? 5 : 3} className="h-24 text-center">
                                         기록을 입력할 학급을 선택해주세요.
                                     </TableCell>
                                 </TableRow>
