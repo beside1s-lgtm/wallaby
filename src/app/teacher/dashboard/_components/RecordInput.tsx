@@ -400,82 +400,75 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>번호</TableHead>
-                                <TableHead>이름</TableHead>
-                                {selectedItemForBatchAdd?.isCompound ? (
-                                    <>
-                                        <TableHead>키(cm)</TableHead>
-                                        <TableHead>몸무게(kg)</TableHead>
-                                        <TableHead>BMI</TableHead>
-                                    </>
-                                ) : (
-                                    <TableHead>기록({selectedItemForBatchAdd?.unit})</TableHead>
-                                )}
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>번호</TableHead>
+                        <TableHead>이름</TableHead>
+                        {selectedItemForBatchAdd?.isCompound ? (
+                          <>
+                            <TableHead>입력 1 (키)</TableHead>
+                            <TableHead>입력 2 (몸무게)</TableHead>
+                            <TableHead>결과 (BMI)</TableHead>
+                          </>
+                        ) : (
+                          <>
+                            <TableHead>입력 1 (기록)</TableHead>
+                            <TableHead>입력 2</TableHead>
+                            <TableHead>결과</TableHead>
+                          </>
+                        )}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredStudentsByClass.length > 0 ? (
+                        filteredStudentsByClass.map(student => {
+                          const studentRecords = batchRecords[student.id] || {};
+                          const isCompound = selectedItemForBatchAdd?.isCompound;
+                          
+                          return (
+                            <TableRow key={student.id}>
+                              <TableCell>{student.studentNum}</TableCell>
+                              <TableCell>{student.name}</TableCell>
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  placeholder={isCompound ? 'cm' : selectedItemForBatchAdd?.unit || '기록'}
+                                  value={isCompound ? studentRecords.height || '' : studentRecords.value || ''}
+                                  onChange={(e) => handleBatchRecordChange(student.id, isCompound ? 'height' : 'value', e.target.value)}
+                                  className="max-w-[120px]"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  placeholder={isCompound ? 'kg' : '입력 X'}
+                                  value={isCompound ? studentRecords.weight || '' : ''}
+                                  onChange={(e) => handleBatchRecordChange(student.id, 'weight', e.target.value)}
+                                  className="max-w-[120px]"
+                                  disabled={!isCompound}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  readOnly
+                                  value={isCompound ? calculateBmi(studentRecords.height, studentRecords.weight) : studentRecords.value || ''}
+                                  placeholder="결과"
+                                  className="max-w-[120px] bg-muted"
+                                />
+                              </TableCell>
                             </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {filteredStudentsByClass.length > 0 ? (
-                                filteredStudentsByClass.map(student => {
-                                    const studentRecords = batchRecords[student.id] || {};
-                                    return (
-                                        <TableRow key={student.id}>
-                                            <TableCell>{student.studentNum}</TableCell>
-                                            <TableCell>{student.name}</TableCell>
-                                            {selectedItemForBatchAdd?.isCompound ? (
-                                                <>
-                                                    <TableCell>
-                                                        <Input
-                                                            type="number"
-                                                            placeholder="키 입력"
-                                                            value={studentRecords.height || ''}
-                                                            onChange={(e) => handleBatchRecordChange(student.id, 'height', e.target.value)}
-                                                            className="max-w-[120px]"
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Input
-                                                            type="number"
-                                                            placeholder="몸무게 입력"
-                                                            value={studentRecords.weight || ''}
-                                                            onChange={(e) => handleBatchRecordChange(student.id, 'weight', e.target.value)}
-                                                            className="max-w-[120px]"
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Input
-                                                            readOnly
-                                                            value={calculateBmi(studentRecords.height, studentRecords.weight)}
-                                                            placeholder="BMI 결과"
-                                                            className="max-w-[120px] bg-muted"
-                                                        />
-                                                    </TableCell>
-                                                </>
-                                            ) : (
-                                                <TableCell>
-                                                    <Input
-                                                        type="number"
-                                                        placeholder="기록 입력"
-                                                        value={studentRecords.value || ''}
-                                                        onChange={(e) => handleBatchRecordChange(student.id, 'value', e.target.value)}
-                                                        className="max-w-[120px]"
-                                                    />
-                                                </TableCell>
-                                            )}
-                                        </TableRow>
-                                    );
-                                })
-                            ) : (
-                                <TableRow>
-                                    <TableCell colSpan={selectedItemForBatchAdd?.isCompound ? 5 : 3} className="h-24 text-center">
-                                        기록을 입력할 학급을 선택해주세요.
-                                    </TableCell>
-                                </TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
+                          );
+                        })
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={5} className="h-24 text-center">
+                            기록을 입력할 학급을 선택해주세요.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
                 </CardContent>
             </Card>
         </TabsContent>
