@@ -739,6 +739,7 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
           teamIndex: index,
           memberIds: team.map((student) => student.id),
         })),
+        itemNamesForBalancing: selectedItemNames,
       };
       await saveTeamGroup(teamData);
       toast({

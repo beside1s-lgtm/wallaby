@@ -44,15 +44,14 @@ import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
 } from '@/components/ui/chart';
-import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { getStudentFeedback } from '@/ai/flows/student-ai-feedback';
-import { Loader2, Wand2, Trash2, Users } from 'lucide-react';
+import { Loader2, Wand2, Trash2, Users, User as UserIcon } from 'lucide-react';
 import type { Student, MeasurementRecord, MeasurementItem, TeamGroup } from '@/lib/types';
 import { getPapsGrade, getCustomItemGrade, normalizePapsRecord, normalizeCustomRecord } from '@/lib/paps';
 import { getStudents, getRecords } from '@/lib/store';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 
 const chartConfig = {
@@ -105,6 +104,8 @@ export default function StudentDashboardPage() {
   const [myTeam, setMyTeam] = useState<{ teamIndex: number, members: Student[] } | null>(null);
   const [selectedTeamIndex, setSelectedTeamIndex] = useState<number | null>(null);
   const [isTeamLoading, setIsTeamLoading] = useState(true);
+  
+  const [abilityScores, setAbilityScores] = useState<{ item: string; score: number }[]>([]);
 
   useEffect(() => {
     async function loadData() {
@@ -149,6 +150,22 @@ export default function StudentDashboardPage() {
                     if (studentTeam) {
                         setMyTeam(studentTeam);
                         setSelectedTeamIndex(studentTeam.teamIndex);
+                    }
+                    
+                    if (stud && teamData.itemNamesForBalancing && teamData.itemNamesForBalancing.length > 0) {
+                        const allRanks = calculateRanks(school, items, allRecs, allStuds, stud.grade);
+                        const scores = teamData.itemNamesForBalancing.map(itemName => {
+                            const itemRanks = allRanks[itemName];
+                            let score = 0;
+                            if (itemRanks) {
+                                const rankInfo = itemRanks.find(r => r.studentId === stud.id);
+                                if (rankInfo) {
+                                    score = Math.round((1 - (rankInfo.rank - 1) / itemRanks.length) * 100);
+                                }
+                            }
+                            return { item: itemName, score };
+                        });
+                        setAbilityScores(scores);
                     }
                 }
 
@@ -385,12 +402,24 @@ export default function StudentDashboardPage() {
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
-      <h1 className="text-3xl font-bold text-primary font-headline">
-        {school} {fullStudent.name} 학생 대시보드
-      </h1>
+        <div className="flex items-center gap-4">
+            <Avatar className="w-16 h-16">
+                <AvatarImage src={fullStudent.photoUrl || undefined} alt={fullStudent.name} />
+                <AvatarFallback>
+                    {fullStudent.name ? fullStudent.name.charAt(0) : <UserIcon />}
+                </AvatarFallback>
+            </Avatar>
+            <div>
+              <h1 className="text-3xl font-bold text-primary font-headline">
+                {school} {fullStudent.name} 학생 대시보드
+              </h1>
+               <p className="text-muted-foreground">{fullStudent.grade}학년 {fullStudent.classNum}반</p>
+            </div>
+        </div>
+
 
       <Card>
-        <CardHeader className='flex-row items-center justify-between'>
+        <CardHeader className='flex-row items-start justify-between'>
             <div>
                 <CardTitle className="flex items-center gap-2"><Users /> 나의 팀 확인</CardTitle>
                 <CardDescription>{teamGroup?.description || '전달된 팀 편성 정보가 없습니다.'}</CardDescription>
@@ -418,17 +447,56 @@ export default function StudentDashboardPage() {
                 <div className="flex items-center justify-center h-24">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>
-            ) : displayedTeam ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                    {displayedTeam.members.map(member => (
-                        <div key={member.id} className={`p-3 rounded-md text-center ${member.id === student.id ? 'bg-primary/20' : 'bg-secondary'}`}>
-                           <p className="font-semibold">{member.name}</p>
-                           <p className="text-sm text-muted-foreground">{member.grade}-{member.classNum}</p>
-                        </div>
-                    ))}
-                </div>
             ) : (
-                <p className="text-sm text-muted-foreground text-center py-8">팀 정보가 없습니다. 선생님이 팀을 편성하고 전달할 때까지 기다려주세요.</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="order-2 md:order-1">
+                        {displayedTeam ? (
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                {displayedTeam.members.map(member => (
+                                    <div key={member.id} className={`p-3 rounded-md text-center ${member.id === student.id ? 'bg-primary/20' : 'bg-secondary'}`}>
+                                       <p className="font-semibold">{member.name}</p>
+                                       <p className="text-sm text-muted-foreground">{member.grade}-{member.classNum}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-muted-foreground text-center py-8">팀 정보가 없습니다. 선생님이 팀을 편성하고 전달할 때까지 기다려주세요.</p>
+                        )}
+                    </div>
+                     <div className="order-1 md:order-2 h-[300px] md:h-auto">
+                        {abilityScores.length > 0 ? (
+                             <ResponsiveContainer width="100%" height="100%">
+                              <RadarChart
+                                cx="50%"
+                                cy="50%"
+                                outerRadius="80%"
+                                data={abilityScores}
+                              >
+                                <PolarGrid />
+                                <PolarAngleAxis dataKey="item" />
+                                <PolarRadiusAxis angle={30} domain={[0, 100]} />
+                                <Radar
+                                  name="능력치"
+                                  dataKey="score"
+                                  stroke="hsl(var(--chart-1))"
+                                  fill="hsl(var(--chart-1))"
+                                  fillOpacity={0.6}
+                                />
+                                <Tooltip
+                                  contentStyle={{
+                                    background: "hsl(var(--background))",
+                                    border: "1px solid hsl(var(--border))",
+                                  }}
+                                />
+                              </RadarChart>
+                            </ResponsiveContainer>
+                        ): (
+                            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+                                팀 편성 시 사용된 능력치 데이터가 없습니다.
+                            </div>
+                        )}
+                    </div>
+                </div>
             )}
         </CardContent>
       </Card>
