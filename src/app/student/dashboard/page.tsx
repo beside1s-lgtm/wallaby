@@ -78,7 +78,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export default function StudentDashboardPage() {
-  const { user, school } = useAuth();
+  const { user, school, isLoading: isAuthLoading } = useAuth();
   const { toast } = useToast();
   const student = user as Student;
 
@@ -103,82 +103,83 @@ export default function StudentDashboardPage() {
   const [teamGroup, setTeamGroup] = useState<TeamGroup | null>(null);
   const [myTeam, setMyTeam] = useState<{ teamIndex: number, members: Student[] } | null>(null);
   const [selectedTeamIndex, setSelectedTeamIndex] = useState<number | null>(null);
-  const [isTeamLoading, setIsTeamLoading] = useState(true);
+  const [isDataLoading, setIsDataLoading] = useState(true);
   
   const [abilityScores, setAbilityScores] = useState<{ item: string; score: number }[]>([]);
 
   useEffect(() => {
     async function loadData() {
-        if (student?.id && school) {
-            setIsTeamLoading(true);
-            try {
-                const [items, recs, stud, allStuds, allRecs, teamData] = await Promise.all([
-                    getItems(school),
-                    getRecordsByStudent(school, student.id),
-                    getStudentById(school, student.id),
-                    getStudents(school),
-                    getRecords(school),
-                    getLatestTeamGroupForStudent(school, student.id)
-                ]);
-                setMeasurementItems(items);
-                setRecords(recs);
-                setFullStudent(stud || null);
-                setAllStudents(allStuds);
-                setAllRecords(allRecs);
+        if (isAuthLoading || !student?.id || !school) {
+            return;
+        }
+        setIsDataLoading(true);
+        try {
+            const [items, recs, stud, allStuds, allRecs, teamData] = await Promise.all([
+                getItems(school),
+                getRecordsByStudent(school, student.id),
+                getStudentById(school, student.id),
+                getStudents(school),
+                getRecords(school),
+                getLatestTeamGroupForStudent(school, student.id)
+            ]);
+            setMeasurementItems(items);
+            setRecords(recs);
+            setFullStudent(stud || null);
+            setAllStudents(allStuds);
+            setAllRecords(allRecs);
 
-                if (items.length > 0 && chartItemFilter === 'all') {
-                  const firstPapsItem = items.find(i => i.isPaps)?.name;
-                  if (firstPapsItem) {
-                    setChartItemFilter(firstPapsItem);
-                  } else {
-                    setChartItemFilter(items[0].name);
-                  }
+            if (items.length > 0 && chartItemFilter === 'all') {
+              const firstPapsItem = items.find(i => i.isPaps)?.name;
+              if (firstPapsItem) {
+                setChartItemFilter(firstPapsItem);
+              } else {
+                setChartItemFilter(items[0].name);
+              }
+            }
+            
+            if (teamData) {
+                const studentMap = new Map(allStuds.map(s => [s.id, s]));
+                const populatedTeamGroup: TeamGroup = {
+                    ...teamData,
+                    teams: teamData.teams.map(team => ({
+                        ...team,
+                        members: team.memberIds.map(id => studentMap.get(id)).filter((s): s is Student => !!s)
+                    }))
+                };
+                setTeamGroup(populatedTeamGroup);
+                
+                const studentTeam = populatedTeamGroup.teams.find(t => t.memberIds.includes(student.id));
+                if (studentTeam) {
+                    setMyTeam(studentTeam);
+                    setSelectedTeamIndex(studentTeam.teamIndex);
                 }
                 
-                if (teamData) {
-                    const studentMap = new Map(allStuds.map(s => [s.id, s]));
-                    const populatedTeamGroup: TeamGroup = {
-                        ...teamData,
-                        teams: teamData.teams.map(team => ({
-                            ...team,
-                            members: team.memberIds.map(id => studentMap.get(id)).filter((s): s is Student => !!s)
-                        }))
-                    };
-                    setTeamGroup(populatedTeamGroup);
-                    
-                    const studentTeam = populatedTeamGroup.teams.find(t => t.memberIds.includes(student.id));
-                    if (studentTeam) {
-                        setMyTeam(studentTeam);
-                        setSelectedTeamIndex(studentTeam.teamIndex);
-                    }
-                    
-                    if (stud && teamData.itemNamesForBalancing && teamData.itemNamesForBalancing.length > 0) {
-                        const allRanks = calculateRanks(school, items, allRecs, allStuds, stud.grade);
-                        const scores = teamData.itemNamesForBalancing.map(itemName => {
-                            const itemRanks = allRanks[itemName];
-                            let score = 0;
-                            if (itemRanks) {
-                                const rankInfo = itemRanks.find(r => r.studentId === stud.id);
-                                if (rankInfo) {
-                                    score = Math.round((1 - (rankInfo.rank - 1) / itemRanks.length) * 100);
-                                }
+                if (stud && teamData.itemNamesForBalancing && teamData.itemNamesForBalancing.length > 0) {
+                    const allRanks = calculateRanks(school, items, allRecs, allStuds, stud.grade);
+                    const scores = teamData.itemNamesForBalancing.map(itemName => {
+                        const itemRanks = allRanks[itemName];
+                        let score = 0;
+                        if (itemRanks) {
+                            const rankInfo = itemRanks.find(r => r.studentId === stud.id);
+                            if (rankInfo) {
+                                score = Math.round((1 - (rankInfo.rank - 1) / itemRanks.length) * 100);
                             }
-                            return { item: itemName, score };
-                        });
-                        setAbilityScores(scores);
-                    }
+                        }
+                        return { item: itemName, score };
+                    });
+                    setAbilityScores(scores);
                 }
-
-            } catch (error) {
-                console.error("Failed to load student data", error);
-                toast({ variant: 'destructive', title: '데이터 로딩 실패' });
-            } finally {
-                setIsTeamLoading(false);
             }
+
+        } catch (error) {
+            console.error("Failed to load student data", error);
+            toast({ variant: 'destructive', title: '데이터 로딩 실패' });
+        } finally {
+            setIsDataLoading(false);
         }
     }
     loadData();
-  }, [student?.id, school, toast]);
+  }, [student?.id, school, toast, isAuthLoading]);
   
   const selectedItem = useMemo(() => {
       return measurementItems.find(item => item.name === selectedItemName);
@@ -392,7 +393,7 @@ export default function StudentDashboardPage() {
   }, [teamGroup, selectedTeamIndex]);
 
 
-  if (!fullStudent || !school) {
+  if (isDataLoading || isAuthLoading || !fullStudent || !school) {
     return (
          <div className="flex items-center justify-center h-screen">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -443,7 +444,7 @@ export default function StudentDashboardPage() {
             )}
         </CardHeader>
         <CardContent>
-            {isTeamLoading ? (
+            {isDataLoading ? (
                 <div className="flex items-center justify-center h-24">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
                 </div>

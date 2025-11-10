@@ -34,7 +34,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function TeacherDashboardPage() {
-  const { school } = useAuth();
+  const { school, isLoading: isAuthLoading } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [items, setItems] = useState<MeasurementItem[]>([]);
   const [records, setRecords] = useState<MeasurementRecord[]>([]);
@@ -42,7 +42,7 @@ export default function TeacherDashboardPage() {
 
   useEffect(() => {
     async function loadData() {
-      if (!school) return;
+      if (isAuthLoading || !school) return;
       setIsLoading(true);
       try {
         const [studentData, itemData, recordData] = await Promise.all([
@@ -60,10 +60,10 @@ export default function TeacherDashboardPage() {
       }
     }
     loadData();
-  }, [school]);
+  }, [school, isAuthLoading]);
 
   const forceUpdate = async () => {
-    if (!school) return;
+    if (isAuthLoading || !school) return;
     const [studentData, itemData, recordData] = await Promise.all([
       getStudents(school),
       getItems(school),
@@ -74,7 +74,7 @@ export default function TeacherDashboardPage() {
     setRecords(recordData);
   };
 
-  if (isLoading) {
+  if (isLoading || isAuthLoading) {
     return (
       <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6">
         <DashboardHeaderContents />
