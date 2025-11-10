@@ -252,31 +252,37 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                     if (!student) return null;
 
                     let valueToSave: number | null = null;
+                    let recordData: any = {
+                      ...student,
+                      item: batchRecordItem,
+                      date: format(batchRecordDate, 'yyyy-MM-dd'),
+                    };
 
                     if (selectedItemForBatchAdd?.isCompound) {
                         const h = parseFloat(values.height || '');
                         const w = parseFloat(values.weight || '');
+                        if (isNaN(h) && isNaN(w)) return null;
+
                         if (!isNaN(h) && !isNaN(w) && h > 0 && w > 0) {
                             const heightInMeters = h / 100;
                             valueToSave = parseFloat((w / (heightInMeters * heightInMeters)).toFixed(2));
+                            recordData.height = h;
+                            recordData.weight = w;
+                        } else {
+                            return null;
                         }
                     } else {
                         const numericValue = parseFloat(values.value || '');
-                        if (!isNaN(numericValue)) {
-                            valueToSave = numericValue;
-                        }
+                        if (isNaN(numericValue)) return null;
+                        valueToSave = numericValue;
                     }
-
+                    
                     if (valueToSave === null) return null;
 
-                    return {
-                        ...student,
-                        item: batchRecordItem,
-                        value: valueToSave,
-                        date: format(batchRecordDate, 'yyyy-MM-dd'),
-                    };
+                    recordData.value = valueToSave;
+                    return recordData;
                 })
-                .filter((r): r is (Student & { item: string; value: number; date: string; }) => r !== null);
+                .filter((r): r is (Student & { item: string; value: number; date: string; height?: number, weight?: number }) => r !== null);
             
             if (recordsToSave.length > 0) {
                 await addOrUpdateRecords(school, allStudents, recordsToSave);
@@ -306,7 +312,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
 
   if (!school) return null;
 
-  const isBmiSelected = selectedItemForBatchAdd?.isCompound;
+  const isBmiSelectedForBatch = selectedItemForBatchAdd?.isCompound;
 
   return (
     <>
@@ -407,7 +413,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                       <TableRow>
                         <TableHead>번호</TableHead>
                         <TableHead>이름</TableHead>
-                        {isBmiSelected ? (
+                        {isBmiSelectedForBatch ? (
                             <>
                                 <TableHead>키(cm)</TableHead>
                                 <TableHead>몸무게(kg)</TableHead>
@@ -416,7 +422,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                         ) : (
                             <>
                                 <TableHead>기록 ({selectedItemForBatchAdd?.unit || ''})</TableHead>
-                                <TableHead>입력 X</TableHead>
+                                <TableHead className="text-muted-foreground">입력 X</TableHead>
                                 <TableHead>결과</TableHead>
                             </>
                         )}
@@ -430,7 +436,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                 <TableRow key={student.id}>
                                 <TableCell>{student.studentNum}</TableCell>
                                 <TableCell>{student.name}</TableCell>
-                                {isBmiSelected ? (
+                                {isBmiSelectedForBatch ? (
                                     <>
                                         <TableCell>
                                             <Input
@@ -454,7 +460,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                             <Input
                                                 readOnly
                                                 value={calculateBmi(studentRecords.height, studentRecords.weight)}
-                                                placeholder="결과"
+                                                placeholder="BMI"
                                                 className="max-w-[120px] bg-muted"
                                             />
                                         </TableCell>

@@ -570,12 +570,24 @@ export const addOrUpdateRecords = async (school: string, allStudents: Student[],
   for (const record of newRecords) {
     const studentKey = `${record.school}-${record.grade}-${record.classNum}-${record.studentNum}-${record.name}`;
     const student = studentMap.get(studentKey);
+    const itemInfo = itemMap.get(record.item);
     
-    if (!student || !record.item || record.value === undefined) continue;
+    if (!student || !itemInfo) continue;
 
     const recordDate = record.date || format(new Date(), 'yyyy-MM-dd');
-    const recordValue = parseFloat(record.value);
-    if(isNaN(recordValue)) continue;
+    let recordValue;
+
+    if (itemInfo.isCompound) {
+      const h = parseFloat(record.height);
+      const w = parseFloat(record.weight);
+      if (isNaN(h) || isNaN(w) || h <= 0 || w <= 0) continue;
+      const heightInMeters = h / 100;
+      recordValue = parseFloat((w / (heightInMeters * heightInMeters)).toFixed(2));
+    } else {
+      recordValue = parseFloat(record.value);
+      if(isNaN(recordValue)) continue;
+    }
+
 
     const recordKey = `${student.id}-${record.item}-${recordDate}`;
     const existingRecord = existingRecordsMap.get(recordKey);
