@@ -2,11 +2,30 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow read and write for all paths if the user is authenticated.
-    // This is a simple rule for development and should be secured
-    // further for a production environment.
-    match /{document=**} {
+    // Top-level collections can be read/written by authenticated users.
+    match /schools/{schoolId} {
       allow read, write: if request.auth != null;
+    }
+
+    // Allow authenticated users to list documents from any collection group.
+    // This is necessary for collectionGroup queries to work, for instance,
+    // when a student needs to find which team they belong to across all schools.
+    match /{path=**}/students/{studentId} {
+      allow read: if request.auth != null;
+    }
+    match /{path=**}/items/{itemId} {
+      allow read: if request.auth != null;
+    }
+    match /{path=**}/records/{recordId} {
+      allow read, write: if request.auth != null;
+    }
+     match /{path=**}/teamGroups/{teamGroupId} {
+      allow read: if request.auth != null;
+    }
+    
+    // Explicitly allow writes on subcollections for authenticated users.
+    match /schools/{schoolId}/{document=**} {
+        allow write: if request.auth != null;
     }
   }
 }
