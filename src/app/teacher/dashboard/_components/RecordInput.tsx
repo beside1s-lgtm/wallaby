@@ -407,14 +407,14 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                         <TableHead>이름</TableHead>
                         {selectedItemForBatchAdd?.isCompound ? (
                             <>
-                                <TableHead>입력 1 (키)</TableHead>
-                                <TableHead>입력 2 (몸무게)</TableHead>
-                                <TableHead>결과 (BMI)</TableHead>
+                                <TableHead>키(cm)</TableHead>
+                                <TableHead>몸무게(kg)</TableHead>
+                                <TableHead>BMI</TableHead>
                             </>
                         ) : (
                             <>
-                                <TableHead>입력 1 (기록)</TableHead>
-                                <TableHead>입력 2</TableHead>
+                                <TableHead>기록 ({selectedItemForBatchAdd?.unit || ''})</TableHead>
+                                <TableHead>입력 X</TableHead>
                                 <TableHead>결과</TableHead>
                             </>
                         )}
@@ -433,7 +433,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                 <TableCell>
                                     <Input
                                     type="number"
-                                    placeholder={isCompound ? '키(cm)' : selectedItemForBatchAdd?.unit || '기록'}
+                                    placeholder={isCompound ? '키(cm)' : (selectedItemForBatchAdd?.unit || '기록')}
                                     value={isCompound ? studentRecords.height || '' : studentRecords.value || ''}
                                     onChange={(e) => handleBatchRecordChange(student.id, isCompound ? 'height' : 'value', e.target.value)}
                                     className="max-w-[120px]"
