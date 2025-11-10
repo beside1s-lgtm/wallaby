@@ -763,29 +763,40 @@ export const saveTeamGroup = async (teamGroupData: TeamGroupInput): Promise<void
 };
 
 export const getLatestTeamGroupForStudent = async (school: string, studentId: string): Promise<TeamGroup | null> => {
-  const teamGroupsRef = collection(db, 'schools', school, 'teamGroups');
-  
   try {
-    // Firestore doesn't support complex array queries like this directly.
-    // A common workaround is to fetch recent groups and filter client-side.
-    // A more scalable solution would involve denormalizing data, e.g., having a 'members' array at the top level of the teamGroup document.
-    const allGroupsQuery = query(teamGroupsRef, orderBy('createdAt', 'desc'), limit(10));
-    const snapshot = await getDocs(allGroupsQuery);
+    const teamGroupsQuery = query(
+      collectionGroup(db, 'teamGroups'),
+      where('teams', 'array-contains-any', [{ memberIds: [studentId] }]), // This is not a valid query
+      orderBy('createdAt', 'desc'),
+      limit(1)
+    );
+    
+    // The above query is incorrect. Firestore does not support querying nested array fields like this.
+    // A correct approach requires a different data model or client-side filtering.
+    // Let's implement the client-side filtering approach.
+
+    const allTeamGroupsInSchoolQuery = query(
+        collection(db, 'schools', school, 'teamGroups'),
+        orderBy('createdAt', 'desc'),
+        limit(20) // Fetch recent 20 groups for performance, adjust as needed
+    );
+    
+    const snapshot = await getDocs(allTeamGroupsInSchoolQuery);
     
     for (const doc of snapshot.docs) {
-        const group = doc.data() as TeamGroup;
-        for (const team of group.teams) {
-            if (team.memberIds.includes(studentId)) {
-                return group;
-            }
+      const group = doc.data() as TeamGroup;
+      for (const team of group.teams) {
+        if (team.memberIds.includes(studentId)) {
+          return group; // Found the latest group the student belongs to
         }
+      }
     }
+    return null; // Not found in recent groups
 
-    return null;
   } catch (e: any) {
     if (e.code === 'permission-denied') {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: teamGroupsRef.path,
+        path: `schools/${school}/teamGroups`,
         operation: 'list',
         requestResourceData: { query: `latest team group for student ${studentId}` }
       }));
