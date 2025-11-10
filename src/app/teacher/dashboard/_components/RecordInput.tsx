@@ -102,7 +102,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
     setRecordValue('');
     setHeight('');
     setWeight('');
-  }, [selectedItemName, selectedStudent]);
+  }, [selectedItemName]);
 
 
   useEffect(() => {
@@ -263,7 +263,8 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
 
                     let valueToSave: number | null = null;
                     let recordData: any = {
-                      ...student,
+                      studentId: student.id,
+                      school: school,
                       item: batchRecordItem,
                       date: format(batchRecordDate, 'yyyy-MM-dd'),
                     };
@@ -271,16 +272,14 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                     if (selectedItemForBatchAdd?.isCompound) {
                         const h = parseFloat(values.height || '');
                         const w = parseFloat(values.weight || '');
-                        // Only proceed if at least one value is entered
-                        if (isNaN(h) && isNaN(w)) return null;
-
+                        // Only proceed if both values are entered and valid
                         if (!isNaN(h) && !isNaN(w) && h > 0 && w > 0) {
                             const heightInMeters = h / 100;
                             valueToSave = parseFloat((w / (heightInMeters * heightInMeters)).toFixed(2));
                             recordData.height = h;
                             recordData.weight = w;
                         } else {
-                            // If only one is entered, don't save a BMI record, but maybe save height/weight in future
+                            // If any value is missing or invalid, don't save a BMI record for this student
                             return null;
                         }
                     } else {
@@ -294,7 +293,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                     recordData.value = valueToSave;
                     return recordData;
                 })
-                .filter((r): r is (Student & { item: string; value: number; date: string; height?: number, weight?: number }) => r !== null);
+                .filter((r): r is (Omit<MeasurementRecord, 'id'> & { height?: number, weight?: number }) => r !== null);
             
             if (recordsToSave.length > 0) {
                 await addOrUpdateRecords(school, allStudents, recordsToSave);
@@ -312,7 +311,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
         }
     };
   
-    const calculateBmi = (heightCm?: string, weightKg?: string) => {
+    const calculateBmi = (heightCm?: string, weightKg?: string): string => {
         const h = parseFloat(heightCm || '');
         const w = parseFloat(weightKg || '');
         if (!isNaN(h) && !isNaN(w) && h > 0 && w > 0) {
@@ -469,7 +468,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                         <TableCell>
                                             <Input
                                                 readOnly
-                                                value={calculateBmi(studentRecords.height, studentRecords.weight)}
+                                                value={calculateBmi(studentRecords.height, studentRecords.weight) || ''}
                                                 placeholder="BMI"
                                                 className="max-w-[120px] bg-muted"
                                             />
@@ -619,3 +618,5 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
     </>
   );
 }
+
+    
