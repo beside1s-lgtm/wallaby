@@ -102,7 +102,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
     setRecordValue('');
     setHeight('');
     setWeight('');
-  }, [selectedItemName]);
+  }, [selectedItemName, selectedStudent]);
 
 
   useEffect(() => {
@@ -324,8 +324,6 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
 
   if (!school) return null;
 
-  const isBmiSelectedForBatch = selectedItemForBatchAdd?.isCompound;
-
   return (
     <>
       <Dialog open={isSelectionDialogOpen} onOpenChange={setIsSelectionDialogOpen}>
@@ -422,23 +420,23 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                 <CardContent>
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>번호</TableHead>
-                        <TableHead>이름</TableHead>
-                        {isBmiSelectedForBatch ? (
-                            <>
-                                <TableHead>키(cm)</TableHead>
-                                <TableHead>몸무게(kg)</TableHead>
-                                <TableHead>BMI</TableHead>
-                            </>
-                        ) : (
-                            <>
-                                <TableHead>기록 ({selectedItemForBatchAdd?.unit || ''})</TableHead>
-                                <TableHead className="text-muted-foreground">입력 X</TableHead>
-                                <TableHead>결과</TableHead>
-                            </>
-                        )}
-                      </TableRow>
+                        <TableRow>
+                            <TableHead>번호</TableHead>
+                            <TableHead>이름</TableHead>
+                            {selectedItemForBatchAdd?.isCompound ? (
+                                <>
+                                    <TableHead>키(cm)</TableHead>
+                                    <TableHead>몸무게(kg)</TableHead>
+                                    <TableHead>BMI</TableHead>
+                                </>
+                            ) : (
+                                <>
+                                    <TableHead>기록 ({selectedItemForBatchAdd?.unit || ''})</TableHead>
+                                    <TableHead className="text-muted-foreground">입력 X</TableHead>
+                                    <TableHead>결과</TableHead>
+                                </>
+                            )}
+                        </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredStudentsByClass.length > 0 ? (
@@ -448,13 +446,13 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                 <TableRow key={student.id}>
                                 <TableCell>{student.studentNum}</TableCell>
                                 <TableCell>{student.name}</TableCell>
-                                {isBmiSelectedForBatch ? (
+                                {selectedItemForBatchAdd?.isCompound ? (
                                     <>
                                         <TableCell>
                                             <Input
                                                 type="number"
                                                 placeholder="키(cm)"
-                                                value={studentRecords.height ?? ''}
+                                                value={studentRecords.height || ''}
                                                 onChange={(e) => handleBatchRecordChange(student.id, 'height', e.target.value)}
                                                 className="max-w-[120px]"
                                             />
@@ -463,7 +461,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                             <Input
                                                 type="number"
                                                 placeholder="몸무게(kg)"
-                                                value={studentRecords.weight ?? ''}
+                                                value={studentRecords.weight || ''}
                                                 onChange={(e) => handleBatchRecordChange(student.id, 'weight', e.target.value)}
                                                 className="max-w-[120px]"
                                             />
@@ -483,7 +481,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                             <Input
                                                 type="number"
                                                 placeholder={selectedItemForBatchAdd?.unit || '기록'}
-                                                value={studentRecords.value ?? ''}
+                                                value={studentRecords.value || ''}
                                                 onChange={(e) => handleBatchRecordChange(student.id, 'value', e.target.value)}
                                                 className="max-w-[120px]"
                                             />
@@ -498,7 +496,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                         <TableCell>
                                             <Input
                                                 readOnly
-                                                value={studentRecords.value ?? ''}
+                                                value={studentRecords.value || ''}
                                                 placeholder="결과"
                                                 className="max-w-[120px] bg-muted"
                                             />
