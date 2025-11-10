@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import {
   deleteStudentAndAssociatedRecords,
@@ -27,7 +27,6 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  CardFooter,
 } from "@/components/ui/card";
 import {
   Table,
@@ -46,6 +45,7 @@ import {
   DialogTrigger,
   DialogFooter,
   DialogClose,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -80,11 +80,15 @@ import {
   KeyRound,
   ArrowRight,
   Pencil,
+  Camera,
+  User as UserIcon,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
 
 interface StudentManagementProps {
   students: Student[];
@@ -177,6 +181,16 @@ export default function StudentManagement({
     toast({
       title: "학생 정보 수정 완료",
       description: `${studentData.name} 학생의 정보가 수정되었습니다.`,
+    });
+  };
+  
+  const handleUpdatePhoto = async (studentId: string, photoUrl: string) => {
+    if (!school) return;
+    await updateStudent(school, studentId, { photoUrl });
+    onStudentsUpdate();
+    toast({
+      title: "사진 업데이트 완료",
+      description: `학생 사진이 성공적으로 변경되었습니다.`,
     });
   };
 
@@ -465,12 +479,14 @@ export default function StudentManagement({
                       onCheckedChange={handleSelectAll}
                     />
                   </TableHead>
+                  <TableHead>사진</TableHead>
                   <TableHead>학년</TableHead>
                   <TableHead>반</TableHead>
                   <TableHead>번호</TableHead>
                   <TableHead>이름</TableHead>
                   <TableHead>성별</TableHead>
                   <TableHead>접속 코드</TableHead>
+                  <TableHead className="text-right">사진 관리</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -488,6 +504,14 @@ export default function StudentManagement({
                           }
                         />
                       </TableCell>
+                       <TableCell>
+                        <Avatar>
+                          <AvatarImage src={student.photoUrl} alt={student.name} />
+                          <AvatarFallback>
+                            {student.name ? student.name.charAt(0) : <UserIcon />}
+                          </AvatarFallback>
+                        </Avatar>
+                      </TableCell>
                       <TableCell>{student.grade}</TableCell>
                       <TableCell>{student.classNum}</TableCell>
                       <TableCell>{student.studentNum}</TableCell>
@@ -496,11 +520,14 @@ export default function StudentManagement({
                       </TableCell>
                       <TableCell>{student.gender}</TableCell>
                       <TableCell>{student.accessCode}</TableCell>
+                      <TableCell className="text-right">
+                        <PhotoEditDialog student={student} onUpdatePhoto={handleUpdatePhoto} />
+                      </TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center">
+                    <TableCell colSpan={9} className="h-24 text-center">
                       {selectedGrade
                         ? "해당 학급에 등록된 학생이 없습니다."
                         : "등록된 학생이 없습니다."}
@@ -760,6 +787,146 @@ function EditStudentDialog({
           </DialogClose>
           <Button onClick={handleSubmit} disabled={isSubmitting}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            저장
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PhotoEditDialog({
+  student,
+  onUpdatePhoto,
+}: {
+  student: Student;
+  onUpdatePhoto: (studentId: string, photoUrl: string) => Promise<void>;
+}) {
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!selectedFile) {
+      setPreview(null);
+      return;
+    }
+    const objectUrl = URL.createObjectURL(selectedFile);
+    setPreview(objectUrl);
+
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [selectedFile]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setSelectedFile(e.target.files[0]);
+    }
+  };
+
+  const processAndUpload = async () => {
+    if (!selectedFile) return;
+
+    setIsProcessing(true);
+    try {
+      const resizedDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(selectedFile);
+        reader.onload = (e) => {
+          const img = document.createElement("img");
+          img.src = e.target?.result as string;
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            const targetWidth = 300;
+            const targetHeight = 400;
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+            const ctx = canvas.getContext("2d");
+            if (!ctx) {
+              reject(new Error("Canvas context is not available"));
+              return;
+            }
+
+            const sourceWidth = img.width;
+            const sourceHeight = img.height;
+            const sourceAspectRatio = sourceWidth / sourceHeight;
+            const targetAspectRatio = targetWidth / targetHeight;
+
+            let sx, sy, sWidth, sHeight;
+
+            if (sourceAspectRatio > targetAspectRatio) {
+              // Source is wider than target
+              sHeight = sourceHeight;
+              sWidth = sHeight * targetAspectRatio;
+              sx = (sourceWidth - sWidth) / 2;
+              sy = 0;
+            } else {
+              // Source is taller than target
+              sWidth = sourceWidth;
+              sHeight = sWidth / targetAspectRatio;
+              sx = 0;
+              sy = (sourceHeight - sHeight) / 2;
+            }
+
+            ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, targetWidth, targetHeight);
+            
+            // Convert to data URL with compression
+            resolve(canvas.toDataURL("image/jpeg", 0.7)); // Adjust quality for < 100KB
+          };
+          img.onerror = reject;
+        };
+        reader.onerror = reject;
+      });
+      
+      await onUpdatePhoto(student.id, resizedDataUrl);
+      setIsOpen(false);
+      setSelectedFile(null);
+      setPreview(null);
+    } catch (error) {
+      console.error("Failed to process image:", error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+  
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="icon">
+          <Camera className="h-4 w-4" />
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{student.name} 학생 사진 변경</DialogTitle>
+          <DialogDescription>3:4 비율로 자동 조정되며, 100KB 미만으로 압축됩니다.</DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col items-center gap-4 py-4">
+           <div className="w-48 h-64 rounded-md border border-dashed flex items-center justify-center bg-muted overflow-hidden">
+                {preview ? (
+                    <img src={preview} alt="미리보기" className="w-full h-full object-cover" />
+                ) : (
+                    <span className="text-sm text-muted-foreground">사진 미리보기</span>
+                )}
+            </div>
+           <input 
+              type="file" 
+              accept="image/jpeg" 
+              ref={fileInputRef} 
+              onChange={handleFileChange} 
+              className="hidden" 
+            />
+            <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                컴퓨터에서 사진 찾기
+            </Button>
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline">취소</Button>
+          </DialogClose>
+          <Button onClick={processAndUpload} disabled={!selectedFile || isProcessing}>
+            {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             저장
           </Button>
         </DialogFooter>

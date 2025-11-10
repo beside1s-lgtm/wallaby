@@ -7,6 +7,7 @@ export type Student = {
   name: string;
   gender: '남' | '여';
   accessCode: string; // 5-digit unique access code
+  photoUrl?: string; // 학생 사진 URL (선택 사항)
 };
 
 export type StudentToAdd = Omit<Student, 'id' | 'accessCode'>;
