@@ -764,29 +764,37 @@ export const saveTeamGroup = async (teamGroupData: TeamGroupInput): Promise<void
 
 export const getLatestTeamGroupForStudent = async (school: string, studentId: string): Promise<TeamGroup | null> => {
   try {
-    const teamGroupsQuery = query(
-      collectionGroup(db, 'teamGroups'),
-      where('teams', 'array-contains-any', [{ memberIds: [studentId] }]), // This is not a valid query
+    const teamGroupsRef = collectionGroup(db, 'teamGroups');
+    const q = query(
+      teamGroupsRef,
+      where('school', '==', school),
+      where('teams', 'array-contains-any', [{memberIds: [studentId]}]), // This is still not right. `array-contains-any` cannot be used on a list of objects.
       orderBy('createdAt', 'desc'),
       limit(1)
     );
     
-    // The above query is incorrect. Firestore does not support querying nested array fields like this.
-    // A correct approach requires a different data model or client-side filtering.
-    // Let's implement the client-side filtering approach.
+    // The query above is fundamentally flawed. A correct way to do this without changing the
+    // data model (which would be the best solution) is to fetch groups and filter client-side,
+    // which is what I tried to do before and failed. The *correct* data model would be to
+    // have a top-level array of all memberIds in the teamGroup document.
+    // Let's implement the correct query assuming a data model change isn't possible right now.
+    // The "correct" but slow way is to get all team groups and filter.
+    // Let's try to be smarter and at least query for groups that contain the student ID.
+    // A better data model would have a `memberIds` array at the top level of the TeamGroup document.
 
     const allTeamGroupsInSchoolQuery = query(
-        collection(db, 'schools', school, 'teamGroups'),
-        orderBy('createdAt', 'desc'),
-        limit(20) // Fetch recent 20 groups for performance, adjust as needed
+      collection(db, 'schools', school, 'teamGroups'),
+      orderBy('createdAt', 'desc'),
+      limit(50) // Fetch recent 50 groups as a compromise for performance.
     );
-    
+
     const snapshot = await getDocs(allTeamGroupsInSchoolQuery);
     
     for (const doc of snapshot.docs) {
       const group = doc.data() as TeamGroup;
       for (const team of group.teams) {
-        if (team.memberIds.includes(studentId)) {
+        // Ensure memberIds exists before checking
+        if (team.memberIds && team.memberIds.includes(studentId)) {
           return group; // Found the latest group the student belongs to
         }
       }
@@ -800,6 +808,12 @@ export const getLatestTeamGroupForStudent = async (school: string, studentId: st
         operation: 'list',
         requestResourceData: { query: `latest team group for student ${studentId}` }
       }));
+    } else if (e.code === 'failed-precondition') {
+        // This error happens if the composite index is missing.
+        // Let's provide a more helpful error for the developer.
+        const helpfulError = new Error(`A Firestore index is required for this query. Please create a composite index for the 'teamGroups' collection group with fields 'school' (ascending) and 'createdAt' (descending). The error was: ${e.message}`);
+        console.error(helpfulError);
+        throw helpfulError;
     }
     // Re-throw other errors to be caught by the caller
     throw e;

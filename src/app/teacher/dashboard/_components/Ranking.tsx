@@ -253,6 +253,8 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
   const [balancingSelection, setBalancingSelection] = useState<
     Record<string, boolean>
   >({});
+  
+  const [teamGroupName, setTeamGroupName] = useState("");
 
   const [scoutingReport, setScoutingReport] =
     useState<ScoutingReportOutput | null>(null);
@@ -715,6 +717,14 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
       });
       return;
     }
+     if (!teamGroupName) {
+      toast({
+        variant: "destructive",
+        title: "전달 실패",
+        description: "팀 편성 이름을 입력해주세요.",
+      });
+      return;
+    }
     if (leftoverStudents.length > 0) {
       toast({
         variant: "destructive",
@@ -725,16 +735,9 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
     }
     setIsSending(true);
     try {
-      let description = "팀 편성 결과";
-      if (analysisScope === "class" && selectedGrade && selectedClassNum) {
-        description = `${selectedGrade}학년 ${selectedClassNum}반 팀`;
-      } else if (analysisScope === "grade" && selectedGrade) {
-        description = `${selectedGrade}학년 팀`;
-      }
-
       const teamData = {
         school,
-        description,
+        description: teamGroupName,
         teams: teams.map((team, index) => ({
           teamIndex: index,
           memberIds: team.map((student) => student.id),
@@ -1118,6 +1121,16 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
             <h3 className="font-semibold">3. 팀 편성</h3>
             <div className="flex flex-wrap items-end gap-4">
               <div>
+                <Label htmlFor="team-group-name">팀 편성 이름</Label>
+                 <Input
+                    id="team-group-name"
+                    value={teamGroupName}
+                    onChange={(e) => setTeamGroupName(e.target.value)}
+                    placeholder="예: 5학년 배구 리그"
+                    className="w-full sm:w-[200px]"
+                  />
+              </div>
+               <div>
                 <Label>팀 나누기 기준</Label>
                 <RadioGroup
                   defaultValue="teams"
