@@ -14,7 +14,7 @@ export const initialItems: MeasurementItem[] = [
     { id: '3', name: '왕복오래달리기', unit: '회', recordType: 'count', isPaps: true, category: 'PAPS' },
     { id: '4', name: '제자리 멀리뛰기', unit: 'cm', recordType: 'distance', isPaps: true, category: 'PAPS' },
     { id: '5', name: '앉아윗몸앞으로굽히기', unit: 'cm', recordType: 'distance', isPaps: true, category: 'PAPS' },
-    { id: 'bmi', name: '체질량지수(BMI)', unit: 'kg/m²', recordType: 'count', isPaps: true, isCompound: true, category: 'PAPS' },
+    { id: 'bmi', name: '체질량지수(BMI)', unit: 'kg/m²', recordType: 'compound', isPaps: true, isCompound: true, category: 'PAPS' },
     { id: '6', name: '자유투', unit: '성공', recordType: 'count', isPaps: false, goal: 10, category: '농구' },
 ];
 
