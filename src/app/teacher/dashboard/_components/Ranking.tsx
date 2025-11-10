@@ -762,7 +762,7 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
     const averages = new Map<number, { item: string; score: number }[]>();
     if (selectedItemNames.length === 0) return averages;
 
-    sortedTeams.forEach((team, teamIndex) => {
+    sortedTeams.forEach((team, index) => {
         const teamScores: { [key: string]: number[] } = {};
         selectedItemNames.forEach(name => { teamScores[name] = []; });
 
@@ -780,11 +780,11 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
             const average = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
             return { item: itemName, score: Math.round(average) };
         });
-        averages.set(teamIndex, avgScores);
+        averages.set(teams.indexOf(team), avgScores);
     });
 
     return averages;
-}, [sortedTeams, studentScores, selectedItemNames]);
+}, [sortedTeams, studentScores, selectedItemNames, teams]);
 
 
   const handleAssignLeftover = (studentId: string, teamIndex: number) => {
@@ -1502,11 +1502,13 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
                             팀 평균 능력치 데이터가 없습니다.
                         </div>
                       )}
-                      <ul className="space-y-1 text-sm pt-2 border-t">
-                        {team.map((student) => (
-                          <li key={student.id}>{student.name}</li>
-                        ))}
-                      </ul>
+                      <div className="text-sm pt-2 border-t">
+                          <div className="flex flex-wrap gap-x-3 gap-y-1">
+                              {team.map((student) => (
+                                <span key={student.id}>{student.name}</span>
+                              ))}
+                          </div>
+                      </div>
                     </div>
                   );
                 })}
