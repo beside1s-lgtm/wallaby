@@ -807,21 +807,34 @@ function PhotoEditDialog({
   const [isProcessing, setIsProcessing] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (!isOpen) {
+        setSelectedFile(null);
+        setPreview(null);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (!selectedFile) {
-      setPreview(null);
+      setPreview(student.photoUrl || null);
       return;
     }
     const objectUrl = URL.createObjectURL(selectedFile);
     setPreview(objectUrl);
 
     return () => URL.revokeObjectURL(objectUrl);
-  }, [selectedFile]);
+  }, [selectedFile, student.photoUrl, isOpen]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setSelectedFile(e.target.files[0]);
+      const file = e.target.files[0];
+      if (!file.type.startsWith('image/jpeg')) {
+        toast({ variant: 'destructive', title: '파일 형식 오류', description: 'JPEG/JPG 형식의 사진 파일만 업로드할 수 있습니다.' });
+        return;
+      }
+      setSelectedFile(file);
     }
   };
 
@@ -856,13 +869,11 @@ function PhotoEditDialog({
             let sx, sy, sWidth, sHeight;
 
             if (sourceAspectRatio > targetAspectRatio) {
-              // Source is wider than target
               sHeight = sourceHeight;
               sWidth = sHeight * targetAspectRatio;
               sx = (sourceWidth - sWidth) / 2;
               sy = 0;
             } else {
-              // Source is taller than target
               sWidth = sourceWidth;
               sHeight = sWidth / targetAspectRatio;
               sx = 0;
@@ -871,7 +882,6 @@ function PhotoEditDialog({
 
             ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, targetWidth, targetHeight);
             
-            // Convert to data URL with compression
             resolve(canvas.toDataURL("image/jpeg", 0.9));
           };
           img.onerror = reject;
@@ -881,12 +891,25 @@ function PhotoEditDialog({
       
       await onUpdatePhoto(student.id, resizedDataUrl);
       setIsOpen(false);
-      setSelectedFile(null);
-      setPreview(null);
     } catch (error) {
       console.error("Failed to process image:", error);
+       toast({ variant: 'destructive', title: '이미지 처리 실패', description: '사진을 처리하는 중 오류가 발생했습니다.' });
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleDeletePhoto = async () => {
+    setIsProcessing(true);
+    try {
+        await onUpdatePhoto(student.id, "");
+        toast({ title: "사진 삭제 완료" });
+        setIsOpen(false);
+    } catch (error) {
+        console.error("Failed to delete photo:", error);
+        toast({ variant: 'destructive', title: '사진 삭제 실패', description: '사진 삭제 중 오류가 발생했습니다.' });
+    } finally {
+        setIsProcessing(false);
     }
   };
   
@@ -899,7 +922,7 @@ function PhotoEditDialog({
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{student.name} 학생 사진 변경</DialogTitle>
+          <DialogTitle>{student.name} 학생 사진 관리</DialogTitle>
           <DialogDescription>3:4 비율로 자동 조정되며, 100KB 미만으로 압축됩니다.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col items-center gap-4 py-4">
@@ -912,7 +935,7 @@ function PhotoEditDialog({
             </div>
            <input 
               type="file" 
-              accept="image/jpeg" 
+              accept="image/jpeg,image/jpg"
               ref={fileInputRef} 
               onChange={handleFileChange} 
               className="hidden" 
@@ -921,14 +944,36 @@ function PhotoEditDialog({
                 컴퓨터에서 사진 찾기
             </Button>
         </div>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="outline">취소</Button>
-          </DialogClose>
-          <Button onClick={processAndUpload} disabled={!selectedFile || isProcessing}>
-            {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            저장
-          </Button>
+        <DialogFooter className="sm:justify-between">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" disabled={!student.photoUrl || isProcessing}>
+                사진 삭제
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>사진을 삭제하시겠습니까?</AlertDialogTitle>
+                    <AlertDialogDescription>이 작업은 되돌릴 수 없습니다. 학생의 사진이 영구적으로 삭제됩니다.</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>취소</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeletePhoto} disabled={isProcessing}>
+                       {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                       삭제
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <div className="flex gap-2">
+            <DialogClose asChild>
+              <Button variant="outline">취소</Button>
+            </DialogClose>
+            <Button onClick={processAndUpload} disabled={!selectedFile || isProcessing}>
+              {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              저장
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
