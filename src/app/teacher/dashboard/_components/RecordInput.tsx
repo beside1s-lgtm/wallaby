@@ -442,7 +442,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                             <Input
                                                 type="number"
                                                 placeholder="키(cm)"
-                                                value={studentRecords.height || ''}
+                                                value={studentRecords.height ?? ''}
                                                 onChange={(e) => handleBatchRecordChange(student.id, 'height', e.target.value)}
                                                 className="max-w-[120px]"
                                             />
@@ -451,7 +451,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                             <Input
                                                 type="number"
                                                 placeholder="몸무게(kg)"
-                                                value={studentRecords.weight || ''}
+                                                value={studentRecords.weight ?? ''}
                                                 onChange={(e) => handleBatchRecordChange(student.id, 'weight', e.target.value)}
                                                 className="max-w-[120px]"
                                             />
@@ -471,7 +471,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                             <Input
                                                 type="number"
                                                 placeholder={selectedItemForBatchAdd?.unit || '기록'}
-                                                value={studentRecords.value || ''}
+                                                value={studentRecords.value ?? ''}
                                                 onChange={(e) => handleBatchRecordChange(student.id, 'value', e.target.value)}
                                                 className="max-w-[120px]"
                                             />
@@ -486,7 +486,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                         <TableCell>
                                             <Input
                                                 readOnly
-                                                value={studentRecords.value || ''}
+                                                value={studentRecords.value ?? ''}
                                                 placeholder="결과"
                                                 className="max-w-[120px] bg-muted"
                                             />
