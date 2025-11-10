@@ -10,7 +10,7 @@ const papsStandardsByGrade: Record<
     {
       male: { grade: number; min: number; max: number }[];
       female: { grade: number; min: number; max: number }[];
-      type: 'time' | 'count' | 'distance' | 'weight';
+      type: 'time' | 'count' | 'distance' | 'weight' | 'compound';
       unit: string;
     }
   >
@@ -50,7 +50,7 @@ const papsStandardsByGrade: Record<
     '체질량지수(BMI)': {
         male: [ { grade: 1, min: 14.1, max: 18.0 }, { grade: 2, min: 18.1, max: 19.9 }, { grade: 3, min: 12.8, max: 14.0 }, { grade: 4, min: 20.0, max: 21.6 }, { grade: 5, min: 0, max: 12.7 }, { grade: 5, min: 21.7, max: Infinity } ],
         female: [ { grade: 1, min: 14.0, max: 18.2 }, { grade: 2, min: 18.3, max: 20.3 }, { grade: 3, min: 12.7, max: 13.9 }, { grade: 4, min: 20.4, max: 22.1 }, { grade: 5, min: 0, max: 12.6 }, { grade: 5, min: 22.2, max: Infinity } ],
-        type: 'count', unit: 'kg/m²'
+        type: 'compound', unit: 'kg/m²'
     }
   },
   '5': {
@@ -87,7 +87,7 @@ const papsStandardsByGrade: Record<
     '체질량지수(BMI)': {
         male: [ { grade: 1, min: 14.5, max: 18.9 }, { grade: 2, min: 19.0, max: 20.9 }, { grade: 3, min: 13.2, max: 14.4 }, { grade: 4, min: 21.0, max: 22.7 }, { grade: 5, min: 0, max: 13.1 }, { grade: 5, min: 22.8, max: Infinity } ],
         female: [ { grade: 1, min: 14.4, max: 19.2 }, { grade: 2, min: 19.3, max: 21.4 }, { grade: 3, min: 13.1, max: 14.3 }, { grade: 4, min: 21.5, max: 23.3 }, { grade: 5, min: 0, max: 13.0 }, { grade: 5, min: 23.4, max: Infinity } ],
-        type: 'count', unit: 'kg/m²'
+        type: 'compound', unit: 'kg/m²'
     }
   },
   '6': {
@@ -124,7 +124,7 @@ const papsStandardsByGrade: Record<
      '체질량지수(BMI)': {
         male: [ { grade: 1, min: 15.0, max: 19.9 }, { grade: 2, min: 20.0, max: 21.9 }, { grade: 3, min: 13.6, max: 14.9 }, { grade: 4, min: 22.0, max: 23.8 }, { grade: 5, min: 0, max: 13.5 }, { grade: 5, min: 23.9, max: Infinity } ],
         female: [ { grade: 1, min: 14.9, max: 20.1 }, { grade: 2, min: 20.2, max: 22.4 }, { grade: 3, min: 13.5, max: 14.8 }, { grade: 4, min: 22.5, max: 24.4 }, { grade: 5, min: 0, max: 13.4 }, { grade: 5, min: 24.5, max: Infinity } ],
-        type: 'count', unit: 'kg/m²'
+        type: 'compound', unit: 'kg/m²'
     }
   },
   // --- 중학교 (7,8,9) ---
@@ -157,7 +157,7 @@ const papsStandardsByGrade: Record<
     '체질량지수(BMI)': {
         male: [ { grade: 1, min: 15.6, max: 20.8 }, { grade: 2, min: 20.9, max: 22.8 }, { grade: 3, min: 14.1, max: 15.5 }, { grade: 4, min: 22.9, max: 24.8 }, { grade: 5, min: 0, max: 14.0 }, { grade: 5, min: 24.9, max: Infinity } ],
         female: [ { grade: 1, min: 15.4, max: 20.9 }, { grade: 2, min: 21.0, max: 23.0 }, { grade: 3, min: 14.0, max: 15.3 }, { grade: 4, min: 23.1, max: 25.0 }, { grade: 5, min: 0, max: 13.9 }, { grade: 5, min: 25.1, max: Infinity } ],
-        type: 'count', unit: 'kg/m²'
+        type: 'compound', unit: 'kg/m²'
     }
   },
   '8': { // 중2
@@ -189,7 +189,7 @@ const papsStandardsByGrade: Record<
      '체질량지수(BMI)': {
         male: [ { grade: 1, min: 16.2, max: 21.6 }, { grade: 2, min: 21.7, max: 23.6 }, { grade: 3, min: 14.6, max: 16.1 }, { grade: 4, min: 23.7, max: 25.6 }, { grade: 5, min: 0, max: 14.5 }, { grade: 5, min: 25.7, max: Infinity } ],
         female: [ { grade: 1, min: 15.9, max: 21.6 }, { grade: 2, min: 21.7, max: 23.7 }, { grade: 3, min: 14.5, max: 15.8 }, { grade: 4, min: 23.8, max: 25.7 }, { grade: 5, min: 0, max: 14.4 }, { grade: 5, min: 25.8, max: Infinity } ],
-        type: 'count', unit: 'kg/m²'
+        type: 'compound', unit: 'kg/m²'
     }
   },
   '9': { // 중3
@@ -221,7 +221,7 @@ const papsStandardsByGrade: Record<
     '체질량지수(BMI)': {
         male: [ { grade: 1, min: 16.8, max: 22.3 }, { grade: 2, min: 22.4, max: 24.3 }, { grade: 3, min: 15.2, max: 16.7 }, { grade: 4, min: 24.4, max: 26.3 }, { grade: 5, min: 0, max: 15.1 }, { grade: 5, min: 26.4, max: Infinity } ],
         female: [ { grade: 1, min: 16.4, max: 22.2 }, { grade: 2, min: 22.3, max: 24.3 }, { grade: 3, min: 15.0, max: 16.3 }, { grade: 4, min: 24.4, max: 26.3 }, { grade: 5, min: 0, max: 14.9 }, { grade: 5, min: 26.4, max: Infinity } ],
-        type: 'count', unit: 'kg/m²'
+        type: 'compound', unit: 'kg/m²'
     }
   },
   // --- 고등학교 (10,11,12) ---
@@ -254,7 +254,7 @@ const papsStandardsByGrade: Record<
     '체질량지수(BMI)': {
         male: [ { grade: 1, min: 17.3, max: 22.9 }, { grade: 2, min: 23.0, max: 24.9 }, { grade: 3, min: 15.7, max: 17.2 }, { grade: 4, min: 25.0, max: 26.9 }, { grade: 5, min: 0, max: 15.6 }, { grade: 5, min: 27.0, max: Infinity } ],
         female: [ { grade: 1, min: 16.8, max: 22.7 }, { grade: 2, min: 22.8, max: 24.7 }, { grade: 3, min: 15.4, max: 16.7 }, { grade: 4, min: 24.8, max: 26.7 }, { grade: 5, min: 0, max: 15.3 }, { grade: 5, min: 26.8, max: Infinity } ],
-        type: 'count', unit: 'kg/m²'
+        type: 'compound', unit: 'kg/m²'
     }
   },
   '11': { // 고2
@@ -286,7 +286,7 @@ const papsStandardsByGrade: Record<
     '체질량지수(BMI)': {
         male: [ { grade: 1, min: 17.8, max: 23.4 }, { grade: 2, min: 23.5, max: 25.4 }, { grade: 3, min: 16.2, max: 17.7 }, { grade: 4, min: 25.5, max: 27.4 }, { grade: 5, min: 0, max: 16.1 }, { grade: 5, min: 27.5, max: Infinity } ],
         female: [ { grade: 1, min: 17.1, max: 23.0 }, { grade: 2, min: 23.1, max: 25.0 }, { grade: 3, min: 15.7, max: 17.0 }, { grade: 4, min: 25.1, max: 27.0 }, { grade: 5, min: 0, max: 15.6 }, { grade: 5, min: 27.1, max: Infinity } ],
-        type: 'count', unit: 'kg/m²'
+        type: 'compound', unit: 'kg/m²'
     }
   },
   '12': { // 고3
@@ -318,13 +318,13 @@ const papsStandardsByGrade: Record<
     '체질량지수(BMI)': {
         male: [ { grade: 1, min: 18.2, max: 23.8 }, { grade: 2, min: 23.9, max: 25.8 }, { grade: 3, min: 16.6, max: 18.1 }, { grade: 4, min: 25.9, max: 27.8 }, { grade: 5, min: 0, max: 16.5 }, { grade: 5, min: 27.9, max: Infinity } ],
         female: [ { grade: 1, min: 17.4, max: 23.3 }, { grade: 2, min: 23.4, max: 25.3 }, { grade: 3, min: 16.0, max: 17.3 }, { grade: 4, min: 25.4, max: 27.3 }, { grade: 5, min: 0, max: 15.9 }, { grade: 5, min: 27.4, max: Infinity } ],
-        type: 'count', unit: 'kg/m²'
+        type: 'compound', unit: 'kg/m²'
     }
   },
 };
 
 // 모든 PAPS 종목 정보를 하나의 객체로 통합 (기존 코드 호환용)
-export const papsStandards: Record<string, { type: 'time' | 'count' | 'distance' | 'weight', unit: string }> = {};
+export const papsStandards: Record<string, { type: 'time' | 'count' | 'distance' | 'weight' | 'compound', unit: string }> = {};
 Object.values(papsStandardsByGrade).forEach(gradeData => {
     Object.entries(gradeData).forEach(([itemName, itemData]) => {
         if (!papsStandards[itemName]) {
@@ -338,7 +338,7 @@ papsStandards['50m 달리기'] = { type: 'time', unit: '초' };
 papsStandards['제자리 멀리뛰기'] = { type: 'distance', unit: 'cm' };
 papsStandards['팔굽혀펴기'] = { type: 'count', unit: '회' };
 papsStandards['악력'] = { type: 'weight', unit: 'kg' };
-papsStandards['체질량지수(BMI)'] = { type: 'count', unit: 'kg/m²' };
+papsStandards['체질량지수(BMI)'] = { type: 'compound', unit: 'kg/m²' };
 
 // 기존에 있던 종목 중 새로운 기준표에 없는 종목 추가 (레거시 호환)
 papsStandards['오래달리기'] = { type: 'time', unit: '초' };

@@ -210,6 +210,7 @@ function AddPapsItemDialog({ onAddItem, currentItems }: { onAddItem: (item: Omit
             unit: standard.unit,
             recordType: standard.type,
             isPaps: true,
+            isCompound: standard.type === 'compound',
             category: 'PAPS',
         };
         await onAddItem(newItem);
