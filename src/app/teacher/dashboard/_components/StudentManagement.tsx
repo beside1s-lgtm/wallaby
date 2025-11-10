@@ -1284,6 +1284,7 @@ export function DatabaseManagement({
         name: "홍길동",
         newGrade: "2",
         newClassNum: "1",
+        newStudentNum: "1",
       },
     ];
     exportToCsv(`${school}_학생_진급_템플릿.csv`, templateData);
@@ -1304,7 +1305,7 @@ export function DatabaseManagement({
         <div className="border-b pb-6">
           <h3 className="text-lg font-semibold mb-2">학생 진급 처리</h3>
           <p className="text-sm text-muted-foreground mb-4">
-            새 학년이 시작될 때 학생들의 학년과 반을 일괄적으로
+            새 학년이 시작될 때 학생들의 학년, 반, 번호를 일괄적으로
             업데이트합니다. 학생의 재학 기간 동안 기록이 누적 관리됩니다.
           </p>
           <div className="flex flex-wrap gap-2">

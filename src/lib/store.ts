@@ -293,11 +293,12 @@ export const promoteStudents = async (school: string, allStudents: Student[], pr
     const studentKey = `${promo.school}-${promo.grade}-${promo.classNum}-${promo.studentNum}-${promo.name}`;
     const student = studentMapByName.get(studentKey);
     
-    if (student && promo.newGrade && promo.newClassNum) {
+    if (student && promo.newGrade && promo.newClassNum && promo.newStudentNum) {
       const studentDocRef = doc(db, 'schools', school, 'students', student.id);
       batch.update(studentDocRef, {
         grade: promo.newGrade,
         classNum: promo.newClassNum,
+        studentNum: promo.newStudentNum,
       });
       updatedCount++;
     }

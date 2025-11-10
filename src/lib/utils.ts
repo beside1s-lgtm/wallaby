@@ -18,6 +18,7 @@ const universalKeyMap: Record<string, string> = {
     // Promotion
     '새 학년': 'newGrade',
     '새 반': 'newClassNum',
+    '새 번호': 'newStudentNum',
     // Record
     '측정종목': 'item',
     '기록': 'value',
