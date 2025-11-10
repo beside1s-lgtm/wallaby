@@ -36,13 +36,14 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, Calendar as CalendarIcon } from 'lucide-react';
+import { Loader2, Search, Calendar as CalendarIcon, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 
 interface RecordInputProps {
@@ -467,14 +468,14 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                         <TableCell>
                                             <Input
                                                 readOnly
-                                                value={calculateBmi(studentRecords.height, studentRecords.weight)}
+                                                value={calculateBmi(studentRecords.height, studentRecords.weight) || ''}
                                                 placeholder="BMI"
                                                 className="max-w-[120px] bg-muted"
                                             />
                                         </TableCell>
                                     </>
                                 ) : (
-                                    <>
+                                     <>
                                         <TableCell>
                                             <Input
                                                 type="number"
@@ -484,7 +485,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                                 className="max-w-[120px]"
                                             />
                                         </TableCell>
-                                        <TableCell>
+                                         <TableCell>
                                             <Input
                                                 readOnly
                                                 value={studentRecords.value || ''}
@@ -525,9 +526,17 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                         />
                         <Button type="button" onClick={handleSearch}><Search className="mr-2 h-4 w-4" /> 검색</Button>
                         {selectedStudent && (
-                            <div className="flex items-center gap-2 text-sm ml-4">
-                                <span className="font-semibold">선택된 학생:</span>
-                                <span>{selectedStudent.name} ({selectedStudent.grade}-{selectedStudent.classNum})</span>
+                           <div className="flex items-center gap-4 text-sm ml-4 p-2 bg-secondary rounded-md">
+                                <Avatar>
+                                    <AvatarImage src={selectedStudent.photoUrl} />
+                                    <AvatarFallback>
+                                        {selectedStudent.name ? selectedStudent.name.charAt(0) : <User />}
+                                    </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                    <span className="font-semibold block">{selectedStudent.name}</span>
+                                    <span className="text-muted-foreground">{selectedStudent.grade}-{selectedStudent.classNum}</span>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -592,7 +601,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                         </CardContent>
                         <CardFooter>
                             <Button onClick={handleAddRecord} disabled={isSubmitting} className="w-full">
-                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                                 결과 저장
                             </Button>
                         </CardFooter>
@@ -610,5 +619,3 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
     </>
   );
 }
-
-    
