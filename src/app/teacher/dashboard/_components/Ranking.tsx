@@ -758,6 +758,35 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
     });
   }, [teams]);
 
+  const teamAverageScores = useMemo(() => {
+    const averages = new Map<number, { item: string; score: number }[]>();
+    if (selectedItemNames.length === 0) return averages;
+
+    sortedTeams.forEach((team, teamIndex) => {
+        const teamScores: { [key: string]: number[] } = {};
+        selectedItemNames.forEach(name => { teamScores[name] = []; });
+
+        team.forEach(member => {
+            const memberScores = studentScores.get(member.id);
+            memberScores?.scores.forEach(({ item, score }) => {
+                if(teamScores[item]) {
+                    teamScores[item].push(score);
+                }
+            });
+        });
+
+        const avgScores = selectedItemNames.map(itemName => {
+            const scores = teamScores[itemName];
+            const average = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+            return { item: itemName, score: Math.round(average) };
+        });
+        averages.set(teamIndex, avgScores);
+    });
+
+    return averages;
+}, [sortedTeams, studentScores, selectedItemNames]);
+
+
   const handleAssignLeftover = (studentId: string, teamIndex: number) => {
     const studentToMove = leftoverStudents.find((s) => s.id === studentId);
     if (!studentToMove) return;
@@ -1441,22 +1470,39 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
             )}
 
             {sortedTeams.length > 0 && (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
                 {sortedTeams.map((team, index) => {
                    const firstStudent = team[0];
-                   if (!firstStudent) return null; // Should not happen if team is not empty
+                   if (!firstStudent) return null;
                    
                    const teamsInClass = sortedTeams.filter(t => t.length > 0 && t[0].grade === firstStudent.grade && t[0].classNum === firstStudent.classNum);
                    const relativeIndex = teamsInClass.findIndex(t => t === team);
-
                    const teamName = `${firstStudent.grade}-${firstStudent.classNum}반 ${relativeIndex + 1}팀`;
-                  
+                   const avgData = teamAverageScores.get(teams.indexOf(team));
+
                   return (
-                    <div key={index} className="border rounded-md p-3">
-                      <h4 className="font-bold mb-2 border-b pb-2">
+                    <div key={index} className="border rounded-md p-4 space-y-2">
+                      <h4 className="font-bold text-center border-b pb-2">
                         {teamName}
                       </h4>
-                      <ul className="space-y-1 text-sm">
+                      {avgData && avgData.length > 0 ? (
+                        <div className="h-[150px]">
+                             <ResponsiveContainer width="100%" height="100%">
+                                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={avgData}>
+                                    <PolarGrid />
+                                    <PolarAngleAxis dataKey="item" tick={{ fontSize: 10 }} />
+                                    <PolarRadiusAxis axisLine={false} tick={false} domain={[0, 100]} />
+                                    <Radar name="팀 평균" dataKey="score" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.6} />
+                                    <Tooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", fontSize: '12px' }}/>
+                                </RadarChart>
+                            </ResponsiveContainer>
+                        </div>
+                      ) : (
+                        <div className="h-[150px] flex items-center justify-center text-xs text-muted-foreground">
+                            팀 평균 능력치 데이터가 없습니다.
+                        </div>
+                      )}
+                      <ul className="space-y-1 text-sm pt-2 border-t">
                         {team.map((student) => (
                           <li key={student.id}>{student.name}</li>
                         ))}
