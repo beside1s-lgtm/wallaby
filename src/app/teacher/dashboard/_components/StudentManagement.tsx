@@ -872,7 +872,7 @@ function PhotoEditDialog({
             ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, targetWidth, targetHeight);
             
             // Convert to data URL with compression
-            resolve(canvas.toDataURL("image/jpeg", 0.7)); // Adjust quality for < 100KB
+            resolve(canvas.toDataURL("image/jpeg", 0.9));
           };
           img.onerror = reject;
         };

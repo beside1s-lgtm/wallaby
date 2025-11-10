@@ -421,6 +421,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                   <Table>
                     <TableHeader>
                         <TableRow>
+                            <TableHead>사진</TableHead>
                             <TableHead>번호</TableHead>
                             <TableHead>이름</TableHead>
                             {selectedItemForBatchAdd?.isCompound ? (
@@ -443,6 +444,12 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                             const studentRecords = batchRecords[student.id] || {};
                             return (
                                 <TableRow key={student.id}>
+                                <TableCell>
+                                    <Avatar>
+                                        <AvatarImage src={student.photoUrl} alt={student.name} />
+                                        <AvatarFallback>{student.name.charAt(0)}</AvatarFallback>
+                                    </Avatar>
+                                </TableCell>
                                 <TableCell>{student.studentNum}</TableCell>
                                 <TableCell>{student.name}</TableCell>
                                 {selectedItemForBatchAdd?.isCompound ? (
@@ -468,7 +475,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                         <TableCell>
                                             <Input
                                                 readOnly
-                                                value={calculateBmi(studentRecords.height, studentRecords.weight) || ''}
+                                                value={calculateBmi(studentRecords.height, studentRecords.weight)}
                                                 placeholder="BMI"
                                                 className="max-w-[120px] bg-muted"
                                             />
@@ -500,7 +507,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                         })
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={5} className="h-24 text-center">
+                          <TableCell colSpan={6} className="h-24 text-center">
                             기록을 입력할 학급을 선택해주세요.
                           </TableCell>
                         </TableRow>
