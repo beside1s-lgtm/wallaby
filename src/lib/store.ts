@@ -159,7 +159,7 @@ export const deleteStudentAndAssociatedRecords = async (school: string, studentI
 
 
 export const getStudent = async (
-  loginInfo: Omit<Student, 'id' | 'gender'>
+  loginInfo: Omit<Student, 'id' | 'gender' | 'photoUrl'> & { accessCode: string }
 ): Promise<Student | undefined> => {
   const studentsRef = collection(db, 'schools', loginInfo.school, 'students');
   const q = query(
@@ -549,7 +549,7 @@ export const addOrUpdateRecords = async (school: string, allStudents: Student[],
     existingRecordsMap.set(key, rec);
   });
 
-  const newItemsToAdd: Omit<MeasurementItem, 'id'>[] = [];
+  const newItemsToAdd: Omit<MeasurementItem, 'id' | 'category'>[] = [];
   for (const record of newRecords) {
     if (record.item && !itemMap.has(record.item) && !newItemsToAdd.some(i => i.name === record.item)) {
        newItemsToAdd.push({
@@ -764,18 +764,11 @@ export const saveTeamGroup = async (teamGroupData: TeamGroupInput): Promise<void
 
 export const getLatestTeamGroupForStudent = async (school: string, studentId: string): Promise<TeamGroup | null> => {
   const teamGroupsRef = collection(db, 'schools', school, 'teamGroups');
-  const q = query(
-    teamGroupsRef,
-    where('teams', 'array-contains-any', [{ memberIds: [studentId] }]), // This is a trick, may not work directly
-    orderBy('createdAt', 'desc'),
-    limit(1)
-  );
-
+  
   try {
-    // Firestore doesn't support array-contains-any on a list of maps in this way.
-    // We have to fetch all groups and filter client-side, or denormalize data.
-    // For simplicity here, we'll fetch recent groups and filter. A more scalable solution
-    // would involve having a 'members' array at the top level of the teamGroup document.
+    // Firestore doesn't support complex array queries like this directly.
+    // A common workaround is to fetch recent groups and filter client-side.
+    // A more scalable solution would involve denormalizing data, e.g., having a 'members' array at the top level of the teamGroup document.
     const allGroupsQuery = query(teamGroupsRef, orderBy('createdAt', 'desc'), limit(10));
     const snapshot = await getDocs(allGroupsQuery);
     
@@ -797,6 +790,7 @@ export const getLatestTeamGroupForStudent = async (school: string, studentId: st
         requestResourceData: { query: `latest team group for student ${studentId}` }
       }));
     }
+    // Re-throw other errors to be caught by the caller
     throw e;
   }
 };
