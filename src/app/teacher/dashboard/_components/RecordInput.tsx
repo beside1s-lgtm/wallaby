@@ -102,7 +102,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
     setRecordValue('');
     setHeight('');
     setWeight('');
-  }, [selectedItemName]);
+  }, [selectedItemName, selectedStudent]);
 
 
   useEffect(() => {
@@ -431,7 +431,6 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                             ) : (
                                 <>
                                     <TableHead>기록 ({selectedItemForBatchAdd?.unit || ''})</TableHead>
-                                    <TableHead className="text-muted-foreground">입력 X</TableHead>
                                     <TableHead>결과</TableHead>
                                 </>
                             )}
@@ -483,14 +482,6 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                                 value={studentRecords.value || ''}
                                                 onChange={(e) => handleBatchRecordChange(student.id, 'value', e.target.value)}
                                                 className="max-w-[120px]"
-                                            />
-                                        </TableCell>
-                                        <TableCell>
-                                            <Input
-                                                placeholder="입력 X"
-                                                className="max-w-[120px] bg-muted"
-                                                disabled
-                                                value=""
                                             />
                                         </TableCell>
                                         <TableCell>
