@@ -401,9 +401,9 @@
             <div class="text-container">
                 <h2>개인 성장 &amp; 팀 편성 시각화</h2>
                 <ul>
-                    <li>개인 능력치 그래프로 **개인 성취도** 시각화</li>
+                    <li>개인 능력치 그래프로 <strong>개인 성취도</strong> 시각화</li>
                     <li>각 종목별로 자신의 성장 추이 비교 가능</li>
-                    <li>방사형 그래프로 **팀/학생 능력치**를 한눈에 비교하여 공정한 팀 편성 지원</li>
+                    <li>방사형 그래프로 <strong>팀/학생 능력치</strong>를 한눈에 비교하여 공정한 팀 편성 지원</li>
                 </ul>
             </div>
             <div class="visual-container">
@@ -525,7 +525,7 @@
                     // Draw player data polygon
                     svgContent += `<polygon points="${dataPointsPlayer.join(' ')}" class="data-player"/>`;
                     // Draw team data polygon
-                    svgContent += `<polygon points="${dataPointsTeam.join(' ')}" class="data-team"/>`;
+                    svgContent += `<polygon points="${dataPointsTeam.join(' ')}" class="data-team"/>`; // *** FIX: dataDriventeam -> dataPointsTeam ***
 
                     svgContent += `</svg>`;
                     element.innerHTML = svgContent;
