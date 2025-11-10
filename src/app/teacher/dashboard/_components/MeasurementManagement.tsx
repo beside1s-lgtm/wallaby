@@ -61,7 +61,8 @@ const recordTypeDisplay: Record<RecordType, string> = {
     count: "횟수",
     distance: "거리",
     weight: "무게",
-    level: "상중하"
+    level: "상중하",
+    compound: "복합"
 };
 
 export default function MeasurementManagement({ items, onItemsUpdate }: MeasurementManagementProps) {
