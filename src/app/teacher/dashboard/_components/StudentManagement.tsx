@@ -506,7 +506,7 @@ export default function StudentManagement({
                       </TableCell>
                        <TableCell>
                         <Avatar>
-                          <AvatarImage src={student.photoUrl} alt={student.name} />
+                          <AvatarImage src={student.photoUrl || undefined} alt={student.name} />
                           <AvatarFallback>
                             {student.name ? student.name.charAt(0) : <UserIcon />}
                           </AvatarFallback>
