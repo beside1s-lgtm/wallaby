@@ -106,6 +106,8 @@ export default function StudentDashboardPage() {
   const [isDataLoading, setIsDataLoading] = useState(true);
   
   const [abilityScores, setAbilityScores] = useState<{ item: string; score: number }[]>([]);
+  const [teamAverageScores, setTeamAverageScores] = useState<{ item: string; score: number }[]>([]);
+
 
   useEffect(() => {
     async function loadData() {
@@ -149,25 +151,55 @@ export default function StudentDashboardPage() {
                 setTeamGroup(populatedTeamGroup);
                 
                 const studentTeam = populatedTeamGroup.teams.find(t => t.memberIds.includes(student.id));
-                if (studentTeam) {
-                    setMyTeam(studentTeam);
-                    setSelectedTeamIndex(studentTeam.teamIndex);
-                }
                 
                 if (stud && teamData.itemNamesForBalancing && teamData.itemNamesForBalancing.length > 0) {
                     const allRanks = calculateRanks(school, items, allRecs, allStuds, stud.grade);
-                    const scores = teamData.itemNamesForBalancing.map(itemName => {
-                        const itemRanks = allRanks[itemName];
-                        let score = 0;
-                        if (itemRanks) {
-                            const rankInfo = itemRanks.find(r => r.studentId === stud.id);
-                            if (rankInfo) {
-                                score = Math.round((1 - (rankInfo.rank - 1) / itemRanks.length) * 100);
+                    const itemNames = teamData.itemNamesForBalancing;
+
+                    const getScoresForStudent = (targetStudent: Student) => {
+                        return itemNames.map(itemName => {
+                            const itemRanks = allRanks[itemName];
+                            let score = 0;
+                            if (itemRanks) {
+                                const rankInfo = itemRanks.find(r => r.studentId === targetStudent.id);
+                                if (rankInfo) {
+                                    score = Math.round((1 - (rankInfo.rank - 1) / itemRanks.length) * 100);
+                                }
                             }
+                            return { item: itemName, score };
+                        });
+                    };
+
+                    // Set scores for the logged-in student
+                    setAbilityScores(getScoresForStudent(stud));
+                    
+                    if (studentTeam) {
+                        setMyTeam(studentTeam);
+                        setSelectedTeamIndex(studentTeam.teamIndex);
+
+                        const otherTeamMembers = studentTeam.members.filter(m => m.id !== stud.id);
+                        if (otherTeamMembers.length > 0) {
+                            const teamScores: Record<string, number[]> = {};
+                            itemNames.forEach(name => { teamScores[name] = [] });
+
+                            otherTeamMembers.forEach(member => {
+                                const memberScores = getScoresForStudent(member);
+                                memberScores.forEach(({ item, score }) => {
+                                    teamScores[item].push(score);
+                                });
+                            });
+
+                            const avgScores = itemNames.map(itemName => {
+                                const scores = teamScores[itemName];
+                                const average = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+                                return { item: itemName, score: Math.round(average) };
+                            });
+                            setTeamAverageScores(avgScores);
+                        } else {
+                            // If user is the only one in the team, team average is their own score
+                            setTeamAverageScores(getScoresForStudent(stud));
                         }
-                        return { item: itemName, score };
-                    });
-                    setAbilityScores(scores);
+                    }
                 }
             }
 
@@ -393,7 +425,7 @@ export default function StudentDashboardPage() {
   }, [teamGroup, selectedTeamIndex]);
 
 
-  if (isDataLoading || isAuthLoading || !fullStudent || !school) {
+  if (isDataLoading || !fullStudent || !school) {
     return (
          <div className="flex items-center justify-center h-screen">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -464,35 +496,37 @@ export default function StudentDashboardPage() {
                             <p className="text-sm text-muted-foreground text-center py-8">팀 정보가 없습니다. 선생님이 팀을 편성하고 전달할 때까지 기다려주세요.</p>
                         )}
                     </div>
-                     <div className="order-1 md:order-2 h-[300px] md:h-auto">
+                     <div className="order-1 md:order-2 h-[300px] md:h-auto grid grid-cols-2 gap-4">
                         {abilityScores.length > 0 ? (
-                             <ResponsiveContainer width="100%" height="100%">
-                              <RadarChart
-                                cx="50%"
-                                cy="50%"
-                                outerRadius="80%"
-                                data={abilityScores}
-                              >
-                                <PolarGrid />
-                                <PolarAngleAxis dataKey="item" />
-                                <PolarRadiusAxis angle={30} domain={[0, 100]} />
-                                <Radar
-                                  name="능력치"
-                                  dataKey="score"
-                                  stroke="hsl(var(--chart-1))"
-                                  fill="hsl(var(--chart-1))"
-                                  fillOpacity={0.6}
-                                />
-                                <Tooltip
-                                  contentStyle={{
-                                    background: "hsl(var(--background))",
-                                    border: "1px solid hsl(var(--border))",
-                                  }}
-                                />
-                              </RadarChart>
-                            </ResponsiveContainer>
-                        ): (
-                            <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+                             <div className='text-center'>
+                                <h4 className="font-semibold mb-2">나의 능력치</h4>
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <RadarChart cx="50%" cy="50%" outerRadius="80%" data={abilityScores}>
+                                    <PolarGrid />
+                                    <PolarAngleAxis dataKey="item" tick={{ fontSize: 12 }} />
+                                    <PolarRadiusAxis axisLine={false} tick={false} />
+                                    <Radar name="나" dataKey="score" stroke="hsl(var(--chart-1))" fill="hsl(var(--chart-1))" fillOpacity={0.6} />
+                                    <Tooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}/>
+                                  </RadarChart>
+                                </ResponsiveContainer>
+                             </div>
+                        ): null}
+                        {teamAverageScores.length > 0 ? (
+                            <div className='text-center'>
+                                <h4 className="font-semibold mb-2">팀 평균 능력치</h4>
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <RadarChart cx="50%" cy="50%" outerRadius="80%" data={teamAverageScores}>
+                                    <PolarGrid />
+                                    <PolarAngleAxis dataKey="item" tick={{ fontSize: 12 }} />
+                                     <PolarRadiusAxis axisLine={false} tick={false} />
+                                    <Radar name="팀 평균" dataKey="score" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.6}/>
+                                    <Tooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}/>
+                                  </RadarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        ): null}
+                         {abilityScores.length === 0 && teamAverageScores.length === 0 && (
+                            <div className="col-span-2 flex items-center justify-center h-full text-sm text-muted-foreground">
                                 팀 편성 시 사용된 능력치 데이터가 없습니다.
                             </div>
                         )}
