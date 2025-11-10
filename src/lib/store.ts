@@ -3,7 +3,7 @@ import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentTo
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { initialItems, initialStudents, initialRecords } from './initial-data';
-import { db } from './firebase';
+import { db, signIn } from './firebase';
 import {
   collection,
   query,
@@ -28,6 +28,7 @@ import { exportToCsv as exportToCsvUtil } from './utils';
 
 // This function now only seeds data if the schools collection is empty for that school.
 export const initializeData = async (schoolName: string, password?: string) => {
+  await signIn();
   const schoolDocRef = doc(db, 'schools', schoolName);
   
   try {
@@ -84,6 +85,7 @@ export const exportToCsv = (filename: string, rows: object[]) => {
 }
 
 export const getSchoolByName = async (schoolName: string): Promise<School | null> => {
+  await signIn();
   const schoolRef = doc(db, 'schools', schoolName);
   try {
     const schoolSnap = await getDoc(schoolRef);
@@ -103,6 +105,7 @@ export const getSchoolByName = async (schoolName: string): Promise<School | null
 }
 
 export const updateSchoolPassword = async (schoolName: string, password: string): Promise<void> => {
+  await signIn();
   const schoolRef = doc(db, 'schools', schoolName);
   try {
     await updateDoc(schoolRef, { password });
@@ -121,6 +124,7 @@ export const updateSchoolPassword = async (schoolName: string, password: string)
 
 // --- Student Functions ---
 export const getStudents = async (school: string): Promise<Student[]> => {
+    await signIn();
     const studentsRef = collection(db, 'schools', school, 'students');
     const snapshot = await getDocs(studentsRef).catch((e) => {
         if (e.code === 'permission-denied') {
@@ -135,6 +139,7 @@ export const getStudents = async (school: string): Promise<Student[]> => {
 };
 
 export const deleteStudentAndAssociatedRecords = async (school: string, studentId: string) => {
+  await signIn();
   const batch = writeBatch(db);
   const recordsRef = collection(db, 'schools', school, 'records');
   const q = query(recordsRef, where('studentId', '==', studentId));
@@ -161,6 +166,7 @@ export const deleteStudentAndAssociatedRecords = async (school: string, studentI
 export const getStudent = async (
   loginInfo: Omit<Student, 'id' | 'gender' | 'photoUrl'> & { accessCode: string }
 ): Promise<Student | undefined> => {
+  await signIn();
   const studentsRef = collection(db, 'schools', loginInfo.school, 'students');
   const q = query(
     studentsRef,
@@ -189,6 +195,7 @@ export const getStudent = async (
 };
 
 export const addStudent = async (school: string, studentData: StudentToAdd, allStudents: Student[]) => {
+    await signIn();
     const existingCodes = new Set(allStudents.map(s => s.accessCode).filter(Boolean));
     let newCode: string;
     do {
@@ -211,6 +218,7 @@ export const addStudent = async (school: string, studentData: StudentToAdd, allS
 };
 
 export const updateStudent = async (school: string, studentId: string, studentData: StudentToUpdate) => {
+  await signIn();
   const studentDocRef = doc(db, 'schools', school, 'students', studentId);
   await updateDoc(studentDocRef, studentData).catch(e => {
     if (e.code === 'permission-denied') {
@@ -225,6 +233,7 @@ export const updateStudent = async (school: string, studentId: string, studentDa
 };
 
 export const getStudentById = async (school: string, studentId: string): Promise<Student | undefined> => {
+    await signIn();
     const studentDocRef = doc(db, 'schools', school, 'students', studentId);
     const docSnap = await getDoc(studentDocRef).catch(e => {
         if (e.code === 'permission-denied') {
@@ -239,6 +248,7 @@ export const getStudentById = async (school: string, studentId: string): Promise
 }
 
 export const assignMissingAccessCodes = async (school: string): Promise<void> => {
+  await signIn();
   const students = await getStudents(school);
   const studentsWithoutCode = students.filter(s => !s.accessCode);
 
@@ -273,6 +283,7 @@ export const assignMissingAccessCodes = async (school: string): Promise<void> =>
 };
 
 export const promoteStudents = async (school: string, allStudents: Student[], promotionData: any[]): Promise<number> => {
+  await signIn();
   const batch = writeBatch(db);
   const studentMapByName = new Map(allStudents.map(s => [`${s.school}-${s.grade}-${s.classNum}-${s.studentNum}-${s.name}`, s]));
   
@@ -311,6 +322,7 @@ export const promoteStudents = async (school: string, allStudents: Student[], pr
 
 // Measurement Items
 export const getItems = async (school: string): Promise<MeasurementItem[]> => {
+    await signIn();
     const itemsRef = collection(db, 'schools', school, 'items');
     const snapshot = await getDocs(itemsRef).catch(e => {
         if (e.code === 'permission-denied') {
@@ -328,6 +340,7 @@ export const getItems = async (school: string): Promise<MeasurementItem[]> => {
 };
 
 export const setItems = async (school: string, items: MeasurementItem[]) => {
+    await signIn();
     const batch = writeBatch(db);
     const itemsRef = collection(db, 'schools', school, 'items');
     const currentItemsSnapshot = await getDocs(itemsRef);
@@ -352,6 +365,7 @@ export const setItems = async (school: string, items: MeasurementItem[]) => {
 
 
 export const addItem = async (school: string, item: Omit<MeasurementItem, 'id'>) => {
+  await signIn();
   const itemsRef = collection(db, 'schools', school, 'items');
   const q = query(itemsRef, where("name", "==", item.name), limit(1));
   const existing = await getDocs(q);
@@ -375,6 +389,7 @@ export const addItem = async (school: string, item: Omit<MeasurementItem, 'id'>)
 };
 
 export const deleteItemAndAssociatedRecords = async (school: string, itemToDelete: MeasurementItem) => {
+  await signIn();
   const batch = writeBatch(db);
   const recordsRef = collection(db, 'schools', school, 'records');
   const q = query(recordsRef, where('item', '==', itemToDelete.name));
@@ -400,6 +415,7 @@ export const deleteItemAndAssociatedRecords = async (school: string, itemToDelet
 
 // Records
 export const getRecords = async (school: string): Promise<MeasurementRecord[]> => {
+    await signIn();
     const recordsRef = collection(db, 'schools', school, 'records');
     const snapshot = await getDocs(recordsRef).catch(e => {
         if (e.code === 'permission-denied') {
@@ -417,6 +433,7 @@ export const getRecords = async (school: string): Promise<MeasurementRecord[]> =
 }
 
 export const setRecords = async (school: string, records: MeasurementRecord[]) => {
+     await signIn();
      const batch = writeBatch(db);
     const recordsRef = collection(db, 'schools', school, 'records');
     const currentRecordsSnapshot = await getDocs(recordsRef);
@@ -441,6 +458,7 @@ export const setRecords = async (school: string, records: MeasurementRecord[]) =
 
 
 export const addOrUpdateRecord = async (record: Partial<MeasurementRecord> & Pick<MeasurementRecord, 'school' | 'studentId' | 'item' | 'value'>) => {
+  await signIn();
   const recordDate = record.date || format(new Date(), 'yyyy-MM-dd');
   const recordsRef = collection(db, 'schools', record.school, 'records');
   
@@ -497,6 +515,7 @@ export const addOrUpdateRecord = async (record: Partial<MeasurementRecord> & Pic
 };
 
 export const deleteRecord = async (school: string, recordId: string) => {
+  await signIn();
   const recordDocRef = doc(db, 'schools', school, 'records', recordId);
   await deleteDoc(recordDocRef).catch(e => {
     if (e.code === 'permission-denied') {
@@ -510,6 +529,7 @@ export const deleteRecord = async (school: string, recordId: string) => {
 };
 
 export const deleteRecordsByDateAndItem = async (school: string, date: string, item: string): Promise<number> => {
+    await signIn();
     const recordsRef = collection(db, 'schools', school, 'records');
     const q = query(recordsRef, where('date', '==', date), where('item', '==', item));
     const snapshot = await getDocs(q);
@@ -537,6 +557,7 @@ export const deleteRecordsByDateAndItem = async (school: string, date: string, i
 };
 
 export const addOrUpdateRecords = async (school: string, allStudents: Student[], newRecords: any[]) => {
+  await signIn();
   const batch = writeBatch(db);
   const studentMap = new Map(allStudents.map(s => [`${s.school}-${s.grade}-${s.classNum}-${s.studentNum}-${s.name}`, s]));
   const currentItems = await getItems(school);
@@ -626,6 +647,7 @@ export const addOrUpdateRecords = async (school: string, allStudents: Student[],
 };
 
 export const getRecordsByStudent = async (school: string, studentId: string): Promise<MeasurementRecord[]> => {
+  await signIn();
   const recordsRef = collection(db, 'schools', school, 'records');
   const q = query(recordsRef, where("studentId", "==", studentId));
   const snapshot = await getDocs(q).catch(e => {
@@ -696,6 +718,7 @@ export const calculateRanks = (
 };
 
 export const cleanUpDuplicateRecords = async (school: string): Promise<number> => {
+  await signIn();
   const recordsRef = collection(db, 'schools', school, 'records');
   const snapshot = await getDocs(recordsRef);
   const records = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as MeasurementRecord));
@@ -742,6 +765,7 @@ export const cleanUpDuplicateRecords = async (school: string): Promise<number> =
 
 // --- Team Groups ---
 export const saveTeamGroup = async (teamGroupData: TeamGroupInput): Promise<void> => {
+  await signIn();
   const teamGroupsRef = collection(db, 'schools', teamGroupData.school, 'teamGroups');
   const newTeamGroupRef = doc(teamGroupsRef);
   const dataToSave = {
@@ -763,6 +787,7 @@ export const saveTeamGroup = async (teamGroupData: TeamGroupInput): Promise<void
 };
 
 export const getLatestTeamGroupForStudent = async (school: string, studentId: string): Promise<TeamGroup | null> => {
+  await signIn();
   try {
     const teamGroupsRef = collectionGroup(db, 'teamGroups');
     const q = query(
