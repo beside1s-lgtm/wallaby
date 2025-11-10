@@ -406,59 +406,59 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                         <TableHead>번호</TableHead>
                         <TableHead>이름</TableHead>
                         {selectedItemForBatchAdd?.isCompound ? (
-                          <>
-                            <TableHead>입력 1 (키)</TableHead>
-                            <TableHead>입력 2 (몸무게)</TableHead>
-                            <TableHead>결과 (BMI)</TableHead>
-                          </>
+                            <>
+                                <TableHead>입력 1 (키)</TableHead>
+                                <TableHead>입력 2 (몸무게)</TableHead>
+                                <TableHead>결과 (BMI)</TableHead>
+                            </>
                         ) : (
-                          <>
-                            <TableHead>입력 1 (기록)</TableHead>
-                            <TableHead>입력 2</TableHead>
-                            <TableHead>결과</TableHead>
-                          </>
+                            <>
+                                <TableHead>입력 1 (기록)</TableHead>
+                                <TableHead>입력 2</TableHead>
+                                <TableHead>결과</TableHead>
+                            </>
                         )}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredStudentsByClass.length > 0 ? (
                         filteredStudentsByClass.map(student => {
-                          const studentRecords = batchRecords[student.id] || {};
-                          const isCompound = selectedItemForBatchAdd?.isCompound;
-                          
-                          return (
-                            <TableRow key={student.id}>
-                              <TableCell>{student.studentNum}</TableCell>
-                              <TableCell>{student.name}</TableCell>
-                              <TableCell>
-                                <Input
-                                  type="number"
-                                  placeholder={isCompound ? 'cm' : selectedItemForBatchAdd?.unit || '기록'}
-                                  value={isCompound ? studentRecords.height || '' : studentRecords.value || ''}
-                                  onChange={(e) => handleBatchRecordChange(student.id, isCompound ? 'height' : 'value', e.target.value)}
-                                  className="max-w-[120px]"
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <Input
-                                  type="number"
-                                  placeholder={isCompound ? 'kg' : '입력 X'}
-                                  value={isCompound ? studentRecords.weight || '' : ''}
-                                  onChange={(e) => handleBatchRecordChange(student.id, 'weight', e.target.value)}
-                                  className="max-w-[120px]"
-                                  disabled={!isCompound}
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <Input
-                                  readOnly
-                                  value={isCompound ? calculateBmi(studentRecords.height, studentRecords.weight) : studentRecords.value || ''}
-                                  placeholder="결과"
-                                  className="max-w-[120px] bg-muted"
-                                />
-                              </TableCell>
-                            </TableRow>
-                          );
+                            const studentRecords = batchRecords[student.id] || {};
+                            const isCompound = selectedItemForBatchAdd?.isCompound;
+
+                            return (
+                                <TableRow key={student.id}>
+                                <TableCell>{student.studentNum}</TableCell>
+                                <TableCell>{student.name}</TableCell>
+                                <TableCell>
+                                    <Input
+                                    type="number"
+                                    placeholder={isCompound ? '키(cm)' : selectedItemForBatchAdd?.unit || '기록'}
+                                    value={isCompound ? studentRecords.height || '' : studentRecords.value || ''}
+                                    onChange={(e) => handleBatchRecordChange(student.id, isCompound ? 'height' : 'value', e.target.value)}
+                                    className="max-w-[120px]"
+                                    />
+                                </TableCell>
+                                <TableCell>
+                                    <Input
+                                    type="number"
+                                    placeholder={isCompound ? '몸무게(kg)' : '입력 X'}
+                                    value={isCompound ? studentRecords.weight || '' : ''}
+                                    onChange={(e) => handleBatchRecordChange(student.id, 'weight', e.target.value)}
+                                    className="max-w-[120px]"
+                                    disabled={!isCompound}
+                                    />
+                                </TableCell>
+                                <TableCell>
+                                    <Input
+                                    readOnly
+                                    value={isCompound ? calculateBmi(studentRecords.height, studentRecords.weight) : studentRecords.value || ''}
+                                    placeholder="결과"
+                                    className="max-w-[120px] bg-muted"
+                                    />
+                                </TableCell>
+                                </TableRow>
+                            );
                         })
                       ) : (
                         <TableRow>
