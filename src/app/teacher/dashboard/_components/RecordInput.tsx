@@ -468,7 +468,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                         <TableCell>
                                             <Input
                                                 readOnly
-                                                value={calculateBmi(studentRecords.height, studentRecords.weight) || ''}
+                                                value={calculateBmi(studentRecords.height, studentRecords.weight)}
                                                 placeholder="BMI"
                                                 className="max-w-[120px] bg-muted"
                                             />
@@ -490,6 +490,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                                 placeholder="입력 X"
                                                 className="max-w-[120px] bg-muted"
                                                 disabled
+                                                value=""
                                             />
                                         </TableCell>
                                         <TableCell>
