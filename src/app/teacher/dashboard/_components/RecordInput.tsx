@@ -415,7 +415,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                             </>
                         ) : (
                             <>
-                                <TableHead>기록 ({selectedItemForBatchAdd?.unit})</TableHead>
+                                <TableHead>기록 ({selectedItemForBatchAdd?.unit || ''})</TableHead>
                                 <TableHead>입력 X</TableHead>
                                 <TableHead>결과</TableHead>
                             </>
