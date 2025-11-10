@@ -57,6 +57,11 @@ export type TeamGroup = {
   teams: Team[];
   itemNamesForBalancing?: string[]; // 능력치 기준 종목
   createdAt: any;
+  // Metadata for reloading the state
+  analysisScope: 'all' | 'grade' | 'class';
+  grade?: string;
+  classNum?: string;
+  gender?: 'all' | '남' | '여';
 };
 
 export type TeamGroupInput = Omit<TeamGroup, 'id' | 'createdAt' | 'teams'> & {

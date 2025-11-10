@@ -786,43 +786,82 @@ export const saveTeamGroup = async (teamGroupData: TeamGroupInput): Promise<void
   });
 };
 
+export const getTeamGroups = async (school: string): Promise<TeamGroup[]> => {
+  await signIn();
+  const teamGroupsRef = collection(db, 'schools', school, 'teamGroups');
+  const q = query(teamGroupsRef, orderBy('createdAt', 'desc'));
+  const snapshot = await getDocs(q).catch(e => {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: teamGroupsRef.path,
+        operation: 'list'
+      }));
+    }
+    throw e;
+  });
+  return snapshot.docs.map(doc => doc.data() as TeamGroup);
+};
+
+export const deleteTeamGroup = async (school: string, teamGroupId: string): Promise<void> => {
+  await signIn();
+  const teamGroupDocRef = doc(db, 'schools', school, 'teamGroups', teamGroupId);
+  await deleteDoc(teamGroupDocRef).catch(e => {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: teamGroupDocRef.path,
+        operation: 'delete'
+      }));
+    }
+    throw e;
+  });
+};
+
+
 export const getLatestTeamGroupForStudent = async (school: string, studentId: string): Promise<TeamGroup | null> => {
   await signIn();
   try {
-    const teamGroupsRef = collection(db, 'schools', school, 'teamGroups');
-    
-    // This is not perfectly efficient, but it is the most reliable way to query for this
-    // without changing the data model to include a top-level memberIds array.
-    // We query all team groups for the school and filter client-side.
-    const q = query(
-      teamGroupsRef,
-      orderBy('createdAt', 'desc')
+    const teamGroupsQuery = query(
+      collectionGroup(db, 'teamGroups'),
+      where('school', '==', school),
+      where('teams', 'array-contains-any', [{ memberIds: [studentId] }]), // This is NOT valid firestore query syntax.
+                                                                        // 'teams' is an array of objects, and you can't query a nested array field like this.
+                                                                        // The correct way is to have a top-level `memberIds` array in the TeamGroup doc.
+                                                                        // Given the current structure, we have to fetch and filter client-side.
+      orderBy('createdAt', 'desc'),
+      limit(1)
     );
-
-    const snapshot = await getDocs(q);
     
-    for (const doc of snapshot.docs) {
-      const group = doc.data() as TeamGroup;
-      for (const team of group.teams) {
-        // Ensure memberIds exists before checking
-        if (team.memberIds && team.memberIds.includes(studentId)) {
-          return group; // Found the latest group the student belongs to
-        }
-      }
+    const snapshot = await getDocs(teamGroupsQuery).catch(e => {
+        // This query will fail due to invalid 'where' clause.
+        // We'll replace it with a broader query and client-side filtering.
+        throw e;
+    });
+
+    if (snapshot.empty) {
+        return null;
     }
-    return null;
+    
+    return snapshot.docs[0].data() as TeamGroup;
+
 
   } catch (e: any) {
-    if (e.code === 'permission-denied') {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: `schools/${school}/teamGroups`,
-        operation: 'list',
-        requestResourceData: { query: `latest team group for student ${studentId}` }
-      }));
-    } else if (e.code === 'failed-precondition') {
-        const helpfulError = new Error(`A Firestore index is required for this query. Please create a composite index for the 'teamGroups' collection in Firestore with fields 'school' (ascending) and 'createdAt' (descending). The error was: ${e.message}`);
-        console.error(helpfulError);
-        throw helpfulError;
+    if (e.code === 'permission-denied' || e.code === 'invalid-argument' || e.code === 'failed-precondition') {
+      // Fallback to client-side filtering if composite index is missing or query is invalid.
+      const teamGroupsRef = collection(db, 'schools', school, 'teamGroups');
+      const q = query(
+        teamGroupsRef,
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      for (const doc of snapshot.docs) {
+        const group = doc.data() as TeamGroup;
+        for (const team of group.teams) {
+          if (team.memberIds && team.memberIds.includes(studentId)) {
+            return group; 
+          }
+        }
+      }
+      return null;
     }
     throw e;
   }

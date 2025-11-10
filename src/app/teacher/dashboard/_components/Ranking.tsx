@@ -5,8 +5,10 @@ import {
   calculateRanks,
   exportToCsv,
   saveTeamGroup,
+  getTeamGroups,
+  deleteTeamGroup,
 } from "@/lib/store";
-import { Student, MeasurementItem, MeasurementRecord } from "@/lib/types";
+import { Student, MeasurementItem, MeasurementRecord, TeamGroup } from "@/lib/types";
 import {
   Card,
   CardContent,
@@ -50,11 +52,25 @@ import {
   Wand2,
   Send,
   PlusCircle,
+  Trash2,
+  RefreshCw,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { getScoutingReport } from "@/ai/flows/scouting-report-flow";
 import type { ScoutingReportOutput } from "@/ai/flows/scouting-report-flow";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
 
 type RankedStudent = {
   rank: number;
@@ -224,6 +240,9 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
   const { school } = useAuth();
   const { toast } = useToast();
 
+  const [savedTeamGroups, setSavedTeamGroups] = useState<TeamGroup[]>([]);
+  const [selectedTeamGroupId, setSelectedTeamGroupId] = useState<string>('');
+
   const [analysisScope, setAnalysisScope] = useState<"all" | "grade" | "class">(
     "grade"
   );
@@ -260,6 +279,85 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
     useState<ScoutingReportOutput | null>(null);
   const [isReportLoading, setIsReportLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchTeamGroups = async () => {
+    if (!school) return;
+    setIsLoading(true);
+    try {
+      const groups = await getTeamGroups(school);
+      setSavedTeamGroups(groups);
+    } catch (error) {
+      console.error("Failed to fetch team groups:", error);
+      toast({ variant: 'destructive', title: "팀 편성 목록 로딩 실패" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTeamGroups();
+  }, [school]);
+
+  const resetToNewTeam = () => {
+    setSelectedTeamGroupId('');
+    setTeamGroupName('');
+    setAnalysisScope('grade');
+    setSelectedGrade('');
+    setSelectedClassNum('');
+    setSelectedGender('all');
+    setExcludeNonParticipants(true);
+    setSelectedItemNames([]);
+    setNumTeams(2);
+    setMembersPerTeam(4);
+    setDivideBy('teams');
+    setBalanceStrategy('uniform');
+    setTeams([]);
+    setLeftoverStudents([]);
+    setStudentScores(new Map());
+    setBalancingSelection({});
+    setSelectedStudentId(null);
+  };
+  
+  const handleLoadTeamGroup = (groupId: string) => {
+    setSelectedTeamGroupId(groupId);
+    const group = savedTeamGroups.find(g => g.id === groupId);
+    if (!group) return;
+
+    setTeamGroupName(group.description);
+    setAnalysisScope(group.analysisScope);
+    setSelectedGrade(group.grade || '');
+    setSelectedClassNum(group.classNum || '');
+    setSelectedGender(group.gender || 'all');
+    setSelectedItemNames(group.itemNamesForBalancing || []);
+
+    const studentMap = new Map(allStudents.map(s => [s.id, s]));
+    const populatedTeams = group.teams.map(team => 
+      team.memberIds.map(id => studentMap.get(id)).filter((s): s is Student => !!s)
+    );
+    setTeams(populatedTeams);
+    setLeftoverStudents([]); // Assuming loaded groups have no leftovers
+    
+    toast({ title: "팀 편성 로드 완료", description: `'${group.description}' 정보를 불러왔습니다.`});
+  };
+
+  const handleDeleteTeamGroup = async () => {
+    if (!school || !selectedTeamGroupId) return;
+    setIsLoading(true);
+    try {
+      await deleteTeamGroup(school, selectedTeamGroupId);
+      await fetchTeamGroups();
+      resetToNewTeam();
+      toast({ title: "삭제 완료", description: "선택한 팀 편성을 삭제했습니다." });
+    } catch (error) {
+      console.error("Failed to delete team group:", error);
+      toast({ variant: 'destructive', title: "삭제 실패" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
 
   const { grades, classNumsByGrade, groupedItems } = useMemo(() => {
     const grades = [...new Set(allStudents.map((s) => s.grade))].sort();
@@ -424,8 +522,10 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
       setStudentScores(new Map());
       setBalancingSelection({});
     }
-    setTeams([]);
-    setLeftoverStudents([]);
+    if (!selectedTeamGroupId) { // Don't clear teams if a saved group is loaded
+      setTeams([]);
+      setLeftoverStudents([]);
+    }
     setSelectedStudentId(null);
   }, [
     targetStudents,
@@ -437,6 +537,7 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
     allStudents,
     analysisScope,
     selectedGrade,
+    selectedTeamGroupId,
   ]);
 
   const handleToggleItem = (itemName: string) => {
@@ -743,12 +844,17 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
           memberIds: team.map((student) => student.id),
         })),
         itemNamesForBalancing: selectedItemNames,
+        analysisScope,
+        grade: selectedGrade,
+        classNum: selectedClassNum,
+        gender: selectedGender
       };
       await saveTeamGroup(teamData);
       toast({
         title: "전달 완료",
         description: "편성된 팀 명단이 학생들에게 전달되었습니다.",
       });
+      fetchTeamGroups(); // Refresh list
     } catch (error) {
       console.error("Failed to send teams:", error);
       toast({
@@ -783,6 +889,54 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        <div className="space-y-4 p-4 border rounded-md bg-muted/50">
+            <h3 className="font-semibold">저장된 팀 편성 불러오기</h3>
+             <div className="flex flex-wrap gap-2 items-center">
+                <Select onValueChange={handleLoadTeamGroup} value={selectedTeamGroupId}>
+                    <SelectTrigger className="flex-1 min-w-[200px]">
+                        <SelectValue placeholder="저장된 팀 편성을 선택하세요..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {isLoading ? (
+                            <SelectItem value="loading" disabled>
+                                <div className="flex items-center gap-2">
+                                    <Loader2 className="h-4 w-4 animate-spin"/>
+                                    <span>로딩 중...</span>
+                                </div>
+                            </SelectItem>
+                        ) : savedTeamGroups.length > 0 ? (
+                           savedTeamGroups.map(group => (
+                             <SelectItem key={group.id} value={group.id}>{group.description}</SelectItem>
+                           ))
+                        ) : (
+                            <SelectItem value="none" disabled>저장된 편성이 없습니다.</SelectItem>
+                        )}
+                    </SelectContent>
+                </Select>
+                <Button variant="outline" onClick={resetToNewTeam}><RefreshCw className="mr-2 h-4 w-4"/>새 팀 편성</Button>
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                         <Button variant="destructive" disabled={!selectedTeamGroupId}>
+                            <Trash2 className="mr-2 h-4 w-4"/>
+                            편성 삭제
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                이 작업은 되돌릴 수 없습니다. 이 팀 편성 정보가 영구적으로 삭제됩니다.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>취소</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleDeleteTeamGroup}>삭제</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </div>
+        </div>
+
         <div className="space-y-4 p-4 border rounded-md">
           <h3 className="font-semibold">1. 분석 대상 설정</h3>
           <p className="text-sm text-muted-foreground">
@@ -795,6 +949,7 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
               <Select
                 value={analysisScope}
                 onValueChange={(v) => setAnalysisScope(v as any)}
+                disabled={!!selectedTeamGroupId}
               >
                 <SelectTrigger className="w-full sm:w-[120px]">
                   <SelectValue />
@@ -816,6 +971,7 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
                     setSelectedGrade(v);
                     setSelectedClassNum("");
                   }}
+                  disabled={!!selectedTeamGroupId}
                 >
                   <SelectTrigger className="w-full sm:w-[120px]">
                     <SelectValue placeholder="학년 선택" />
@@ -837,7 +993,7 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
                 <Select
                   value={selectedClassNum}
                   onValueChange={setSelectedClassNum}
-                  disabled={!selectedGrade}
+                  disabled={!selectedGrade || !!selectedTeamGroupId}
                 >
                   <SelectTrigger className="w-full sm:w-[120px]">
                     <SelectValue placeholder="반 선택" />
@@ -857,6 +1013,7 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
               <Select
                 value={selectedGender}
                 onValueChange={(v) => setSelectedGender(v as any)}
+                disabled={!!selectedTeamGroupId}
               >
                 <SelectTrigger className="w-full sm:w-[120px]">
                   <SelectValue />
@@ -873,6 +1030,7 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
                 id="exclude"
                 checked={excludeNonParticipants}
                 onCheckedChange={(c) => setExcludeNonParticipants(!!c)}
+                disabled={!!selectedTeamGroupId}
               />
               <Label htmlFor="exclude">기록 없는 학생 제외</Label>
             </div>
@@ -901,7 +1059,7 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
                           handleToggleCategory(category, !!c)
                         }
                         aria-checked={isIndeterminate ? "mixed" : isAllSelected}
-                        disabled={targetStudents.length === 0}
+                        disabled={targetStudents.length === 0 || !!selectedTeamGroupId}
                       />
                       <Label
                         htmlFor={`category-${category}`}
@@ -917,7 +1075,7 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
                             id={`item-${item.id}`}
                             checked={selectedItemNames.includes(item.name)}
                             onCheckedChange={() => handleToggleItem(item.name)}
-                            disabled={targetStudents.length === 0}
+                            disabled={targetStudents.length === 0 || !!selectedTeamGroupId}
                           />
                           <Label
                             htmlFor={`item-${item.id}`}
@@ -1058,6 +1216,7 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
                           onCheckedChange={(c) =>
                             handleSelectAllForBalancing(!!c)
                           }
+                          disabled={!!selectedTeamGroupId}
                         />
                       </TableHead>
                       <TableHead>이름</TableHead>
@@ -1094,6 +1253,7 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
                                   }))
                                 }
                                 onClick={(e) => e.stopPropagation()}
+                                disabled={!!selectedTeamGroupId}
                               />
                             </TableCell>
                             <TableCell>{student.name}</TableCell>
@@ -1116,7 +1276,7 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
           </div>
         )}
 
-        {studentScores.size > 0 && (
+        {(studentScores.size > 0 || teams.length > 0) && (
           <div className="space-y-4 p-4 border rounded-md">
             <h3 className="font-semibold">3. 팀 편성</h3>
             <div className="flex flex-wrap items-end gap-4">
@@ -1128,14 +1288,16 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
                     onChange={(e) => setTeamGroupName(e.target.value)}
                     placeholder="예: 5학년 배구 리그"
                     className="w-full sm:w-[200px]"
+                    disabled={!!selectedTeamGroupId}
                   />
               </div>
                <div>
                 <Label>팀 나누기 기준</Label>
                 <RadioGroup
-                  defaultValue="teams"
+                  value={divideBy}
                   onValueChange={(v) => setDivideBy(v as any)}
                   className="flex items-center gap-4 mt-2"
+                  disabled={!!selectedTeamGroupId}
                 >
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="teams" id="teams" />
@@ -1160,6 +1322,7 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
                     }
                     min="2"
                     className="w-[100px]"
+                    disabled={!!selectedTeamGroupId}
                   />
                 </div>
               ) : (
@@ -1176,6 +1339,7 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
                     }
                     min="1"
                     className="w-[100px]"
+                    disabled={!!selectedTeamGroupId}
                   />
                 </div>
               )}
@@ -1183,12 +1347,13 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
               <div>
                 <Label>편성 방식</Label>
                 <RadioGroup
-                  defaultValue="uniform"
+                  value={balanceStrategy}
                   onValueChange={
                     (value) =>
                       setBalanceStrategy(value as "uniform" | "level")
                   }
                   className="flex items-center gap-4 mt-2"
+                   disabled={!!selectedTeamGroupId}
                 >
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="uniform" id="uniform" />
@@ -1200,8 +1365,9 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
                   </div>
                 </RadioGroup>
               </div>
-
-              <Button onClick={handleBalanceTeams}>
+            </div>
+             <div className="flex flex-wrap items-end gap-2 pt-2 border-t mt-4">
+              <Button onClick={handleBalanceTeams} disabled={!!selectedTeamGroupId}>
                 <Shuffle /> 팀 나누기
               </Button>
               <Button
@@ -1214,7 +1380,7 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
               <Button
                 onClick={handleSendTeams}
                 disabled={
-                  teams.length === 0 || isSending || leftoverStudents.length > 0
+                  teams.length === 0 || isSending || leftoverStudents.length > 0 || !!selectedTeamGroupId
                 }
               >
                 {isSending ? (
