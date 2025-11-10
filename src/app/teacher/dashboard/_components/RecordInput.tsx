@@ -1,8 +1,8 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { addOrUpdateRecord, addOrUpdateRecords, getRecordsByStudent } from '@/lib/store';
-import { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
+import { addOrUpdateRecord, addOrUpdateRecords } from '@/lib/store';
+import { Student, MeasurementItem, MeasurementRecord } from '@/lib/types';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -97,6 +97,13 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
     setBatchRecords({}); // Clear batch records on class change
   }, [selectedGrade, selectedClassNum, batchRecordItem]);
 
+  useEffect(() => {
+    // When selected item for single add changes, reset inputs
+    setRecordValue('');
+    setHeight('');
+    setWeight('');
+  }, [selectedItemName]);
+
 
   useEffect(() => {
     if (allItems.length > 0) {
@@ -135,6 +142,9 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
 
   const handleSelectStudent = (student: Student) => {
     setSelectedStudent(student);
+    setRecordValue('');
+    setHeight('');
+    setWeight('');
   }
 
   const handleSearch = () => {
@@ -261,6 +271,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                     if (selectedItemForBatchAdd?.isCompound) {
                         const h = parseFloat(values.height || '');
                         const w = parseFloat(values.weight || '');
+                        // Only proceed if at least one value is entered
                         if (isNaN(h) && isNaN(w)) return null;
 
                         if (!isNaN(h) && !isNaN(w) && h > 0 && w > 0) {
@@ -269,6 +280,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                             recordData.height = h;
                             recordData.weight = w;
                         } else {
+                            // If only one is entered, don't save a BMI record, but maybe save height/weight in future
                             return null;
                         }
                     } else {
