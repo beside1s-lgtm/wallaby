@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>체육 성장 기록 시스템</title>
+    <!-- 1. 폰트 시스템 (Paperlogy) --><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fonts-archive/Paperlogy/subsets/Paperlogy-dynamic-subset.css" type="text/css"/>
+    <!-- 2. 아이콘 시스템 (Font Awesome) - 프레젠테이션형 인포그래픽에 필요 --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <style>
+        /* 3.2. [2단계] 알고리즘적 테마 적용 */
+        /* 키워드 '교육' 감지 -> 테마 #3 (Vibrant Creative) 강제 적용 */
+        :root {
+            --primary-color: #8A2BE2; /* 보라 */
+            --secondary-color: #FF1493; /* 핑크 */
+            --background-color: #f8f7f4;
+            --text-color: #1f2937;
+            --card-bg-color: #ffffff;
+            --border-color: #e0e0e0;
+        }
+
+        /* 3.2. [3단계] 기본 스타일 및 폰트 시스템 적용 */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-snap-type: y mandatory;
+            overflow-y: scroll;
+            scroll-behavior: smooth; /* 부드러운 스크롤 효과 추가 */
+        }
+
+        body {
+            /* Paperlogy 폰트 스택 적용 */
+            font-family: "Paperlogy", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        /* 3.1. [1단계] - 선택 2 (프레젠테이션형 인포그래픽) 스타일 */
+        /* 1. 슬라이드 분할 */
+        .slide {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4rem;
+            scroll-snap-align: start;
+            border-bottom: 1px solid var(--border-color);
+            position: relative; /* 네비게이션 버튼 배치를 위한 기준 */
+        }
+
+        .slide:last-child {
+            border-bottom: none;
+        }
+
+        /* 첫 번째 슬라이드 (Hero) 및 마지막 슬라이드 (Thank You) */
+        .slide.hero, .slide.thank-you {
+            flex-direction: column;
+            text-align: center;
+            background-color: var(--primary-color);
+            color: #ffffff; /* 3.2. [2단계]-4: 지능형 대비 보장 */
+        }
+
+        .slide.hero h1, .slide.thank-you h1 {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        .slide.hero .dominant-icon, .slide.thank-you .dominant-icon {
+            font-size: 6rem; /* 2순위: 거대한 아이콘 */
+            margin-bottom: 2rem;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        /* 2. 지배적 시각 요소 + 3. 텍스트 재구성 */
+        .slide-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4rem;
+            align-items: center;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        /* 4. 레이아웃 교차 적용 */
+        .slide:nth-child(even) .slide-content {
+            grid-template-columns: 1fr 1fr; /* 짝수: 텍스트-시각 */
+        }
+        
+        .slide:nth-child(odd):not(.hero) .slide-content {
+             grid-template-columns: 1fr 1fr; /* 홀수: 시각-텍스트 */
+        }
+        
+        /* 홀수 슬라이드 (시각 요소가 왼쪽) */
+        .slide:nth-child(odd):not(.hero) .visual-container { order: 1; }
+        .slide:nth-child(odd):not(.hero) .text-container { order: 2; }
+
+        /* 짝수 슬라이드 (시각 요소가 오른쪽) */
+        .slide:nth-child(even) .visual-container { order: 2; }
+        .slide:nth-child(even) .text-container { order: 1; }
+
+
+        .visual-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .dominant-icon {
+            font-size: 10rem; /* 2순위: 거대한 아이콘 */
+            color: var(--primary-color);
+            opacity: 0.8;
+        }
+
+        .text-container h2 {
+            font-size: 2.5rem;
+            color: var(--primary-color);
+            margin-bottom: 1.5rem;
+            border-bottom: 3px solid var(--secondary-color);
+            padding-bottom: 0.5rem;
+            display: inline-block;
+        }
+
+        /* 3. 텍스트 재구성 (불릿 포인트) */
+        .text-container ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        .text-container li {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            padding-left: 2rem;
+            position: relative;
+        }
+
+        .text-container li::before {
+            content: '\f00c'; /* check icon */
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            color: var(--secondary-color);
+            position: absolute;
+            left: 0;
+            top: 5px;
+        }
+
+        /* 1순위: 데이터 시각화 (BarChart 컴포넌트) */
+        .barchart-container {
+            width: 100%;
+            max-width: 400px;
+            padding: 1.5rem;
+            border-radius: 8px;
+            background: var(--card-bg-color);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        .barchart-container h4 {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            font-size: 1.1rem;
+            color: var(--text-color);
+        }
+        .chart-bar {
+            height: 20px;
+            background-color: var(--primary-color);
+            margin-bottom: 1rem;
+            border-radius: 4px;
+            color: white; /* 3.2. [2단계]-4: 지능형 대비 보장 */
+            font-size: 0.8rem;
+            padding: 2px 8px;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        /* Radar Chart Specific Styles */
+        .radar-chart-container {
+            background: var(--card-bg-color);
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            width: 100%;
+            max-width: 450px;
+            aspect-ratio: 1 / 1; /* Make it square */
+            position: relative;
+        }
+
+        .radar-chart-container h4 {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            font-size: 1.2rem;
+            color: var(--text-color);
+        }
+
+        .radar-chart {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .radar-chart svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg); /* Start point upwards */
+        }
+
+        .radar-chart polygon.grid {
+            fill: none;
+            stroke: var(--border-color);
+            stroke-width: 1;
+        }
+
+        .radar-chart line.axis {
+            stroke: var(--border-color);
+            stroke-width: 1;
+        }
+
+        .radar-chart text.label {
+            fill: var(--text-color);
+            font-size: 0.9rem;
+            text-anchor: middle;
+            dominant-baseline: central;
+            transform: rotate(90deg); /* Counter-rotate labels */
+        }
+
+        .radar-chart polygon.data-player {
+            fill: var(--primary-color);
+            fill-opacity: 0.6;
+            stroke: var(--primary-color);
+            stroke-width: 2;
+        }
+        .radar-chart polygon.data-team {
+            fill: var(--secondary-color);
+            fill-opacity: 0.4;
+            stroke: var(--secondary-color);
+            stroke-width: 2;
+        }
+        .radar-chart circle.point {
+            fill: white;
+            stroke: var(--primary-color);
+            stroke-width: 1;
+        }
+
+        .legend {
+            position: absolute;
+            bottom: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 1.5rem;
+            font-size: 0.9rem;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+        }
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 3px;
+            margin-right: 8px;
+        }
+        .legend-color.player { background-color: var(--primary-color); opacity: 0.6;}
+        .legend-color.team { background-color: var(--secondary-color); opacity: 0.4;}
+
+        /* Individual Stat Block for Progress */
+        .stat-progress-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .stat-item {
+            background-color: #f0f0f0;
+            padding: 0.8rem;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 0.9rem;
+            color: var(--text-color);
+        }
+        .stat-item strong {
+            display: block;
+            font-size: 1.1rem;
+            color: var(--primary-color);
+            margin-bottom: 0.3rem;
+        }
+        .progress-indicator {
+            height: 8px;
+            background-color: #ccc;
+            border-radius: 4px;
+            margin-top: 5px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: var(--secondary-color);
+            width: 0; /* JS will set this */
+            border-radius: 4px;
+            transition: width 0.5s ease-out;
+        }
+
+        /* 슬라이드 네비게이션 버튼 */
+        .nav-btn {
+            position: absolute;
+            bottom: 2rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 3.5rem;
+            height: 3.5rem;
+            background: var(--primary-color);
+            color: #ffffff;
+            border-radius: 50%;
+            text-decoration: none;
+            font-size: 1.2rem;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+        
+        .nav-btn:hover {
+            background: var(--secondary-color);
+            transform: translateY(-3px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.2);
+        }
+        
+        .nav-btn.prev {
+            left: 2rem;
+        }
+        
+        .nav-btn.next {
+            right: 2rem;
+        }
+
+        /* Hero/Thank you 슬라이드의 버튼은 배경과 어울리도록 반투명 처리 */
+        .slide.hero .nav-btn, .slide.thank-you .nav-btn {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        .slide.hero .nav-btn:hover, .slide.thank-you .nav-btn:hover {
+            background: rgba(255, 255, 255, 0.4);
+            transform: translateY(0); /* 어두운 배경에서는 transform 제외 */
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- [3.0. 0단계] 콘텐츠 정제 및 개조식 변환 적용 --><!-- 슬라이드 1: MainTitle --><section class="slide hero" id="slide-1">
+        <!-- 2순위: 지배적 시각 요소 (아이콘) --><i class="fas fa-chart-line dominant-icon"></i>
+        <h1>체육 성장 기록 시스템</h1>
+        <p>AI 기반 학생 성장 분석 및 피드백</p>
+        <!-- 다음 버튼 -->
+        <a href="#slide-2" class="nav-btn next"><i class="fas fa-arrow-down"></i></a>
+    </section>
+
+    <!-- 슬라이드 2: 맞춤형 대시보드 (짝수 - 텍스트/시각) --><section class="slide" id="slide-2">
+        <div class="slide-content">
+            <!-- 3. 텍스트 재구성 --><div class="text-container">
+                <h2>맞춤형 대시보드</h2>
+                <ul>
+                    <!-- 개조식 변환 적용 --><li>교사용/학생용 대시보드 완벽 분리</li>
+                    <li>데이터 실시간 상호 공유 및 확인</li>
+                </ul>
+            </div>
+            <!-- 2순위: 지배적 시각 요소 (아이콘) --><div class="visual-container">
+                <i class="fas fa-users-gear dominant-icon"></i>
+            </div>
+        </div>
+        <!-- 이전/다음 버튼 -->
+        <a href="#slide-1" class="nav-btn prev"><i class="fas fa-arrow-up"></i></a>
+        <a href="#slide-3" class="nav-btn next"><i class="fas fa-arrow-down"></i></a>
+    </section>
+    
+    <!-- 슬라이드 3: AI 기반 성장 분석 (홀수 - 시각/텍스트) --><section class="slide" id="slide-3">
+        <div class="slide-content">
+            <!-- 2순위: 지배적 시각 요소 (아이콘) --><div class="visual-container">
+                <i class="fas fa-brain dominant-icon"></i>
+            </div>
+            <!-- 3. 텍스트 재구성 --><div class="text-container">
+                <h2>AI 기반 성장 분석</h2>
+                <ul>
+                    <!-- 개조식 변환 적용 --><li>모든 체육 평가 결과의 자동 기록 및 누적</li>
+                    <li>AI가 데이터를 분석하여 맞춤형 피드백 제공함</li>
+                </ul>
+            </div>
+        </div>
+        <!-- 이전/다음 버튼 -->
+        <a href="#slide-2" class="nav-btn prev"><i class="fas fa-arrow-up"></i></a>
+        <a href="#slide-4" class="nav-btn next"><i class="fas fa-arrow-down"></i></a>
+    </section>
+
+    <!-- 슬라이드 4: 개인 성장 추이 및 팀 편성 시각화 (짝수 - 텍스트/시각) --><section class="slide" id="slide-4">
+        <div class="slide-content">
+            <div class="text-container">
+                <h2>개인 성장 &amp; 팀 편성 시각화</h2>
+                <ul>
+                    <li>개인 능력치 그래프로 <strong>개인 성취도</strong> 시각화</li>
+                    <li>각 종목별로 자신의 성장 추이 비교 가능</li>
+                    <li>방사형 그래프로 <strong>팀/학생 능력치</strong>를 한눈에 비교하여 공정한 팀 편성 지원</li>
+                </ul>
+            </div>
+            <div class="visual-container">
+                <div class="radar-chart-container">
+                    <h4>선수 A 능력치 &amp; 팀 평균 비교</h4>
+                    <div class="radar-chart" id="radarChart">
+                        <!-- SVG will be injected here by JavaScript --></div>
+                    <div class="legend">
+                        <div class="legend-item"><span class="legend-color player"></span>선수 A</div>
+                        <div class="legend-item"><span class="legend-color team"></span>팀 평균</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- 이전/다음 버튼 -->
+        <a href="#slide-3" class="nav-btn prev"><i class="fas fa-arrow-up"></i></a>
+        <a href="#slide-5" class="nav-btn next"><i class="fas fa-arrow-down"></i></a>
+    </section>
+
+    <!-- 슬라이드 5: 심층 데이터 분석 (홀수 - 시각/텍스트) --><section class="slide" id="slide-5">
+        <div class="slide-content">
+            <!-- 2순위: 지배적 시각 요소 (아이콘) --><div class="visual-container">
+                <i class="fas fa-chart-pie dominant-icon"></i>
+            </div>
+            <!-- 3. 텍스트 재구성 --><div class="text-container">
+                <h2>심층 데이터 분석</h2>
+                <ul>
+                    <!-- 개조식 변환 적용 --><li>학생: 종목별 개인 성장 추이 비교 분석</li>
+                    <li>교사: AI 브리핑으로 전체/학급 평균 확인</li>
+                    <li>교사: 확인된 데이터를 차후 교육 계획에 참고</li>
+                </ul>
+            </div>
+        </div>
+        <!-- 이전/다음 버튼 -->
+        <a href="#slide-4" class="nav-btn prev"><i class="fas fa-arrow-up"></i></a>
+        <a href="#slide-6" class="nav-btn next"><i class="fas fa-arrow-down"></i></a>
+    </section>
+
+    <!-- 슬라이드 6: 지속적인 성장 관리 (짝수 - 텍스트/시각) --><section class="slide" id="slide-6">
+        <div class="slide-content">
+            <!-- 3. 텍스트 재구성 --><div class="text-container">
+                <h2>지속적인 성장 관리</h2>
+                <ul>
+                    <!-- 개조식 변환 적용 --><li>학년도 변경 시 간편한 진급 정보 업데이트</li>
+                    <li>중단 없는 데이터 추적 및 기록 관리</li>
+                    <li>장기적인 학생 성장 포트폴리오 구축</li>
+                </ul>
+            </div>
+            <!-- 2순위: 지배적 시각 요소 (아이콘) --><div class="visual-container">
+                <i class="fas fa-sync-alt dominant-icon"></i>
+            </div>
+        </div>
+        <!-- 이전/다음 버튼 -->
+        <a href="#slide-5" class="nav-btn prev"><i class="fas fa-arrow-up"></i></a>
+        <a href="#slide-7" class="nav-btn next"><i class="fas fa-arrow-down"></i></a>
+    </section>
+
+    <!-- 슬라이드 7: 감사합니다 (신규) -->
+    <section class="slide thank-you" id="slide-7">
+        <h1>감사합니다</h1>
+        <i class="fas fa-heart dominant-icon"></i>
+        <!-- 이전 버튼 -->
+        <a href="#slide-6" class="nav-btn prev"><i class="fas fa-arrow-up"></i></a>
+    </section>
+
+    <script>
+        // 3.3. [3단계] 최종 검증 규칙 적용
+        document.addEventListener('DOMContentLoaded', () => {
+            const radarChartElement = document.getElementById('radarChart');
+
+            if (radarChartElement) {
+                const numSides = 5; // Strength, Agility, Cooperation, Endurance, Speed
+                const maxValue = 100;
+                const labels = ['근력', '민첩성', '협동', '지구력', '스피드'];
+
+                // Sample data
+                const playerData = [80, 60, 90, 75, 70]; // Example for Player A
+                const teamData = [70, 75, 80, 70, 65]; // Example for Team Average
+
+                const createRadarChart = (element, playerValues, teamValues, labels, max) => {
+                    const width = 300;
+                    const height = 300;
+                    const radius = Math.min(width, height) / 2 - 20; // Adjusted for padding
+                    const centerX = width / 2;
+                    const centerY = height / 2;
+
+                    let svgContent = `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet">`;
+
+                    // Draw grid circles
+                    const numCircles = 3;
+                    for (let i = 1; i <= numCircles; i++) {
+                        const r = radius * (i / numCircles);
+                        svgContent += `<circle cx="${centerX}" cy="${centerY}" r="${r}" fill="none" stroke="${getComputedStyle(document.documentElement).getPropertyValue('--border-color')}" stroke-opacity="0.5" stroke-width="0.5"/>`;
+                    }
+
+                    // Draw axes and labels
+                    const angleSlice = (Math.PI * 2) / numSides;
+                    const dataPointsPlayer = [];
+                    const dataPointsTeam = [];
+
+                    for (let i = 0; i < numSides; i++) {
+                        const angle = angleSlice * i;
+                        const x = centerX + radius * Math.cos(angle);
+                        const y = centerY + radius * Math.sin(angle);
+                        svgContent += `<line x1="${centerX}" y1="${centerY}" x2="${x}" y2="${y}" class="axis"/>`;
+                        
+                        // Calculate label position slightly outside the radius
+                        const labelX = centerX + (radius + 20) * Math.cos(angle);
+                        const labelY = centerY + (radius + 20) * Math.sin(angle);
+                        svgContent += `<text x="${labelX}" y="${labelY}" class="label">${labels[i]}</text>`;
+
+                        const playerPointRadius = radius * (playerValues[i] / max);
+                        const teamPointRadius = radius * (teamValues[i] / max);
+
+                        dataPointsPlayer.push(`${centerX + playerPointRadius * Math.cos(angle)},${centerY + playerPointRadius * Math.sin(angle)}`);
+                        dataPointsTeam.push(`${centerX + teamPointRadius * Math.cos(angle)},${centerY + teamPointRadius * Math.sin(angle)}`);
+                    }
+
+                    // Draw player data polygon
+                    svgContent += `<polygon points="${dataPointsPlayer.join(' ')}" class="data-player"/>`;
+                    // Draw team data polygon
+                    svgContent += `<polygon points="${dataPointsTeam.join(' ')}" class="data-team"/>`; // *** FIX: dataDriventeam -> dataPointsTeam ***
+
+                    svgContent += `</svg>`;
+                    element.innerHTML = svgContent;
+                };
+
+                // Initial Chart Render
+                createRadarChart(radarChartElement, playerData, teamData, labels, maxValue);
+            }
+        });
+    </script>
+</body>
+</html>
