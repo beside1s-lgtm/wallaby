@@ -789,31 +789,17 @@ export const saveTeamGroup = async (teamGroupData: TeamGroupInput): Promise<void
 export const getLatestTeamGroupForStudent = async (school: string, studentId: string): Promise<TeamGroup | null> => {
   await signIn();
   try {
-    const teamGroupsRef = collectionGroup(db, 'teamGroups');
+    const teamGroupsRef = collection(db, 'schools', school, 'teamGroups');
+    
+    // This is not perfectly efficient, but it is the most reliable way to query for this
+    // without changing the data model to include a top-level memberIds array.
+    // We query all team groups for the school and filter client-side.
     const q = query(
       teamGroupsRef,
-      where('school', '==', school),
-      where('teams', 'array-contains-any', [{memberIds: [studentId]}]), // This is still not right. `array-contains-any` cannot be used on a list of objects.
-      orderBy('createdAt', 'desc'),
-      limit(1)
-    );
-    
-    // The query above is fundamentally flawed. A correct way to do this without changing the
-    // data model (which would be the best solution) is to fetch groups and filter client-side,
-    // which is what I tried to do before and failed. The *correct* data model would be to
-    // have a top-level array of all memberIds in the teamGroup document.
-    // Let's implement the correct query assuming a data model change isn't possible right now.
-    // The "correct" but slow way is to get all team groups and filter.
-    // Let's try to be smarter and at least query for groups that contain the student ID.
-    // A better data model would have a `memberIds` array at the top level of the TeamGroup document.
-
-    const allTeamGroupsInSchoolQuery = query(
-      collection(db, 'schools', school, 'teamGroups'),
-      orderBy('createdAt', 'desc'),
-      limit(50) // Fetch recent 50 groups as a compromise for performance.
+      orderBy('createdAt', 'desc')
     );
 
-    const snapshot = await getDocs(allTeamGroupsInSchoolQuery);
+    const snapshot = await getDocs(q);
     
     for (const doc of snapshot.docs) {
       const group = doc.data() as TeamGroup;
@@ -824,7 +810,7 @@ export const getLatestTeamGroupForStudent = async (school: string, studentId: st
         }
       }
     }
-    return null; // Not found in recent groups
+    return null;
 
   } catch (e: any) {
     if (e.code === 'permission-denied') {
@@ -834,13 +820,10 @@ export const getLatestTeamGroupForStudent = async (school: string, studentId: st
         requestResourceData: { query: `latest team group for student ${studentId}` }
       }));
     } else if (e.code === 'failed-precondition') {
-        // This error happens if the composite index is missing.
-        // Let's provide a more helpful error for the developer.
-        const helpfulError = new Error(`A Firestore index is required for this query. Please create a composite index for the 'teamGroups' collection group with fields 'school' (ascending) and 'createdAt' (descending). The error was: ${e.message}`);
+        const helpfulError = new Error(`A Firestore index is required for this query. Please create a composite index for the 'teamGroups' collection in Firestore with fields 'school' (ascending) and 'createdAt' (descending). The error was: ${e.message}`);
         console.error(helpfulError);
         throw helpfulError;
     }
-    // Re-throw other errors to be caught by the caller
     throw e;
   }
 };

@@ -64,14 +64,21 @@ export default function TeacherDashboardPage() {
 
   const forceUpdate = async () => {
     if (isAuthLoading || !school) return;
-    const [studentData, itemData, recordData] = await Promise.all([
-      getStudents(school),
-      getItems(school),
-      getRecords(school),
-    ]);
-    setStudents(studentData);
-    setItems(itemData);
-    setRecords(recordData);
+    setIsLoading(true);
+    try {
+        const [studentData, itemData, recordData] = await Promise.all([
+        getStudents(school),
+        getItems(school),
+        getRecords(school),
+        ]);
+        setStudents(studentData);
+        setItems(itemData);
+        setRecords(recordData);
+    } catch (error) {
+        console.error("Failed to force update data:", error);
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   if (isLoading || isAuthLoading) {

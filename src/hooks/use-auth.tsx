@@ -10,6 +10,8 @@ import {
 } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Student } from '@/lib/types';
+import { auth } from '@/lib/firebase';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 
 type User = (Student & { school: string }) | { name: string; school: string };
 type Role = 'teacher' | 'student' | null;
@@ -30,46 +32,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<Role>(null);
   const [school, setSchool] = useState<string | null>(null);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    try {
-      const storedRole = localStorage.getItem('userRole') as Role;
-      const storedSchool = localStorage.getItem('userSchool');
+    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+      setFirebaseUser(fbUser);
+      if (fbUser) {
+        try {
+          const storedRole = localStorage.getItem('userRole') as Role;
+          const storedSchool = localStorage.getItem('userSchool');
 
-      if (storedRole && storedSchool) {
-        let storedUser: User | null = null;
-        if (storedRole === 'teacher') {
-          storedUser = { name: '교사', school: storedSchool };
-        } else if (storedRole === 'student') {
-          const studentInfo = localStorage.getItem('loggedInStudent');
-          if (studentInfo) {
-            storedUser = JSON.parse(studentInfo);
+          if (storedRole && storedSchool) {
+            let storedUser: User | null = null;
+            if (storedRole === 'teacher') {
+              storedUser = { name: '교사', school: storedSchool };
+            } else if (storedRole === 'student') {
+              const studentInfo = localStorage.getItem('loggedInStudent');
+              if (studentInfo) {
+                storedUser = JSON.parse(studentInfo);
+              }
+            }
+
+            if (storedUser) {
+              setUser(storedUser);
+              setRole(storedRole);
+              setSchool(storedSchool);
+            } else {
+              // Data inconsistency, clear auth state
+              localStorage.removeItem('userRole');
+              localStorage.removeItem('loggedInStudent');
+              localStorage.removeItem('userSchool');
+              setRole(null);
+              setSchool(null);
+              setUser(null);
+            }
           }
+        } catch (error) {
+          console.error('Failed to initialize auth state from storage:', error);
+          // Clear potentially corrupted storage
+           localStorage.removeItem('userRole');
+           localStorage.removeItem('loggedInStudent');
+           localStorage.removeItem('userSchool');
+           setRole(null);
+           setSchool(null);
+           setUser(null);
         }
-
-        if (storedUser) {
-          setUser(storedUser);
-          setRole(storedRole);
-          setSchool(storedSchool);
-        } else {
-          // Data inconsistency, clear auth state
-          localStorage.removeItem('userRole');
-          localStorage.removeItem('loggedInStudent');
-          localStorage.removeItem('userSchool');
-        }
+      } else {
+        // No firebase user, ensure local state is cleared
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('loggedInStudent');
+        localStorage.removeItem('userSchool');
+        setRole(null);
+        setSchool(null);
+        setUser(null);
       }
-    } catch (error) {
-      console.error('Failed to initialize auth state:', error);
-    } finally {
       setIsLoading(false);
-    }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading) return; // Do not perform any routing logic while auth state is loading
 
     const isAuthPage = pathname === '/' || pathname === '/student-login' || pathname === '/teacher/register';
     
@@ -119,6 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSchool(null);
     setUser(null);
     
+    // Using window.location.href ensures a full page reload, clearing all state.
     if (currentRole === 'student') {
       window.location.href = '/student-login';
     } else {
@@ -132,7 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     school,
     login,
     logout,
-    isAuthenticated: !!user,
+    isAuthenticated: !!user && !!firebaseUser,
     isLoading,
   };
 
