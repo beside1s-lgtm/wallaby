@@ -496,9 +496,9 @@ export default function StudentDashboardPage() {
                             <p className="text-sm text-muted-foreground text-center py-8">팀 정보가 없습니다. 선생님이 팀을 편성하고 전달할 때까지 기다려주세요.</p>
                         )}
                     </div>
-                     <div className="order-1 md:order-2 h-[300px] md:h-auto grid grid-cols-2 gap-4">
+                     <div className="order-1 md:order-2 grid grid-cols-2 gap-4">
                         {abilityScores.length > 0 ? (
-                             <div className='text-center'>
+                             <div className='text-center h-[300px]'>
                                 <h4 className="font-semibold mb-2">나의 능력치</h4>
                                 <ResponsiveContainer width="100%" height="100%">
                                   <RadarChart cx="50%" cy="50%" outerRadius="80%" data={abilityScores}>
@@ -512,7 +512,7 @@ export default function StudentDashboardPage() {
                              </div>
                         ): null}
                         {teamAverageScores.length > 0 ? (
-                            <div className='text-center'>
+                            <div className='text-center h-[300px]'>
                                 <h4 className="font-semibold mb-2">팀 평균 능력치</h4>
                                 <ResponsiveContainer width="100%" height="100%">
                                   <RadarChart cx="50%" cy="50%" outerRadius="80%" data={teamAverageScores}>
