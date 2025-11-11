@@ -883,7 +883,7 @@ function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGro
     }
     setIsSending(true);
     try {
-      const teamData: TeamGroupInput = {
+      const teamData: Partial<TeamGroupInput> = {
         school,
         description: teamGroupName,
         teams: teams.map((team, index) => ({
@@ -896,10 +896,16 @@ function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGro
         classNum: selectedClassNum,
         gender: selectedGender,
         divideBy,
-        numTeams: divideBy === 'teams' ? numTeams : undefined,
-        membersPerTeam: divideBy === 'members' ? membersPerTeam : undefined,
       };
-      await saveTeamGroup(teamData);
+
+      if (divideBy === 'teams') {
+        teamData.numTeams = numTeams;
+      }
+      if (divideBy === 'members') {
+        teamData.membersPerTeam = membersPerTeam;
+      }
+      
+      await saveTeamGroup(teamData as TeamGroupInput);
       toast({
         title: "전달 완료",
         description: "편성된 팀 명단이 학생들에게 전달되었습니다.",
