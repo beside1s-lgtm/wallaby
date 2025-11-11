@@ -79,7 +79,9 @@ export type Match = {
   scoreA: number | null;
   scoreB: number | null;
   winnerId: string | null;
-  status: 'scheduled' | 'completed' | 'bye'; // 'bye' is a bye week
+  status: 'scheduled' | 'completed' | 'bye';
+  nextMatchId: string | null; // ID of the match this match's winner will advance to
+  nextMatchSlot: 'A' | 'B' | null; // Which slot the winner will fill in the next match
 };
 
 export type TournamentGroup = {
