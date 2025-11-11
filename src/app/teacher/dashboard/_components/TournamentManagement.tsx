@@ -135,36 +135,28 @@ const generateTournamentBracket = (teamIds: string[]): Match[] => {
       match.teamBId = teamB;
     }
   }
-
+  
   // Auto-advance winners from bye rounds
   const advanceByeWinners = () => {
-      let changed = false;
-      matches.filter(m => m.status === 'completed' && m.nextMatchId).forEach(m => {
+    let changed = true;
+    while(changed) {
+      changed = false;
+      matches.filter(m => m.status === 'completed' && m.winnerId && m.nextMatchId).forEach(m => {
           const nextMatch = matches.find(nm => nm.id === m.nextMatchId);
           if (nextMatch) {
-              if(m.nextMatchSlot === 'A' && nextMatch.teamAId === null) {
+              if (m.nextMatchSlot === 'A' && nextMatch.teamAId === null) {
                   nextMatch.teamAId = m.winnerId;
                   changed = true;
               } else if (m.nextMatchSlot === 'B' && nextMatch.teamBId === null) {
                   nextMatch.teamBId = m.winnerId;
                   changed = true;
               }
-
-              if(nextMatch.teamAId && nextMatch.teamBId) {
-                  // Check if the other team was also a bye, if so, this match can be auto-completed
-                   const otherSlotMatch = matches.find(om => om.nextMatchId === nextMatch.id && om.nextMatchSlot !== m.nextMatchSlot);
-                   if (otherSlotMatch && otherSlotMatch.status === 'completed') {
-                       // This case shouldn't happen with proper bye logic, but as a safeguard.
-                   }
-              }
           }
       });
-      return changed;
+    }
   }
+  advanceByeWinners();
   
-  // Keep advancing bye winners until no more changes
-  while (advanceByeWinners()) {}
-
   return matches;
 };
 
@@ -465,7 +457,7 @@ export default function TournamentManagement({
     });
 
     return Object.entries(rounds)
-      .sort(([roundA], [roundB]) => Number(roundB) - Number(roundA)) // 결승부터
+      .sort(([roundA], [roundB]) => Number(roundA) - Number(roundB)) 
       .map(([, matches]) => matches.sort((a, b) => a.matchNumber - b.matchNumber));
 
   }, [enrichedTournament]);
@@ -653,18 +645,28 @@ export default function TournamentManagement({
                     </div>
                 ))}
 
-                 {enrichedTournament.type === 'tournament' && tournamentRounds.length > 0 && (
-                     <div className="p-4 border rounded-lg overflow-x-auto">
-                        <div className="flex justify-end items-stretch min-w-max">
-                            {tournamentRounds.map((round, roundIndex) => (
-                                <div key={roundIndex} className="flex flex-col justify-around mx-4">
-                                     <h5 className="text-center font-semibold mb-4">{round[0].round === Math.log2(selectedTeamGroup?.teams.length || 1) ? '결승' : `${round.length}강`}</h5>
+                {enrichedTournament.type === 'tournament' && tournamentRounds.length > 0 && (
+                    <div className="p-4 border rounded-lg overflow-x-auto">
+                        <div className="flex flex-col items-center min-w-max">
+                            {tournamentRounds.slice().reverse().map((round, roundIndex, allRounds) => (
+                                <div key={roundIndex} className={`flex justify-around w-full ${roundIndex > 0 ? 'mt-4' : ''}`}>
                                     {round.map((match) => (
-                                        <div key={match.id} className="relative my-2">
-                                            <div className="p-2 bg-muted rounded-lg w-48 space-y-1">
+                                        <div key={match.id} className="relative flex flex-col items-center">
+                                            {/* incoming lines */}
+                                            {match.round < allRounds.length && (
+                                                <>
+                                                    <div className="absolute bottom-full left-1/2 w-px h-4 bg-gray-400"></div>
+                                                    <div className="absolute" style={{bottom: 'calc(100% + 1rem - 1px)', left: '-50%', width: '100%', height:'1px', background: 'transparent' }}>
+                                                         <div className="absolute top-0 left-0 w-1/2 h-full border-r border-gray-400"></div>
+                                                         <div className="absolute top-0 right-0 w-1/2 h-full border-l border-gray-400"></div>
+                                                    </div>
+                                                </>
+                                            )}
+                                            
+                                            <div className="p-2 bg-muted rounded-lg w-48 space-y-1 z-10">
                                                 <div className="flex items-center justify-between text-sm">
                                                     <span className={`font-medium ${match.winnerId === match.teamAId ? 'text-primary' : ''}`}>{match.teamAName}</span>
-                                                     <Input 
+                                                    <Input 
                                                         type="number" 
                                                         className="w-12 h-7 text-center" 
                                                         placeholder="-" 
@@ -672,7 +674,7 @@ export default function TournamentManagement({
                                                         onChange={(e) => handleMatchResultChange(match.id, 'A', e.target.value)}
                                                     />
                                                 </div>
-                                                 <div className="flex items-center justify-between text-sm">
+                                                <div className="flex items-center justify-between text-sm">
                                                     <span className={`font-medium ${match.winnerId === match.teamBId ? 'text-primary' : ''}`}>{match.teamBName}</span>
                                                     <Input 
                                                         type="number" 
@@ -680,20 +682,21 @@ export default function TournamentManagement({
                                                         placeholder="-" 
                                                         value={matchResults[match.id]?.scoreB ?? ''}
                                                         onChange={(e) => handleMatchResultChange(match.id, 'B', e.target.value)}
-                                                     />
+                                                    />
                                                 </div>
                                                 <Button size="sm" className="w-full mt-1" onClick={() => handleUpdateMatch(match.id, false)} disabled={match.status === 'bye' || (!match.teamAId || !match.teamBId)}>
                                                     <Save className="mr-2 h-4 w-4" /> 저장
                                                 </Button>
                                             </div>
+                                             {/* Outgoing line */}
                                              {match.nextMatchId && (
-                                              <div className="absolute top-1/2 -right-6 w-6 h-px bg-gray-400"></div>
-                                            )}
+                                                <div className="absolute top-full left-1/2 w-px h-4 bg-gray-400"></div>
+                                             )}
                                         </div>
                                     ))}
                                 </div>
                             ))}
-                         </div>
+                        </div>
                     </div>
                 )}
                 {enrichedTournament.groups.length === 0 && enrichedTournament.matches.length === 0 && (
