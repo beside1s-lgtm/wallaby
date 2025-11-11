@@ -590,32 +590,32 @@ export default function TournamentManagement({
                         <h4 className="font-bold text-lg mb-2">토너먼트 대진</h4>
                          <div className="flex gap-4 overflow-x-auto p-4">
                             {tournamentRounds.map((round, roundIndex) => (
-                                <div key={roundIndex} className="flex flex-col justify-around min-w-[250px] gap-8">
+                                <div key={roundIndex} className="flex flex-col justify-around min-w-[220px] gap-4">
                                     <h5 className="text-center font-semibold">{roundIndex + 1} 라운드</h5>
                                     {round.map((match) => (
-                                        <div key={match.id} className="p-3 bg-muted rounded-lg space-y-2">
+                                        <div key={match.id} className="p-2 bg-muted rounded-lg space-y-1">
                                             <div className="flex items-center justify-between">
-                                                <span className={`font-semibold ${match.winnerId === match.teamAId ? 'text-primary' : ''}`}>{match.teamAName}</span>
+                                                <span className={`font-medium text-sm ${match.winnerId === match.teamAId ? 'text-primary' : ''}`}>{match.teamAName}</span>
                                                  <Input 
                                                     type="number" 
-                                                    className="w-14 h-8 text-center" 
+                                                    className="w-12 h-7 text-center" 
                                                     placeholder="-" 
                                                     value={matchResults[match.id]?.scoreA ?? ''}
                                                     onChange={(e) => handleMatchResultChange(match.id, 'A', e.target.value)}
                                                 />
                                             </div>
                                              <div className="flex items-center justify-between">
-                                                <span className={`font-semibold ${match.winnerId === match.teamBId ? 'text-primary' : ''}`}>{match.teamBName}</span>
+                                                <span className={`font-medium text-sm ${match.winnerId === match.teamBId ? 'text-primary' : ''}`}>{match.teamBName}</span>
                                                 <Input 
                                                     type="number" 
-                                                    className="w-14 h-8 text-center" 
+                                                    className="w-12 h-7 text-center" 
                                                     placeholder="-" 
                                                     value={matchResults[match.id]?.scoreB ?? ''}
                                                     onChange={(e) => handleMatchResultChange(match.id, 'B', e.target.value)}
                                                  />
                                             </div>
-                                            <Button size="sm" className="w-full mt-2" onClick={() => handleUpdateMatch(match.id, false)}>
-                                                <Save className="mr-2 h-4 w-4" /> 결과 저장
+                                            <Button size="sm" className="w-full mt-1" onClick={() => handleUpdateMatch(match.id, false)}>
+                                                <Save className="mr-2 h-4 w-4" /> 저장
                                             </Button>
                                         </div>
                                     ))}
