@@ -821,8 +821,6 @@ export const deleteTeamGroup = async (school: string, teamGroupId: string): Prom
 export const getLatestTeamGroupForStudent = async (school: string, studentId: string): Promise<TeamGroup | null> => {
   await signIn();
   try {
-    // Firestore does not support querying for a value in a nested array of objects like this.
-    // The correct approach is to fetch all team groups and filter on the client side.
     const teamGroupsRef = collection(db, 'schools', school, 'teamGroups');
     const q = query(teamGroupsRef, orderBy('createdAt', 'desc'));
     const snapshot = await getDocs(q);

@@ -77,14 +77,10 @@ export type Match = {
   matchNumber: number; // For tournaments
   teamAId: string | null;
   teamBId: string | null;
-  teamAName?: string; // Populated client-side
-  teamBName?: string; // Populated client-side
   scoreA: number | null;
   scoreB: number | null;
   winnerId: string | null;
   status: 'scheduled' | 'completed' | 'bye';
-  nextMatchId: string | null; // ID of the match this match's winner will advance to
-  nextMatchSlot: 'A' | 'B' | null; // Which slot the winner will fill in the next match
 };
 
 export type TournamentGroup = {
