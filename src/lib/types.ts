@@ -67,3 +67,36 @@ export type TeamGroup = {
 export type TeamGroupInput = Omit<TeamGroup, 'id' | 'createdAt' | 'teams'> & {
   teams: { teamIndex: number; memberIds: string[] }[];
 };
+
+
+// --- Tournament Types ---
+export type Match = {
+  id: string;
+  round: number; // For tournaments
+  matchNumber: number; // For tournaments
+  teamAId: string | null;
+  teamBId: string | null;
+  teamAName?: string; // Populated client-side
+  teamBName?: string; // Populated client-side
+  scoreA: number | null;
+  scoreB: number | null;
+  winnerId: string | null;
+  status: 'scheduled' | 'completed' | 'bye'; // 'bye' is a bye week
+};
+
+export type TournamentGroup = {
+  name: string; // e.g., "A조"
+  teamIds: string[];
+  matches: Match[];
+};
+
+export type Tournament = {
+  id: string;
+  school: string;
+  name: string;
+  type: 'round-robin' | 'tournament' | 'league-tournament';
+  teamGroupId: string; // ID of the TeamGroup used for this tournament
+  groups: TournamentGroup[]; // For league-tournament or round-robin with groups
+  matches: Match[]; // For single tournament or final tournament stage
+  createdAt: any;
+};

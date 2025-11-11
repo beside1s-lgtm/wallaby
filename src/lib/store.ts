@@ -1,5 +1,5 @@
 'use client';
-import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentToAdd, School, StudentToUpdate, TeamGroup, TeamGroupInput } from './types';
+import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentToAdd, School, StudentToUpdate, TeamGroup, TeamGroupInput, Tournament } from './types';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { initialItems, initialStudents, initialRecords } from './initial-data';
@@ -365,7 +365,7 @@ export const setItems = async (school: string, items: MeasurementItem[]) => {
 }
 
 
-export const addItem = async (school: string, item: Omit<MeasurementItem, 'id'>) => {
+export const addItem = async (school: string, item: Omit<MeasurementItem, 'id' | 'category'> & {category?: string}) => {
   await signIn();
   const itemsRef = collection(db, 'schools', school, 'items');
   const q = query(itemsRef, where("name", "==", item.name), limit(1));
@@ -866,4 +866,110 @@ export const getLatestTeamGroupForStudent = async (school: string, studentId: st
     }
     throw e;
   }
+};
+
+// --- Tournament Functions ---
+export const saveTournament = async (tournament: Omit<Tournament, 'id' | 'createdAt'>): Promise<string> => {
+  await signIn();
+  const tournamentsRef = collection(db, 'schools', tournament.school, 'tournaments');
+  const newDocRef = doc(tournamentsRef);
+  const dataToSave = {
+    ...tournament,
+    id: newDocRef.id,
+    createdAt: serverTimestamp(),
+  };
+  await setDoc(newDocRef, dataToSave).catch(e => {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: newDocRef.path,
+        operation: 'create',
+        requestResourceData: dataToSave
+      }));
+    }
+    throw e;
+  });
+  return newDocRef.id;
+};
+
+export const getTournaments = async (school: string): Promise<Tournament[]> => {
+  await signIn();
+  const tournamentsRef = collection(db, 'schools', school, 'tournaments');
+  const q = query(tournamentsRef, orderBy('createdAt', 'desc'));
+  const snapshot = await getDocs(q).catch(e => {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: tournamentsRef.path,
+        operation: 'list'
+      }));
+    }
+    throw e;
+  });
+  return snapshot.docs.map(doc => doc.data() as Tournament);
+};
+
+export const getLatestTournamentForStudent = async (school: string, studentId: string, allTeamGroups: TeamGroup[]): Promise<Tournament | null> => {
+  await signIn();
+  
+  // Find which team group the student belongs to
+  const studentTeamGroup = allTeamGroups.find(group => 
+    group.teams.some(team => team.memberIds.includes(studentId))
+  );
+
+  if (!studentTeamGroup) {
+    return null;
+  }
+  
+  // Now find the latest tournament that uses this team group
+  const tournamentsRef = collection(db, 'schools', school, 'tournaments');
+  const q = query(
+    tournamentsRef,
+    where('teamGroupId', '==', studentTeamGroup.id),
+    orderBy('createdAt', 'desc'),
+    limit(1)
+  );
+
+  const snapshot = await getDocs(q).catch(e => {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: tournamentsRef.path,
+        operation: 'list',
+        requestResourceData: { query: `latest tournament for student ${studentId}` }
+      }));
+    }
+    throw e;
+  });
+
+  if (snapshot.empty) {
+    return null;
+  }
+  return snapshot.docs[0].data() as Tournament;
+};
+
+export const updateTournament = async (school: string, tournamentId: string, data: Partial<Tournament>) => {
+  await signIn();
+  const tournamentRef = doc(db, 'schools', school, 'tournaments', tournamentId);
+  await updateDoc(tournamentRef, data).catch(e => {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: tournamentRef.path,
+        operation: 'update',
+        requestResourceData: data
+      }));
+    }
+    throw e;
+  });
+};
+
+export const deleteTournament = async (school: string, tournamentId: string) => {
+  await signIn();
+  const tournamentRef = doc(db, 'schools', school, 'tournaments', tournamentId);
+  await deleteDoc(tournamentRef).catch(e => {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: tournamentRef.path,
+        operation: 'delete'
+      }));
+    }
+    throw e;
+  });
 };

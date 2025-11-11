@@ -8,7 +8,7 @@ import {
   getTeamGroups,
   deleteTeamGroup,
 } from "@/lib/store";
-import { Student, MeasurementItem, MeasurementRecord, TeamGroup } from "@/lib/types";
+import { Student, MeasurementItem, MeasurementRecord, TeamGroup, TeamGroupInput } from "@/lib/types";
 import {
   Card,
   CardContent,
@@ -86,12 +86,16 @@ interface RankingProps {
   allStudents: Student[];
   allItems: MeasurementItem[];
   allRecords: MeasurementRecord[];
+  teamGroups: TeamGroup[];
+  onTeamGroupUpdate: () => void;
 }
 
 export default function Ranking({
   allStudents,
   allItems,
   allRecords,
+  teamGroups,
+  onTeamGroupUpdate
 }: RankingProps) {
   const { school } = useAuth();
 
@@ -231,12 +235,14 @@ export default function Ranking({
         allStudents={allStudents}
         allItems={allItems}
         allRecords={allRecords}
+        teamGroups={teamGroups}
+        onTeamGroupUpdate={onTeamGroupUpdate}
       />
     </div>
   );
 }
 
-function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
+function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGroupUpdate }: RankingProps & { onTeamGroupUpdate: () => void }) {
   const { school } = useAuth();
   const { toast } = useToast();
 
@@ -280,25 +286,9 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
   const [isReportLoading, setIsReportLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   
-  const [isLoading, setIsLoading] = useState(false);
-
-  const fetchTeamGroups = async () => {
-    if (!school) return;
-    setIsLoading(true);
-    try {
-      const groups = await getTeamGroups(school);
-      setSavedTeamGroups(groups);
-    } catch (error) {
-      console.error("Failed to fetch team groups:", error);
-      toast({ variant: 'destructive', title: "팀 편성 목록 로딩 실패" });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchTeamGroups();
-  }, [school]);
+    setSavedTeamGroups(teamGroups);
+  }, [teamGroups]);
 
   const resetToNewTeam = () => {
     setSelectedTeamGroupId('');
@@ -344,17 +334,14 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
 
   const handleDeleteTeamGroup = async () => {
     if (!school || !selectedTeamGroupId) return;
-    setIsLoading(true);
     try {
       await deleteTeamGroup(school, selectedTeamGroupId);
-      await fetchTeamGroups();
+      await onTeamGroupUpdate();
       resetToNewTeam();
       toast({ title: "삭제 완료", description: "선택한 팀 편성을 삭제했습니다." });
     } catch (error) {
       console.error("Failed to delete team group:", error);
       toast({ variant: 'destructive', title: "삭제 실패" });
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -883,7 +870,7 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
         title: "전달 완료",
         description: "편성된 팀 명단이 학생들에게 전달되었습니다.",
       });
-      fetchTeamGroups(); // Refresh list
+      onTeamGroupUpdate(); // Refresh list
     } catch (error) {
       console.error("Failed to send teams:", error);
       toast({
@@ -926,14 +913,7 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
                         <SelectValue placeholder="저장된 팀 편성을 선택하세요..." />
                     </SelectTrigger>
                     <SelectContent>
-                        {isLoading ? (
-                            <SelectItem value="loading" disabled>
-                                <div className="flex items-center gap-2">
-                                    <Loader2 className="h-4 w-4 animate-spin"/>
-                                    <span>로딩 중...</span>
-                                </div>
-                            </SelectItem>
-                        ) : savedTeamGroups.length > 0 ? (
+                        {savedTeamGroups.length > 0 ? (
                            savedTeamGroups.map(group => (
                              <SelectItem key={group.id} value={group.id}>{group.description}</SelectItem>
                            ))

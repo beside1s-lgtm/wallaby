@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { getItems, addOrUpdateRecord, getRecordsByStudent, getStudentById, calculateRanks, deleteRecord, getLatestTeamGroupForStudent } from '@/lib/store';
+import { getItems, addOrUpdateRecord, getRecordsByStudent, getStudentById, calculateRanks, deleteRecord, getLatestTeamGroupForStudent, getTeamGroups, getLatestTournamentForStudent } from '@/lib/store';
 import {
   Card,
   CardContent,
@@ -47,8 +47,8 @@ import {
 } from '@/components/ui/chart';
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { getStudentFeedback } from '@/ai/flows/student-ai-feedback';
-import { Loader2, Wand2, Trash2, Users, User as UserIcon } from 'lucide-react';
-import type { Student, MeasurementRecord, MeasurementItem, TeamGroup } from '@/lib/types';
+import { Loader2, Wand2, Trash2, Users, User as UserIcon, Swords } from 'lucide-react';
+import type { Student, MeasurementRecord, MeasurementItem, TeamGroup, Tournament } from '@/lib/types';
 import { getPapsGrade, getCustomItemGrade, normalizePapsRecord, normalizeCustomRecord } from '@/lib/paps';
 import { getStudents, getRecords } from '@/lib/store';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -107,6 +107,8 @@ export default function StudentDashboardPage() {
   
   const [abilityScores, setAbilityScores] = useState<{ item: string; score: number }[]>([]);
   const [teamAverageScores, setTeamAverageScores] = useState<{ item: string; score: number }[]>([]);
+  
+  const [tournament, setTournament] = useState<Tournament | null>(null);
 
 
   useEffect(() => {
@@ -116,14 +118,17 @@ export default function StudentDashboardPage() {
         }
         setIsDataLoading(true);
         try {
-            const [items, recs, stud, allStuds, allRecs, teamData] = await Promise.all([
+            const [items, recs, stud, allStuds, allRecs, teamData, allTeamGroups] = await Promise.all([
                 getItems(school),
                 getRecordsByStudent(school, student.id),
                 getStudentById(school, student.id),
                 getStudents(school),
                 getRecords(school),
-                getLatestTeamGroupForStudent(school, student.id)
+                getLatestTeamGroupForStudent(school, student.id),
+                getTeamGroups(school),
             ]);
+            const tournamentData = await getLatestTournamentForStudent(school, student.id, allTeamGroups);
+            setTournament(tournamentData);
             setMeasurementItems(items);
             setRecords(recs);
             setFullStudent(stud || null);
@@ -360,7 +365,7 @@ export default function StudentDashboardPage() {
   };
 
   const { chartData, availableItems } = useMemo(() => {
-    if (!fullStudent || !school || !chartItemFilter || chartItemFilter === 'all') return { chartData: [], availableItems: [] };
+    if (!fullStudent || !school || !chartItemFilter || chartItemFilter === 'all' || isAuthLoading) return { chartData: [], availableItems: [] };
 
     const allItemRanks = calculateRanks(school, measurementItems, allRecords, allStudents, fullStudent.grade);
     
@@ -413,7 +418,7 @@ export default function StudentDashboardPage() {
     });
     
     return { chartData: data, availableItems: itemsWithGrade };
-  }, [records, chartFilter, chartItemFilter, measurementItems, fullStudent, school, allRecords, allStudents]);
+  }, [records, chartFilter, chartItemFilter, measurementItems, fullStudent, school, allRecords, allStudents, isAuthLoading]);
 
   const sortedRecords = useMemo(() => {
     return [...records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -450,6 +455,24 @@ export default function StudentDashboardPage() {
             </div>
         </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Swords /> 나의 대회</CardTitle>
+          <CardDescription>{tournament?.name || '참가 중인 대회가 없습니다.'}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {tournament ? (
+            <div>
+              {/* TODO: Display tournament bracket or schedule */}
+              <p>대회 정보를 여기에 표시합니다.</p>
+            </div>
+          ) : (
+             <div className="flex items-center justify-center h-24 text-muted-foreground">
+                <p>선생님이 대회를 생성하고 전달하면 여기에 표시됩니다.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader className='flex-row items-start justify-between'>

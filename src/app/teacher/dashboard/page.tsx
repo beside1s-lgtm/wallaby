@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { getStudents, getItems, getRecords } from "@/lib/store";
-import type { Student, MeasurementItem, MeasurementRecord } from "@/lib/types";
+import { getStudents, getItems, getRecords, getTeamGroups } from "@/lib/store";
+import type { Student, MeasurementItem, MeasurementRecord, TeamGroup } from "@/lib/types";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import StudentManagement, {
@@ -14,6 +14,7 @@ import ClassAnalytics from "./_components/ClassAnalytics";
 import Ranking from "./_components/Ranking";
 import RecordInput from "./_components/RecordInput";
 import AiWelcome from "./_components/AiWelcome";
+import TournamentManagement from "./_components/TournamentManagement";
 import {
   Users,
   ClipboardList,
@@ -22,6 +23,7 @@ import {
   Trophy,
   Database,
   Edit,
+  Swords,
 } from "lucide-react";
 import { DashboardHeaderContents } from "@/components/DashboardHeader";
 import {
@@ -38,47 +40,36 @@ export default function TeacherDashboardPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [items, setItems] = useState<MeasurementItem[]>([]);
   const [records, setRecords] = useState<MeasurementRecord[]>([]);
+  const [teamGroups, setTeamGroups] = useState<TeamGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    async function loadData() {
-      if (isAuthLoading || !school) return;
+  const loadData = async () => {
+    if (isAuthLoading || !school) return;
       setIsLoading(true);
       try {
-        const [studentData, itemData, recordData] = await Promise.all([
+        const [studentData, itemData, recordData, teamGroupData] = await Promise.all([
           getStudents(school),
           getItems(school),
           getRecords(school),
+          getTeamGroups(school),
         ]);
         setStudents(studentData);
         setItems(itemData);
         setRecords(recordData);
+        setTeamGroups(teamGroupData);
       } catch (error) {
         console.error("Failed to load dashboard data:", error);
       } finally {
         setIsLoading(false);
       }
-    }
+  }
+
+  useEffect(() => {
     loadData();
   }, [school, isAuthLoading]);
 
   const forceUpdate = async () => {
-    if (isAuthLoading || !school) return;
-    setIsLoading(true);
-    try {
-        const [studentData, itemData, recordData] = await Promise.all([
-        getStudents(school),
-        getItems(school),
-        getRecords(school),
-        ]);
-        setStudents(studentData);
-        setItems(itemData);
-        setRecords(recordData);
-    } catch (error) {
-        console.error("Failed to force update data:", error);
-    } finally {
-        setIsLoading(false);
-    }
+    await loadData();
   };
 
   if (isLoading || isAuthLoading) {
@@ -132,10 +123,14 @@ export default function TeacherDashboardPage() {
         </Card>
 
         <Tabs defaultValue="class-analytics" className="w-full">
-          <TabsList className="grid w-full grid-cols-6 mb-6">
+          <TabsList className="grid w-full grid-cols-7 mb-6">
             <TabsTrigger value="class-analytics">
               <BarChart3 className="h-4 w-4" />
               <span className="hidden sm:inline ml-2">학급별 분석</span>
+            </TabsTrigger>
+             <TabsTrigger value="tournaments">
+              <Swords className="h-4 w-4" />
+              <span className="hidden sm:inline ml-2">대회</span>
             </TabsTrigger>
             <TabsTrigger value="record-input">
               <Edit className="h-4 w-4" />
@@ -167,6 +162,13 @@ export default function TeacherDashboardPage() {
               onRecordUpdate={forceUpdate}
             />
           </TabsContent>
+          
+           <TabsContent value="tournaments">
+            <TournamentManagement
+              teamGroups={teamGroups}
+              onTournamentUpdate={forceUpdate}
+            />
+          </TabsContent>
 
           <TabsContent value="record-input">
             <RecordInput
@@ -181,6 +183,8 @@ export default function TeacherDashboardPage() {
               allStudents={students}
               allItems={items}
               allRecords={records}
+              teamGroups={teamGroups}
+              onTeamGroupUpdate={forceUpdate}
             />
           </TabsContent>
 
