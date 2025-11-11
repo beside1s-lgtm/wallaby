@@ -945,7 +945,7 @@ export const getLatestTournamentForStudent = async (school: string, studentId: s
   return snapshot.docs[0].data() as Tournament;
 };
 
-export const updateTournament = async (school: string, tournamentId: string, data: Partial<Tournament>) => {
+export const updateTournament = async (school: string, tournamentId: string, data: Partial<Tournament>): Promise<void> => {
   await signIn();
   const tournamentRef = doc(db, 'schools', school, 'tournaments', tournamentId);
   await updateDoc(tournamentRef, data).catch(e => {
@@ -960,7 +960,7 @@ export const updateTournament = async (school: string, tournamentId: string, dat
   });
 };
 
-export const deleteTournament = async (school: string, tournamentId: string) => {
+export const deleteTournament = async (school: string, tournamentId: string): Promise<void> => {
   await signIn();
   const tournamentRef = doc(db, 'schools', school, 'tournaments', tournamentId);
   await deleteDoc(tournamentRef).catch(e => {

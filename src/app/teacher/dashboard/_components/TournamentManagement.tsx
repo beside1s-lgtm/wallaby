@@ -101,32 +101,34 @@ export default function TournamentManagement({
     return teamGroups.find(tg => tg.id === selectedTeamGroupId);
   }, [selectedTeamGroupId, teamGroups]);
 
-  const handleCreateOrUpdateTournament = async () => {
+  const handleCreateOrUpdateTournament = async (isRegenerate = false) => {
     if (!school || !tournamentName || !tournamentType || !selectedTeamGroup) {
       toast({ variant: "destructive", title: "정보 부족", description: "대회 이름, 종류, 참가팀을 모두 선택해주세요."});
       return;
     }
 
-    let tournamentData: Omit<Tournament, 'id' | 'createdAt'> = {
+    let tournamentData: Partial<Tournament> = {
       school,
       name: tournamentName,
       type: tournamentType,
       teamGroupId: selectedTeamGroup.id,
-      groups: [],
-      matches: [],
     };
     
     const teams = [...selectedTeamGroup.teams];
-    teams.sort(() => Math.random() - 0.5); 
+     if (isRegenerate) {
+        teams.sort(() => Math.random() - 0.5); 
+    }
 
     if (tournamentType === 'tournament') {
         tournamentData.matches = generateTournamentBracket(teams.map(t => String(t.teamIndex)));
+        tournamentData.groups = [];
     } else if (tournamentType === 'round-robin') {
         tournamentData.groups = [{
             name: '전체 리그',
             teamIds: teams.map(t => String(t.teamIndex)),
             matches: generateRoundRobin(teams.map(t => String(t.teamIndex)))
         }];
+        tournamentData.matches = [];
     } else if (tournamentType === 'league-tournament') {
         const groups: TournamentGroup[] = Array.from({ length: numGroups }, (_, i) => ({
             name: `${String.fromCharCode(65 + i)}조`,
@@ -142,6 +144,7 @@ export default function TournamentManagement({
             group.matches = generateRoundRobin(group.teamIds);
         });
         tournamentData.groups = groups;
+        tournamentData.matches = []; // 토너먼트 단계는 나중에 생성
     }
 
     setIsLoading(true);
@@ -150,7 +153,7 @@ export default function TournamentManagement({
         await updateTournament(school, currentTournament.id, tournamentData);
         toast({ title: "대회 정보 업데이트 완료" });
       } else {
-        await saveTournament(tournamentData);
+        await saveTournament(tournamentData as Omit<Tournament, 'id' | 'createdAt'>);
         toast({ title: "새로운 대회 생성 완료" });
       }
       onTournamentUpdate();
@@ -170,7 +173,7 @@ export default function TournamentManagement({
         for (let j = i + 1; j < teamIds.length; j++) {
             matches.push({
                 id: uuidv4(),
-                round: 0,
+                round: 0, // 리그는 라운드 0
                 matchNumber: matches.length + 1,
                 teamAId: teamIds[i],
                 teamBId: teamIds[j],
@@ -194,6 +197,7 @@ export default function TournamentManagement({
     const totalSlots = Math.pow(2, rounds);
     const byes = totalSlots - numTeams;
 
+    // Add byes and shuffle
     for (let i = 0; i < byes; i++) {
         teams.push('bye');
     }
@@ -203,7 +207,7 @@ export default function TournamentManagement({
     let matchCounter = 1;
     for (let round = 1; round <= rounds; round++) {
         const nextRoundTeams: (string | null)[] = [];
-        let matchNumberInRound = 1;
+        let matchesInThisRound = 0;
         for (let i = 0; i < currentRoundTeams.length; i += 2) {
             const teamA = currentRoundTeams[i];
             const teamB = currentRoundTeams[i+1];
@@ -223,8 +227,7 @@ export default function TournamentManagement({
                     winnerId: null,
                     status: 'scheduled',
                 });
-                nextRoundTeams.push(null); 
-                matchNumberInRound++;
+                nextRoundTeams.push(null); // Placeholder for winner
             }
         }
         currentRoundTeams = nextRoundTeams as string[];
@@ -250,7 +253,18 @@ export default function TournamentManagement({
         setTournamentName(tournament.name);
         setTournamentType(tournament.type);
         setSelectedTeamGroupId(tournament.teamGroupId);
-        setMatchResults({}); // Reset results when loading a new tournament
+        setNumGroups(tournament.groups.length || 2);
+        
+        // Initialize matchResults state from loaded tournament data
+        const initialResults: Record<string, { scoreA: string, scoreB: string }> = {};
+        const allMatches = [...tournament.matches, ...tournament.groups.flatMap(g => g.matches)];
+        allMatches.forEach(match => {
+            initialResults[match.id] = {
+                scoreA: match.scoreA?.toString() || '',
+                scoreB: match.scoreB?.toString() || '',
+            };
+        });
+        setMatchResults(initialResults);
     }
   }
 
@@ -268,6 +282,86 @@ export default function TournamentManagement({
         setIsLoading(false);
     }
   }
+  
+  const handleMatchResultChange = (matchId: string, team: 'A' | 'B', score: string) => {
+    setMatchResults(prev => ({
+        ...prev,
+        [matchId]: {
+            ...prev[matchId],
+            [team === 'A' ? 'scoreA' : 'scoreB']: score,
+        }
+    }));
+  };
+
+  const handleUpdateMatch = async (matchId: string, isGroupMatch: boolean, groupName?: string) => {
+      if (!school || !currentTournament) return;
+
+      const results = matchResults[matchId];
+      if (!results || results.scoreA === '' || results.scoreB === '') {
+          toast({ variant: "destructive", title: "점수 입력 오류", description: "두 팀의 점수를 모두 입력해주세요." });
+          return;
+      }
+
+      const scoreA = parseInt(results.scoreA, 10);
+      const scoreB = parseInt(results.scoreB, 10);
+      if (isNaN(scoreA) || isNaN(scoreB)) {
+          toast({ variant: "destructive", title: "점수 입력 오류", description: "유효한 숫자를 입력해주세요." });
+          return;
+      }
+      
+      const newTournamentData = { ...currentTournament };
+      let matchToUpdate: Match | undefined;
+
+      if(isGroupMatch) {
+          const group = newTournamentData.groups.find(g => g.name === groupName);
+          if (group) matchToUpdate = group.matches.find(m => m.id === matchId);
+      } else {
+          matchToUpdate = newTournamentData.matches.find(m => m.id === matchId);
+      }
+      
+      if (!matchToUpdate) return;
+
+      matchToUpdate.scoreA = scoreA;
+      matchToUpdate.scoreB = scoreB;
+      matchToUpdate.status = 'completed';
+      if (scoreA > scoreB) matchToUpdate.winnerId = matchToUpdate.teamAId;
+      else if (scoreB > scoreA) matchToUpdate.winnerId = matchToUpdate.teamBId;
+      else matchToUpdate.winnerId = null; // Draw
+
+      // Advance winner in tournament
+      if (currentTournament.type === 'tournament' && matchToUpdate.winnerId) {
+          const currentRound = matchToUpdate.round;
+          const nextRound = currentRound + 1;
+          const matchesInCurrentRound = newTournamentData.matches.filter(m => m.round === currentRound);
+          const matchIndexInRound = matchesInCurrentRound.findIndex(m => m.id === matchId);
+
+          const nextRoundMatchIndex = Math.floor(matchIndexInRound / 2);
+          const nextRoundMatch = newTournamentData.matches.find(m => m.round === nextRound && m.matchNumber === Math.floor(matchesInCurrentRound[0].matchNumber / 2) * 2 + nextRoundMatchIndex + 1 - (matchesInCurrentRound.length/2));
+
+            const nextMatch = newTournamentData.matches.find(m => m.round === nextRound && Math.ceil(m.matchNumber / (matchesInCurrentRound.length / 2)) === (matchIndexInRound+1));
+             
+            // Simplified logic: find the next round's match that is waiting for a winner from this match.
+            // This requires a more complex mapping of bracket positions.
+            // For now, let's find the first available slot in the next round. This is not a perfect bracket logic.
+            const nextMatchToUpdate = newTournamentData.matches.find(m => m.round === nextRound && (m.teamAId === null || m.teamBId === null));
+            if(nextMatchToUpdate) {
+                if(nextMatchToUpdate.teamAId === null) nextMatchToUpdate.teamAId = matchToUpdate.winnerId;
+                else if (nextMatchToUpdate.teamBId === null) nextMatchToUpdate.teamBId = matchToUpdate.winnerId;
+            }
+      }
+
+      setIsLoading(true);
+      try {
+          await updateTournament(school, currentTournament.id, newTournamentData);
+          setCurrentTournament(newTournamentData); // Update local state to re-render
+          toast({ title: "경기 결과 저장 완료" });
+      } catch (error) {
+          toast({ variant: "destructive", title: "결과 저장 실패" });
+      } finally {
+          setIsLoading(false);
+      }
+  };
+
 
   const enrichedTournament = useMemo(() => {
     if (!currentTournament || !selectedTeamGroup) return null;
@@ -275,7 +369,7 @@ export default function TournamentManagement({
     const teamNameMap = new Map<string, string>();
     selectedTeamGroup.teams.forEach((team, index) => {
       const firstStudent = team.members?.[0];
-      const teamName = firstStudent ? `${firstStudent.grade}-${firstStudent.classNum}반 ${team.teamIndex + 1}팀` : `${team.teamIndex + 1}팀`;
+      const teamName = firstStudent ? `${firstStudent.grade}-${firstStudent.classNum}반 ${team.teamIndex + 1}팀` : `팀 ${team.teamIndex + 1}`;
       teamNameMap.set(String(team.teamIndex), teamName);
     });
     
@@ -292,10 +386,22 @@ export default function TournamentManagement({
         groups: currentTournament.groups.map(group => ({
             ...group,
             matches: enrichMatches(group.matches),
-        })),
+        })).sort((a,b) => a.name.localeCompare(b.name)),
         matches: enrichMatches(currentTournament.matches),
     };
   }, [currentTournament, selectedTeamGroup]);
+
+  const tournamentRounds = useMemo(() => {
+    if (!enrichedTournament || enrichedTournament.type !== 'tournament') return [];
+    const rounds: Record<number, EnrichedMatch[]> = {};
+    enrichedTournament.matches.forEach(match => {
+        if (!rounds[match.round]) {
+            rounds[match.round] = [];
+        }
+        rounds[match.round].push(match);
+    });
+    return Object.values(rounds).sort((a,b) => a[0].round - b[0].round);
+  }, [enrichedTournament]);
 
   return (
     <div className="space-y-6">
@@ -425,8 +531,8 @@ export default function TournamentManagement({
               )}
             </div>
             <div className="flex justify-end pt-4">
-                <Button onClick={handleCreateOrUpdateTournament} disabled={isLoading}>
-                    <Plus className="mr-2 h-4 w-4" />
+                <Button onClick={() => handleCreateOrUpdateTournament(!!currentTournament)} disabled={isLoading}>
+                    <Shuffle className="mr-2 h-4 w-4" />
                     {currentTournament ? '대진표 다시 생성/업데이트' : '대진표 생성'}
                 </Button>
             </div>
@@ -437,8 +543,8 @@ export default function TournamentManagement({
       {enrichedTournament && (
         <Card>
             <CardHeader>
-                <CardTitle>{enrichedTournament.name} 대진표</CardTitle>
-                <CardDescription>
+                <CardTitle>{enrichedTournament.name} 대진표 및 결과</CardTitle>
+                 <CardDescription>
                     {enrichedTournament.type === 'league-tournament' && '조별 리그 결과'}
                     {enrichedTournament.type === 'round-robin' && '리그 경기 결과'}
                     {enrichedTournament.type === 'tournament' && '토너먼트 경기 결과'}
@@ -447,35 +553,72 @@ export default function TournamentManagement({
             <CardContent className="space-y-6">
                 {enrichedTournament.groups.map(group => (
                     <div key={group.name} className="p-4 border rounded-lg">
-                        <h4 className="font-bold text-lg mb-2">{group.name}</h4>
+                        <h4 className="font-bold text-lg mb-4">
+                          {group.name} 리그
+                        </h4>
                         <div className="space-y-2">
                             {group.matches.map(match => (
                                 <div key={match.id} className="flex items-center gap-2 p-2 bg-muted rounded-md">
-                                    <span className="flex-1 text-right">{match.teamAName}</span>
-                                    <Input type="number" className="w-16" placeholder="점수" />
+                                    <span className="flex-1 text-right font-semibold">{match.teamAName}</span>
+                                    <Input 
+                                      type="number" 
+                                      className="w-16 text-center" 
+                                      placeholder="점수" 
+                                      value={matchResults[match.id]?.scoreA || ''}
+                                      onChange={(e) => handleMatchResultChange(match.id, 'A', e.target.value)}
+                                    />
                                     <span>vs</span>
-                                    <Input type="number" className="w-16" placeholder="점수" />
-                                    <span className="flex-1 text-left">{match.teamBName}</span>
-                                    <Button size="sm" variant="outline"><Save className="h-4 w-4" /></Button>
+                                    <Input 
+                                      type="number" 
+                                      className="w-16 text-center" 
+                                      placeholder="점수" 
+                                      value={matchResults[match.id]?.scoreB || ''}
+                                      onChange={(e) => handleMatchResultChange(match.id, 'B', e.target.value)}
+                                    />
+                                    <span className="flex-1 text-left font-semibold">{match.teamBName}</span>
+                                    <Button size="sm" variant="outline" onClick={() => handleUpdateMatch(match.id, true, group.name)}>
+                                      <Save className="h-4 w-4" />
+                                    </Button>
                                 </div>
                             ))}
                         </div>
                     </div>
                 ))}
 
-                 {enrichedTournament.matches.length > 0 && (
+                 {enrichedTournament.type === 'tournament' && tournamentRounds.length > 0 && (
                     <div className="p-4 border rounded-lg">
-                        <h4 className="font-bold text-lg mb-2">토너먼트</h4>
-                         <div className="space-y-2">
-                             {enrichedTournament.matches.map(match => (
-                                <div key={match.id} className="flex items-center gap-2 p-2 bg-muted rounded-md">
-                                    <span className="text-sm text-muted-foreground w-12">R{match.round} M{match.matchNumber}</span>
-                                    <span className="flex-1 text-right">{match.teamAName}</span>
-                                    <Input type="number" className="w-16" placeholder="점수" />
-                                    <span>vs</span>
-                                    <Input type="number" className="w-16" placeholder="점수" />
-                                    <span className="flex-1 text-left">{match.teamBName}</span>
-                                    <Button size="sm" variant="outline"><Save className="h-4 w-4" /></Button>
+                        <h4 className="font-bold text-lg mb-2">토너먼트 대진</h4>
+                         <div className="flex gap-4 overflow-x-auto p-4">
+                            {tournamentRounds.map((round, roundIndex) => (
+                                <div key={roundIndex} className="flex flex-col justify-around min-w-[250px] gap-8">
+                                    <h5 className="text-center font-semibold">{roundIndex + 1} 라운드</h5>
+                                    {round.map((match) => (
+                                        <div key={match.id} className="p-3 bg-muted rounded-lg space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <span className={`font-semibold ${match.winnerId === match.teamAId ? 'text-primary' : ''}`}>{match.teamAName}</span>
+                                                 <Input 
+                                                    type="number" 
+                                                    className="w-14 h-8 text-center" 
+                                                    placeholder="-" 
+                                                    value={matchResults[match.id]?.scoreA ?? ''}
+                                                    onChange={(e) => handleMatchResultChange(match.id, 'A', e.target.value)}
+                                                />
+                                            </div>
+                                             <div className="flex items-center justify-between">
+                                                <span className={`font-semibold ${match.winnerId === match.teamBId ? 'text-primary' : ''}`}>{match.teamBName}</span>
+                                                <Input 
+                                                    type="number" 
+                                                    className="w-14 h-8 text-center" 
+                                                    placeholder="-" 
+                                                    value={matchResults[match.id]?.scoreB ?? ''}
+                                                    onChange={(e) => handleMatchResultChange(match.id, 'B', e.target.value)}
+                                                 />
+                                            </div>
+                                            <Button size="sm" className="w-full mt-2" onClick={() => handleUpdateMatch(match.id, false)}>
+                                                <Save className="mr-2 h-4 w-4" /> 결과 저장
+                                            </Button>
+                                        </div>
+                                    ))}
                                 </div>
                             ))}
                          </div>
