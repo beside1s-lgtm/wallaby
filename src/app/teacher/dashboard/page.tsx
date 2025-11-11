@@ -42,6 +42,7 @@ export default function TeacherDashboardPage() {
   const [records, setRecords] = useState<MeasurementRecord[]>([]);
   const [teamGroups, setTeamGroups] = useState<TeamGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("class-analytics");
 
   const loadData = async () => {
     if (isAuthLoading || !school) return;
@@ -122,7 +123,7 @@ export default function TeacherDashboardPage() {
           </CardContent>
         </Card>
 
-        <Tabs defaultValue="class-analytics" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-7 mb-6">
             <TabsTrigger value="class-analytics">
               <BarChart3 className="h-4 w-4" />
