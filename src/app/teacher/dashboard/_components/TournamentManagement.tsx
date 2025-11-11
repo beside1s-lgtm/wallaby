@@ -53,7 +53,6 @@ type TournamentManagementProps = {
   onTournamentUpdate: () => void;
 };
 
-
 const generateTournamentBracket = (teamIds: string[]): Match[] => {
     let teams = [...teamIds];
     const numTeams = teams.length;
@@ -64,36 +63,36 @@ const generateTournamentBracket = (teamIds: string[]): Match[] => {
     const totalSlots = Math.pow(2, numRounds);
     const byes = totalSlots - numTeams;
 
-    // 1. Separate teams with byes
-    const teamsWithByes = teams.slice(0, byes);
     let teamsInRound1 = teams.slice(byes);
+    let teamsWithByes = teams.slice(0, byes);
 
-    // Shuffle the teams in the first round for randomness
+    // Shuffle for fairness in round 1 placement
     teamsInRound1.sort(() => Math.random() - 0.5);
+    teamsWithByes.sort(() => Math.random() - 0.5);
 
-    // 2. Create Round 1 matches
-    let round1Matches: Match[] = [];
-    for (let i = 0; i < teamsInRound1.length / 2; i++) {
+    let previousRoundMatches: Match[] = [];
+    if (teamsInRound1.length > 0) {
+      for (let i = 0; i < teamsInRound1.length / 2; i++) {
         const match: Match = {
-            id: uuidv4(),
-            round: 1,
-            matchNumber: i + 1,
-            teamAId: teamsInRound1[i*2],
-            teamBId: teamsInRound1[i*2 + 1],
-            scoreA: null, scoreB: null, winnerId: null, status: 'scheduled',
-            nextMatchId: null,
-            nextMatchSlot: null
+          id: uuidv4(),
+          round: 1,
+          matchNumber: i + 1,
+          teamAId: teamsInRound1[i * 2],
+          teamBId: teamsInRound1[i * 2 + 1],
+          scoreA: null, scoreB: null, winnerId: null, status: 'scheduled',
+          nextMatchId: null,
+          nextMatchSlot: null
         };
-        round1Matches.push(match);
+        previousRoundMatches.push(match);
+      }
+      matches.push(...previousRoundMatches);
     }
-    matches.push(...round1Matches);
-
-    // 3. Prepare for next rounds
-    let previousRoundEntrants: (string | Match)[] = [...teamsWithByes, ...round1Matches];
     
+    let currentRoundEntrants = [...previousRoundMatches.map(m => m.id), ...teamsWithByes];
+
     for (let round = 2; round <= numRounds; round++) {
-        let currentRoundMatches: Match[] = [];
-        for (let i = 0; i < previousRoundEntrants.length / 2; i++) {
+        const currentRoundMatches: Match[] = [];
+        for (let i = 0; i < currentRoundEntrants.length / 2; i++) {
             const match: Match = {
                 id: uuidv4(),
                 round: round,
@@ -104,44 +103,34 @@ const generateTournamentBracket = (teamIds: string[]): Match[] => {
                 nextMatchSlot: null,
             };
 
-            const teamAInfo = previousRoundEntrants[i*2];
-            if (typeof teamAInfo === 'string') { // Bye team
-                match.teamAId = teamAInfo;
-            } else { // It's a match from the previous round
-                const prevMatch = matches.find(m => m.id === teamAInfo.id);
-                if(prevMatch) {
-                   prevMatch.nextMatchId = match.id;
-                   prevMatch.nextMatchSlot = 'A';
+            const entrantAId = currentRoundEntrants[i * 2];
+            const entrantBId = currentRoundEntrants[i * 2 + 1];
+
+            // If entrant is a team ID (from a bye), assign it directly
+            if (teams.includes(entrantAId)) {
+                match.teamAId = entrantAId;
+            } else { // It's a match ID, so link it
+                const prevMatchA = matches.find(m => m.id === entrantAId);
+                if (prevMatchA) {
+                    prevMatchA.nextMatchId = match.id;
+                    prevMatchA.nextMatchSlot = 'A';
                 }
             }
 
-            const teamBInfo = previousRoundEntrants[i*2 + 1];
-            if (typeof teamBInfo === 'string') { // Bye team
-                match.teamBId = teamBInfo;
-            } else if (teamBInfo) {
-                const prevMatch = matches.find(m => m.id === (teamBInfo as Match).id);
-                 if(prevMatch) {
-                   prevMatch.nextMatchId = match.id;
-                   prevMatch.nextMatchSlot = 'B';
+            if (teams.includes(entrantBId)) {
+                match.teamBId = entrantBId;
+            } else {
+                const prevMatchB = matches.find(m => m.id === entrantBId);
+                if (prevMatchB) {
+                    prevMatchB.nextMatchId = match.id;
+                    prevMatchB.nextMatchSlot = 'B';
                 }
             }
-            
-            // Handle bye in this round if one team is set but the other is not
-            if (match.teamAId && !match.teamBId) {
-                match.winnerId = match.teamAId;
-                match.status = 'completed';
-            }
-            if (!match.teamAId && match.teamBId) {
-                match.winnerId = match.teamBId;
-                match.status = 'completed';
-            }
-
-            currentRoundMatches.push(match);
+             currentRoundMatches.push(match);
         }
         matches.push(...currentRoundMatches);
-        previousRoundEntrants = currentRoundMatches;
+        currentRoundEntrants = currentRoundMatches.map(m => m.id);
     }
-
     return matches;
 };
 
@@ -633,7 +622,7 @@ export default function TournamentManagement({
                     <CardTitle>{currentTournament.name} 대진표</CardTitle>
                 </CardHeader>
                 <CardContent className="overflow-x-auto p-4">
-                    <div className="flex justify-end">
+                    <div className="flex justify-center p-4">
                        <MatchNode
                             match={finalMatch}
                             allMatches={currentTournament.matches}
@@ -713,40 +702,40 @@ const MatchNode = ({ match, allMatches, teamNameMap, matchResults, onResultChang
 
     return (
     <div className="flex items-center">
-      <div className="flex flex-col justify-around">
-        {teamAChild && (
-          <MatchNode
-            match={teamAChild}
-            allMatches={allMatches}
-            teamNameMap={teamNameMap}
-            matchResults={matchResults}
-            onResultChange={onResultChange}
-            onUpdateMatch={onUpdateMatch}
-            onResetMatch={onResetMatch}
-          />
-        )}
-        {teamBChild && (
-          <MatchNode
-            match={teamBChild}
-            allMatches={allMatches}
-            teamNameMap={teamNameMap}
-            matchResults={matchResults}
-            onResultChange={onResultChange}
-            onUpdateMatch={onUpdateMatch}
-            onResetMatch={onResetMatch}
-          />
-        )}
-      </div>
-
-      {(teamAChild || teamBChild) && (
-        <div className="h-full w-8 flex flex-col justify-center items-center">
-            <div className="w-[1px] h-full bg-muted-foreground relative">
-                 <div className="absolute top-1/2 left-0 h-[1px] w-full bg-muted-foreground"></div>
-            </div>
+        <div className="flex flex-col justify-around gap-2">
+            {teamAChild && (
+            <MatchNode
+                match={teamAChild}
+                allMatches={allMatches}
+                teamNameMap={teamNameMap}
+                matchResults={matchResults}
+                onResultChange={onResultChange}
+                onUpdateMatch={onUpdateMatch}
+                onResetMatch={onResetMatch}
+            />
+            )}
+            {teamBChild && (
+            <MatchNode
+                match={teamBChild}
+                allMatches={allMatches}
+                teamNameMap={teamNameMap}
+                matchResults={matchResults}
+                onResultChange={onResultChange}
+                onUpdateMatch={onUpdateMatch}
+                onResetMatch={onResetMatch}
+            />
+            )}
         </div>
-      )}
 
-      <div className="relative z-10 flex w-56 flex-col justify-center rounded-md border bg-card p-2 shadow-sm space-y-2">
+        {(teamAChild || teamBChild) && (
+            <div className="h-full w-8 flex-shrink-0 relative">
+                <div className="absolute left-0 top-1/2 w-full h-[1px] bg-muted-foreground"></div>
+                {teamAChild && <div className="absolute left-0 top-0 w-[1px] h-1/2 bg-muted-foreground"></div>}
+                {teamBChild && <div className="absolute left-0 bottom-0 w-[1px] h-1/2 bg-muted-foreground"></div>}
+            </div>
+        )}
+      
+      <div className="relative flex w-44 flex-col justify-center rounded-md border bg-card p-2 shadow-sm space-y-1">
         <div className="flex items-center justify-between">
           <span className={`truncate text-sm ${winnerIsA ? 'font-bold text-primary' : ''}`}>
             {match.teamAId ? (teamNameMap.get(match.teamAId) || '부전승') : '미정'}
@@ -762,7 +751,7 @@ const MatchNode = ({ match, allMatches, teamNameMap, matchResults, onResultChang
         </div>
         <div className="flex items-center justify-between">
           <span className={`truncate text-sm ${winnerIsB ? 'font-bold text-primary' : ''}`}>
-            {match.teamBId ? (teamNameMap.get(match.teamBId) || '부전승') : '미정'}
+            {match.teamBId ? (teamNameMap.get(match.teamBId) || '미정') : '미정'}
           </span>
           <Input
             type="number"
