@@ -865,7 +865,7 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
     }
     setIsSending(true);
     try {
-      const teamData = {
+      const teamData: TeamGroupInput = {
         school,
         description: teamGroupName,
         teams: teams.map((team, index) => ({
@@ -1480,10 +1480,14 @@ function TeamBalancer({ allStudents, allItems, allRecords }: RankingProps) {
                    const teamName = `${firstStudent.grade}-${firstStudent.classNum}반 ${relativeIndex + 1}팀`;
                    const avgData = teamAverageScores.get(teams.indexOf(team));
 
+                   const teamTotalScores = team.map(member => studentScores.get(member.id)?.totalScore || 0);
+                   const teamAverageTotalScore = teamTotalScores.length > 0 ? Math.round(teamTotalScores.reduce((a, b) => a + b, 0) / teamTotalScores.length) : 0;
+
                   return (
                     <div key={index} className="border rounded-md p-4 space-y-2">
                       <h4 className="font-bold text-center border-b pb-2">
                         {teamName}
+                        <span className="font-normal text-sm text-muted-foreground ml-2">({teamAverageTotalScore}점)</span>
                       </h4>
                       {avgData && avgData.length > 0 ? (
                         <div className="h-[150px]">
