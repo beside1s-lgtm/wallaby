@@ -59,78 +59,78 @@ const generateTournamentBracket = (teamIds: string[]): Match[] => {
     if (numTeams < 2) return [];
 
     const matches: Match[] = [];
+    const rounds: Match[][] = [];
+    
     const numRounds = Math.ceil(Math.log2(numTeams));
     const totalSlots = Math.pow(2, numRounds);
     const byes = totalSlots - numTeams;
 
-    let teamsInRound1 = teams.slice(byes);
-    let teamsWithByes = teams.slice(0, byes);
-
-    // Shuffle for fairness in round 1 placement
-    teamsInRound1.sort(() => Math.random() - 0.5);
-    teamsWithByes.sort(() => Math.random() - 0.5);
-
-    let previousRoundMatches: Match[] = [];
-    if (teamsInRound1.length > 0) {
-      for (let i = 0; i < teamsInRound1.length / 2; i++) {
-        const match: Match = {
+    // --- Round 1 ---
+    const round1Matches: Match[] = [];
+    const teamsInRound1 = teams.slice(byes);
+    
+    for (let i = 0; i < teamsInRound1.length; i += 2) {
+      const match: Match = {
           id: uuidv4(),
           round: 1,
-          matchNumber: i + 1,
-          teamAId: teamsInRound1[i * 2],
-          teamBId: teamsInRound1[i * 2 + 1],
+          matchNumber: round1Matches.length + 1,
+          teamAId: teamsInRound1[i],
+          teamBId: teamsInRound1[i + 1] || null, // Handle odd number of teams in round 1
           scoreA: null, scoreB: null, winnerId: null, status: 'scheduled',
           nextMatchId: null,
           nextMatchSlot: null
-        };
-        previousRoundMatches.push(match);
-      }
-      matches.push(...previousRoundMatches);
+      };
+      round1Matches.push(match);
+    }
+    if(round1Matches.length > 0) {
+      rounds.push(round1Matches);
+      matches.push(...round1Matches);
     }
     
-    let currentRoundEntrants = [...previousRoundMatches.map(m => m.id), ...teamsWithByes];
+    // --- Subsequent Rounds ---
+    let previousRoundWinners = [...teams.slice(0, byes), ...round1Matches.map(m => m.id)];
+    
+    for(let round = 2; round <= numRounds; round++) {
+      const currentRoundMatches: Match[] = [];
+      for(let i = 0; i < previousRoundWinners.length; i += 2) {
+        const match: Match = {
+          id: uuidv4(),
+          round: round,
+          matchNumber: currentRoundMatches.length + 1,
+          teamAId: null, teamBId: null,
+          scoreA: null, scoreB: null, winnerId: null, status: 'scheduled',
+          nextMatchId: null, nextMatchSlot: null,
+        };
+        
+        const entrantA = previousRoundWinners[i];
+        const entrantB = previousRoundWinners[i+1];
 
-    for (let round = 2; round <= numRounds; round++) {
-        const currentRoundMatches: Match[] = [];
-        for (let i = 0; i < currentRoundEntrants.length / 2; i++) {
-            const match: Match = {
-                id: uuidv4(),
-                round: round,
-                matchNumber: i + 1,
-                teamAId: null, teamBId: null,
-                scoreA: null, scoreB: null, winnerId: null, status: 'scheduled',
-                nextMatchId: null,
-                nextMatchSlot: null,
-            };
-
-            const entrantAId = currentRoundEntrants[i * 2];
-            const entrantBId = currentRoundEntrants[i * 2 + 1];
-
-            // If entrant is a team ID (from a bye), assign it directly
-            if (teams.includes(entrantAId)) {
-                match.teamAId = entrantAId;
-            } else { // It's a match ID, so link it
-                const prevMatchA = matches.find(m => m.id === entrantAId);
-                if (prevMatchA) {
-                    prevMatchA.nextMatchId = match.id;
-                    prevMatchA.nextMatchSlot = 'A';
-                }
+        if (teams.includes(entrantA)) { // Entrant A is a team (bye)
+            match.teamAId = entrantA;
+        } else { // Entrant A is a match winner
+            const prevMatch = matches.find(m => m.id === entrantA);
+            if(prevMatch) {
+                prevMatch.nextMatchId = match.id;
+                prevMatch.nextMatchSlot = 'A';
             }
-
-            if (teams.includes(entrantBId)) {
-                match.teamBId = entrantBId;
-            } else {
-                const prevMatchB = matches.find(m => m.id === entrantBId);
-                if (prevMatchB) {
-                    prevMatchB.nextMatchId = match.id;
-                    prevMatchB.nextMatchSlot = 'B';
-                }
-            }
-             currentRoundMatches.push(match);
         }
-        matches.push(...currentRoundMatches);
-        currentRoundEntrants = currentRoundMatches.map(m => m.id);
+        
+        if (teams.includes(entrantB)) { // Entrant B is a team (bye)
+            match.teamBId = entrantB;
+        } else { // Entrant B is a match winner
+             const prevMatch = matches.find(m => m.id === entrantB);
+            if(prevMatch) {
+                prevMatch.nextMatchId = match.id;
+                prevMatch.nextMatchSlot = 'B';
+            }
+        }
+        currentRoundMatches.push(match);
+      }
+      rounds.push(currentRoundMatches);
+      matches.push(...currentRoundMatches);
+      previousRoundWinners = currentRoundMatches.map(m => m.id);
     }
+
     return matches;
 };
 
@@ -469,11 +469,17 @@ export default function TournamentManagement({
       const teamsInClass = group.teams.filter(t => t.members?.[0]?.grade === firstStudent.grade && t.members?.[0]?.classNum === firstStudent.classNum);
       return teamsInClass.findIndex(t => t.teamIndex === teamIndex) + 1;
   };
-  
-    const finalMatch = useMemo(() => {
-        if (!currentTournament || !currentTournament.matches || currentTournament.matches.length === 0) return null;
-        const maxRound = Math.max(...currentTournament.matches.map(m => m.round));
-        return currentTournament.matches.find(m => m.round === maxRound) || null;
+
+    const groupedMatches = useMemo(() => {
+        if (!currentTournament || !currentTournament.matches) return [];
+        const groups: Match[][] = [];
+        currentTournament.matches.forEach(match => {
+            if (!groups[match.round - 1]) {
+                groups[match.round - 1] = [];
+            }
+            groups[match.round - 1].push(match);
+        });
+        return groups;
     }, [currentTournament]);
 
 
@@ -616,22 +622,28 @@ export default function TournamentManagement({
         </CardContent>
       </Card>
       
-        {currentTournament && currentTournament.type === 'tournament' && finalMatch && (
+        {currentTournament && currentTournament.type === 'tournament' && groupedMatches.length > 0 && (
             <Card>
                 <CardHeader>
                     <CardTitle>{currentTournament.name} 대진표</CardTitle>
                 </CardHeader>
                 <CardContent className="overflow-x-auto p-4">
-                    <div className="flex justify-center p-4">
-                       <MatchNode
-                            match={finalMatch}
-                            allMatches={currentTournament.matches}
-                            teamNameMap={teamNameMap}
-                            matchResults={matchResults}
-                            onResultChange={handleMatchResultChange}
-                            onUpdateMatch={handleUpdateMatch}
-                            onResetMatch={handleResetMatch}
-                        />
+                    <div className="flex items-center space-x-8">
+                       {groupedMatches.map((roundMatches, roundIndex) => (
+                           <div key={roundIndex} className="flex flex-col justify-around h-full space-y-8">
+                               {roundMatches.map(match => (
+                                    <MatchNode
+                                        key={match.id}
+                                        match={match}
+                                        teamNameMap={teamNameMap}
+                                        matchResults={matchResults}
+                                        onResultChange={handleMatchResultChange}
+                                        onUpdateMatch={handleUpdateMatch}
+                                        onResetMatch={handleResetMatch}
+                                    />
+                               ))}
+                           </div>
+                       ))}
                     </div>
                 </CardContent>
             </Card>
@@ -685,9 +697,8 @@ export default function TournamentManagement({
   );
 }
 
-const MatchNode = ({ match, allMatches, teamNameMap, matchResults, onResultChange, onUpdateMatch, onResetMatch }: {
+const MatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateMatch, onResetMatch }: {
     match: Match;
-    allMatches: Match[];
     teamNameMap: Map<string, string>;
     matchResults: Record<string, {scoreA: string, scoreB: string}>;
     onResultChange: (matchId: string, team: 'A' | 'B', score: string) => void;
@@ -697,44 +708,7 @@ const MatchNode = ({ match, allMatches, teamNameMap, matchResults, onResultChang
     const winnerIsA = match.winnerId && match.winnerId === match.teamAId;
     const winnerIsB = match.winnerId && match.winnerId === match.teamBId;
 
-    const teamAChild = allMatches.find(m => m.nextMatchId === match.id && m.nextMatchSlot === 'A');
-    const teamBChild = allMatches.find(m => m.nextMatchId === match.id && m.nextMatchSlot === 'B');
-
     return (
-    <div className="flex items-center">
-        <div className="flex flex-col justify-around gap-2">
-            {teamAChild && (
-            <MatchNode
-                match={teamAChild}
-                allMatches={allMatches}
-                teamNameMap={teamNameMap}
-                matchResults={matchResults}
-                onResultChange={onResultChange}
-                onUpdateMatch={onUpdateMatch}
-                onResetMatch={onResetMatch}
-            />
-            )}
-            {teamBChild && (
-            <MatchNode
-                match={teamBChild}
-                allMatches={allMatches}
-                teamNameMap={teamNameMap}
-                matchResults={matchResults}
-                onResultChange={onResultChange}
-                onUpdateMatch={onUpdateMatch}
-                onResetMatch={onResetMatch}
-            />
-            )}
-        </div>
-
-        {(teamAChild || teamBChild) && (
-            <div className="h-full w-8 flex-shrink-0 relative">
-                <div className="absolute left-0 top-1/2 w-full h-[1px] bg-muted-foreground"></div>
-                {teamAChild && <div className="absolute left-0 top-0 w-[1px] h-1/2 bg-muted-foreground"></div>}
-                {teamBChild && <div className="absolute left-0 bottom-0 w-[1px] h-1/2 bg-muted-foreground"></div>}
-            </div>
-        )}
-      
       <div className="relative flex w-44 flex-col justify-center rounded-md border bg-card p-2 shadow-sm space-y-1">
         <div className="flex items-center justify-between">
           <span className={`truncate text-sm ${winnerIsA ? 'font-bold text-primary' : ''}`}>
@@ -789,6 +763,5 @@ const MatchNode = ({ match, allMatches, teamNameMap, matchResults, onResultChang
           </AlertDialog>
         )}
       </div>
-    </div>
-  );
+    );
 };
