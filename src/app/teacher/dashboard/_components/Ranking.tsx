@@ -631,7 +631,7 @@ function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGro
 
     if (
       selectedStudentIds.length === 0 ||
-      (divideBy === "teams" && numTeams < 1) || // 1 team is now allowed
+      (divideBy === "teams" && numTeams < 1) || 
       (divideBy === "members" && membersPerTeam < 1)
     ) {
       toast({
@@ -644,6 +644,21 @@ function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGro
     }
 
     const studentMap = new Map(allStudents.map((s) => [s.id, s]));
+    
+    // Special logic for grade-wide, single-team-per-class scenario
+    if (analysisScope === "grade" && selectedGrade && divideBy === "single") {
+        const classesInGrade = [...new Set(targetStudents.map(s => s.classNum))];
+        const newTeams = classesInGrade.map(classNum => {
+            return targetStudents.filter(s => 
+                s.classNum === classNum && selectedStudentIds.includes(s.id)
+            );
+        }).filter(team => team.length > 0);
+
+        setTeams(newTeams);
+        setLeftoverStudents([]);
+        toast({ title: "학급별 팀 생성 완료", description: `${selectedGrade}학년의 각 반을 하나의 팀으로 만들었습니다.` });
+        return;
+    }
     
     if (divideBy === 'single') {
         const studentsToGroup = targetStudents.filter((s) => selectedStudentIds.includes(s.id));
@@ -721,7 +736,7 @@ function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGro
       setTeams(allNewTeams);
       setLeftoverStudents(allLeftovers);
     } else {
-      // 'all' or 'class' scope or 'single'
+      // 'all' or 'class' scope
       const studentsToBalance = targetStudents.filter((s) =>
         selectedStudentIds.includes(s.id)
       );
