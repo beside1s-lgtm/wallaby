@@ -897,16 +897,26 @@ export const getLatestTournamentForStudent = async (school: string, studentId: s
     return null;
   }
   
-  // Now find the latest tournament that uses this team group
+  // Now find all tournaments that use this team group
   const tournamentsRef = collection(db, 'schools', school, 'tournaments');
   const q = query(
     tournamentsRef,
-    where('teamGroupId', '==', studentTeamGroup.id),
-    orderBy('createdAt', 'desc'),
-    limit(1)
+    where('teamGroupId', '==', studentTeamGroup.id)
   );
 
-  const snapshot = await getDocs(q).catch(e => {
+  try {
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      return null;
+    }
+
+    // Sort by createdAt client-side
+    const tournaments = snapshot.docs.map(doc => doc.data() as Tournament);
+    tournaments.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
+    
+    return tournaments[0];
+  } catch(e: any) {
     if (e.code === 'permission-denied') {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: tournamentsRef.path,
@@ -915,12 +925,7 @@ export const getLatestTournamentForStudent = async (school: string, studentId: s
       }));
     }
     throw e;
-  });
-
-  if (snapshot.empty) {
-    return null;
   }
-  return snapshot.docs[0].data() as Tournament;
 };
 
 export const updateTournament = async (school: string, tournamentId: string, data: Partial<Tournament>): Promise<void> => {
