@@ -62,6 +62,9 @@ export type TeamGroup = {
   grade?: string;
   classNum?: string;
   gender?: 'all' | '남' | '여';
+  divideBy?: 'teams' | 'members' | 'single';
+  numTeams?: number;
+  membersPerTeam?: number;
 };
 
 export type TeamGroupInput = Omit<TeamGroup, 'id' | 'createdAt'>;

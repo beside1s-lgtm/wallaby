@@ -262,7 +262,7 @@ function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGro
   const [selectedItemNames, setSelectedItemNames] = useState<string[]>([]);
   const [numTeams, setNumTeams] = useState(2);
   const [membersPerTeam, setMembersPerTeam] = useState(4);
-  const [divideBy, setDivideBy] = useState<"teams" | "members">("teams");
+  const [divideBy, setDivideBy] = useState<"teams" | "members" | "single">("teams");
 
   const [teams, setTeams] = useState<Student[][]>([]);
   const [leftoverStudents, setLeftoverStudents] = useState<Student[]>([]);
@@ -321,6 +321,9 @@ function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGro
     setSelectedClassNum(group.classNum || '');
     setSelectedGender(group.gender || 'all');
     setSelectedItemNames(group.itemNamesForBalancing || []);
+    setDivideBy(group.divideBy || 'teams');
+    setNumTeams(group.numTeams || 2);
+    setMembersPerTeam(group.membersPerTeam || 4);
 
     const studentMap = new Map(allStudents.map(s => [s.id, s]));
     const populatedTeams = group.teams.map(team => 
@@ -628,7 +631,7 @@ function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGro
 
     if (
       selectedStudentIds.length === 0 ||
-      (divideBy === "teams" && numTeams < 2) ||
+      (divideBy === "teams" && numTeams < 1) || // 1 team is now allowed
       (divideBy === "members" && membersPerTeam < 1)
     ) {
       toast({
@@ -641,6 +644,19 @@ function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGro
     }
 
     const studentMap = new Map(allStudents.map((s) => [s.id, s]));
+    
+    if (divideBy === 'single') {
+        const studentsToGroup = targetStudents.filter((s) => selectedStudentIds.includes(s.id));
+        if (studentsToGroup.length > 0) {
+            setTeams([studentsToGroup]);
+            setLeftoverStudents([]);
+        } else {
+            setTeams([]);
+            setLeftoverStudents([]);
+        }
+        toast({ title: "팀 생성 완료", description: "선택된 모든 학생으로 한 팀을 만들었습니다." });
+        return;
+    }
 
     const createTeamsForGroup = (studentGroup: Student[]) => {
       const sortedStudents = studentGroup
@@ -684,7 +700,7 @@ function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGro
       }
     };
 
-    if (analysisScope === "grade" && selectedGrade) {
+    if (analysisScope === "grade" && selectedGrade && divideBy !== 'single') {
       const classesInGrade = [
         ...new Set(targetStudents.map((s) => s.classNum)),
       ];
@@ -705,7 +721,7 @@ function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGro
       setTeams(allNewTeams);
       setLeftoverStudents(allLeftovers);
     } else {
-      // 'all' or 'class' scope
+      // 'all' or 'class' scope or 'single'
       const studentsToBalance = targetStudents.filter((s) =>
         selectedStudentIds.includes(s.id)
       );
@@ -863,7 +879,10 @@ function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGro
         analysisScope,
         grade: selectedGrade,
         classNum: selectedClassNum,
-        gender: selectedGender
+        gender: selectedGender,
+        divideBy,
+        numTeams: divideBy === 'teams' ? numTeams : undefined,
+        membersPerTeam: divideBy === 'members' ? membersPerTeam : undefined,
       };
       await saveTeamGroup(teamData);
       toast({
@@ -1316,6 +1335,10 @@ function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGro
                     <RadioGroupItem value="members" id="members" />
                     <Label htmlFor="members">팀원 수로 나누기</Label>
                   </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="single" id="single" />
+                    <Label htmlFor="single">선택 그룹을 한 팀으로</Label>
+                  </div>
                 </RadioGroup>
               </div>
 
@@ -1327,14 +1350,14 @@ function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGro
                     type="number"
                     value={numTeams}
                     onChange={(e) =>
-                      setNumTeams(Math.max(2, parseInt(e.target.value) || 2))
+                      setNumTeams(Math.max(1, parseInt(e.target.value) || 1))
                     }
-                    min="2"
+                    min="1"
                     className="w-[100px]"
                     disabled={!!selectedTeamGroupId}
                   />
                 </div>
-              ) : (
+              ) : divideBy === "members" ? (
                 <div>
                   <Label htmlFor="members-per-team">팀원 수</Label>
                   <Input
@@ -1351,33 +1374,36 @@ function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGro
                     disabled={!!selectedTeamGroupId}
                   />
                 </div>
-              )}
+              ) : null}
 
-              <div>
-                <Label>편성 방식</Label>
-                <RadioGroup
-                  value={balanceStrategy}
-                  onValueChange={
-                    (value) =>
-                      setBalanceStrategy(value as "uniform" | "level")
-                  }
-                  className="flex items-center gap-4 mt-2"
-                   disabled={!!selectedTeamGroupId}
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="uniform" id="uniform" />
-                    <Label htmlFor="uniform">균등 편성</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="level" id="level" />
-                    <Label htmlFor="level">레벨 편성</Label>
-                  </div>
-                </RadioGroup>
-              </div>
+              {divideBy !== 'single' && (
+                <div>
+                  <Label>편성 방식</Label>
+                  <RadioGroup
+                    value={balanceStrategy}
+                    onValueChange={
+                      (value) =>
+                        setBalanceStrategy(value as "uniform" | "level")
+                    }
+                    className="flex items-center gap-4 mt-2"
+                    disabled={!!selectedTeamGroupId}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="uniform" id="uniform" />
+                      <Label htmlFor="uniform">균등 편성</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="level" id="level" />
+                      <Label htmlFor="level">레벨 편성</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+              )}
             </div>
              <div className="flex flex-wrap items-end gap-2 pt-2 border-t mt-4">
               <Button onClick={handleBalanceTeams} disabled={!!selectedTeamGroupId}>
-                <Shuffle /> 팀 나누기
+                <Shuffle className="mr-2 h-4 w-4" /> 
+                {divideBy === 'single' ? '팀 만들기' : '팀 나누기'}
               </Button>
               <Button
                 onClick={handleDownloadTeams}
