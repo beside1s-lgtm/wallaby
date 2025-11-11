@@ -55,7 +55,7 @@ export type TeamGroup = {
   school: string;
   description: string;
   teams: Team[];
-  itemNamesForBalancing?: string[]; // 능력치 기준 종목
+  itemNamesForBalancing: string[]; // 능력치 기준 종목
   createdAt: any;
   // Metadata for reloading the state
   analysisScope: 'all' | 'grade' | 'class';
