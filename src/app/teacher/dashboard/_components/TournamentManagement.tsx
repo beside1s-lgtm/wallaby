@@ -31,12 +31,9 @@ import {
   Trash2,
   RefreshCw,
   Swords,
-  Users,
-  Send,
-  Plus,
-  Shuffle,
   Save,
   RotateCcw,
+  Shuffle,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -67,30 +64,33 @@ const generateTournamentBracket = (teamIds: string[]): Match[] => {
     const totalSlots = Math.pow(2, numRounds);
     const byes = totalSlots - numTeams;
 
-    let round1Teams = teams.slice(byes);
-    let byeTeams = teams.slice(0, byes);
+    // 1. Separate teams with byes
+    const teamsWithByes = teams.slice(0, byes);
+    const teamsInRound1 = teams.slice(byes);
     
-    let roundMatches: Match[] = [];
-    for (let i = 0; i < round1Teams.length / 2; i++) {
+    // 2. Create Round 1 matches
+    let round1Matches: Match[] = [];
+    for (let i = 0; i < teamsInRound1.length / 2; i++) {
         const match: Match = {
             id: uuidv4(),
             round: 1,
             matchNumber: i + 1,
-            teamAId: round1Teams[i*2],
-            teamBId: round1Teams[i*2 + 1],
+            teamAId: teamsInRound1[i*2],
+            teamBId: teamsInRound1[i*2 + 1],
             scoreA: null, scoreB: null, winnerId: null, status: 'scheduled',
             nextMatchId: null,
             nextMatchSlot: null
         };
-        roundMatches.push(match);
+        round1Matches.push(match);
     }
-    matches.push(...roundMatches);
+    matches.push(...round1Matches);
 
-    let prevRoundWinners: (string | Match)[] = [...byeTeams, ...roundMatches];
+    // 3. Prepare for next rounds
+    let previousRoundEntrants: (string | Match)[] = [...teamsWithByes, ...round1Matches];
     
     for (let round = 2; round <= numRounds; round++) {
         let currentRoundMatches: Match[] = [];
-        for (let i = 0; i < prevRoundWinners.length / 2; i++) {
+        for (let i = 0; i < previousRoundEntrants.length / 2; i++) {
             const match: Match = {
                 id: uuidv4(),
                 round: round,
@@ -101,10 +101,10 @@ const generateTournamentBracket = (teamIds: string[]): Match[] => {
                 nextMatchSlot: null,
             };
 
-            const teamAInfo = prevRoundWinners[i*2];
+            const teamAInfo = previousRoundEntrants[i*2];
             if (typeof teamAInfo === 'string') {
                 match.teamAId = teamAInfo;
-            } else {
+            } else { // It's a match from the previous round
                 const prevMatch = matches.find(m => m.id === teamAInfo.id);
                 if(prevMatch) {
                    prevMatch.nextMatchId = match.id;
@@ -112,7 +112,7 @@ const generateTournamentBracket = (teamIds: string[]): Match[] => {
                 }
             }
 
-            const teamBInfo = prevRoundWinners[i*2 + 1];
+            const teamBInfo = previousRoundEntrants[i*2 + 1];
             if (typeof teamBInfo === 'string') {
                 match.teamBId = teamBInfo;
             } else if (teamBInfo) {
@@ -123,6 +123,7 @@ const generateTournamentBracket = (teamIds: string[]): Match[] => {
                 }
             }
             
+            // Handle bye in this round if one team is set but the other is not
             if (match.teamAId && !match.teamBId) {
                 match.winnerId = match.teamAId;
                 match.status = 'completed';
@@ -131,7 +132,7 @@ const generateTournamentBracket = (teamIds: string[]): Match[] => {
             currentRoundMatches.push(match);
         }
         matches.push(...currentRoundMatches);
-        prevRoundWinners = currentRoundMatches;
+        previousRoundEntrants = currentRoundMatches;
     }
 
     return matches;
@@ -150,7 +151,7 @@ export default function TournamentManagement({
   const [tournamentName, setTournamentName] = useState("");
   const [tournamentType, setTournamentType] = useState<
     "round-robin" | "tournament" | "league-tournament"
-  >("league-tournament");
+  >("tournament");
   const [selectedTeamGroupId, setSelectedTeamGroupId] = useState("");
   const [numGroups, setNumGroups] = useState(2);
 
@@ -191,6 +192,8 @@ export default function TournamentManagement({
       name: tournamentName,
       type: tournamentType,
       teamGroupId: selectedTeamGroup.id,
+      groups: [],
+      matches: [],
     };
     
     const teams = [...selectedTeamGroup.teams];
@@ -281,7 +284,7 @@ export default function TournamentManagement({
   const resetForm = () => {
     setSelectedTournamentId("");
     setTournamentName("");
-    setTournamentType("league-tournament");
+    setTournamentType("tournament");
     setSelectedTeamGroupId("");
     setCurrentTournament(null);
     setMatchResults({});
@@ -295,10 +298,10 @@ export default function TournamentManagement({
         setTournamentName(tournament.name);
         setTournamentType(tournament.type);
         setSelectedTeamGroupId(tournament.teamGroupId);
-        setNumGroups(tournament.groups.length || 2);
+        setNumGroups(tournament.groups?.length || 2);
         
         const initialResults: Record<string, { scoreA: string, scoreB: string }> = {};
-        const allMatches = [...tournament.matches, ...tournament.groups.flatMap(g => g.matches)];
+        const allMatches = [...(tournament.matches || []), ...(tournament.groups || []).flatMap(g => g.matches)];
         allMatches.forEach(match => {
             initialResults[match.id] = {
                 scoreA: match.scoreA !== null ? match.scoreA.toString() : '',
@@ -353,15 +356,8 @@ export default function TournamentManagement({
         setIsLoading(true);
         try {
             const newTournamentData = JSON.parse(JSON.stringify(currentTournament)) as Tournament;
-            let matchToUpdate: Match | undefined;
-
-            for (const group of newTournamentData.groups) {
-                matchToUpdate = group.matches.find(m => m.id === matchId);
-                if (matchToUpdate) break;
-            }
-            if (!matchToUpdate) {
-                matchToUpdate = newTournamentData.matches.find(m => m.id === matchId);
-            }
+            let allMatches = [...(newTournamentData.matches || []), ...(newTournamentData.groups || []).flatMap(g => g.matches)];
+            let matchToUpdate = allMatches.find(m => m.id === matchId);
         
             if(matchToUpdate) {
                 matchToUpdate.scoreA = scoreA;
@@ -405,7 +401,9 @@ export default function TournamentManagement({
         setIsLoading(true);
         try {
             const newTournamentData = JSON.parse(JSON.stringify(currentTournament)) as Tournament;
-            const matchToReset = newTournamentData.matches.find(m => m.id === matchId);
+            let allMatches = [...(newTournamentData.matches || []), ...(newTournamentData.groups || []).flatMap(g => g.matches)];
+            let matchToReset = allMatches.find(m => m.id === matchId);
+
              if (!matchToReset) {
                 toast({ variant: 'destructive', title: '오류', description: '리셋할 경기를 찾지 못했습니다.' });
                 setIsLoading(false);
@@ -443,7 +441,8 @@ export default function TournamentManagement({
             }
             
             await updateTournament(school, currentTournament.id, {
-                matches: newTournamentData.matches
+                matches: newTournamentData.matches,
+                groups: newTournamentData.groups,
             });
             setCurrentTournament(newTournamentData);
             toast({ title: "경기 결과 초기화 완료" });
@@ -475,16 +474,10 @@ export default function TournamentManagement({
       return teamsInClass.findIndex(t => t.teamIndex === teamIndex) + 1;
   };
   
-    const groupedMatches = useMemo(() => {
-        if (!currentTournament || currentTournament.type !== 'tournament') return [];
-        const groups: Match[][] = [];
-        currentTournament.matches.forEach(match => {
-            if (!groups[match.round - 1]) {
-                groups[match.round - 1] = [];
-            }
-            groups[match.round - 1].push(match);
-        });
-        return groups.map(round => round.sort((a,b) => a.matchNumber - b.matchNumber));
+    const finalMatch = useMemo(() => {
+        if (!currentTournament || !currentTournament.matches || currentTournament.matches.length === 0) return null;
+        const maxRound = Math.max(...currentTournament.matches.map(m => m.round));
+        return currentTournament.matches.find(m => m.round === maxRound) || null;
     }, [currentTournament]);
 
 
@@ -591,12 +584,14 @@ export default function TournamentManagement({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="league-tournament">
-                      조별리그 후 토너먼트
-                    </SelectItem>
-                    <SelectItem value="round-robin">풀 리그 (라운드 로빈)</SelectItem>
                     <SelectItem value="tournament">
-                      바로 토너먼트 (싱글 엘리미네이션)
+                      토너먼트 (싱글 엘리미네이션)
+                    </SelectItem>
+                    <SelectItem value="league-tournament" disabled>
+                      조별리그 후 토너먼트 (준비 중)
+                    </SelectItem>
+                    <SelectItem value="round-robin" disabled>
+                      풀 리그 (라운드 로빈) (준비 중)
                     </SelectItem>
                   </SelectContent>
                 </Select>
@@ -625,31 +620,22 @@ export default function TournamentManagement({
         </CardContent>
       </Card>
       
-        {currentTournament && currentTournament.type === 'tournament' && (
+        {currentTournament && currentTournament.type === 'tournament' && finalMatch && (
             <Card>
                 <CardHeader>
                     <CardTitle>{currentTournament.name} 대진표</CardTitle>
                 </CardHeader>
-                <CardContent className="overflow-x-auto p-4">
-                    <div className="flex space-x-8">
-                        {groupedMatches.map((roundMatches, roundIndex) => (
-                            <div key={roundIndex} className="flex flex-col justify-around min-w-[250px] space-y-4">
-                                <h4 className="text-center font-bold">
-                                    {roundIndex === groupedMatches.length - 1 ? '결승' : roundIndex === groupedMatches.length - 2 ? '준결승' : `${Math.pow(2, groupedMatches.length - roundIndex -1) * 2}강`}
-                                </h4>
-                                {roundMatches.map(match => (
-                                    <MatchNode
-                                        key={match.id}
-                                        match={match}
-                                        teamNameMap={teamNameMap}
-                                        matchResults={matchResults}
-                                        onResultChange={handleMatchResultChange}
-                                        onUpdateMatch={handleUpdateMatch}
-                                        onResetMatch={handleResetMatch}
-                                    />
-                                ))}
-                            </div>
-                        ))}
+                <CardContent className="overflow-x-auto p-4 flex justify-center">
+                    <div className="flex flex-col items-center">
+                        <MatchNode
+                            match={finalMatch}
+                            allMatches={currentTournament.matches}
+                            teamNameMap={teamNameMap}
+                            matchResults={matchResults}
+                            onResultChange={handleMatchResultChange}
+                            onUpdateMatch={handleUpdateMatch}
+                            onResetMatch={handleResetMatch}
+                        />
                     </div>
                 </CardContent>
             </Card>
@@ -703,8 +689,9 @@ export default function TournamentManagement({
   );
 }
 
-const MatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateMatch, onResetMatch }: {
+const MatchNode = ({ match, allMatches, teamNameMap, matchResults, onResultChange, onUpdateMatch, onResetMatch }: {
     match: Match;
+    allMatches: Match[];
     teamNameMap: Map<string, string>;
     matchResults: Record<string, {scoreA: string, scoreB: string}>;
     onResultChange: (matchId: string, team: 'A' | 'B', score: string) => void;
@@ -714,63 +701,104 @@ const MatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateM
     const winnerIsA = match.winnerId && match.winnerId === match.teamAId;
     const winnerIsB = match.winnerId && match.winnerId === match.teamBId;
 
+    const teamAChild = allMatches.find(m => m.nextMatchId === match.id && m.nextMatchSlot === 'A');
+    const teamBChild = allMatches.find(m => m.nextMatchId === match.id && m.nextMatchSlot === 'B');
+
     return (
-        <div className="p-2 border bg-card rounded-md shadow-sm w-full relative">
-            {/* Connector lines will be handled by parent */}
-            <div className="flex flex-col space-y-1">
+        <div className="relative flex flex-col items-center justify-center">
+            {/* Connectors to children */}
+             {teamAChild && <div className="absolute top-1/4 -left-1/4 h-1/2 w-1/4 border-r border-b border-muted-foreground"></div>}
+            {teamBChild && <div className="absolute top-3/4 -left-1/4 h-1/2 w-1/4 border-r border-t border-muted-foreground"></div>}
+            
+            {/* Connector to parent */}
+            {match.nextMatchId && <div className={`absolute top-1/2 -right-2 h-[1px] w-2 ${match.nextMatchSlot === 'A' ? 'border-t' : 'border-b'} border-muted-foreground`}></div>}
+            
+            <div className="relative z-10 flex min-h-[80px] w-56 flex-col justify-center rounded-md border bg-card p-2 shadow-sm">
                 <div className="flex items-center justify-between">
-                    <span className={`text-sm truncate ${winnerIsA ? 'font-bold text-primary' : ''}`}>
-                        {teamNameMap.get(match.teamAId!) || '미정'}
+                    <span className={`truncate text-sm ${winnerIsA ? 'font-bold text-primary' : ''}`}>
+                        {match.teamAId ? (teamNameMap.get(match.teamAId) || '부전승') : '미정'}
                     </span>
-                    <Input 
+                    <Input
                         type="number"
-                        className="w-12 h-7 text-center"
+                        className="h-7 w-12 text-center"
                         placeholder="-"
                         value={matchResults[match.id]?.scoreA ?? ''}
                         onChange={(e) => onResultChange(match.id, 'A', e.target.value)}
                         disabled={match.status === 'completed'}
                     />
                 </div>
+                <div className="my-1 border-t border-dashed"></div>
                 <div className="flex items-center justify-between">
-                    <span className={`text-sm truncate ${winnerIsB ? 'font-bold text-primary' : ''}`}>
-                        {teamNameMap.get(match.teamBId!) || (!match.teamAId ? '미정' : '부전승')}
+                    <span className={`truncate text-sm ${winnerIsB ? 'font-bold text-primary' : ''}`}>
+                        {match.teamBId ? (teamNameMap.get(match.teamBId) || '부전승') : '미정'}
                     </span>
-                    <Input
+                     <Input
                         type="number"
-                        className="w-12 h-7 text-center"
+                        className="h-7 w-12 text-center"
                         placeholder="-"
                         value={matchResults[match.id]?.scoreB ?? ''}
                         onChange={(e) => onResultChange(match.id, 'B', e.target.value)}
                         disabled={match.status === 'completed' || !match.teamBId}
                     />
                 </div>
-            </div>
-            {match.status === 'scheduled' && match.teamAId && match.teamBId && (
-                <Button size="sm" className="w-full mt-2 h-7" onClick={() => onUpdateMatch(match.id)}>
-                    <Save className="mr-2 h-3 w-3"/> 저장
-                </Button>
-            )}
-            {match.status === 'completed' && match.teamBId && (
-                <AlertDialog>
-                <AlertDialogTrigger asChild>
-                    <Button size="sm" variant="ghost" className="w-full mt-2 h-7">
-                        <RotateCcw className="mr-2 h-3 w-3"/> 결과 초기화
+                 {match.status === 'scheduled' && match.teamAId && match.teamBId && (
+                    <Button size="sm" className="mt-2 h-7 w-full" onClick={() => onUpdateMatch(match.id)}>
+                        <Save className="mr-2 h-3 w-3"/> 저장
                     </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>결과를 초기화하시겠습니까?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            이 경기의 점수와 승리 기록이 삭제됩니다. 다음 라운드에 진출했다면 해당 기록도 수정됩니다.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>취소</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => onResetMatch(match.id)}>초기화</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-                </AlertDialog>
+                )}
+                {match.status === 'completed' && match.teamBId && (
+                     <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button size="sm" variant="ghost" className="mt-2 h-7 w-full">
+                                <RotateCcw className="mr-2 h-3 w-3"/> 결과 초기화
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>결과를 초기화하시겠습니까?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    이 경기의 점수와 승리 기록이 삭제됩니다. 다음 라운드에 진출했다면 해당 기록도 수정됩니다.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>취소</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => onResetMatch(match.id)}>초기화</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                )}
+            </div>
+
+            {(teamAChild || teamBChild) && (
+                 <div className="absolute right-full top-1/2 h-full w-4">
+                    <div className="h-full w-[1px] bg-muted-foreground mx-auto"></div>
+                </div>
             )}
+
+            <div className="absolute right-[calc(100%+1rem)] top-0 flex h-full flex-col justify-around">
+                {teamAChild && 
+                    <MatchNode 
+                        match={teamAChild} 
+                        allMatches={allMatches} 
+                        teamNameMap={teamNameMap} 
+                        matchResults={matchResults}
+                        onResultChange={onResultChange}
+                        onUpdateMatch={onUpdateMatch}
+                        onResetMatch={onResetMatch}
+                    />
+                }
+                {teamBChild && 
+                    <MatchNode 
+                        match={teamBChild} 
+                        allMatches={allMatches} 
+                        teamNameMap={teamNameMap} 
+                        matchResults={matchResults}
+                        onResultChange={onResultChange}
+                        onUpdateMatch={onUpdateMatch}
+                        onResetMatch={onResetMatch}
+                    />
+                }
+            </div>
         </div>
     );
 };
