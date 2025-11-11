@@ -7,7 +7,7 @@ import {
   deleteTournament,
   updateTournament,
 } from "@/lib/store";
-import { Student, TeamGroup, Tournament, Match, TournamentGroup } from "@/lib/types";
+import { TeamGroup, Tournament, Match, TournamentGroup } from "@/lib/types";
 import {
   Card,
   CardContent,
@@ -35,6 +35,7 @@ import {
   Send,
   Plus,
   Shuffle,
+  Save,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -53,6 +54,9 @@ type TournamentManagementProps = {
   teamGroups: TeamGroup[];
   onTournamentUpdate: () => void;
 };
+
+type EnrichedMatch = Match & { teamAName?: string; teamBName?: string };
+type EnrichedTournamentGroup = Omit<TournamentGroup, 'matches'> & { matches: EnrichedMatch[] };
 
 export default function TournamentManagement({
   teamGroups,
@@ -74,6 +78,8 @@ export default function TournamentManagement({
   const [currentTournament, setCurrentTournament] = useState<Tournament | null>(
     null
   );
+  
+  const [matchResults, setMatchResults] = useState<Record<string, {scoreA: string, scoreB: string}>>({});
 
   useEffect(() => {
     async function loadTournaments() {
@@ -89,7 +95,7 @@ export default function TournamentManagement({
       }
     }
     loadTournaments();
-  }, [school, onTournamentUpdate]);
+  }, [school, onTournamentUpdate, toast]);
   
   const selectedTeamGroup = useMemo(() => {
     return teamGroups.find(tg => tg.id === selectedTeamGroupId);
@@ -110,9 +116,8 @@ export default function TournamentManagement({
       matches: [],
     };
     
-    // --- 대진표 생성 로직 ---
     const teams = [...selectedTeamGroup.teams];
-    teams.sort(() => Math.random() - 0.5); // Shuffle teams
+    teams.sort(() => Math.random() - 0.5); 
 
     if (tournamentType === 'tournament') {
         tournamentData.matches = generateTournamentBracket(teams.map(t => String(t.teamIndex)));
@@ -137,7 +142,6 @@ export default function TournamentManagement({
             group.matches = generateRoundRobin(group.teamIds);
         });
         tournamentData.groups = groups;
-        // Final tournament bracket will be generated later based on group results
     }
 
     setIsLoading(true);
@@ -190,16 +194,16 @@ export default function TournamentManagement({
     const totalSlots = Math.pow(2, rounds);
     const byes = totalSlots - numTeams;
 
-    // Add bye placeholders
     for (let i = 0; i < byes; i++) {
         teams.push('bye');
     }
-    teams.sort(() => Math.random() - 0.5); // Shuffle again with byes
+    teams.sort(() => Math.random() - 0.5); 
 
     let currentRoundTeams = teams;
+    let matchCounter = 1;
     for (let round = 1; round <= rounds; round++) {
         const nextRoundTeams: (string | null)[] = [];
-        let matchNumber = 1;
+        let matchNumberInRound = 1;
         for (let i = 0; i < currentRoundTeams.length; i += 2) {
             const teamA = currentRoundTeams[i];
             const teamB = currentRoundTeams[i+1];
@@ -211,7 +215,7 @@ export default function TournamentManagement({
                 matches.push({
                     id: uuidv4(),
                     round,
-                    matchNumber,
+                    matchNumber: matchCounter++,
                     teamAId: teamA,
                     teamBId: teamB,
                     scoreA: null,
@@ -219,8 +223,8 @@ export default function TournamentManagement({
                     winnerId: null,
                     status: 'scheduled',
                 });
-                nextRoundTeams.push(null); // Winner placeholder
-                matchNumber++;
+                nextRoundTeams.push(null); 
+                matchNumberInRound++;
             }
         }
         currentRoundTeams = nextRoundTeams as string[];
@@ -235,6 +239,7 @@ export default function TournamentManagement({
     setTournamentType("league-tournament");
     setSelectedTeamGroupId("");
     setCurrentTournament(null);
+    setMatchResults({});
   };
   
   const handleLoadTournament = (id: string) => {
@@ -245,6 +250,7 @@ export default function TournamentManagement({
         setTournamentName(tournament.name);
         setTournamentType(tournament.type);
         setSelectedTeamGroupId(tournament.teamGroupId);
+        setMatchResults({}); // Reset results when loading a new tournament
     }
   }
 
@@ -262,6 +268,34 @@ export default function TournamentManagement({
         setIsLoading(false);
     }
   }
+
+  const enrichedTournament = useMemo(() => {
+    if (!currentTournament || !selectedTeamGroup) return null;
+
+    const teamNameMap = new Map<string, string>();
+    selectedTeamGroup.teams.forEach((team, index) => {
+      const firstStudent = team.members?.[0];
+      const teamName = firstStudent ? `${firstStudent.grade}-${firstStudent.classNum}반 ${team.teamIndex + 1}팀` : `${team.teamIndex + 1}팀`;
+      teamNameMap.set(String(team.teamIndex), teamName);
+    });
+    
+    const enrichMatches = (matches: Match[]): EnrichedMatch[] => {
+        return matches.map(match => ({
+            ...match,
+            teamAName: match.teamAId ? teamNameMap.get(match.teamAId) || '부전승' : '미정',
+            teamBName: match.teamBId ? teamNameMap.get(match.teamBId) || '부전승' : '미정',
+        }));
+    }
+    
+    return {
+        ...currentTournament,
+        groups: currentTournament.groups.map(group => ({
+            ...group,
+            matches: enrichMatches(group.matches),
+        })),
+        matches: enrichMatches(currentTournament.matches),
+    };
+  }, [currentTournament, selectedTeamGroup]);
 
   return (
     <div className="space-y-6">
@@ -399,6 +433,61 @@ export default function TournamentManagement({
           </div>
         </CardContent>
       </Card>
+
+      {enrichedTournament && (
+        <Card>
+            <CardHeader>
+                <CardTitle>{enrichedTournament.name} 대진표</CardTitle>
+                <CardDescription>
+                    {enrichedTournament.type === 'league-tournament' && '조별 리그 결과'}
+                    {enrichedTournament.type === 'round-robin' && '리그 경기 결과'}
+                    {enrichedTournament.type === 'tournament' && '토너먼트 경기 결과'}
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+                {enrichedTournament.groups.map(group => (
+                    <div key={group.name} className="p-4 border rounded-lg">
+                        <h4 className="font-bold text-lg mb-2">{group.name}</h4>
+                        <div className="space-y-2">
+                            {group.matches.map(match => (
+                                <div key={match.id} className="flex items-center gap-2 p-2 bg-muted rounded-md">
+                                    <span className="flex-1 text-right">{match.teamAName}</span>
+                                    <Input type="number" className="w-16" placeholder="점수" />
+                                    <span>vs</span>
+                                    <Input type="number" className="w-16" placeholder="점수" />
+                                    <span className="flex-1 text-left">{match.teamBName}</span>
+                                    <Button size="sm" variant="outline"><Save className="h-4 w-4" /></Button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+
+                 {enrichedTournament.matches.length > 0 && (
+                    <div className="p-4 border rounded-lg">
+                        <h4 className="font-bold text-lg mb-2">토너먼트</h4>
+                         <div className="space-y-2">
+                             {enrichedTournament.matches.map(match => (
+                                <div key={match.id} className="flex items-center gap-2 p-2 bg-muted rounded-md">
+                                    <span className="text-sm text-muted-foreground w-12">R{match.round} M{match.matchNumber}</span>
+                                    <span className="flex-1 text-right">{match.teamAName}</span>
+                                    <Input type="number" className="w-16" placeholder="점수" />
+                                    <span>vs</span>
+                                    <Input type="number" className="w-16" placeholder="점수" />
+                                    <span className="flex-1 text-left">{match.teamBName}</span>
+                                    <Button size="sm" variant="outline"><Save className="h-4 w-4" /></Button>
+                                </div>
+                            ))}
+                         </div>
+                    </div>
+                )}
+                {enrichedTournament.groups.length === 0 && enrichedTournament.matches.length === 0 && (
+                     <p className="text-center text-muted-foreground py-8">생성된 경기가 없습니다. 대진표를 생성해주세요.</p>
+                )}
+            </CardContent>
+        </Card>
+      )}
+
     </div>
   );
 }

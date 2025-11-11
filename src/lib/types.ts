@@ -64,9 +64,7 @@ export type TeamGroup = {
   gender?: 'all' | '남' | '여';
 };
 
-export type TeamGroupInput = Omit<TeamGroup, 'id' | 'createdAt' | 'teams'> & {
-  teams: { teamIndex: number; memberIds: string[] }[];
-};
+export type TeamGroupInput = Omit<TeamGroup, 'id' | 'createdAt'>;
 
 
 // --- Tournament Types ---
