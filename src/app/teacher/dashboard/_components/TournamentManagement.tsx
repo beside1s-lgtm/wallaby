@@ -618,8 +618,8 @@ export default function TournamentManagement({
             <CardContent className="overflow-x-auto p-4">
                 <div className="flex items-start space-x-8">
                     {Object.entries(matchesByRound).map(([round, matches]) => (
-                        <div key={round} className="flex flex-col space-y-8 min-w-[280px]">
-                            <h4 className="font-bold text-center">{parseInt(round) === finalMatch?.round ? '결승' : (Object.keys(matchesByRound).length === parseInt(round) ? '준결승' : `${matches.length * 2}강`)}</h4>
+                        <div key={round} className="flex flex-col space-y-16 min-w-[280px]">
+                            <h4 className="font-bold text-center text-lg">{parseInt(round) === finalMatch?.round ? '결승' : (Object.keys(matchesByRound).length > 1 && parseInt(round) === finalMatch!.round -1 ? '준결승' : `${matches.length * 2}강`)}</h4>
                             <div className="flex flex-col justify-around h-full space-y-16">
                                 {matches.map(match => (
                                     <MatchNode 
@@ -630,7 +630,6 @@ export default function TournamentManagement({
                                         onResultChange={handleMatchResultChange}
                                         onUpdateMatch={handleUpdateMatch}
                                         onResetMatch={handleResetMatch}
-                                        isFinal={match.id === finalMatch?.id}
                                     />
                                 ))}
                             </div>
@@ -644,20 +643,19 @@ export default function TournamentManagement({
   );
 }
 
-const MatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateMatch, onResetMatch, isFinal }: {
+const MatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateMatch, onResetMatch }: {
     match: Match;
     teamNameMap: Map<string, string>;
     matchResults: Record<string, {scoreA: string, scoreB: string}>;
     onResultChange: (matchId: string, team: 'A' | 'B', score: string) => void;
     onUpdateMatch: (matchId: string) => void;
     onResetMatch: (matchId: string) => void;
-    isFinal: boolean;
 }) => {
     const winnerIsA = match.winnerId && match.winnerId === match.teamAId;
     const winnerIsB = match.winnerId && match.winnerId === match.teamBId;
     
     return (
-        <div className="relative pl-4">
+        <div className="relative">
             <div className="relative flex w-64 flex-col justify-center rounded-md border bg-card p-2 shadow-sm space-y-1">
               <div className="flex items-center justify-between">
                 <span className={`truncate text-sm ${winnerIsA ? 'font-bold text-primary' : ''} ${match.teamAId ? '' : 'text-muted-foreground'}`}>
@@ -712,18 +710,6 @@ const MatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateM
                 </AlertDialog>
               )}
             </div>
-            {!isFinal && (
-              <>
-                <div className="absolute top-1/2 -right-4 h-[50%] w-4 border-r border-b border-gray-300" />
-                <div className="absolute top-1/2 -right-4 h-px w-4 bg-gray-300" />
-              </>
-            )}
-             {match.nextMatchSlot === 'A' && (
-                <div className="absolute -top-8 -right-4 h-[calc(50%+2rem)] w-4 border-l border-b border-gray-300 rounded-bl-md" />
-            )}
-            {match.nextMatchSlot === 'B' && (
-                <div className="absolute -bottom-8 -right-4 h-[calc(50%+2rem)] w-4 border-l border-t border-gray-300 rounded-tl-md" />
-            )}
         </div>
     );
 };
