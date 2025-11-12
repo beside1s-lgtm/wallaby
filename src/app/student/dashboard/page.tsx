@@ -52,6 +52,7 @@ import type { Student, MeasurementRecord, MeasurementItem, TeamGroup, Tournament
 import { getPapsGrade, getCustomItemGrade, normalizePapsRecord, normalizeCustomRecord } from '@/lib/paps';
 import { getRecords } from '@/lib/store';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 
 const chartConfig = {
@@ -471,368 +472,372 @@ export default function StudentDashboardPage() {
             </div>
         </div>
 
-      <Card>
-        <CardHeader className="text-center">
-          <CardTitle className="flex items-center justify-center gap-2">
-            <Swords /> {tournament?.name || "나의 대회"}
-          </CardTitle>
-          <CardDescription>
-            {tournament
-              ? "현재 진행 중인 대회 대진표입니다."
-              : "참가 중인 대회가 없습니다."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {tournament && Object.keys(matchesByRound).length > 0 ? (
-            <div className="overflow-x-auto p-4">
-              <div className="flex justify-center">
-                <div className="flex items-start space-x-8">
-                  {Object.entries(matchesByRound).map(([round, matches]) => (
-                    <div
-                      key={round}
-                      className="flex flex-col space-y-4 min-w-[180px]"
-                    >
-                      <h4 className="font-bold text-center text-lg">
-                        {parseInt(round) ===
-                        Math.max(...Object.keys(matchesByRound).map(Number))
-                          ? "결승"
-                          : `${matches.length * 2}강`}
-                      </h4>
-                      <div className="flex flex-col justify-around h-full space-y-4">
-                        {matches.map((match) => {
-                          const winnerIsA =
-                            !!match.winnerId &&
-                            match.winnerId === match.teamAId;
-                          const winnerIsB =
-                            !!match.winnerId &&
-                            match.winnerId === match.teamBId;
-
-                          return (
-                            <Card key={match.id} className="p-2">
-                              <CardContent className="p-1 space-y-1">
-                                <div className="flex items-center justify-between text-sm">
-                                  <span
-                                    className={`truncate ${
-                                      winnerIsA ? "font-bold text-primary" : ""
-                                    }`}
-                                  >
-                                    {match.teamAId
-                                      ? teamNameMap.get(match.teamAId) ?? "미정"
-                                      : "미정"}
-                                  </span>
-                                  <span className="font-semibold ml-2">
-                                    {match.scoreA ?? "-"}
-                                  </span>
-                                </div>
-                                <div className="flex items-center justify-between text-sm">
-                                  <span
-                                    className={`truncate ${
-                                      winnerIsB ? "font-bold text-primary" : ""
-                                    }`}
-                                  >
-                                    {match.teamBId
-                                      ? teamNameMap.get(match.teamBId) ?? "미정"
-                                      : match.status === "bye"
-                                      ? "(부전승)"
-                                      : "미정"}
-                                  </span>
-                                  <span className="font-semibold ml-2">
-                                    {match.scoreB ?? "-"}
-                                  </span>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-24 text-muted-foreground">
-              <p>선생님이 대회를 생성하고 전달하면 여기에 표시됩니다.</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className='flex-row items-start justify-between'>
-            <div>
-                <CardTitle className="flex items-center gap-2"><Users /> 나의 팀 확인</CardTitle>
-                <CardDescription>{teamGroup?.description || '전달된 팀 편성 정보가 없습니다.'}</CardDescription>
-            </div>
-            {teamGroup && (
-                <Select
-                    value={selectedTeamIndex !== null ? String(selectedTeamIndex) : undefined}
-                    onValueChange={(value) => setSelectedTeamIndex(Number(value))}
-                >
-                    <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="팀 선택" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {teamGroup.teams.map(team => (
-                            <SelectItem key={team.teamIndex} value={String(team.teamIndex)}>
-                                팀 {team.teamIndex + 1} {myTeam?.teamIndex === team.teamIndex ? '(나의 팀)' : ''}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            )}
-        </CardHeader>
-        <CardContent>
-            {isDataLoading ? (
-                <div className="flex items-center justify-center h-24">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="order-2 md:order-1">
-                        {displayedTeam ? (
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                                {displayedTeam.members.map(member => (
-                                    <div key={member.id} className={`p-3 rounded-md text-center ${member.id === student.id ? 'bg-primary/20' : 'bg-secondary'}`}>
-                                       <p className="font-semibold">{member.name}</p>
-                                       <p className="text-sm text-muted-foreground">{member.grade}-{member.classNum}</p>
-                                    </div>
+        <Tabs defaultValue="growth-record" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="growth-record">성장 기록</TabsTrigger>
+                <TabsTrigger value="measurement-input">측정결과 입력</TabsTrigger>
+                <TabsTrigger value="my-competition">나의 대회</TabsTrigger>
+            </TabsList>
+            <TabsContent value="growth-record" className="space-y-8 mt-6">
+                <Card>
+                    <CardHeader>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                            <CardTitle>나의 성장 기록</CardTitle>
+                            <CardDescription>측정 결과의 등급(막대)과 실제 기록의 성취도(선)를 함께 확인해보세요.</CardDescription>
+                        </div>
+                        <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
+                            <div className="grid grid-cols-3 gap-1 rounded-md bg-muted p-1 w-full sm:w-auto">
+                                <Button variant={chartFilter === 'all' ? 'outline-active' : 'ghost'} size="sm" onClick={() => setChartFilter('all')} className="bg-background data-[active]:bg-primary data-[active]:text-primary-foreground">전체</Button>
+                                <Button variant={chartFilter === 'paps' ? 'outline-active' : 'ghost'} size="sm" onClick={() => setChartFilter('paps')} className="bg-background data-[active]:bg-primary data-[active]:text-primary-foreground">PAPS</Button>
+                                <Button variant={chartFilter === 'custom' ? 'outline-active' : 'ghost'} size="sm" onClick={() => setChartFilter('custom')} className="bg-background data-[active]:bg-primary data-[active]:text-primary-foreground">기타</Button>
+                            </div>
+                            <Select onValueChange={setChartItemFilter} value={chartItemFilter}>
+                                <SelectTrigger className="w-full sm:w-[200px]">
+                                <SelectValue placeholder="종목 선택" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                {availableItems.map(item => (
+                                    <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
                                 ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    </CardHeader>
+                    <CardContent>
+                    {chartData.length > 0 ? (
+                        <ChartContainer config={chartConfig} className="h-[400px] w-full">
+                        <ResponsiveContainer>
+                            <ComposedChart data={chartData}>
+                            <CartesianGrid vertical={false} />
+                            <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
+                            <YAxis yAxisId="left" orientation="left" stroke="hsl(var(--chart-2))" domain={[0, 5]} ticks={[1, 2, 3, 4, 5]} tickFormatter={(value) => `${6 - value}등급`} name="등급" />
+                            <YAxis yAxisId="right" orientation="right" stroke="hsl(var(--chart-1))" domain={[0, 100]} unit="%" name="성취도" />
+                            <Tooltip content={<CustomTooltip />} />
+                            <Legend />
+                            <Bar dataKey="score" yAxisId="left" fill="var(--color-score)" name="등급" radius={[4, 4, 0, 0]} barSize={20} />
+                            <Line dataKey="achievement" yAxisId="right" type="monotone" stroke="var(--color-achievement)" strokeWidth={2} dot={true} name="성취도" />
+                            </ComposedChart>
+                        </ResponsiveContainer>
+                        </ChartContainer>
+                    ) : (
+                        <div className="h-[400px] flex items-center justify-center text-muted-foreground">
+                        <p>그래프를 표시할 종목을 선택해주세요.</p>
+                        </div>
+                    )}
+                    </CardContent>
+                </Card>
+                 <Card className="flex flex-col">
+                    <CardHeader>
+                        <CardTitle>AI 피드백</CardTitle>
+                        <CardDescription>운동 수행 결과를 바탕으로 AI가 피드백을 제공합니다.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex-grow">
+                        {isFeedbackLoading ? (
+                        <div className="flex items-center justify-center h-full">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                        </div>
+                        ) : aiFeedback ? (
+                        <p className="text-sm whitespace-pre-wrap">{aiFeedback}</p>
+                        ) : (
+                        <p className="text-sm text-muted-foreground">AI 피드백 받기 버튼을 눌러 피드백을 받아보세요.</p>
+                        )}
+                    </CardContent>
+                    <CardFooter>
+                        <Button
+                        onClick={handleGetFeedback}
+                        disabled={isFeedbackLoading || records.length === 0}
+                        className="w-full"
+                        variant="outline"
+                        >
+                        <Wand2 className="mr-2 h-4 w-4" />
+                        {isFeedbackLoading ? '피드백 생성 중...' : 'AI 피드백 받기'}
+                        </Button>
+                    </CardFooter>
+                </Card>
+                <Card>
+                    <CardHeader>
+                    <CardTitle>전체 측정 기록</CardTitle>
+                    <CardDescription>지금까지의 모든 측정 기록입니다. 잘못 입력된 기록은 삭제할 수 있습니다.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                    <Table>
+                        <TableHeader>
+                        <TableRow>
+                            <TableHead>날짜</TableHead>
+                            <TableHead>종목</TableHead>
+                            <TableHead>기록</TableHead>
+                            <TableHead className="text-right">작업</TableHead>
+                        </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                        {sortedRecords.length > 0 ? (
+                            sortedRecords.map((record) => {
+                            const item = measurementItems.find(i => i.name === record.item);
+                            return (
+                                <TableRow key={record.id}>
+                                <TableCell>{record.date}</TableCell>
+                                <TableCell>{record.item}</TableCell>
+                                <TableCell>{record.value}{item?.unit}</TableCell>
+                                <TableCell className="text-right">
+                                    <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                        <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            이 작업은 되돌릴 수 없습니다. 이 기록이 영구적으로 삭제됩니다.
+                                        </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                        <AlertDialogCancel>취소</AlertDialogCancel>
+                                        <AlertDialogAction onClick={() => handleDeleteRecord(record.id)}>삭제</AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                    </AlertDialog>
+                                </TableCell>
+                                </TableRow>
+                            );
+                            })
+                        ) : (
+                            <TableRow>
+                            <TableCell colSpan={4} className="h-24 text-center">
+                                측정된 기록이 없습니다.
+                            </TableCell>
+                            </TableRow>
+                        )}
+                        </TableBody>
+                    </Table>
+                    </CardContent>
+                </Card>
+            </TabsContent>
+            <TabsContent value="measurement-input" className="space-y-8 mt-6">
+                 <Card className="flex flex-col">
+                    <CardHeader>
+                        <CardTitle>측정 결과 입력</CardTitle>
+                        <CardDescription>오늘의 측정 결과를 입력하세요. 같은 날짜에 다시 입력하면 덮어쓰기됩니다.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex-grow space-y-4">
+                        <Select onValueChange={setSelectedItemName} value={selectedItemName}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="측정 종목 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {measurementItems.map(item => (
+                            <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                        </Select>
+                        {selectedItem?.isCompound ? (
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <Label htmlFor="height">키 (cm)</Label>
+                                    <Input id="height" type="number" value={height} onChange={e => setHeight(e.target.value)} />
+                                </div>
+                                <div>
+                                    <Label htmlFor="weight">몸무게 (kg)</Label>
+                                    <Input id="weight" type="number" value={weight} onChange={e => setWeight(e.target.value)} />
+                                </div>
                             </div>
                         ) : (
-                            <p className="text-sm text-muted-foreground text-center py-8">팀 정보가 없습니다. 선생님이 팀을 편성하고 전달할 때까지 기다려주세요.</p>
-                        )}
-                    </div>
-                     <div className="order-1 md:order-2 grid grid-cols-2 gap-4">
-                        {abilityScores.length > 0 ? (
-                             <div className='text-center h-[300px]'>
-                                <h4 className="font-semibold mb-2">나의 능력치</h4>
-                                <ResponsiveContainer width="100%" height="100%">
-                                  <RadarChart cx="50%" cy="50%" outerRadius="80%" data={abilityScores}>
-                                    <PolarGrid />
-                                    <PolarAngleAxis dataKey="item" tick={{ fontSize: 12 }} />
-                                    <PolarRadiusAxis axisLine={false} tick={false} />
-                                    <Radar name="나" dataKey="score" stroke="hsl(var(--chart-1))" fill="hsl(var(--chart-1))" fillOpacity={0.6} />
-                                    <Tooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}/>
-                                  </RadarChart>
-                                </ResponsiveContainer>
-                             </div>
-                        ): null}
-                        {teamAverageScores.length > 0 ? (
-                            <div className='text-center h-[300px]'>
-                                <h4 className="font-semibold mb-2">팀 평균 능력치</h4>
-                                <ResponsiveContainer width="100%" height="100%">
-                                  <RadarChart cx="50%" cy="50%" outerRadius="80%" data={teamAverageScores}>
-                                    <PolarGrid />
-                                    <PolarAngleAxis dataKey="item" tick={{ fontSize: 12 }} />
-                                     <PolarRadiusAxis axisLine={false} tick={false} />
-                                    <Radar name="팀 평균" dataKey="score" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.6}/>
-                                    <Tooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}/>
-                                  </RadarChart>
-                                </ResponsiveContainer>
-                            </div>
-                        ): null}
-                         {abilityScores.length === 0 && teamAverageScores.length === 0 && (
-                            <div className="col-span-2 flex items-center justify-center h-full text-sm text-muted-foreground">
-                                팀 편성 시 사용된 능력치 데이터가 없습니다.
+                            <div>
+                            <Label htmlFor="value">결과 ({selectedItem?.unit})</Label>
+                            <Input
+                                id="value"
+                                placeholder={inputPlaceholder}
+                                value={value}
+                                onChange={e => setValue(e.target.value)}
+                                type="number"
+                            />
                             </div>
                         )}
-                    </div>
-                </div>
-            )}
-        </CardContent>
-      </Card>
+                    </CardContent>
+                    <CardFooter>
+                        <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full">
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        결과 저장
+                        </Button>
+                    </CardFooter>
+                </Card>
+            </TabsContent>
+            <TabsContent value="my-competition" className="space-y-8 mt-6">
+                 <Card>
+                    <CardHeader className="text-center">
+                    <CardTitle className="flex items-center justify-center gap-2">
+                        <Swords /> {tournament?.name || "나의 대회"}
+                    </CardTitle>
+                    <CardDescription>
+                        {tournament
+                        ? "현재 진행 중인 대회 대진표입니다."
+                        : "참가 중인 대회가 없습니다."}
+                    </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                    {tournament && Object.keys(matchesByRound).length > 0 ? (
+                        <div className="overflow-x-auto p-4">
+                        <div className="flex justify-center">
+                            <div className="flex items-start space-x-8">
+                            {Object.entries(matchesByRound).map(([round, matches]) => (
+                                <div
+                                key={round}
+                                className="flex flex-col space-y-4 min-w-[180px]"
+                                >
+                                <h4 className="font-bold text-center text-lg">
+                                    {parseInt(round) ===
+                                    Math.max(...Object.keys(matchesByRound).map(Number))
+                                    ? "결승"
+                                    : `${matches.length * 2}강`}
+                                </h4>
+                                <div className="flex flex-col justify-around h-full space-y-4">
+                                    {matches.map((match) => {
+                                    const winnerIsA =
+                                        !!match.winnerId &&
+                                        match.winnerId === match.teamAId;
+                                    const winnerIsB =
+                                        !!match.winnerId &&
+                                        match.winnerId === match.teamBId;
 
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <Card className="flex flex-col">
-          <CardHeader>
-            <CardTitle>측정 결과 입력</CardTitle>
-            <CardDescription>오늘의 측정 결과를 입력하세요. 같은 날짜에 다시 입력하면 덮어쓰기됩니다.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex-grow space-y-4">
-            <Select onValueChange={setSelectedItemName} value={selectedItemName}>
-              <SelectTrigger>
-                <SelectValue placeholder="측정 종목 선택" />
-              </SelectTrigger>
-              <SelectContent>
-                {measurementItems.map(item => (
-                  <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedItem?.isCompound ? (
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <Label htmlFor="height">키 (cm)</Label>
-                        <Input id="height" type="number" value={height} onChange={e => setHeight(e.target.value)} />
-                    </div>
-                    <div>
-                        <Label htmlFor="weight">몸무게 (kg)</Label>
-                        <Input id="weight" type="number" value={weight} onChange={e => setWeight(e.target.value)} />
-                    </div>
-                </div>
-            ) : (
-                <div>
-                  <Label htmlFor="value">결과 ({selectedItem?.unit})</Label>
-                  <Input
-                    id="value"
-                    placeholder={inputPlaceholder}
-                    value={value}
-                    onChange={e => setValue(e.target.value)}
-                    type="number"
-                  />
-                </div>
-            )}
-          </CardContent>
-          <CardFooter>
-            <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full">
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              결과 저장
-            </Button>
-          </CardFooter>
-        </Card>
-
-        <Card className="flex flex-col">
-          <CardHeader>
-            <CardTitle>AI 피드백</CardTitle>
-            <CardDescription>운동 수행 결과를 바탕으로 AI가 피드백을 제공합니다.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex-grow">
-            {isFeedbackLoading ? (
-              <div className="flex items-center justify-center h-full">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : aiFeedback ? (
-              <p className="text-sm whitespace-pre-wrap">{aiFeedback}</p>
-            ) : (
-              <p className="text-sm text-muted-foreground">AI 피드백 받기 버튼을 눌러 피드백을 받아보세요.</p>
-            )}
-          </CardContent>
-          <CardFooter>
-            <Button
-              onClick={handleGetFeedback}
-              disabled={isFeedbackLoading || records.length === 0}
-              className="w-full"
-              variant="outline"
-            >
-              <Wand2 className="mr-2 h-4 w-4" />
-              {isFeedbackLoading ? '피드백 생성 중...' : 'AI 피드백 받기'}
-            </Button>
-          </CardFooter>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-                <CardTitle>나의 성장 기록</CardTitle>
-                <CardDescription>측정 결과의 등급(막대)과 실제 기록의 성취도(선)를 함께 확인해보세요.</CardDescription>
-            </div>
-            <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
-                <div className="grid grid-cols-3 gap-1 rounded-md bg-muted p-1 w-full sm:w-auto">
-                    <Button variant={chartFilter === 'all' ? 'outline-active' : 'ghost'} size="sm" onClick={() => setChartFilter('all')} className="bg-background data-[active]:bg-primary data-[active]:text-primary-foreground">전체</Button>
-                    <Button variant={chartFilter === 'paps' ? 'outline-active' : 'ghost'} size="sm" onClick={() => setChartFilter('paps')} className="bg-background data-[active]:bg-primary data-[active]:text-primary-foreground">PAPS</Button>
-                    <Button variant={chartFilter === 'custom' ? 'outline-active' : 'ghost'} size="sm" onClick={() => setChartFilter('custom')} className="bg-background data-[active]:bg-primary data-[active]:text-primary-foreground">기타</Button>
-                </div>
-                 <Select onValueChange={setChartItemFilter} value={chartItemFilter}>
-                  <SelectTrigger className="w-full sm:w-[200px]">
-                    <SelectValue placeholder="종목 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableItems.map(item => (
-                      <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {chartData.length > 0 ? (
-            <ChartContainer config={chartConfig} className="h-[400px] w-full">
-              <ResponsiveContainer>
-                <ComposedChart data={chartData}>
-                  <CartesianGrid vertical={false} />
-                  <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
-                  <YAxis yAxisId="left" orientation="left" stroke="hsl(var(--chart-2))" domain={[0, 5]} ticks={[1, 2, 3, 4, 5]} tickFormatter={(value) => `${6 - value}등급`} name="등급" />
-                  <YAxis yAxisId="right" orientation="right" stroke="hsl(var(--chart-1))" domain={[0, 100]} unit="%" name="성취도" />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend />
-                  <Bar dataKey="score" yAxisId="left" fill="var(--color-score)" name="등급" radius={[4, 4, 0, 0]} barSize={20} />
-                  <Line dataKey="achievement" yAxisId="right" type="monotone" stroke="var(--color-achievement)" strokeWidth={2} dot={true} name="성취도" />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </ChartContainer>
-          ) : (
-            <div className="h-[400px] flex items-center justify-center text-muted-foreground">
-              <p>그래프를 표시할 종목을 선택해주세요.</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader>
-          <CardTitle>전체 측정 기록</CardTitle>
-          <CardDescription>지금까지의 모든 측정 기록입니다. 잘못 입력된 기록은 삭제할 수 있습니다.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>날짜</TableHead>
-                <TableHead>종목</TableHead>
-                <TableHead>기록</TableHead>
-                <TableHead className="text-right">작업</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedRecords.length > 0 ? (
-                sortedRecords.map((record) => {
-                  const item = measurementItems.find(i => i.name === record.item);
-                  return (
-                    <TableRow key={record.id}>
-                      <TableCell>{record.date}</TableCell>
-                      <TableCell>{record.item}</TableCell>
-                      <TableCell>{record.value}{item?.unit}</TableCell>
-                      <TableCell className="text-right">
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                이 작업은 되돌릴 수 없습니다. 이 기록이 영구적으로 삭제됩니다.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>취소</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDeleteRecord(record.id)}>삭제</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
-                    측정된 기록이 없습니다.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
+                                    return (
+                                        <Card key={match.id} className="p-2">
+                                        <CardContent className="p-1 space-y-1">
+                                            <div className="flex items-center justify-between text-sm">
+                                            <span
+                                                className={`truncate ${
+                                                winnerIsA ? "font-bold text-primary" : ""
+                                                }`}
+                                            >
+                                                {match.teamAId
+                                                ? teamNameMap.get(match.teamAId) ?? "미정"
+                                                : "미정"}
+                                            </span>
+                                            <span className="font-semibold ml-2">
+                                                {match.scoreA ?? "-"}
+                                            </span>
+                                            </div>
+                                            <div className="flex items-center justify-between text-sm">
+                                            <span
+                                                className={`truncate ${
+                                                winnerIsB ? "font-bold text-primary" : ""
+                                                }`}
+                                            >
+                                                {match.teamBId
+                                                ? teamNameMap.get(match.teamBId) ?? "미정"
+                                                : match.status === "bye"
+                                                ? "(부전승)"
+                                                : "미정"}
+                                            </span>
+                                            <span className="font-semibold ml-2">
+                                                {match.scoreB ?? "-"}
+                                            </span>
+                                            </div>
+                                        </CardContent>
+                                        </Card>
+                                    );
+                                    })}
+                                </div>
+                                </div>
+                            ))}
+                            </div>
+                        </div>
+                        </div>
+                    ) : (
+                        <div className="flex items-center justify-center h-24 text-muted-foreground">
+                        <p>선생님이 대회를 생성하고 전달하면 여기에 표시됩니다.</p>
+                        </div>
+                    )}
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader className='flex-row items-start justify-between'>
+                        <div>
+                            <CardTitle className="flex items-center gap-2"><Users /> 나의 팀 확인</CardTitle>
+                            <CardDescription>{teamGroup?.description || '전달된 팀 편성 정보가 없습니다.'}</CardDescription>
+                        </div>
+                        {teamGroup && (
+                            <Select
+                                value={selectedTeamIndex !== null ? String(selectedTeamIndex) : undefined}
+                                onValueChange={(value) => setSelectedTeamIndex(Number(value))}
+                            >
+                                <SelectTrigger className="w-[180px]">
+                                    <SelectValue placeholder="팀 선택" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {teamGroup.teams.map(team => (
+                                        <SelectItem key={team.teamIndex} value={String(team.teamIndex)}>
+                                            팀 {team.teamIndex + 1} {myTeam?.teamIndex === team.teamIndex ? '(나의 팀)' : ''}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
+                    </CardHeader>
+                    <CardContent>
+                        {isDataLoading ? (
+                            <div className="flex items-center justify-center h-24">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="order-2 md:order-1">
+                                    {displayedTeam ? (
+                                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                            {displayedTeam.members.map(member => (
+                                                <div key={member.id} className={`p-3 rounded-md text-center ${member.id === student.id ? 'bg-primary/20' : 'bg-secondary'}`}>
+                                                <p className="font-semibold">{member.name}</p>
+                                                <p className="text-sm text-muted-foreground">{member.grade}-{member.classNum}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground text-center py-8">팀 정보가 없습니다. 선생님이 팀을 편성하고 전달할 때까지 기다려주세요.</p>
+                                    )}
+                                </div>
+                                <div className="order-1 md:order-2 grid grid-cols-2 gap-4">
+                                    {abilityScores.length > 0 ? (
+                                        <div className='text-center h-[300px]'>
+                                            <h4 className="font-semibold mb-2">나의 능력치</h4>
+                                            <ResponsiveContainer width="100%" height="100%">
+                                            <RadarChart cx="50%" cy="50%" outerRadius="80%" data={abilityScores}>
+                                                <PolarGrid />
+                                                <PolarAngleAxis dataKey="item" tick={{ fontSize: 12 }} />
+                                                <PolarRadiusAxis axisLine={false} tick={false} />
+                                                <Radar name="나" dataKey="score" stroke="hsl(var(--chart-1))" fill="hsl(var(--chart-1))" fillOpacity={0.6} />
+                                                <Tooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}/>
+                                            </RadarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    ): null}
+                                    {teamAverageScores.length > 0 ? (
+                                        <div className='text-center h-[300px]'>
+                                            <h4 className="font-semibold mb-2">팀 평균 능력치</h4>
+                                            <ResponsiveContainer width="100%" height="100%">
+                                            <RadarChart cx="50%" cy="50%" outerRadius="80%" data={teamAverageScores}>
+                                                <PolarGrid />
+                                                <PolarAngleAxis dataKey="item" tick={{ fontSize: 12 }} />
+                                                <PolarRadiusAxis axisLine={false} tick={false} />
+                                                <Radar name="팀 평균" dataKey="score" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.6}/>
+                                                <Tooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}/>
+                                            </RadarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    ): null}
+                                    {abilityScores.length === 0 && teamAverageScores.length === 0 && (
+                                        <div className="col-span-2 flex items-center justify-center h-full text-sm text-muted-foreground">
+                                            팀 편성 시 사용된 능력치 데이터가 없습니다.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </TabsContent>
+        </Tabs>
     </div>
   );
 }
