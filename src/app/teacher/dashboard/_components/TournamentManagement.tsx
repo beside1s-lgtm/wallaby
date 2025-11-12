@@ -53,7 +53,6 @@ type TournamentManagementProps = {
   onTournamentUpdate: () => void;
 };
 
-
 const generateTournamentBracket = (teamIds: string[]): { matches: Match[], finalTeamIds: string[] } => {
     const shuffledTeamIds = [...teamIds].sort(() => Math.random() - 0.5);
     const numTeams = shuffledTeamIds.length;
@@ -69,14 +68,11 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[], final
 
     let nextRoundEntrants: (string | Match)[] = [];
 
-    // Correctly separate bye teams and first-round teams
     const byeTeams = shuffledTeamIds.slice(0, numByes);
     const teamsInRound1 = shuffledTeamIds.slice(numByes);
 
-    // Byes advance directly
     nextRoundEntrants.push(...byeTeams);
-
-    // Round 1 matches
+    
     let matchNumberR1 = 1;
     for (let i = 0; i < teamsInRound1.length; i += 2) {
         const teamAId = teamsInRound1[i];
@@ -101,7 +97,6 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[], final
         }
     }
     
-    // Subsequent Rounds
     let currentRoundEntrants = nextRoundEntrants;
     for (let round = 2; round <= numRounds; round++) {
         const nextRoundMatches: Match[] = [];
@@ -113,7 +108,6 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[], final
 
             const getTeamId = (entrant: string | Match | undefined): string | null => {
                 if (!entrant) return null;
-                // If it's a Match object, get its winnerId, otherwise it's a teamId string
                 if (typeof entrant === 'object' && entrant !== null && 'winnerId' in entrant) {
                     return entrant.winnerId;
                 }
@@ -622,7 +616,7 @@ export default function TournamentManagement({
                 <CardHeader>
                     <CardTitle>{currentTournament.name} 대진표</CardTitle>
                 </CardHeader>
-                <CardContent className="overflow-x-auto p-4 flex">
+                <CardContent className="overflow-x-auto p-4 flex justify-center">
                     <div className="flex-1 min-w-max">
                         <Bracket match={finalMatch} allMatches={currentTournament.matches} teamNameMap={teamNameMap} matchResults={matchResults} onResultChange={handleMatchResultChange} onUpdateMatch={handleUpdateMatch} onResetMatch={handleResetMatch} />
                     </div>
@@ -644,15 +638,24 @@ const Bracket = ({ match, allMatches, teamNameMap, matchResults, onResultChange,
 }) => {
     const prevMatchA = allMatches.find(m => m.nextMatchId === match.id && m.nextMatchSlot === 'A');
     const prevMatchB = allMatches.find(m => m.nextMatchId === match.id && m.nextMatchSlot === 'B');
+    
+    if (!prevMatchA && !prevMatchB) {
+        return <MatchNode match={match} teamNameMap={teamNameMap} matchResults={matchResults} onResultChange={onResultChange} onUpdateMatch={onUpdateMatch} onResetMatch={onResetMatch} />;
+    }
 
     return (
-        <div className="flex justify-center items-center">
-             <div className="flex flex-col justify-around space-y-4">
+        <div className="flex items-center">
+            <div className="flex flex-col justify-around space-y-4">
                 {prevMatchA && <Bracket match={prevMatchA} allMatches={allMatches} teamNameMap={teamNameMap} matchResults={matchResults} onResultChange={onResultChange} onUpdateMatch={onUpdateMatch} onResetMatch={onResetMatch} />}
+                {!prevMatchA && match.teamAId && <div className="w-44 p-2 m-2"><span className="text-sm">{teamNameMap.get(match.teamAId) || '부전승'}</span></div>}
                 {prevMatchB && <Bracket match={prevMatchB} allMatches={allMatches} teamNameMap={teamNameMap} matchResults={matchResults} onResultChange={onResultChange} onUpdateMatch={onUpdateMatch} onResetMatch={onResetMatch} />}
+                 {!prevMatchB && match.teamBId && <div className="w-44 p-2 m-2"><span className="text-sm">{teamNameMap.get(match.teamBId) || '부전승'}</span></div>}
             </div>
             
-            {(prevMatchA || prevMatchB) && <div className="w-8 h-full border-r border-gray-300"></div>}
+            <div className="flex flex-col items-center">
+                <div className="w-4 h-[50%] border-r border-b border-gray-400"></div>
+                <div className="w-4 h-[50%] border-r border-t border-gray-400"></div>
+            </div>
             
             <MatchNode match={match} teamNameMap={teamNameMap} matchResults={matchResults} onResultChange={onResultChange} onUpdateMatch={onUpdateMatch} onResetMatch={onResetMatch} />
         </div>
@@ -687,7 +690,7 @@ const MatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateM
               </div>
               <div className="flex items-center justify-between">
                 <span className={`truncate text-sm ${winnerIsB ? 'font-bold text-primary' : ''} ${match.teamBId ? '' : 'text-muted-foreground'}`}>
-                  {match.teamBId ? (teamNameMap.get(match.teamBId) || '팀 없음') : (match.status === 'bye' ? '부전승' : '미정')}
+                  {match.teamBId ? (teamNameMap.get(match.teamBId) || '팀 없음') : (match.status === 'bye' ? '(부전승)' : '미정')}
                 </span>
                 <Input
                   type="number"
