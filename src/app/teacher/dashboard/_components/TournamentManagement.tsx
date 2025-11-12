@@ -309,15 +309,15 @@ export default function TournamentManagement({
           teams: teamList,
           matches,
         };
-        const newTournamentId = await saveTournament(tournamentData);
-        const newTournament = { ...tournamentData, id: newTournamentId, createdAt: new Date() };
+        
+        const newTournament = await saveTournament(tournamentData);
         
         // Immediately set the new tournament to state
         setCurrentTournament(newTournament);
-        handleLoadTournament(newTournament.id, newTournament);
+        setSelectedTournamentId(newTournament.id);
+        setTournaments(prev => [newTournament, ...prev]);
 
         toast({ title: "새로운 대회 생성 완료" });
-        onTournamentUpdate(); // Update the list in the background
       }
     } catch (error) {
       console.error(error);

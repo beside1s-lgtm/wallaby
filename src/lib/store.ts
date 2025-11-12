@@ -855,7 +855,7 @@ export const getLatestTeamGroupForStudent = async (school: string, studentId: st
 };
 
 // --- Tournament Functions ---
-export const saveTournament = async (tournament: Omit<Tournament, 'id' | 'createdAt'>): Promise<string> => {
+export const saveTournament = async (tournament: Omit<Tournament, 'id' | 'createdAt'>): Promise<Tournament> => {
   await signIn();
   const tournamentsRef = collection(db, 'schools', tournament.school, 'tournaments');
   const newDocRef = doc(tournamentsRef);
@@ -874,7 +874,9 @@ export const saveTournament = async (tournament: Omit<Tournament, 'id' | 'create
     }
     throw e;
   });
-  return newDocRef.id;
+  // Firestore server timestamp is not available on the client immediately.
+  // We return the client-side version with a placeholder date, which is sufficient for immediate UI updates.
+  return { ...dataToSave, createdAt: new Date() };
 };
 
 export const getTournaments = async (school: string): Promise<Tournament[]> => {
