@@ -82,6 +82,11 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[] } => {
             nextMatchId: null,
             nextMatchSlot: null,
         };
+        // If there's no opponent, it's a bye for team A in this "match"
+        if (!match.teamBId) {
+          match.status = 'bye';
+          match.winnerId = match.teamAId;
+        }
         round1Matches.push(match);
     }
     matches.push(...round1Matches);
