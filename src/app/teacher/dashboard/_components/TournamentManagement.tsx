@@ -88,29 +88,33 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
   const numByes = totalSlots - numTeams;
 
   // 1. 1라운드 생성
-  const byeTeams = shuffledTeams.slice(0, numByes);
-  const teamsToPlay = shuffledTeams.slice(numByes);
   let round1Matches: Match[] = [];
+  const teamsToPlay = shuffledTeams.slice(numByes);
+  const byeTeams = shuffledTeams.slice(0, numByes);
 
+  // 부전승 팀을 먼저 Match 객체로 만듭니다.
   byeTeams.forEach(team => {
       round1Matches.push({
           id: uuidv4(),
-          round: 1, matchNumber: 0, teamAId: team.id, teamBId: null,
+          round: 1, matchNumber: 0, // 임시 matchNumber
+          teamAId: team.id, teamBId: null,
           scoreA: null, scoreB: null, winnerId: team.id, status: "bye",
           nextMatchId: null, nextMatchSlot: null,
       });
   });
 
+  // 경기하는 팀들을 Match 객체로 만듭니다.
   for (let i = 0; i < teamsToPlay.length / 2; i++) {
     round1Matches.push({
       id: uuidv4(),
-      round: 1, matchNumber: 0, teamAId: teamsToPlay[i * 2].id, teamBId: teamsToPlay[i * 2 + 1].id,
+      round: 1, matchNumber: 0, // 임시 matchNumber
+      teamAId: teamsToPlay[i * 2].id, teamBId: teamsToPlay[i * 2 + 1].id,
       scoreA: null, scoreB: null, winnerId: null, status: "scheduled",
       nextMatchId: null, nextMatchSlot: null,
     });
   }
-
-  // 2. 전략적 섞기 & matchNumber 할당
+  
+  // 전략적으로 섞어서 대진을 공평하게 배분하고 matchNumber를 할당합니다.
   let finalRound1: Match[] = [];
   const byeMatches = round1Matches.filter(m => m.status === 'bye');
   const regularMatches = round1Matches.filter(m => m.status === 'scheduled');
@@ -120,7 +124,6 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
   while(byeIdx < byeMatches.length || regularIdx < regularMatches.length) {
     if(regularIdx < regularMatches.length) finalRound1.push(regularMatches[regularIdx++]);
     if(byeIdx < byeMatches.length) finalRound1.push(byeMatches[byeIdx++]);
-    if(regularIdx < regularMatches.length) finalRound1.push(regularMatches[regularIdx++]);
   }
   
   finalRound1.forEach((match, index) => { match.matchNumber = index + 1; });
@@ -142,10 +145,11 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
         teamAId: matchA.winnerId,
         teamBId: matchB.winnerId,
         scoreA: null, scoreB: null, winnerId: null,
-        status: (matchA.winnerId && matchB.winnerId) ? "scheduled" : "scheduled", // if both are byes, it's playable
+        status: "scheduled",
         nextMatchId: null, nextMatchSlot: null,
       };
       
+      // 다음 라운드에서 부전승이 발생하는 경우 처리
       if (newMatch.teamAId && !newMatch.teamBId) {
         newMatch.winnerId = newMatch.teamAId;
         newMatch.status = 'bye';
@@ -167,6 +171,7 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
 
   return { matches: allMatches };
 }
+
 
 
 
@@ -295,7 +300,7 @@ export default function TournamentManagement({
         };
         
         if (teamSource === 'group' && selectedTeamGroupId) {
-          tournamentData.teamGroupId = selectedTeamGroupId;
+          tournamentData = {...tournamentData, teamGroupId: selectedTeamGroupId};
         }
         
         const newTournament = await saveTournament(tournamentData);
@@ -645,7 +650,7 @@ export default function TournamentManagement({
             <div className="flex justify-end pt-4 gap-2 flex-wrap">
               <Button onClick={handleCreateOrUpdateTournament} disabled={isLoading}><Save className="mr-2 h-4 w-4" />{currentTournament ? "이름 변경 저장" : "대진표 생성"}</Button>
               {currentTournament && (<Button variant="outline" onClick={handleRandomizeBracket} disabled={isLoading}><Shuffle className="mr-2 h-4 w-4" />대진표 재추첨</Button>)}
-              <SendTournamentDialog tournament={currentTournament} onUpdate={onTournamentUpdate} allStudents={[]} school={school || ''} />
+              <SendTournamentDialog tournament={currentTournament} onUpdate={onTournamentUpdate} school={school || ''} />
             </div>
           </div>
         </CardContent>
@@ -663,7 +668,7 @@ export default function TournamentManagement({
                     <h4 className="font-bold text-center text-lg">
                       {parseInt(round) === fmRound ? "결승"
                         : Object.keys(matchesByRound).length > 1 && parseInt(round) === fmRound - 1 ? "준결승"
-                        : `${Math.ceil(currentTournament.teams.length / (Math.pow(2, parseInt(round)-1)))}강`}
+                        : `${currentTournament.teams.length > Math.pow(2, parseInt(round)) ? Math.pow(2, parseInt(round)) : Math.ceil(currentTournament.teams.length / (Math.pow(2, parseInt(round)-1)))}강`}
                     </h4>
                     <div className="flex flex-col justify-around h-full space-y-4">
                       {matches.map((match) => (
@@ -798,7 +803,13 @@ function SendTournamentDialog({ tournament, onUpdate, school }: { tournament: To
 
         try {
             if (tournament.teamGroupId) {
-                await updateTournament(school, tournament.id, { teamGroupId: tournament.teamGroupId });
+                 const dataToUpdate: Partial<Omit<Tournament, 'id' | 'school'>> = {
+                    teamGroupId: tournament.teamGroupId
+                };
+                if (targetGrade) dataToUpdate.grade = targetGrade;
+                if (targetGender) dataToUpdate.gender = targetGender;
+
+                await updateTournament(school, tournament.id, dataToUpdate);
                 toast({ title: "전달 완료", description: "팀 편성 그룹에 속한 학생들에게 대진표가 전달되었습니다." });
             } else {
                 if (!targetGrade) {

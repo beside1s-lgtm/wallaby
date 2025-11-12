@@ -859,11 +859,18 @@ export const saveTournament = async (tournament: Omit<Tournament, 'id' | 'create
   await signIn();
   const tournamentsRef = collection(db, 'schools', tournament.school, 'tournaments');
   const newDocRef = doc(tournamentsRef);
-  const dataToSave = {
+  const dataToSave: any = {
     ...tournament,
     id: newDocRef.id,
     createdAt: serverTimestamp(),
   };
+
+  // Ensure optional fields are not saved as undefined
+  if (tournament.teamGroupId === undefined) delete dataToSave.teamGroupId;
+  if (tournament.grade === undefined) delete dataToSave.grade;
+  if (tournament.gender === undefined) delete dataToSave.gender;
+
+
   await setDoc(newDocRef, dataToSave).catch(e => {
     if (e.code === 'permission-denied') {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -874,9 +881,11 @@ export const saveTournament = async (tournament: Omit<Tournament, 'id' | 'create
     }
     throw e;
   });
+  
   // Firestore server timestamp is not available on the client immediately.
   // We return the client-side version with a placeholder date, which is sufficient for immediate UI updates.
-  return { ...dataToSave, createdAt: new Date() };
+  const savedData = (await getDoc(newDocRef)).data();
+  return savedData as Tournament;
 };
 
 export const getTournaments = async (school: string): Promise<Tournament[]> => {
@@ -900,42 +909,26 @@ export const getLatestTournamentForStudent = async (school: string, studentId: s
   const student = allStudents.find(s => s.id === studentId);
   if (!student) return null;
 
-  // 1. Find tournament based on team group ID
-  const studentTeamGroup = allTeamGroups.find(group =>
-    group.teams.some(team => team.memberIds.includes(studentId))
-  );
-  
-  if (studentTeamGroup) {
-    const tournamentsRef = collection(db, 'schools', school, 'tournaments');
-    const q = query(
-      tournamentsRef,
-      where('teamGroupId', '==', studentTeamGroup.id),
-      orderBy('createdAt', 'desc'),
-      limit(1)
-    );
-    const snapshot = await getDocs(q);
-    if (!snapshot.empty) {
-      return snapshot.docs[0].data() as Tournament;
-    }
-  }
-
-  // 2. If no group-based tournament, find based on grade and gender
   try {
     const tournamentsRef = collection(db, 'schools', school, 'tournaments');
-    const qManual = query(
-      tournamentsRef,
-      where('grade', '==', student.grade),
-      orderBy('createdAt', 'desc')
+    const allTournaments = (await getDocs(tournamentsRef)).docs.map(d => d.data() as Tournament);
+    allTournaments.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+
+    // 1. Find tournament based on team group ID
+    const studentTeamGroup = allTeamGroups.find(group =>
+      group.teams.some(team => team.memberIds.includes(studentId))
     );
-    const snapshot = await getDocs(qManual);
     
-    // Filter by gender client-side, as Firestore doesn't support inequality on different fields
-    for (const doc of snapshot.docs) {
-      const tournament = doc.data() as Tournament;
-      if (tournament.gender === 'all' || tournament.gender === student.gender) {
-        return tournament; // Return the most recent one that matches
-      }
+    if (studentTeamGroup) {
+        const groupTournament = allTournaments.find(t => t.teamGroupId === studentTeamGroup.id);
+        if (groupTournament) return groupTournament;
     }
+
+    // 2. If no group-based tournament, find based on grade and gender
+    const manualTournaments = allTournaments.filter(t => t.grade === student.grade);
+    const matchingTournament = manualTournaments.find(t => t.gender === 'all' || t.gender === student.gender);
+    if(matchingTournament) return matchingTournament;
+    
     return null;
   } catch(e: any) {
     if (e.code === 'permission-denied') {
@@ -953,12 +946,19 @@ export const getLatestTournamentForStudent = async (school: string, studentId: s
 export const updateTournament = async (school: string, tournamentId: string, data: Partial<Omit<Tournament, 'id' | 'school'>>): Promise<void> => {
   await signIn();
   const tournamentRef = doc(db, 'schools', school, 'tournaments', tournamentId);
-  await updateDoc(tournamentRef, data).catch(e => {
+  
+  const dataToUpdate: {[key: string]: any} = { ...data };
+  // Ensure optional fields are not set to undefined
+  if (data.teamGroupId === undefined) delete dataToUpdate.teamGroupId;
+  if (data.grade === undefined) delete dataToUpdate.grade;
+  if (data.gender === undefined) delete dataToUpdate.gender;
+
+  await updateDoc(tournamentRef, dataToUpdate).catch(e => {
     if (e.code === 'permission-denied') {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: tournamentRef.path,
         operation: 'update',
-        requestResourceData: data
+        requestResourceData: dataToUpdate
       }));
     }
     throw e;

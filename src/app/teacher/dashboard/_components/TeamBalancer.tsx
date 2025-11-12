@@ -728,8 +728,8 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         })),
         itemNamesForBalancing: selectedItemNames,
         analysisScope,
-        grade: selectedGrade,
-        classNum: selectedClassNum,
+        grade: selectedGrade || undefined,
+        classNum: selectedClassNum || undefined,
         gender: selectedGender,
         divideBy,
       };
