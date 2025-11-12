@@ -97,25 +97,15 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
   matches.push(...round1Matches);
 
   // Subsequent rounds
-  // 부전승 팀과 1라운드 승리팀을 교차 배치하여 부전승끼리 붙는 것을 방지
   const round2Entrants: (Team | Match)[] = [];
-  const midPoint = Math.ceil(byeTeams.length / 2);
-  const byeTeamsPart1 = byeTeams.slice(0, midPoint);
-  const byeTeamsPart2 = byeTeams.slice(midPoint);
-  const matchesPart1 = round1Matches.slice(0, round1Matches.length / 2);
-  const matchesPart2 = round1Matches.slice(round1Matches.length / 2);
-
-  let tempEntrants = [...byeTeamsPart1, ...matchesPart1, ...byeTeamsPart2, ...matchesPart2];
-
-  // Interleave byeTeams and round1Matches
-  let p1 = 0;
-  let p2 = 0;
-  while(p1 < byeTeams.length || p2 < round1Matches.length) {
-    if(p1 < byeTeams.length) {
-        round2Entrants.push(byeTeams[p1++]);
+  let byeIdx = 0;
+  let matchIdx = 0;
+  while(byeIdx < byeTeams.length || matchIdx < round1Matches.length) {
+    if(byeIdx < byeTeams.length) {
+      round2Entrants.push(byeTeams[byeIdx++]);
     }
-    if(p2 < round1Matches.length) {
-        round2Entrants.push(round1Matches[p2++]);
+    if(matchIdx < round1Matches.length) {
+      round2Entrants.push(round1Matches[matchIdx++]);
     }
   }
 
@@ -127,12 +117,39 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
     const nextRoundMatches: Match[] = [];
     let matchNumber = 1;
 
+    // Handle odd number of entrants by giving the last one a bye
+    if (currentEntrants.length % 2 !== 0) {
+        const byeEntrant = currentEntrants.pop()!;
+        const byeTeamId = 'id' in byeEntrant ? byeEntrant.id : (byeEntrant as Match).winnerId;
+        const byeMatch: Match = {
+            id: uuidv4(),
+            round: nextRound,
+            matchNumber: matchNumber++,
+            teamAId: byeTeamId,
+            teamBId: null,
+            scoreA: null,
+            scoreB: null,
+            winnerId: byeTeamId,
+            status: 'bye',
+            nextMatchId: null,
+            nextMatchSlot: null,
+        };
+        if (typeof byeEntrant === "object" && 'id' in byeEntrant && !('members' in byeEntrant)) { // It's a Match
+            const prevMatch = matches.find(m => m.id === byeEntrant.id);
+            if(prevMatch) {
+                prevMatch.nextMatchId = byeMatch.id;
+                prevMatch.nextMatchSlot = 'A';
+            }
+        }
+        nextRoundMatches.push(byeMatch);
+    }
+    
     for (let i = 0; i < currentEntrants.length; i += 2) {
       const entrantA = currentEntrants[i];
       const entrantB = currentEntrants[i + 1];
 
-      const teamAId = entrantA ? ('members' in entrantA ? entrantA.id : (entrantA as Match).winnerId) : null;
-      const teamBId = entrantB ? ('members' in entrantB ? entrantB.id : (entrantB as Match).winnerId) : null;
+      const teamAId = 'id' in entrantA ? entrantA.id : (entrantA as Match).winnerId;
+      const teamBId = entrantB ? ('id' in entrantB ? entrantB.id : (entrantB as Match).winnerId) : null;
       
       const newMatch: Match = {
         id: uuidv4(),
@@ -153,14 +170,14 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
         newMatch.status = "bye";
       }
 
-      if (entrantA && 'matches' in entrantA) {
+      if (typeof entrantA === "object" && 'id' in entrantA && !('members' in entrantA)) {
         const prevMatchA = matches.find((m) => m.id === entrantA.id);
         if (prevMatchA) {
           prevMatchA.nextMatchId = newMatch.id;
           prevMatchA.nextMatchSlot = "A";
         }
       }
-      if (entrantB && 'matches' in entrantB) {
+      if (entrantB && typeof entrantB === "object" && 'id' in entrantB && !('members' in entrantB)) {
         const prevMatchB = matches.find((m) => m.id === entrantB.id);
         if (prevMatchB) {
           prevMatchB.nextMatchId = newMatch.id;
