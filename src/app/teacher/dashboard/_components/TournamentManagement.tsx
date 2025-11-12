@@ -72,7 +72,7 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
 
   const byeTeams = numByes > 0 ? shuffledTeams.slice(0, numByes) : [];
   const teamsToPlay = numByes > 0 ? shuffledTeams.slice(numByes) : shuffledTeams;
-
+  
   // Round 1
   const round1Matches: Match[] = [];
   for (let i = 0; i < teamsToPlay.length; i += 2) {
@@ -100,11 +100,12 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
   const round2Entrants: (Team | Match)[] = [];
   let byeIdx = 0;
   let matchIdx = 0;
-  while(byeIdx < byeTeams.length || matchIdx < round1Matches.length) {
-    if(byeIdx < byeTeams.length) {
+  // 부전승 팀과 1라운드 승리팀을 교차 배치
+  while (byeIdx < byeTeams.length || matchIdx < round1Matches.length) {
+    if (byeIdx < byeTeams.length) {
       round2Entrants.push(byeTeams[byeIdx++]);
     }
-    if(matchIdx < round1Matches.length) {
+    if (matchIdx < round1Matches.length) {
       round2Entrants.push(round1Matches[matchIdx++]);
     }
   }
@@ -148,8 +149,8 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
       const entrantA = currentEntrants[i];
       const entrantB = currentEntrants[i + 1];
 
-      const teamAId = 'id' in entrantA ? entrantA.id : (entrantA as Match).winnerId;
-      const teamBId = entrantB ? ('id' in entrantB ? entrantB.id : (entrantB as Match).winnerId) : null;
+      const teamAId = entrantA ? (typeof entrantA === 'object' && 'id' in entrantA && !('members' in entrantA) ? (entrantA as Match).winnerId : (entrantA as Team).id) : null;
+      const teamBId = entrantB ? (typeof entrantB === 'object' && 'id' in entrantB && !('members' in entrantB) ? (entrantB as Match).winnerId : (entrantB as Team).id) : null;
       
       const newMatch: Match = {
         id: uuidv4(),
@@ -170,15 +171,15 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
         newMatch.status = "bye";
       }
 
-      if (typeof entrantA === "object" && 'id' in entrantA && !('members' in entrantA)) {
-        const prevMatchA = matches.find((m) => m.id === entrantA.id);
+      if (entrantA && typeof entrantA === "object" && !('members' in entrantA)) {
+        const prevMatchA = matches.find((m) => m.id === (entrantA as Match).id);
         if (prevMatchA) {
           prevMatchA.nextMatchId = newMatch.id;
           prevMatchA.nextMatchSlot = "A";
         }
       }
-      if (entrantB && typeof entrantB === "object" && 'id' in entrantB && !('members' in entrantB)) {
-        const prevMatchB = matches.find((m) => m.id === entrantB.id);
+      if (entrantB && typeof entrantB === "object" && !('members' in entrantB)) {
+        const prevMatchB = matches.find((m) => m.id === (entrantB as Match).id);
         if (prevMatchB) {
           prevMatchB.nextMatchId = newMatch.id;
           prevMatchB.nextMatchSlot = "B";
@@ -287,6 +288,7 @@ export default function TournamentManagement({
             name: tournamentName,
           });
           setCurrentTournament(prev => prev ? { ...prev, name: tournamentName } : null);
+          onTournamentUpdate();
           toast({ title: "대회 이름 변경 완료" });
         } else {
           toast({ title: "변경 사항 없음" });
@@ -309,10 +311,13 @@ export default function TournamentManagement({
         };
         const newTournamentId = await saveTournament(tournamentData);
         const newTournament = { ...tournamentData, id: newTournamentId, createdAt: new Date() };
+        
+        // Immediately set the new tournament to state
+        setCurrentTournament(newTournament);
         handleLoadTournament(newTournament.id, newTournament);
 
         toast({ title: "새로운 대회 생성 완료" });
-        onTournamentUpdate();
+        onTournamentUpdate(); // Update the list in the background
       }
     } catch (error) {
       console.error(error);
@@ -332,6 +337,7 @@ export default function TournamentManagement({
       const reloadedTournament = { ...currentTournament, matches: newMatches };
       setCurrentTournament(reloadedTournament);
       handleLoadTournament(reloadedTournament.id, reloadedTournament);
+      onTournamentUpdate();
 
       toast({ title: "대진표 재추첨 완료" });
     } catch (error) {
@@ -398,6 +404,7 @@ export default function TournamentManagement({
     try {
       await updateTournament(school, currentTournament.id, { teams: updatedTeams });
       setCurrentTournament(prev => prev ? { ...prev, teams: updatedTeams } : null);
+      onTournamentUpdate();
       toast({ title: "팀 이름 변경 완료" });
     } catch (error) {
       console.error("Failed to update team name:", error);
