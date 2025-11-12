@@ -55,12 +55,10 @@ type TournamentManagementProps = {
 
 const generateTournamentBracket = (teamIds: string[]): { matches: Match[] } => {
     let shuffledTeamIds = [...teamIds].sort(() => Math.random() - 0.5);
-    let matches: Match[] = [];
     const numTeams = shuffledTeamIds.length;
+    let matches: Match[] = [];
 
-    if (numTeams < 2) {
-        return { matches: [] };
-    }
+    if (numTeams < 2) return { matches: [] };
 
     const numRounds = Math.ceil(Math.log2(numTeams));
     const totalSlots = Math.pow(2, numRounds);
@@ -69,55 +67,40 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[] } => {
     const byeTeams = shuffledTeamIds.slice(0, numByes);
     const teamsInRound1 = shuffledTeamIds.slice(numByes);
     
-    let nextRoundEntrants: (string | Match)[] = [...byeTeams];
-    
-    let matchNumberR1 = 1;
+    let round1Matches: Match[] = [];
     for (let i = 0; i < teamsInRound1.length; i += 2) {
-        const teamAId = teamsInRound1[i];
-        const teamBId = teamsInRound1[i + 1];
-
-        if (teamAId && teamBId) {
-            const match: Match = {
-                id: uuidv4(),
-                round: 1,
-                matchNumber: matchNumberR1++,
-                teamAId: teamAId,
-                teamBId: teamBId,
-                scoreA: null,
-                scoreB: null,
-                winnerId: null,
-                status: 'scheduled',
-                nextMatchId: null,
-                nextMatchSlot: null,
-            };
-            matches.push(match);
-            nextRoundEntrants.push(match);
-        }
+        const match: Match = {
+            id: uuidv4(),
+            round: 1,
+            matchNumber: round1Matches.length + 1,
+            teamAId: teamsInRound1[i],
+            teamBId: teamsInRound1[i + 1],
+            scoreA: null,
+            scoreB: null,
+            winnerId: null,
+            status: 'scheduled',
+            nextMatchId: null,
+            nextMatchSlot: null,
+        };
+        round1Matches.push(match);
     }
+    matches.push(...round1Matches);
     
-    let currentRoundEntrants = nextRoundEntrants;
-    for (let round = 2; round <= numRounds; round++) {
-        const nextRoundMatches: Match[] = [];
-        let matchNumber = 1;
+    let currentEntrants: (string | Match)[] = [...byeTeams, ...round1Matches];
 
-        for (let i = 0; i < currentRoundEntrants.length; i += 2) {
-            const entrantA = currentRoundEntrants[i];
-            const entrantB = currentRoundEntrants[i + 1];
-            
-            const getTeamId = (entrant: string | Match | undefined): string | null => {
-                if (!entrant) return null;
-                if (typeof entrant === 'object' && entrant !== null && 'winnerId' in entrant) {
-                    return entrant.winnerId;
-                }
-                return entrant as string;
-            };
+    for (let round = 2; round <= numRounds; round++) {
+        let nextRoundMatches: Match[] = [];
+        let matchNumber = 1;
+        for (let i = 0; i < currentEntrants.length; i += 2) {
+            const entrantA = currentEntrants[i];
+            const entrantB = currentEntrants[i + 1];
 
             const newMatch: Match = {
                 id: uuidv4(),
                 round: round,
                 matchNumber: matchNumber++,
-                teamAId: getTeamId(entrantA),
-                teamBId: getTeamId(entrantB),
+                teamAId: typeof entrantA === 'string' ? entrantA : null,
+                teamBId: typeof entrantB === 'string' ? entrantB : null,
                 scoreA: null,
                 scoreB: null,
                 winnerId: null,
@@ -125,29 +108,31 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[] } => {
                 nextMatchId: null,
                 nextMatchSlot: null,
             };
-            
-            const linkPreviousMatch = (entrant: string | Match | undefined, slot: 'A' | 'B') => {
-                if (entrant && typeof entrant === 'object' && 'id' in entrant) {
-                    const prevMatch = matches.find(m => m.id === entrant.id);
-                    if (prevMatch) {
-                        prevMatch.nextMatchId = newMatch.id;
-                        prevMatch.nextMatchSlot = slot;
-                    }
+
+            if (typeof entrantA === 'object' && entrantA !== null) {
+                const prevMatch = matches.find(m => m.id === entrantA.id);
+                if (prevMatch) {
+                    prevMatch.nextMatchId = newMatch.id;
+                    prevMatch.nextMatchSlot = 'A';
                 }
-            };
-            
-            linkPreviousMatch(entrantA, 'A');
-            linkPreviousMatch(entrantB, 'B');
-            
-            if (newMatch.teamAId && !newMatch.teamBId) {
-                 newMatch.status = 'bye';
-                 newMatch.winnerId = newMatch.teamAId;
+            }
+             if (typeof entrantB === 'object' && entrantB !== null) {
+                const prevMatch = matches.find(m => m.id === entrantB.id);
+                if (prevMatch) {
+                    prevMatch.nextMatchId = newMatch.id;
+                    prevMatch.nextMatchSlot = 'B';
+                }
             }
             
-            matches.push(newMatch);
+            if (newMatch.teamAId && !newMatch.teamBId) {
+                newMatch.winnerId = newMatch.teamAId;
+                newMatch.status = 'bye';
+            }
+
             nextRoundMatches.push(newMatch);
         }
-        currentRoundEntrants = nextRoundMatches;
+        matches.push(...nextRoundMatches);
+        currentEntrants = nextRoundMatches;
     }
 
     return { matches };
@@ -625,9 +610,9 @@ export default function TournamentManagement({
             <CardContent className="overflow-x-auto p-4">
                 <div className="flex items-start space-x-8">
                     {Object.entries(matchesByRound).map(([round, matches]) => (
-                        <div key={round} className="flex flex-col space-y-8 min-w-[250px]">
+                        <div key={round} className="flex flex-col space-y-8 min-w-[280px]">
                             <h4 className="font-bold text-center">{parseInt(round) === finalMatch?.round ? '결승' : (Object.keys(matchesByRound).length === parseInt(round) ? '결승' : `${matches.length * 2}강`)}</h4>
-                            <div className="flex flex-col justify-around h-full space-y-8">
+                            <div className="flex flex-col justify-around h-full space-y-16">
                                 {matches.map(match => (
                                     <MatchNode 
                                         key={match.id}
@@ -637,6 +622,7 @@ export default function TournamentManagement({
                                         onResultChange={handleMatchResultChange}
                                         onUpdateMatch={handleUpdateMatch}
                                         onResetMatch={handleResetMatch}
+                                        isFinal={match.id === finalMatch?.id}
                                     />
                                 ))}
                             </div>
@@ -650,26 +636,28 @@ export default function TournamentManagement({
   );
 }
 
-const MatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateMatch, onResetMatch }: {
+const MatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateMatch, onResetMatch, isFinal }: {
     match: Match;
     teamNameMap: Map<string, string>;
     matchResults: Record<string, {scoreA: string, scoreB: string}>;
     onResultChange: (matchId: string, team: 'A' | 'B', score: string) => void;
     onUpdateMatch: (matchId: string) => void;
     onResetMatch: (matchId: string) => void;
+    isFinal: boolean;
 }) => {
     const winnerIsA = match.winnerId && match.winnerId === match.teamAId;
     const winnerIsB = match.winnerId && match.winnerId === match.teamBId;
     
     return (
-            <div className="relative flex w-56 flex-col justify-center rounded-md border bg-card p-2 shadow-sm space-y-1">
+        <div className="relative pl-4">
+            <div className="relative flex w-64 flex-col justify-center rounded-md border bg-card p-2 shadow-sm space-y-1">
               <div className="flex items-center justify-between">
                 <span className={`truncate text-sm ${winnerIsA ? 'font-bold text-primary' : ''} ${match.teamAId ? '' : 'text-muted-foreground'}`}>
                   {match.teamAId ? (teamNameMap.get(match.teamAId) || '미정') : '미정'}
                 </span>
                 <Input
                   type="number"
-                  className="h-7 w-12 text-center"
+                  className="h-7 w-14 text-center"
                   placeholder="-"
                   value={matchResults[match.id]?.scoreA ?? ''}
                   onChange={(e) => onResultChange(match.id, 'A', e.target.value)}
@@ -682,7 +670,7 @@ const MatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateM
                 </span>
                 <Input
                   type="number"
-                  className="h-7 w-12 text-center"
+                  className="h-7 w-14 text-center"
                   placeholder="-"
                   value={matchResults[match.id]?.scoreB ?? ''}
                   onChange={(e) => onResultChange(match.id, 'B', e.target.value)}
@@ -691,7 +679,7 @@ const MatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateM
               </div>
               {match.status === 'scheduled' && match.teamAId && match.teamBId && (
                 <Button size="sm" className="h-7 w-full" onClick={() => onUpdateMatch(match.id)}>
-                  <Save className="mr-2 h-3 w-3" /> 저장
+                  <Save className="mr-2 h-3 w-3" /> 결과 저장
                 </Button>
               )}
               {match.status === 'completed' && match.teamBId && (
@@ -716,5 +704,18 @@ const MatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateM
                 </AlertDialog>
               )}
             </div>
+            {!isFinal && (
+              <>
+                <div className="absolute top-1/2 -right-4 h-[50%] w-4 border-r border-b border-gray-300" />
+                <div className="absolute top-1/2 -right-4 h-px w-4 bg-gray-300" />
+              </>
+            )}
+             {match.nextMatchSlot === 'A' && (
+                <div className="absolute -top-8 -right-4 h-[calc(50%+2rem)] w-4 border-l border-b border-gray-300 rounded-bl-md" />
+            )}
+            {match.nextMatchSlot === 'B' && (
+                <div className="absolute -bottom-8 -right-4 h-[calc(50%+2rem)] w-4 border-l border-t border-gray-300 rounded-tl-md" />
+            )}
+        </div>
     );
 };
