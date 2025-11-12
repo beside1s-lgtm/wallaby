@@ -55,8 +55,8 @@ type TournamentManagementProps = {
 
 const generateTournamentBracket = (teamIds: string[]): { matches: Match[], finalTeamIds: string[] } => {
     const shuffledTeamIds = [...teamIds].sort(() => Math.random() - 0.5);
-    const numTeams = shuffledTeamIds.length;
     let matches: Match[] = [];
+    const numTeams = shuffledTeamIds.length;
 
     if (numTeams < 2) {
         return { matches: [], finalTeamIds: shuffledTeamIds };
@@ -130,7 +130,7 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[], final
                 nextMatchId: null,
                 nextMatchSlot: null,
             };
-
+            
             const linkPreviousMatch = (entrant: string | Match | undefined, slot: 'A' | 'B') => {
                 if (entrant && typeof entrant === 'object' && 'id' in entrant) {
                     const prevMatch = matches.find(m => m.id === entrant.id);
@@ -612,17 +612,17 @@ export default function TournamentManagement({
       </Card>
       
       {currentTournament && currentTournament.type === 'tournament' && finalMatch && (
-            <Card>
-                <CardHeader>
-                    <CardTitle>{currentTournament.name} 대진표</CardTitle>
-                </CardHeader>
-                <CardContent className="overflow-x-auto p-4 flex justify-center">
-                    <div className="flex-1 min-w-max">
-                        <Bracket match={finalMatch} allMatches={currentTournament.matches} teamNameMap={teamNameMap} matchResults={matchResults} onResultChange={handleMatchResultChange} onUpdateMatch={handleUpdateMatch} onResetMatch={handleResetMatch} />
-                    </div>
-                </CardContent>
-            </Card>
-        )}
+        <Card>
+            <CardHeader>
+                <CardTitle>{currentTournament.name} 대진표</CardTitle>
+            </CardHeader>
+            <CardContent className="overflow-x-auto p-4">
+                <div className="flex min-w-max">
+                    <Bracket match={finalMatch} allMatches={currentTournament.matches} teamNameMap={teamNameMap} matchResults={matchResults} onResultChange={handleMatchResultChange} onUpdateMatch={handleUpdateMatch} onResetMatch={handleResetMatch} />
+                </div>
+            </CardContent>
+        </Card>
+    )}
     </div>
   );
 }
@@ -639,23 +639,22 @@ const Bracket = ({ match, allMatches, teamNameMap, matchResults, onResultChange,
     const prevMatchA = allMatches.find(m => m.nextMatchId === match.id && m.nextMatchSlot === 'A');
     const prevMatchB = allMatches.find(m => m.nextMatchId === match.id && m.nextMatchSlot === 'B');
     
-    if (!prevMatchA && !prevMatchB) {
-        return <MatchNode match={match} teamNameMap={teamNameMap} matchResults={matchResults} onResultChange={onResultChange} onUpdateMatch={onUpdateMatch} onResetMatch={onResetMatch} />;
-    }
-
     return (
         <div className="flex items-center">
-            <div className="flex flex-col justify-around space-y-4">
+             <div className="flex flex-col justify-around">
                 {prevMatchA && <Bracket match={prevMatchA} allMatches={allMatches} teamNameMap={teamNameMap} matchResults={matchResults} onResultChange={onResultChange} onUpdateMatch={onUpdateMatch} onResetMatch={onResetMatch} />}
                 {!prevMatchA && match.teamAId && <div className="w-44 p-2 m-2"><span className="text-sm">{teamNameMap.get(match.teamAId) || '부전승'}</span></div>}
+                
                 {prevMatchB && <Bracket match={prevMatchB} allMatches={allMatches} teamNameMap={teamNameMap} matchResults={matchResults} onResultChange={onResultChange} onUpdateMatch={onUpdateMatch} onResetMatch={onResetMatch} />}
-                 {!prevMatchB && match.teamBId && <div className="w-44 p-2 m-2"><span className="text-sm">{teamNameMap.get(match.teamBId) || '부전승'}</span></div>}
-            </div>
-            
-            <div className="flex flex-col items-center">
-                <div className="w-4 h-[50%] border-r border-b border-gray-400"></div>
-                <div className="w-4 h-[50%] border-r border-t border-gray-400"></div>
-            </div>
+                {!prevMatchB && match.teamBId && <div className="w-44 p-2 m-2"><span className="text-sm">{teamNameMap.get(match.teamBId) || '부전승'}</span></div>}
+             </div>
+             
+            {(prevMatchA || prevMatchB) && (
+             <div className="flex flex-col items-center self-stretch">
+                <div className={`w-4 h-1/2 border-r ${prevMatchA ? 'border-b' : ''} border-gray-400`}></div>
+                <div className={`w-4 h-1/2 border-r ${prevMatchB ? 'border-t' : ''} border-gray-400`}></div>
+             </div>
+            )}
             
             <MatchNode match={match} teamNameMap={teamNameMap} matchResults={matchResults} onResultChange={onResultChange} onUpdateMatch={onUpdateMatch} onResetMatch={onResetMatch} />
         </div>
