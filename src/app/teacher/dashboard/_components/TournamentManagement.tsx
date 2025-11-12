@@ -121,7 +121,7 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
     // Handle odd number of entrants by giving the last one a bye
     if (currentEntrants.length % 2 !== 0) {
         const byeEntrant = currentEntrants.pop()!;
-        const byeTeamId = 'members' in byeEntrant ? byeEntrant.id : (byeEntrant as Match).winnerId;
+        const byeTeamId = 'memberIds' in byeEntrant ? byeEntrant.id : (byeEntrant as Match).winnerId;
         const byeMatch: Match = {
             id: uuidv4(),
             round: nextRound,
@@ -135,7 +135,7 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
             nextMatchId: null,
             nextMatchSlot: null,
         };
-        if (typeof byeEntrant === "object" && 'id' in byeEntrant && !('members' in byeEntrant)) { // It's a Match
+        if (typeof byeEntrant === "object" && 'id' in byeEntrant && !('memberIds' in byeEntrant)) { // It's a Match
             const prevMatch = matches.find(m => m.id === byeEntrant.id);
             if(prevMatch) {
                 prevMatch.nextMatchId = byeMatch.id;
@@ -149,8 +149,8 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
       const entrantA = currentEntrants[i];
       const entrantB = currentEntrants[i + 1];
 
-      const teamAId = entrantA ? ( 'members' in entrantA ? entrantA.id : (entrantA as Match)?.winnerId ?? null) : null;
-      const teamBId = entrantB ? ( 'members' in entrantB ? entrantB.id : (entrantB as Match)?.winnerId ?? null) : null;
+      const teamAId = entrantA ? ( 'memberIds' in entrantA ? entrantA.id : (entrantA as Match)?.winnerId ?? null) : null;
+      const teamBId = entrantB ? ( 'memberIds' in entrantB ? entrantB.id : (entrantB as Match)?.winnerId ?? null) : null;
       
       const newMatch: Match = {
         id: uuidv4(),
@@ -171,14 +171,14 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
         newMatch.status = "bye";
       }
 
-      if (entrantA && typeof entrantA === "object" && !('members' in entrantA)) {
+      if (entrantA && typeof entrantA === "object" && !('memberIds' in entrantA)) {
         const prevMatchA = matches.find((m) => m.id === (entrantA as Match).id);
         if (prevMatchA) {
           prevMatchA.nextMatchId = newMatch.id;
           prevMatchA.nextMatchSlot = "A";
         }
       }
-      if (entrantB && typeof entrantB === "object" && !('members' in entrantB)) {
+      if (entrantB && typeof entrantB === "object" && !('memberIds' in entrantB)) {
         const prevMatchB = matches.find((m) => m.id === (entrantB as Match).id);
         if (prevMatchB) {
           prevMatchB.nextMatchId = newMatch.id;
@@ -744,5 +744,3 @@ const TeamNameEditor = ({ teamId, name, className, onUpdate }: { teamId: string 
     </div>
   );
 };
-
-    
