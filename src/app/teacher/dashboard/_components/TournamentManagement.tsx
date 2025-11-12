@@ -68,19 +68,20 @@ const nextPowerOfTwo = (n: number): number => {
 function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
   const shuffledTeams = [...teams].sort(() => Math.random() - 0.5);
   const numTeams = shuffledTeams.length;
-  const allMatches: Match[] = [];
+  let allMatches: Match[] = [];
 
   if (numTeams < 2) return { matches: [] };
 
+  // 1. 1라운드 생성
   const totalSlots = nextPowerOfTwo(numTeams);
   const numByes = totalSlots - numTeams;
+  const numRound1Matches = (numTeams - numByes) / 2;
 
-  // 1. 1라운드 생성
   const round1Matches: Match[] = [];
-  const teamsInRound1 = shuffledTeams.slice(numByes);
+  const teamsToPlay = shuffledTeams.slice(numByes);
   const byeTeams = shuffledTeams.slice(0, numByes);
 
-  // 부전승 팀 처리
+  // 부전승 팀을 Match 객체로 변환
   byeTeams.forEach(team => {
     round1Matches.push({
       id: uuidv4(),
@@ -90,21 +91,21 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
       teamBId: null,
       scoreA: null,
       scoreB: null,
-      winnerId: team.id,
+      winnerId: team.id, // 부전승이므로 승자 바로 결정
       status: "bye",
       nextMatchId: null,
       nextMatchSlot: null,
     });
   });
 
-  // 경기 팀 처리
-  for (let i = 0; i < Math.floor(teamsInRound1.length / 2); i++) {
+  // 실제 경기를 치르는 팀들을 Match 객체로 변환
+  for (let i = 0; i < numRound1Matches; i++) {
     round1Matches.push({
       id: uuidv4(),
       round: 1,
       matchNumber: 0, // 나중에 정렬
-      teamAId: teamsInRound1[i * 2].id,
-      teamBId: teamsInRound1[i * 2 + 1].id,
+      teamAId: teamsToPlay[i * 2].id,
+      teamBId: teamsToPlay[i * 2 + 1].id,
       scoreA: null,
       scoreB: null,
       winnerId: null,
@@ -113,59 +114,15 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
       nextMatchSlot: null,
     });
   }
-
-  // 홀수 팀 경기 처리
-  if (teamsInRound1.length % 2 !== 0) {
-    round1Matches.push({
-      id: uuidv4(),
-      round: 1,
-      matchNumber: 0,
-      teamAId: teamsInRound1[teamsInRound1.length - 1].id,
-      teamBId: null,
-      scoreA: null,
-      scoreB: null,
-      winnerId: teamsInRound1[teamsInRound1.length - 1].id,
-      status: 'bye',
-      nextMatchId: null,
-      nextMatchSlot: null,
-    });
-  }
-
-  // 1라운드 경기 번호 재정렬
-  round1Matches.sort(() => Math.random() - 0.5).forEach((match, index) => {
-    match.matchNumber = index + 1;
-  });
-
-  allMatches.push(...round1Matches);
-
+  
+  allMatches = [...round1Matches];
 
   // 2. 상위 라운드 생성
-  let currentRoundEntrants: Match[] = [...round1Matches];
+  let currentRoundEntrants: Match[] = [...allMatches]; // 1라운드 경기 전체가 2라운드 진출자 후보
   let currentRound = 1;
 
   while (currentRoundEntrants.length > 1) {
     const nextRoundMatches: Match[] = [];
-    
-    // 홀수 참가자 처리: 마지막 참가자는 부전승
-    if (currentRoundEntrants.length % 2 !== 0) {
-      const byeEntrant = currentRoundEntrants.pop();
-      if(byeEntrant && byeEntrant.winnerId) {
-        nextRoundMatches.push({
-          id: uuidv4(),
-          round: currentRound + 1,
-          matchNumber: Math.floor(currentRoundEntrants.length / 2) + 1,
-          teamAId: byeEntrant.winnerId,
-          teamBId: null,
-          scoreA: null,
-          scoreB: null,
-          winnerId: byeEntrant.winnerId,
-          status: "bye",
-          nextMatchId: null,
-          nextMatchSlot: null,
-        });
-      }
-    }
-
     for (let i = 0; i < currentRoundEntrants.length / 2; i++) {
       const matchA = currentRoundEntrants[i * 2];
       const matchB = currentRoundEntrants[i * 2 + 1];
@@ -174,15 +131,25 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
         id: uuidv4(),
         round: currentRound + 1,
         matchNumber: i + 1,
-        teamAId: matchA.winnerId, // 1라운드 승자가 다음 라운드 팀
+        teamAId: matchA.winnerId,
         teamBId: matchB.winnerId,
         scoreA: null,
         scoreB: null,
         winnerId: null,
-        status: "scheduled",
+        status: 'scheduled',
         nextMatchId: null,
         nextMatchSlot: null,
       };
+
+      // 만약 다음 라운드 상대가 아직 미정(null)이라면, 부전승 가능성
+      if (newMatch.teamAId && !newMatch.teamBId) {
+        newMatch.winnerId = newMatch.teamAId;
+        newMatch.status = 'bye';
+      }
+      if (!newMatch.teamAId && newMatch.teamBId) {
+        newMatch.winnerId = newMatch.teamBId;
+        newMatch.status = 'bye';
+      }
 
       matchA.nextMatchId = newMatch.id;
       matchA.nextMatchSlot = "A";
@@ -193,10 +160,9 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
     }
     
     allMatches.push(...nextRoundMatches);
-    currentRoundEntrants = nextRoundMatches.sort((a,b) => a.matchNumber - b.matchNumber);
+    currentRoundEntrants = nextRoundMatches;
     currentRound++;
   }
-
 
   return { matches: allMatches };
 }
@@ -321,7 +287,7 @@ export default function TournamentManagement({
         // 새 대회 생성
         const { matches } = generateTournamentBracket(teamsForBracket);
 
-        const tournamentData: Partial<Omit<Tournament, "id" | "createdAt">> = {
+        const tournamentData: Omit<Tournament, "id" | "createdAt"> = {
           school,
           name: tournamentName,
           type: tournamentType,
@@ -330,16 +296,16 @@ export default function TournamentManagement({
         };
         
         if (teamSource === 'group' && selectedTeamGroupId) {
-            tournamentData.teamGroupId = selectedTeamGroupId;
             const groupInfo = allTeamGroups.find(g => g.id === selectedTeamGroupId);
-            if(groupInfo) {
+            if (groupInfo) {
+              tournamentData.teamGroupId = selectedTeamGroupId;
               if (groupInfo.divideBy) tournamentData.divideBy = groupInfo.divideBy;
               if (groupInfo.numTeams) tournamentData.numTeams = groupInfo.numTeams;
               if (groupInfo.membersPerTeam) tournamentData.membersPerTeam = groupInfo.membersPerTeam;
             }
         }
         
-        const newTournament = await saveTournament(tournamentData as Omit<Tournament, 'id' | 'createdAt'>);
+        const newTournament = await saveTournament(tournamentData);
         setTournaments(prev => [newTournament, ...prev]);
         handleLoadTournament(newTournament.id, newTournament);
 
@@ -704,13 +670,13 @@ export default function TournamentManagement({
           <CardContent className="overflow-x-auto p-4">
             <div className="flex items-start space-x-8">
               {Object.entries(matchesByRound).map(([round, matches]) => (
-                <div key={round} className="flex flex-col space-y-16 min-w-[300px]">
+                <div key={round} className="flex flex-col space-y-4 min-w-[300px]">
                   <h4 className="font-bold text-center text-lg">
                     {parseInt(round) === fmRound ? "결승"
                       : Object.keys(matchesByRound).length > 1 && parseInt(round) === fmRound - 1 ? "준결승"
                       : `${Math.ceil(currentTournament.teams.length / (Math.pow(2, parseInt(round)-1)))}강`}
                   </h4>
-                  <div className="flex flex-col justify-around h-full space-y-16">
+                  <div className="flex flex-col justify-around h-full space-y-4">
                     {matches.map((match) => (
                       <MatchNode key={match.id} match={match} teamNameMap={teamNameMap} matchResults={matchResults}
                         onResultChange={handleMatchResultChange} onUpdateMatch={handleUpdateMatch} onResetMatch={handleResetMatch}
