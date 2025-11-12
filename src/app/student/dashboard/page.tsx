@@ -47,7 +47,9 @@ import {
 } from '@/components/ui/chart';
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { getStudentFeedback } from '@/ai/flows/student-ai-feedback';
-import { Loader2, Wand2, Trash2, Users, User as UserIcon, Swords } from 'lucide-react';
+import { getScoutingReport } from '@/ai/flows/scouting-report-flow';
+import type { ScoutingReportOutput } from '@/ai/flows/scouting-report-flow';
+import { Loader2, Wand2, Trash2, Users, User as UserIcon, Swords, Bot } from 'lucide-react';
 import type { Student, MeasurementRecord, MeasurementItem, TeamGroup, Tournament, Match } from '@/lib/types';
 import { getPapsGrade, getCustomItemGrade, normalizePapsRecord, normalizeCustomRecord } from '@/lib/paps';
 import { getRecords } from '@/lib/store';
@@ -111,6 +113,8 @@ export default function StudentDashboardPage() {
   
   const [tournament, setTournament] = useState<Tournament | null>(null);
 
+  const [scoutingReport, setScoutingReport] = useState<ScoutingReportOutput | null>(null);
+  const [isReportLoading, setIsReportLoading] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -166,7 +170,7 @@ export default function StudentDashboardPage() {
                         return itemNames.map(itemName => {
                             const itemRanks = allRanks[itemName];
                             let score = 0;
-                            if (itemRanks) {
+                            if (itemRanks && itemRanks.length > 0) {
                                 const rankInfo = itemRanks.find(r => r.studentId === targetStudent.id);
                                 if (rankInfo) {
                                     score = Math.round((1 - (rankInfo.rank - 1) / itemRanks.length) * 100);
@@ -183,7 +187,7 @@ export default function StudentDashboardPage() {
                         setMyTeam(studentTeam);
                         setSelectedTeamIndex(studentTeam.teamIndex);
 
-                        const otherTeamMembers = studentTeam.members.filter(m => m.id !== stud.id);
+                        const otherTeamMembers = studentTeam.members;
                         if (otherTeamMembers.length > 0) {
                             const teamScores: Record<string, number[]> = {};
                             itemNames.forEach(name => { teamScores[name] = [] });
@@ -381,6 +385,55 @@ export default function StudentDashboardPage() {
     }
   };
 
+   const handleGetScoutingReport = async () => {
+    if (!fullStudent || abilityScores.length === 0 || !school) {
+        toast({
+            variant: 'destructive',
+            title: '리포트 생성 불가',
+            description: '팀 편성을 위한 능력치 데이터가 있어야 리포트를 생성할 수 있습니다.',
+        });
+        return;
+    }
+    
+    setIsReportLoading(true);
+    try {
+      const allItemRanks = calculateRanks(school, measurementItems, allRecords, allStudents, fullStudent.grade);
+      const studentRanks: Record<string, string> = {};
+       Object.entries(allItemRanks).forEach(([item, ranks]) => {
+            const rankInfo = ranks.find(r => r.studentId === fullStudent.id);
+            if(rankInfo && abilityScores.some(s => s.item === item)) {
+                studentRanks[item] = `${ranks.length}명 중 ${rankInfo.rank}등`;
+            }
+       });
+
+      const input = {
+        studentName: fullStudent.name,
+        abilityScores: abilityScores.map(s => {
+          const itemInfo = measurementItems.find(i => i.name === s.item);
+          return {
+            ...s,
+            category: itemInfo?.category || (itemInfo?.isPaps ? 'PAPS' : '기타'),
+          }
+        }),
+        ranks: studentRanks,
+        allItems: measurementItems
+      };
+
+      const result = await getScoutingReport(input);
+      setScoutingReport(result);
+
+    } catch (error) {
+      console.error('AI 스카우팅 리포트 요청 실패:', error);
+      toast({
+        variant: 'destructive',
+        title: 'AI 리포트 오류',
+        description: '리포트를 생성하는 중 오류가 발생했습니다.',
+      });
+    } finally {
+      setIsReportLoading(false);
+    }
+  };
+
   const { chartData, availableItems } = useMemo(() => {
     if (!fullStudent || !school || !chartItemFilter || chartItemFilter === 'all' || isAuthLoading) return { chartData: [], availableItems: [] };
 
@@ -445,6 +498,18 @@ export default function StudentDashboardPage() {
     if (!teamGroup || selectedTeamIndex === null) return null;
     return teamGroup.teams.find(t => t.teamIndex === selectedTeamIndex) || null;
   }, [teamGroup, selectedTeamIndex]);
+  
+  const myTotalScore = useMemo(() => {
+    if (abilityScores.length === 0) return 0;
+    const total = abilityScores.reduce((sum, s) => sum + s.score, 0);
+    return Math.round(total / abilityScores.length);
+  }, [abilityScores]);
+
+  const teamTotalScore = useMemo(() => {
+    if (teamAverageScores.length === 0) return 0;
+    const total = teamAverageScores.reduce((sum, s) => sum + s.score, 0);
+    return Math.round(total / teamAverageScores.length);
+  }, [teamAverageScores]);
 
 
   if (isDataLoading || !fullStudent || !school) {
@@ -797,35 +862,41 @@ export default function StudentDashboardPage() {
                                         <p className="text-sm text-muted-foreground text-center py-8">팀 정보가 없습니다. 선생님이 팀을 편성하고 전달할 때까지 기다려주세요.</p>
                                     )}
                                 </div>
-                                <div className="order-1 md:order-2 grid grid-cols-2 gap-4">
-                                    {abilityScores.length > 0 ? (
-                                        <div className='text-center h-[300px]'>
+                                <div className="order-1 md:order-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {abilityScores.length > 0 && (
+                                        <div className='text-center h-[350px] flex flex-col'>
                                             <h4 className="font-semibold mb-2">나의 능력치</h4>
-                                            <ResponsiveContainer width="100%" height="100%">
-                                            <RadarChart cx="50%" cy="50%" outerRadius="80%" data={abilityScores}>
-                                                <PolarGrid />
-                                                <PolarAngleAxis dataKey="item" tick={{ fontSize: 12 }} />
-                                                <PolarRadiusAxis axisLine={false} tick={false} />
-                                                <Radar name="나" dataKey="score" stroke="hsl(var(--chart-1))" fill="hsl(var(--chart-1))" fillOpacity={0.6} />
-                                                <Tooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}/>
-                                            </RadarChart>
-                                            </ResponsiveContainer>
+                                            <div className="flex-grow">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={abilityScores}>
+                                                    <PolarGrid />
+                                                    <PolarAngleAxis dataKey="item" tick={{ fontSize: 12 }} />
+                                                    <PolarRadiusAxis axisLine={false} tick={false} domain={[0, 100]} />
+                                                    <Radar name="나" dataKey="score" stroke="hsl(var(--chart-1))" fill="hsl(var(--chart-1))" fillOpacity={0.6} />
+                                                    <Tooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}/>
+                                                </RadarChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                            <p className="font-bold text-lg mt-2">총점: {myTotalScore} / 100</p>
                                         </div>
-                                    ): null}
-                                    {teamAverageScores.length > 0 ? (
-                                        <div className='text-center h-[300px]'>
+                                    )}
+                                    {teamAverageScores.length > 0 && (
+                                        <div className='text-center h-[350px] flex flex-col'>
                                             <h4 className="font-semibold mb-2">팀 평균 능력치</h4>
-                                            <ResponsiveContainer width="100%" height="100%">
-                                            <RadarChart cx="50%" cy="50%" outerRadius="80%" data={teamAverageScores}>
-                                                <PolarGrid />
-                                                <PolarAngleAxis dataKey="item" tick={{ fontSize: 12 }} />
-                                                <PolarRadiusAxis axisLine={false} tick={false} />
-                                                <Radar name="팀 평균" dataKey="score" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.6}/>
-                                                <Tooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}/>
-                                            </RadarChart>
-                                            </ResponsiveContainer>
+                                            <div className="flex-grow">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={teamAverageScores}>
+                                                    <PolarGrid />
+                                                    <PolarAngleAxis dataKey="item" tick={{ fontSize: 12 }} />
+                                                    <PolarRadiusAxis axisLine={false} tick={false} domain={[0, 100]} />
+                                                    <Radar name="팀 평균" dataKey="score" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.6}/>
+                                                    <Tooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}/>
+                                                </RadarChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                            <p className="font-bold text-lg mt-2">총점: {teamTotalScore} / 100</p>
                                         </div>
-                                    ): null}
+                                    )}
                                     {abilityScores.length === 0 && teamAverageScores.length === 0 && (
                                         <div className="col-span-2 flex items-center justify-center h-full text-sm text-muted-foreground">
                                             팀 편성 시 사용된 능력치 데이터가 없습니다.
@@ -835,6 +906,44 @@ export default function StudentDashboardPage() {
                             </div>
                         )}
                     </CardContent>
+                    <CardFooter className="flex-col gap-4">
+                        <div className="flex w-full gap-4">
+                           <Button onClick={handleGetScoutingReport} disabled={isReportLoading || abilityScores.length === 0} className="flex-1">
+                                <Bot className="mr-2 h-4 w-4" />
+                                {isReportLoading && !scoutingReport ? "리포트 생성 중..." : "나의 스카우팅 리포트"}
+                           </Button>
+                        </div>
+                        {isReportLoading && (
+                            <div className="flex justify-center items-center w-full p-4">
+                                <Loader2 className="animate-spin" />
+                            </div>
+                        )}
+                        {scoutingReport && (
+                            <Card className="w-full bg-secondary">
+                                <CardHeader>
+                                    <CardTitle className="text-lg flex items-center gap-2"><Bot /> AI 스카우팅 리포트</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4 text-sm">
+                                    <div>
+                                        <h4 className="font-bold text-primary">핵심 강점</h4>
+                                        <p className="whitespace-pre-wrap">{scoutingReport.strengths}</p>
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-destructive">보완점</h4>
+                                        <p className="whitespace-pre-wrap">{scoutingReport.weaknesses}</p>
+                                    </div>
+                                     <div>
+                                        <h4 className="font-bold">종합 평가 (선수 유형)</h4>
+                                        <p className="whitespace-pre-wrap">{scoutingReport.assessment}</p>
+                                    </div>
+                                     <div>
+                                        <h4 className="font-bold">추천 포지션</h4>
+                                        <p className="whitespace-pre-wrap">{scoutingReport.position}</p>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+                    </CardFooter>
                 </Card>
             </TabsContent>
         </Tabs>
