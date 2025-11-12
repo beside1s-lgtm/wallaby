@@ -74,11 +74,10 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
             const teamsWithByes = currentRoundEntrants.slice(0, numByes) as Team[];
             const teamsInRound1 = currentRoundEntrants.slice(numByes) as Team[];
             
-            // Byes are auto-winners of a conceptual round 0 match
             teamsWithByes.forEach(team => {
                 const byeMatch: Match = {
                     id: uuidv4(),
-                    round: 1, // Treat bye as a round 1 match that is already complete
+                    round: 1,
                     matchNumber: matchNumber++,
                     teamAId: team.id,
                     teamBId: null,
@@ -96,16 +95,35 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
             for (let i = 0; i < teamsInRound1.length; i += 2) {
                 const teamA = teamsInRound1[i];
                 const teamB = teamsInRound1[i+1];
+                 if (teamA && !teamB) { // Last team in an odd-numbered group
+                    const byeMatch: Match = {
+                        id: uuidv4(),
+                        round: 1,
+                        matchNumber: matchNumber++,
+                        teamAId: teamA.id,
+                        teamBId: null,
+                        scoreA: null,
+                        scoreB: null,
+                        winnerId: teamA.id,
+                        status: 'bye',
+                        nextMatchId: null,
+                        nextMatchSlot: null,
+                    };
+                    matches.push(byeMatch);
+                    nextRoundEntrants.push(byeMatch);
+                    continue; // Skip to next iteration
+                }
+                
                 const match: Match = {
                     id: uuidv4(),
                     round: 1,
                     matchNumber: matchNumber++,
                     teamAId: teamA.id,
-                    teamBId: teamB ? teamB.id : null,
+                    teamBId: teamB.id,
                     scoreA: null,
                     scoreB: null,
-                    winnerId: !teamB ? teamA.id : null, // If no opponent, teamA is the winner
-                    status: !teamB ? 'bye' : 'scheduled',
+                    winnerId: null,
+                    status: 'scheduled',
                     nextMatchId: null,
                     nextMatchSlot: null,
                 };
@@ -117,9 +135,9 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
             for (let i = 0; i < currentRoundEntrants.length; i += 2) {
                 const entrantA = currentRoundEntrants[i];
                 const entrantB = currentRoundEntrants[i+1];
-
-                const teamAId = 'winnerId' in entrantA ? null : entrantA.id;
-                const teamBId = entrantB ? ('winnerId' in entrantB ? null : entrantB.id) : null;
+                
+                const teamAId = 'winnerId' in entrantA ? entrantA.winnerId : entrantA.id;
+                const teamBId = entrantB ? ('winnerId' in entrantB ? entrantB.winnerId : entrantB.id) : null;
                 
                 const match: Match = {
                     id: uuidv4(),
@@ -134,27 +152,28 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
                     nextMatchId: null,
                     nextMatchSlot: null,
                 };
+                
+                 // If there's no opponent in this round, it's a bye to the next.
+                if (teamAId && !teamBId) {
+                    match.winnerId = teamAId;
+                    match.status = 'bye';
+                }
 
-                // Link previous matches to this new match
-                if ('winnerId' in entrantA) { // entrantA is a Match from a previous round
+                if ('id' in entrantA) {
                     const prevMatchA = matches.find(m => m.id === entrantA.id);
                     if (prevMatchA) {
                         prevMatchA.nextMatchId = match.id;
                         prevMatchA.nextMatchSlot = 'A';
                     }
                 }
-                if (entrantB && 'winnerId' in entrantB) { // entrantB is a Match
+                if (entrantB && 'id' in entrantB) {
                     const prevMatchB = matches.find(m => m.id === entrantB.id);
                     if (prevMatchB) {
                         prevMatchB.nextMatchId = match.id;
                         prevMatchB.nextMatchSlot = 'B';
                     }
                 }
-                 if(teamAId && !teamBId && !('winnerId' in entrantA) && !entrantB){
-                    match.winnerId = teamAId;
-                    match.status = 'bye';
-                }
-
+                
                 matches.push(match);
                 nextRoundEntrants.push(match);
             }
@@ -239,7 +258,8 @@ export default function TournamentManagement({
         const newTournament = allTournaments.find(t => t.id === newTournamentId);
 
         if (newTournament) {
-            handleLoadTournament(newTournament.id); // Load the newly created tournament to display it
+            handleLoadTournament(newTournament.id);
+            setCurrentTournament(newTournament);
         }
 
         toast({ title: "새로운 대회 생성 완료" });
@@ -270,6 +290,7 @@ export default function TournamentManagement({
         const reloadedTournament = reloadedTournaments.find(t => t.id === currentTournament.id);
         if (reloadedTournament) {
           handleLoadTournament(reloadedTournament.id);
+          setCurrentTournament(reloadedTournament);
         }
         
         toast({ title: "팀 재배정 완료", description: "팀이 무작위로 다시 배정되었습니다." });
