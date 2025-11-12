@@ -64,17 +64,20 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[] } => {
     const totalSlots = Math.pow(2, numRounds);
     const numByes = totalSlots - numTeams;
 
-    const byeTeams = shuffledTeamIds.slice(0, numByes);
-    const teamsInRound1 = shuffledTeamIds.slice(numByes);
+    const byeTeams: string[] = shuffledTeamIds.slice(0, numByes);
+    const teamsInRound1: string[] = shuffledTeamIds.slice(numByes);
 
     let round1Matches: Match[] = [];
     for (let i = 0; i < teamsInRound1.length; i += 2) {
+        const teamAId = teamsInRound1[i];
+        const teamBId = teamsInRound1[i + 1] || null;
+        
         const match: Match = {
             id: uuidv4(),
             round: 1,
             matchNumber: round1Matches.length + 1,
-            teamAId: teamsInRound1[i],
-            teamBId: teamsInRound1[i + 1] || null,
+            teamAId: teamAId,
+            teamBId: teamBId,
             scoreA: null,
             scoreB: null,
             winnerId: null,
@@ -100,8 +103,8 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[] } => {
             const entrantA = currentEntrants[i];
             const entrantB = currentEntrants[i + 1];
 
-            const teamAId = entrantA ? (typeof entrantA === 'string' ? entrantA : entrantA.winnerId) : null;
-            const teamBId = entrantB ? (typeof entrantB === 'string' ? entrantB : entrantB.winnerId) : null;
+            const teamAId = typeof entrantA === 'string' ? entrantA : (entrantA as Match).winnerId;
+            const teamBId = entrantB ? (typeof entrantB === 'string' ? entrantB : (entrantB as Match).winnerId) : null;
             
             const newMatch: Match = {
                 id: uuidv4(),
@@ -717,3 +720,5 @@ const MatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateM
         </div>
     );
 };
+
+    
