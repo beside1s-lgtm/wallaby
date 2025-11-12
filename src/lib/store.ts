@@ -770,7 +770,7 @@ export const saveTeamGroup = async (teamGroupData: TeamGroupInput): Promise<void
     const teamGroupsRef = collection(db, 'schools', teamGroupData.school, 'teamGroups');
     
     // Add unique ID to each team before saving
-    const teamsWithIds: Team[] = teamGroupData.teams.map(team => ({
+    const teamsWithIds: Omit<Team, 'name'>[] = teamGroupData.teams.map(team => ({
         ...team,
         id: uuidv4(), // Assign a unique ID to each team
     }));

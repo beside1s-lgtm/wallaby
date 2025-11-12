@@ -46,6 +46,7 @@ export type School = {
 
 export type Team = {
   id: string;
+  name: string;
   teamIndex: number;
   memberIds: string[];
   members?: Student[]; // Optional, populated on client
@@ -68,7 +69,9 @@ export type TeamGroup = {
   membersPerTeam?: number;
 };
 
-export type TeamGroupInput = Omit<TeamGroup, 'id' | 'createdAt'>;
+export type TeamGroupInput = Omit<TeamGroup, 'id' | 'createdAt' | 'teams'> & {
+  teams: Omit<Team, 'id' | 'name'>[];
+};
 
 
 // --- Tournament Types ---
@@ -91,8 +94,8 @@ export type Tournament = {
   school: string;
   name: string;
   type: 'round-robin' | 'tournament' | 'league-tournament';
-  teamGroupId: string; // ID of the TeamGroup used for this tournament
-  teams: Team[]; // Shuffled list of teams participating
+  teamGroupId?: string; // 이제 선택 사항
+  teams: Team[]; // 직접 팀 정보를 저장
   matches: Match[];
   createdAt: any;
 };
