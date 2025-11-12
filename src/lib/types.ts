@@ -45,6 +45,7 @@ export type School = {
 };
 
 export type Team = {
+  id: string;
   teamIndex: number;
   memberIds: string[];
   members?: Student[]; // Optional, populated on client
@@ -81,12 +82,8 @@ export type Match = {
   scoreB: number | null;
   winnerId: string | null;
   status: 'scheduled' | 'completed' | 'bye';
-};
-
-export type TournamentGroup = {
-  name: string; // e.g., "A조"
-  teamIds: string[];
-  matches: Match[];
+  nextMatchId: string | null;
+  nextMatchSlot: 'A' | 'B' | null;
 };
 
 export type Tournament = {
@@ -95,7 +92,6 @@ export type Tournament = {
   name: string;
   type: 'round-robin' | 'tournament' | 'league-tournament';
   teamGroupId: string; // ID of the TeamGroup used for this tournament
-  groups: TournamentGroup[]; // For league-tournament or round-robin with groups
   matches: Match[]; // For single tournament or final tournament stage
   createdAt: any;
 };

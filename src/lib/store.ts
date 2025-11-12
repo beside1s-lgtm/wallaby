@@ -1,5 +1,5 @@
 'use client';
-import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentToAdd, School, StudentToUpdate, TeamGroup, TeamGroupInput, Tournament } from './types';
+import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentToAdd, School, StudentToUpdate, TeamGroup, TeamGroupInput, Tournament, Team } from './types';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { initialItems, initialStudents, initialRecords } from './initial-data';
@@ -766,25 +766,33 @@ export const cleanUpDuplicateRecords = async (school: string): Promise<number> =
 
 // --- Team Groups ---
 export const saveTeamGroup = async (teamGroupData: TeamGroupInput): Promise<void> => {
-  await signIn();
-  const teamGroupsRef = collection(db, 'schools', teamGroupData.school, 'teamGroups');
-  const newTeamGroupRef = doc(teamGroupsRef);
-  const dataToSave = {
-    ...teamGroupData,
-    id: newTeamGroupRef.id,
-    createdAt: serverTimestamp(),
-  };
+    await signIn();
+    const teamGroupsRef = collection(db, 'schools', teamGroupData.school, 'teamGroups');
+    
+    // Add unique ID to each team before saving
+    const teamsWithIds: Team[] = teamGroupData.teams.map(team => ({
+        ...team,
+        id: uuidv4(), // Assign a unique ID to each team
+    }));
 
-  await setDoc(newTeamGroupRef, dataToSave).catch(e => {
-    if (e.code === 'permission-denied') {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: newTeamGroupRef.path,
-        operation: 'create',
-        requestResourceData: dataToSave
-      }));
-    }
-    throw e;
-  });
+    const newTeamGroupRef = doc(teamGroupsRef);
+    const dataToSave = {
+        ...teamGroupData,
+        teams: teamsWithIds,
+        id: newTeamGroupRef.id,
+        createdAt: serverTimestamp(),
+    };
+
+    await setDoc(newTeamGroupRef, dataToSave).catch(e => {
+        if (e.code === 'permission-denied') {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: newTeamGroupRef.path,
+                operation: 'create',
+                requestResourceData: dataToSave
+            }));
+        }
+        throw e;
+    });
 };
 
 export const getTeamGroups = async (school: string): Promise<TeamGroup[]> => {
