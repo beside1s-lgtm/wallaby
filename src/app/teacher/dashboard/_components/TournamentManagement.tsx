@@ -53,25 +53,23 @@ type TournamentManagementProps = {
   onTournamentUpdate: () => void;
 };
 
-const generateTournamentBracket = (teamIds: string[]): { matches: Match[], finalTeamIds: string[] } => {
-    const shuffledTeamIds = [...teamIds].sort(() => Math.random() - 0.5);
+const generateTournamentBracket = (teamIds: string[]): { matches: Match[] } => {
+    let shuffledTeamIds = [...teamIds].sort(() => Math.random() - 0.5);
     let matches: Match[] = [];
     const numTeams = shuffledTeamIds.length;
 
     if (numTeams < 2) {
-        return { matches: [], finalTeamIds: shuffledTeamIds };
+        return { matches: [] };
     }
 
     const numRounds = Math.ceil(Math.log2(numTeams));
     const totalSlots = Math.pow(2, numRounds);
     const numByes = totalSlots - numTeams;
 
-    let nextRoundEntrants: (string | Match)[] = [];
-
     const byeTeams = shuffledTeamIds.slice(0, numByes);
     const teamsInRound1 = shuffledTeamIds.slice(numByes);
-
-    nextRoundEntrants.push(...byeTeams);
+    
+    let nextRoundEntrants: (string | Match)[] = [...byeTeams];
     
     let matchNumberR1 = 1;
     for (let i = 0; i < teamsInRound1.length; i += 2) {
@@ -155,7 +153,7 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[], final
         currentRoundEntrants = nextRoundMatches;
     }
 
-    return { matches, finalTeamIds: shuffledTeamIds };
+    return { matches };
 };
 
 
@@ -217,9 +215,9 @@ export default function TournamentManagement({
         }
       } else { // Create new tournament
         const teamIds = selectedTeamGroup.teams.map(t => t.id);
-        const { matches, finalTeamIds } = generateTournamentBracket(teamIds);
+        const { matches } = generateTournamentBracket(teamIds);
         
-        const teamsData = finalTeamIds.map(id => selectedTeamGroup.teams.find(t => t.id === id)).filter((t): t is Team => !!t);
+        const teamsData = teamIds.map(id => selectedTeamGroup.teams.find(t => t.id === id)).filter((t): t is Team => !!t);
 
         const tournamentData: Omit<Tournament, 'id' | 'createdAt'> = {
           school,
@@ -259,10 +257,9 @@ export default function TournamentManagement({
     setIsLoading(true);
     try {
         const teamIds = selectedTeamGroup.teams.map(t => t.id);
-        const { matches: newMatches, finalTeamIds } = generateTournamentBracket(teamIds);
-        const newTeamsData = finalTeamIds.map(id => selectedTeamGroup.teams.find(t => t.id === id)).filter((t): t is Team => !!t);
+        const { matches: newMatches } = generateTournamentBracket(teamIds);
 
-        await updateTournament(school, currentTournament.id, { teams: newTeamsData, matches: newMatches });
+        await updateTournament(school, currentTournament.id, { matches: newMatches });
         
         const reloadedTournaments = await getTournaments(school);
         setTournaments(reloadedTournaments);
@@ -454,6 +451,19 @@ export default function TournamentManagement({
       }
   }
 
+  const matchesByRound = useMemo(() => {
+    if (!currentTournament?.matches) return {};
+    return currentTournament.matches.reduce((acc, match) => {
+      const round = match.round;
+      if (!acc[round]) {
+        acc[round] = [];
+      }
+      acc[round].push(match);
+      acc[round].sort((a,b) => a.matchNumber - b.matchNumber);
+      return acc;
+    }, {} as Record<number, Match[]>);
+  }, [currentTournament]);
+
 
   const teamNameMap = useMemo(() => {
     if (!currentTournament?.teams) return new Map();
@@ -611,14 +621,29 @@ export default function TournamentManagement({
         </CardContent>
       </Card>
       
-      {currentTournament && currentTournament.type === 'tournament' && finalMatch && (
+      {currentTournament && currentTournament.type === 'tournament' && Object.keys(matchesByRound).length > 0 && (
         <Card>
             <CardHeader>
                 <CardTitle>{currentTournament.name} 대진표</CardTitle>
             </CardHeader>
             <CardContent className="overflow-x-auto p-4">
-                <div className="flex min-w-max">
-                    <Bracket match={finalMatch} allMatches={currentTournament.matches} teamNameMap={teamNameMap} matchResults={matchResults} onResultChange={handleMatchResultChange} onUpdateMatch={handleUpdateMatch} onResetMatch={handleResetMatch} />
+                <div className="flex items-start space-x-8">
+                    {Object.entries(matchesByRound).map(([round, matches]) => (
+                        <div key={round} className="flex flex-col space-y-8">
+                            <h4 className="font-bold text-center">{parseInt(round) === finalMatch?.round ? '결승' : `${matches.length * 2}강`}</h4>
+                            {matches.map(match => (
+                                <MatchNode 
+                                    key={match.id}
+                                    match={match}
+                                    teamNameMap={teamNameMap}
+                                    matchResults={matchResults}
+                                    onResultChange={handleMatchResultChange}
+                                    onUpdateMatch={handleUpdateMatch}
+                                    onResetMatch={handleResetMatch}
+                                />
+                            ))}
+                        </div>
+                    ))}
                 </div>
             </CardContent>
         </Card>
@@ -626,40 +651,6 @@ export default function TournamentManagement({
     </div>
   );
 }
-
-const Bracket = ({ match, allMatches, teamNameMap, matchResults, onResultChange, onUpdateMatch, onResetMatch }: {
-    match: Match;
-    allMatches: Match[];
-    teamNameMap: Map<string, string>;
-    matchResults: Record<string, {scoreA: string, scoreB: string}>;
-    onResultChange: (matchId: string, team: 'A' | 'B', score: string) => void;
-    onUpdateMatch: (matchId: string) => void;
-    onResetMatch: (matchId: string) => void;
-}) => {
-    const prevMatchA = allMatches.find(m => m.nextMatchId === match.id && m.nextMatchSlot === 'A');
-    const prevMatchB = allMatches.find(m => m.nextMatchId === match.id && m.nextMatchSlot === 'B');
-    
-    return (
-        <div className="flex items-center">
-             <div className="flex flex-col justify-around">
-                {prevMatchA && <Bracket match={prevMatchA} allMatches={allMatches} teamNameMap={teamNameMap} matchResults={matchResults} onResultChange={onResultChange} onUpdateMatch={onUpdateMatch} onResetMatch={onResetMatch} />}
-                {!prevMatchA && match.teamAId && <div className="w-44 p-2 m-2"><span className="text-sm">{teamNameMap.get(match.teamAId) || '부전승'}</span></div>}
-                
-                {prevMatchB && <Bracket match={prevMatchB} allMatches={allMatches} teamNameMap={teamNameMap} matchResults={matchResults} onResultChange={onResultChange} onUpdateMatch={onUpdateMatch} onResetMatch={onResetMatch} />}
-                {!prevMatchB && match.teamBId && <div className="w-44 p-2 m-2"><span className="text-sm">{teamNameMap.get(match.teamBId) || '부전승'}</span></div>}
-             </div>
-             
-            {(prevMatchA || prevMatchB) && (
-             <div className="flex flex-col items-center self-stretch">
-                <div className={`w-4 h-1/2 border-r ${prevMatchA ? 'border-b' : ''} border-gray-400`}></div>
-                <div className={`w-4 h-1/2 border-r ${prevMatchB ? 'border-t' : ''} border-gray-400`}></div>
-             </div>
-            )}
-            
-            <MatchNode match={match} teamNameMap={teamNameMap} matchResults={matchResults} onResultChange={onResultChange} onUpdateMatch={onUpdateMatch} onResetMatch={onResetMatch} />
-        </div>
-    );
-};
 
 const MatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateMatch, onResetMatch }: {
     match: Match;
@@ -673,7 +664,7 @@ const MatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateM
     const winnerIsB = match.winnerId && match.winnerId === match.teamBId;
     
     return (
-            <div className="relative flex w-44 flex-col justify-center rounded-md border bg-card p-2 shadow-sm space-y-1 mx-2">
+            <div className="relative flex w-56 flex-col justify-center rounded-md border bg-card p-2 shadow-sm space-y-1">
               <div className="flex items-center justify-between">
                 <span className={`truncate text-sm ${winnerIsA ? 'font-bold text-primary' : ''} ${match.teamAId ? '' : 'text-muted-foreground'}`}>
                   {match.teamAId ? (teamNameMap.get(match.teamAId) || '미정') : '미정'}
