@@ -82,7 +82,7 @@ function generateTournamentBracket(teamIds: string[]): { matches: Match[] } {
   const round1Matches: Match[] = [];
   for (let i = 0; i < teamsToPlay.length; i += 2) {
     const teamA = teamsToPlay[i];
-    const teamB = teamsToPlay[i + 1];
+    const teamB = teamsToPlay[i + 1]; // Can be undefined if teamsToPlay.length is odd
 
     const match: Match = {
       id: uuidv4(),
@@ -92,7 +92,7 @@ function generateTournamentBracket(teamIds: string[]): { matches: Match[] } {
       teamBId: teamB ?? null,
       scoreA: null,
       scoreB: null,
-      winnerId: !teamB ? teamA : null,
+      winnerId: !teamB ? teamA : null, // if teamB is undefined, teamA gets a bye
       status: !teamB ? "bye" : "scheduled",
       nextMatchId: null,
       nextMatchSlot: null,
@@ -101,7 +101,7 @@ function generateTournamentBracket(teamIds: string[]): { matches: Match[] } {
   }
   matches.push(...round1Matches);
 
-  // 이후 라운드
+  // Subsequent rounds
   let currentEntrants: (string | Match)[] = [...byeTeams, ...round1Matches];
   let currentRound = 1;
 
@@ -112,13 +112,13 @@ function generateTournamentBracket(teamIds: string[]): { matches: Match[] } {
 
     for (let i = 0; i < currentEntrants.length; i += 2) {
       const entrantA = currentEntrants[i];
-      const entrantB = currentEntrants[i + 1];
+      const entrantB = currentEntrants[i + 1]; // Can be undefined
 
       const teamAId =
         typeof entrantA === "string"
           ? entrantA
           : (entrantA as Match)?.winnerId ?? null;
-
+      
       const teamBId = entrantB
         ? typeof entrantB === "string"
           ? entrantB
@@ -138,10 +138,10 @@ function generateTournamentBracket(teamIds: string[]): { matches: Match[] } {
         nextMatchId: null,
         nextMatchSlot: null,
       };
-
+      
       if (newMatch.teamAId && !newMatch.teamBId) {
-        newMatch.winnerId = newMatch.teamAId;
-        newMatch.status = "bye";
+          newMatch.winnerId = newMatch.teamAId;
+          newMatch.status = "bye";
       }
 
       if (typeof entrantA === "object" && entrantA !== null) {
@@ -169,6 +169,7 @@ function generateTournamentBracket(teamIds: string[]): { matches: Match[] } {
 
   return { matches };
 }
+
 
 /* -------------------------------------------------------
  * 메인 컴포넌트
