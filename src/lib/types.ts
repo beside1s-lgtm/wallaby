@@ -98,7 +98,7 @@ export type Tournament = {
   teams: Team[]; // 직접 팀 정보를 저장
   matches: Match[];
   createdAt: any;
-  divideBy?: 'teams' | 'members' | 'single';
-  numTeams?: number;
-  membersPerTeam?: number;
+  // For manual audience targeting
+  grade?: string;
+  gender?: 'all' | '남' | '여';
 };

@@ -895,46 +895,60 @@ export const getTournaments = async (school: string): Promise<Tournament[]> => {
   return snapshot.docs.map(doc => doc.data() as Tournament);
 };
 
-export const getLatestTournamentForStudent = async (school: string, studentId: string, allTeamGroups: TeamGroup[]): Promise<Tournament | null> => {
+export const getLatestTournamentForStudent = async (school: string, studentId: string, allStudents: Student[], allTeamGroups: TeamGroup[]): Promise<Tournament | null> => {
   await signIn();
-  
-  // Find which team group the student belongs to
-  const studentTeamGroup = allTeamGroups.find(group => 
+  const student = allStudents.find(s => s.id === studentId);
+  if (!student) return null;
+
+  // 1. Find tournament based on team group ID
+  const studentTeamGroup = allTeamGroups.find(group =>
     group.teams.some(team => team.memberIds.includes(studentId))
   );
-
-  if (!studentTeamGroup) {
-    return null;
-  }
   
-  // Now find all tournaments that use this team group
-  const tournamentsRef = collection(db, 'schools', school, 'tournaments');
-  const q = query(
-    tournamentsRef,
-    where('teamGroupId', '==', studentTeamGroup.id),
-    orderBy('createdAt', 'desc'),
-    limit(1)
-  );
-
-  try {
+  if (studentTeamGroup) {
+    const tournamentsRef = collection(db, 'schools', school, 'tournaments');
+    const q = query(
+      tournamentsRef,
+      where('teamGroupId', '==', studentTeamGroup.id),
+      orderBy('createdAt', 'desc'),
+      limit(1)
+    );
     const snapshot = await getDocs(q);
-
-    if (snapshot.empty) {
-      return null;
+    if (!snapshot.empty) {
+      return snapshot.docs[0].data() as Tournament;
     }
+  }
+
+  // 2. If no group-based tournament, find based on grade and gender
+  try {
+    const tournamentsRef = collection(db, 'schools', school, 'tournaments');
+    const qManual = query(
+      tournamentsRef,
+      where('grade', '==', student.grade),
+      orderBy('createdAt', 'desc')
+    );
+    const snapshot = await getDocs(qManual);
     
-    return snapshot.docs[0].data() as Tournament;
+    // Filter by gender client-side, as Firestore doesn't support inequality on different fields
+    for (const doc of snapshot.docs) {
+      const tournament = doc.data() as Tournament;
+      if (tournament.gender === 'all' || tournament.gender === student.gender) {
+        return tournament; // Return the most recent one that matches
+      }
+    }
+    return null;
   } catch(e: any) {
     if (e.code === 'permission-denied') {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: tournamentsRef.path,
+        path: `schools/${school}/tournaments`,
         operation: 'list',
-        requestResourceData: { query: `latest tournament for student ${studentId}` }
+        requestResourceData: { query: `latest manual tournament for student ${studentId}` }
       }));
     }
     throw e;
   }
 };
+
 
 export const updateTournament = async (school: string, tournamentId: string, data: Partial<Omit<Tournament, 'id' | 'school'>>): Promise<void> => {
   await signIn();

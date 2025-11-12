@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { getItems, addOrUpdateRecord, getRecordsByStudent, getStudentById, calculateRanks, deleteRecord, getLatestTeamGroupForStudent, getTeamGroups, getLatestTournamentForStudent } from '@/lib/store';
+import { getItems, addOrUpdateRecord, getRecordsByStudent, getStudentById, calculateRanks, deleteRecord, getLatestTeamGroupForStudent, getTeamGroups, getLatestTournamentForStudent, getStudents } from '@/lib/store';
 import {
   Card,
   CardContent,
@@ -50,7 +50,7 @@ import { getStudentFeedback } from '@/ai/flows/student-ai-feedback';
 import { Loader2, Wand2, Trash2, Users, User as UserIcon, Swords } from 'lucide-react';
 import type { Student, MeasurementRecord, MeasurementItem, TeamGroup, Tournament } from '@/lib/types';
 import { getPapsGrade, getCustomItemGrade, normalizePapsRecord, normalizeCustomRecord } from '@/lib/paps';
-import { getStudents, getRecords } from '@/lib/store';
+import { getRecords } from '@/lib/store';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 
@@ -127,7 +127,7 @@ export default function StudentDashboardPage() {
                 getLatestTeamGroupForStudent(school, student.id),
                 getTeamGroups(school),
             ]);
-            const tournamentData = await getLatestTournamentForStudent(school, student.id, allTeamGroups);
+            const tournamentData = await getLatestTournamentForStudent(school, student.id, allStuds, allTeamGroups);
             setTournament(tournamentData);
             setMeasurementItems(items);
             setRecords(recs);
