@@ -103,7 +103,7 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[] } => {
         for (let i = 0; i < currentRoundEntrants.length; i += 2) {
             const entrantA = currentRoundEntrants[i];
             const entrantB = currentRoundEntrants[i + 1];
-
+            
             const getTeamId = (entrant: string | Match | undefined): string | null => {
                 if (!entrant) return null;
                 if (typeof entrant === 'object' && entrant !== null && 'winnerId' in entrant) {
@@ -112,15 +112,12 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[] } => {
                 return entrant as string;
             };
 
-            const teamAId = getTeamId(entrantA);
-            const teamBId = getTeamId(entrantB);
-
             const newMatch: Match = {
                 id: uuidv4(),
                 round: round,
                 matchNumber: matchNumber++,
-                teamAId: teamAId,
-                teamBId: teamBId,
+                teamAId: getTeamId(entrantA),
+                teamBId: getTeamId(entrantB),
                 scoreA: null,
                 scoreB: null,
                 winnerId: null,
@@ -155,7 +152,6 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[] } => {
 
     return { matches };
 };
-
 
 export default function TournamentManagement({
   teamGroups,
@@ -629,19 +625,21 @@ export default function TournamentManagement({
             <CardContent className="overflow-x-auto p-4">
                 <div className="flex items-start space-x-8">
                     {Object.entries(matchesByRound).map(([round, matches]) => (
-                        <div key={round} className="flex flex-col space-y-8">
-                            <h4 className="font-bold text-center">{parseInt(round) === finalMatch?.round ? '결승' : `${matches.length * 2}강`}</h4>
-                            {matches.map(match => (
-                                <MatchNode 
-                                    key={match.id}
-                                    match={match}
-                                    teamNameMap={teamNameMap}
-                                    matchResults={matchResults}
-                                    onResultChange={handleMatchResultChange}
-                                    onUpdateMatch={handleUpdateMatch}
-                                    onResetMatch={handleResetMatch}
-                                />
-                            ))}
+                        <div key={round} className="flex flex-col space-y-8 min-w-[250px]">
+                            <h4 className="font-bold text-center">{parseInt(round) === finalMatch?.round ? '결승' : (Object.keys(matchesByRound).length === parseInt(round) ? '결승' : `${matches.length * 2}강`)}</h4>
+                            <div className="flex flex-col justify-around h-full space-y-8">
+                                {matches.map(match => (
+                                    <MatchNode 
+                                        key={match.id}
+                                        match={match}
+                                        teamNameMap={teamNameMap}
+                                        matchResults={matchResults}
+                                        onResultChange={handleMatchResultChange}
+                                        onUpdateMatch={handleUpdateMatch}
+                                        onResetMatch={handleResetMatch}
+                                    />
+                                ))}
+                            </div>
                         </div>
                     ))}
                 </div>
