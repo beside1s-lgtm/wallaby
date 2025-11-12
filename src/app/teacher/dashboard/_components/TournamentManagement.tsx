@@ -139,7 +139,7 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
 
     for (let round = 2; round <= numRounds; round++) {
         const roundMatches: Match[] = [];
-        const nextRoundEntrantsForNextLoop: (Team | Match)[] = [];
+        const nextRoundEntrantsForNextLoop: Match[] = [];
 
         for (let i = 0; i < currentRoundEntrants.length; i += 2) {
             const entrantA = currentRoundEntrants[i];
