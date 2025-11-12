@@ -70,14 +70,14 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
   const totalSlots = nextPowerOfTwo(numTeams);
   const numByes = totalSlots - numTeams;
 
-  const byeTeams = numByes > 0 ? shuffledTeams.slice(0, numByes) : [];
-  const teamsToPlay = numByes > 0 ? shuffledTeams.slice(numByes) : shuffledTeams;
-  
+  const teamsToPlayInRound1 = shuffledTeams.slice(numByes);
+  const byeTeamsForRound1 = shuffledTeams.slice(0, numByes);
+
   // Round 1
   const round1Matches: Match[] = [];
-  for (let i = 0; i < teamsToPlay.length; i += 2) {
-    const teamA = teamsToPlay[i];
-    const teamB = teamsToPlay[i + 1];
+  for (let i = 0; i < teamsToPlayInRound1.length; i += 2) {
+    const teamA = teamsToPlayInRound1[i];
+    const teamB = teamsToPlayInRound1[i + 1];
 
     const match: Match = {
       id: uuidv4(),
@@ -94,63 +94,41 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
     };
     round1Matches.push(match);
   }
-  matches.push(...round1Matches);
 
-  // Subsequent rounds
-  const round2Entrants: (Team | Match)[] = [];
-  let byeIdx = 0;
-  let matchIdx = 0;
-  // 부전승 팀과 1라운드 승리팀을 교차 배치
-  while (byeIdx < byeTeams.length || matchIdx < round1Matches.length) {
-    if (byeIdx < byeTeams.length) {
-      round2Entrants.push(byeTeams[byeIdx++]);
-    }
-    if (matchIdx < round1Matches.length) {
-      round2Entrants.push(round1Matches[matchIdx++]);
-    }
-  }
+  // Create "bye" matches for teams that get a bye in round 1
+    const byeMatches: Match[] = byeTeamsForRound1.map((team, index) => ({
+        id: uuidv4(),
+        round: 1,
+        matchNumber: round1Matches.length + index + 1,
+        teamAId: team.id,
+        teamBId: null,
+        scoreA: null,
+        scoreB: null,
+        winnerId: team.id,
+        status: 'bye',
+        nextMatchId: null,
+        nextMatchSlot: null,
+    }));
+    
+  matches.push(...round1Matches, ...byeMatches);
 
-  let currentEntrants: (Team | Match)[] = round2Entrants;
+  let currentRoundMatches = [...byeMatches, ...round1Matches];
   let currentRound = 1;
 
-  while (currentEntrants.length > 1) {
+  while (currentRoundMatches.length > 1) {
     const nextRound = currentRound + 1;
     const nextRoundMatches: Match[] = [];
     let matchNumber = 1;
 
-    // Handle odd number of entrants by giving the last one a bye
-    if (currentEntrants.length % 2 !== 0) {
-        const byeEntrant = currentEntrants.pop()!;
-        const byeTeamId = 'memberIds' in byeEntrant ? byeEntrant.id : (byeEntrant as Match).winnerId;
-        const byeMatch: Match = {
-            id: uuidv4(),
-            round: nextRound,
-            matchNumber: matchNumber++,
-            teamAId: byeTeamId,
-            teamBId: null,
-            scoreA: null,
-            scoreB: null,
-            winnerId: byeTeamId,
-            status: 'bye',
-            nextMatchId: null,
-            nextMatchSlot: null,
-        };
-        if (typeof byeEntrant === "object" && 'id' in byeEntrant && !('memberIds' in byeEntrant)) { // It's a Match
-            const prevMatch = matches.find(m => m.id === byeEntrant.id);
-            if(prevMatch) {
-                prevMatch.nextMatchId = byeMatch.id;
-                prevMatch.nextMatchSlot = 'A';
-            }
-        }
-        nextRoundMatches.push(byeMatch);
-    }
+    // To prevent bye teams from playing each other in the next round, we interleave them
+    const sortedCurrentRoundMatches = [...currentRoundMatches].sort((a,b) => a.matchNumber - b.matchNumber);
     
-    for (let i = 0; i < currentEntrants.length; i += 2) {
-      const entrantA = currentEntrants[i];
-      const entrantB = currentEntrants[i + 1];
+    for (let i = 0; i < sortedCurrentRoundMatches.length; i += 2) {
+      const matchA = sortedCurrentRoundMatches[i];
+      const matchB = sortedCurrentRoundMatches[i + 1];
 
-      const teamAId = entrantA ? ( 'memberIds' in entrantA ? entrantA.id : (entrantA as Match)?.winnerId ?? null) : null;
-      const teamBId = entrantB ? ( 'memberIds' in entrantB ? entrantB.id : (entrantB as Match)?.winnerId ?? null) : null;
+      const teamAId = matchA?.winnerId ?? null;
+      const teamBId = matchB?.winnerId ?? null;
       
       const newMatch: Match = {
         id: uuidv4(),
@@ -171,15 +149,15 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
         newMatch.status = "bye";
       }
 
-      if (entrantA && typeof entrantA === "object" && !('memberIds' in entrantA)) {
-        const prevMatchA = matches.find((m) => m.id === (entrantA as Match).id);
+      if (matchA) {
+        const prevMatchA = matches.find((m) => m.id === matchA.id);
         if (prevMatchA) {
           prevMatchA.nextMatchId = newMatch.id;
           prevMatchA.nextMatchSlot = "A";
         }
       }
-      if (entrantB && typeof entrantB === "object" && !('memberIds' in entrantB)) {
-        const prevMatchB = matches.find((m) => m.id === (entrantB as Match).id);
+      if (matchB) {
+        const prevMatchB = matches.find((m) => m.id === matchB.id);
         if (prevMatchB) {
           prevMatchB.nextMatchId = newMatch.id;
           prevMatchB.nextMatchSlot = "B";
@@ -187,8 +165,9 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
       }
       nextRoundMatches.push(newMatch);
     }
+
     matches.push(...nextRoundMatches);
-    currentEntrants = nextRoundMatches;
+    currentRoundMatches = nextRoundMatches;
     currentRound = nextRound;
   }
   return { matches };
@@ -685,7 +664,7 @@ const MatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateM
           <TeamNameEditor teamId={match.teamAId} name={match.teamAId ? teamNameMap.get(match.teamAId) ?? "미정" : "미정"} onUpdate={onUpdateTeamName}
             className={`truncate text-sm ${winnerIsA ? "font-bold text-primary" : ""} ${match.teamAId ? "" : "text-muted-foreground"}`} />
           <Input type="number" className="h-7 w-14 text-center" placeholder="-" value={matchResults[match.id]?.scoreA ?? ""}
-            onChange={(e) => onResultChange(match.id, "A", e.target.value)} disabled={match.status !== 'scheduled' || !match.teamAId} />
+            onChange={(e) => onResultChange(match.id, "A", e.target.value)} disabled={match.status !== 'scheduled'} />
         </div>
         <div className="flex items-center justify-between">
           <TeamNameEditor teamId={match.teamBId} name={match.teamBId ? teamNameMap.get(match.teamBId) ?? "팀 없음" : match.status === "bye" ? "(부전승)" : "미정"} onUpdate={onUpdateTeamName}
