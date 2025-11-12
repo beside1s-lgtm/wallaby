@@ -909,7 +909,9 @@ export const getLatestTournamentForStudent = async (school: string, studentId: s
   const tournamentsRef = collection(db, 'schools', school, 'tournaments');
   const q = query(
     tournamentsRef,
-    where('teamGroupId', '==', studentTeamGroup.id)
+    where('teamGroupId', '==', studentTeamGroup.id),
+    orderBy('createdAt', 'desc'),
+    limit(1)
   );
 
   try {
@@ -918,12 +920,8 @@ export const getLatestTournamentForStudent = async (school: string, studentId: s
     if (snapshot.empty) {
       return null;
     }
-
-    // Sort by createdAt client-side
-    const tournaments = snapshot.docs.map(doc => doc.data() as Tournament);
-    tournaments.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
     
-    return tournaments[0];
+    return snapshot.docs[0].data() as Tournament;
   } catch(e: any) {
     if (e.code === 'permission-denied') {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
