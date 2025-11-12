@@ -115,6 +115,8 @@ export default function StudentDashboardPage() {
 
   const [scoutingReport, setScoutingReport] = useState<ScoutingReportOutput | null>(null);
   const [isReportLoading, setIsReportLoading] = useState(false);
+  const [teamReport, setTeamReport] = useState<ScoutingReportOutput | null>(null);
+  const [isTeamReportLoading, setIsTeamReportLoading] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -396,6 +398,7 @@ export default function StudentDashboardPage() {
     }
     
     setIsReportLoading(true);
+    setScoutingReport(null);
     try {
       const allItemRanks = calculateRanks(school, measurementItems, allRecords, allStudents, fullStudent.grade);
       const studentRanks: Record<string, string> = {};
@@ -433,6 +436,10 @@ export default function StudentDashboardPage() {
       setIsReportLoading(false);
     }
   };
+
+  const handleGetTeamReport = async () => {
+    toast({ title: '팀 리포트', description: '이 기능은 현재 준비 중입니다.' });
+  }
 
   const { chartData, availableItems } = useMemo(() => {
     if (!fullStudent || !school || !chartItemFilter || chartItemFilter === 'all' || isAuthLoading) return { chartData: [], availableItems: [] };
@@ -907,11 +914,15 @@ export default function StudentDashboardPage() {
                         )}
                     </CardContent>
                     <CardFooter className="flex-col gap-4">
-                        <div className="flex w-full gap-4">
+                        <div className="flex flex-col sm:flex-row w-full gap-4">
                            <Button onClick={handleGetScoutingReport} disabled={isReportLoading || abilityScores.length === 0} className="flex-1">
                                 <Bot className="mr-2 h-4 w-4" />
                                 {isReportLoading && !scoutingReport ? "리포트 생성 중..." : "나의 스카우팅 리포트"}
                            </Button>
+                           <Button onClick={handleGetTeamReport} disabled={isTeamReportLoading || teamAverageScores.length === 0} className="flex-1">
+                                <Users className="mr-2 h-4 w-4" />
+                                {isTeamReportLoading && !teamReport ? "팀 분석 중..." : "우리 팀 전력 분석"}
+                            </Button>
                         </div>
                         {isReportLoading && (
                             <div className="flex justify-center items-center w-full p-4">
@@ -939,6 +950,36 @@ export default function StudentDashboardPage() {
                                      <div>
                                         <h4 className="font-bold">추천 포지션</h4>
                                         <p className="whitespace-pre-wrap">{scoutingReport.position}</p>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+                         {isTeamReportLoading && (
+                            <div className="flex justify-center items-center w-full p-4">
+                                <Loader2 className="animate-spin" />
+                            </div>
+                        )}
+                        {teamReport && (
+                             <Card className="w-full bg-secondary">
+                                <CardHeader>
+                                    <CardTitle className="text-lg flex items-center gap-2"><Users /> AI 팀 전력 분석</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4 text-sm">
+                                     <div>
+                                        <h4 className="font-bold text-primary">팀 강점</h4>
+                                        <p className="whitespace-pre-wrap">{teamReport.strengths}</p>
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-destructive">팀 보완점</h4>
+                                        <p className="whitespace-pre-wrap">{teamReport.weaknesses}</p>
+                                    </div>
+                                     <div>
+                                        <h4 className="font-bold">종합 평가 (팀 유형)</h4>
+                                        <p className="whitespace-pre-wrap">{teamReport.assessment}</p>
+                                    </div>
+                                     <div>
+                                        <h4 className="font-bold">추천 전략</h4>
+                                        <p className="whitespace-pre-wrap">{teamReport.position}</p>
                                     </div>
                                 </CardContent>
                             </Card>
