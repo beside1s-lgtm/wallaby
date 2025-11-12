@@ -685,13 +685,13 @@ const MatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateM
           <TeamNameEditor teamId={match.teamAId} name={match.teamAId ? teamNameMap.get(match.teamAId) ?? "미정" : "미정"} onUpdate={onUpdateTeamName}
             className={`truncate text-sm ${winnerIsA ? "font-bold text-primary" : ""} ${match.teamAId ? "" : "text-muted-foreground"}`} />
           <Input type="number" className="h-7 w-14 text-center" placeholder="-" value={matchResults[match.id]?.scoreA ?? ""}
-            onChange={(e) => onResultChange(match.id, "A", e.target.value)} disabled={match.status === "completed" || match.status === "bye"} />
+            onChange={(e) => onResultChange(match.id, "A", e.target.value)} disabled={match.status !== 'scheduled' || !match.teamAId} />
         </div>
         <div className="flex items-center justify-between">
           <TeamNameEditor teamId={match.teamBId} name={match.teamBId ? teamNameMap.get(match.teamBId) ?? "팀 없음" : match.status === "bye" ? "(부전승)" : "미정"} onUpdate={onUpdateTeamName}
             className={`truncate text-sm ${winnerIsB ? "font-bold text-primary" : ""} ${match.teamBId ? "" : "text-muted-foreground"}`} />
           <Input type="number" className="h-7 w-14 text-center" placeholder="-" value={matchResults[match.id]?.scoreB ?? ""}
-            onChange={(e) => onResultChange(match.id, "B", e.target.value)} disabled={match.status === "completed" || !match.teamBId || match.status === "bye"} />
+            onChange={(e) => onResultChange(match.id, "B", e.target.value)} disabled={match.status !== 'scheduled' || !match.teamBId} />
         </div>
         {match.status === "scheduled" && match.teamAId && match.teamBId && (
           <Button size="sm" className="h-7 w-full" onClick={() => onUpdateMatch(match.id)}><Save className="mr-2 h-3 w-3" /> 결과 저장</Button>
