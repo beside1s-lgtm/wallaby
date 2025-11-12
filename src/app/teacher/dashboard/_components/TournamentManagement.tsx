@@ -237,7 +237,7 @@ export default function TournamentManagement({
       }
     }
     loadTournaments();
-  }, [school, onTournamentUpdate, toast]);
+  }, [school, toast]);
   
   const teamNameMap = useMemo(() => {
     if (!currentTournament?.teams) return new Map<string, string>();
@@ -312,10 +312,9 @@ export default function TournamentManagement({
         
         const newTournament = await saveTournament(tournamentData);
         
-        // Immediately set the new tournament to state
+        setTournaments(prev => [newTournament, ...prev]);
         setCurrentTournament(newTournament);
         setSelectedTournamentId(newTournament.id);
-        setTournaments(prev => [newTournament, ...prev]);
 
         toast({ title: "새로운 대회 생성 완료" });
       }
@@ -335,9 +334,9 @@ export default function TournamentManagement({
       await updateTournament(school, currentTournament.id, { matches: newMatches });
 
       const reloadedTournament = { ...currentTournament, matches: newMatches };
+      setTournaments(prev => prev.map(t => t.id === reloadedTournament.id ? reloadedTournament : t));
       setCurrentTournament(reloadedTournament);
       handleLoadTournament(reloadedTournament.id, reloadedTournament);
-      onTournamentUpdate();
 
       toast({ title: "대진표 재추첨 완료" });
     } catch (error) {
@@ -380,11 +379,12 @@ export default function TournamentManagement({
 
   const handleDelete = async () => {
     if (!school || !currentTournament) return;
+    const tournamentIdToDelete = currentTournament.id;
     setIsLoading(true);
     try {
-      await deleteTournament(school, currentTournament.id);
+      await deleteTournament(school, tournamentIdToDelete);
       toast({ title: "대회 삭제 완료" });
-      onTournamentUpdate();
+      setTournaments(prev => prev.filter(t => t.id !== tournamentIdToDelete));
       resetForm();
     } catch (error) {
       toast({ variant: "destructive", title: "삭제 실패" });
@@ -403,8 +403,9 @@ export default function TournamentManagement({
     setIsLoading(true);
     try {
       await updateTournament(school, currentTournament.id, { teams: updatedTeams });
-      setCurrentTournament(prev => prev ? { ...prev, teams: updatedTeams } : null);
-      onTournamentUpdate();
+      const updatedTournament = { ...currentTournament, teams: updatedTeams };
+      setCurrentTournament(updatedTournament);
+      setTournaments(prev => prev.map(t => t.id === updatedTournament.id ? updatedTournament : t));
       toast({ title: "팀 이름 변경 완료" });
     } catch (error) {
       console.error("Failed to update team name:", error);
@@ -469,6 +470,7 @@ export default function TournamentManagement({
 
       await updateTournament(school, currentTournament.id, { matches: tournamentToUpdate.matches });
       setCurrentTournament(tournamentToUpdate);
+      setTournaments(prev => prev.map(t => t.id === tournamentToUpdate.id ? tournamentToUpdate : t));
       toast({ title: "경기 결과 저장 완료" });
     } catch (error) {
       console.error(error);
@@ -521,6 +523,7 @@ export default function TournamentManagement({
       if(resetMatchRecursive(matchId)){
         await updateTournament(school, currentTournament.id, { matches: tournamentToUpdate.matches });
         setCurrentTournament(tournamentToUpdate);
+        setTournaments(prev => prev.map(t => t.id === tournamentToUpdate.id ? tournamentToUpdate : t));
         toast({ title: "경기 결과 초기화 완료" });
       } else {
          toast({ variant: "destructive", title: "초기화 실패" });
