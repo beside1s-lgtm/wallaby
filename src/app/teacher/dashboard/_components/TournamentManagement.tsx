@@ -56,7 +56,7 @@ type TournamentManagementProps = {
 const generateTournamentBracket = (teamIds: string[]): { matches: Match[], finalTeamIds: string[] } => {
     const shuffledTeamIds = [...teamIds].sort(() => Math.random() - 0.5);
     const numTeams = shuffledTeamIds.length;
-    const matches: Match[] = [];
+    let matches: Match[] = [];
 
     if (numTeams < 2) {
         return { matches: [], finalTeamIds: shuffledTeamIds };
@@ -66,19 +66,20 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[], final
     const totalSlots = Math.pow(2, numRounds);
     const numByes = totalSlots - numTeams;
 
-    let previousRoundEntrants: (Match | { id: string })[] = [];
-    
-    const byeTeams = shuffledTeamIds.slice(0, numByes).map(id => ({ id }));
+    let nextRoundEntrants: (string | Match)[] = [];
+
+    // Byes
+    const byeTeams = shuffledTeamIds.slice(0, numByes);
+    nextRoundEntrants.push(...byeTeams);
+
+    // Round 1
     const teamsInRound1 = shuffledTeamIds.slice(numByes);
-    
-    previousRoundEntrants.push(...byeTeams);
-    
     let matchNumberR1 = 1;
     for (let i = 0; i < teamsInRound1.length; i += 2) {
         const teamAId = teamsInRound1[i];
         const teamBId = teamsInRound1[i + 1];
 
-        if (teamBId) {
+        if (teamAId && teamBId) {
             const match: Match = {
                 id: uuidv4(),
                 round: 1,
@@ -93,30 +94,27 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[], final
                 nextMatchSlot: null,
             };
             matches.push(match);
-            previousRoundEntrants.push(match);
-        } else {
-            // This case should not happen with correct bye calculation, but as a fallback:
-            previousRoundEntrants.push({ id: teamAId });
+            nextRoundEntrants.push(match);
         }
     }
     
     // Subsequent Rounds
+    let currentRoundEntrants = nextRoundEntrants;
     for (let round = 2; round <= numRounds; round++) {
-        const currentRoundEntrants = [...previousRoundEntrants];
-        previousRoundEntrants = [];
+        const nextRoundMatches: Match[] = [];
         let matchNumber = 1;
 
         for (let i = 0; i < currentRoundEntrants.length; i += 2) {
             const entrantA = currentRoundEntrants[i];
-            const entrantB = currentRoundEntrants[i+1];
-            
-            const getTeamId = (entrant: Match | {id: string} | undefined) => {
+            const entrantB = currentRoundEntrants[i + 1];
+
+            const getTeamId = (entrant: string | Match | undefined): string | null => {
                 if (!entrant) return null;
-                if ('winnerId' in entrant) { // It's a Match from a previous round
-                    return entrant.winnerId;
-                }
-                return entrant.id; // It's a bye Team
-            }
+                if (typeof entrant === 'string') return entrant;
+                // 'winnerId' is the key for Match objects that have been decided or have a bye
+                if ('winnerId' in entrant) return entrant.winnerId; 
+                return null;
+            };
 
             const newMatch: Match = {
                 id: uuidv4(),
@@ -132,8 +130,8 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[], final
                 nextMatchSlot: null,
             };
 
-            const linkPreviousMatch = (entrant: Match | {id: string} | undefined, slot: 'A' | 'B') => {
-                if (entrant && 'round' in entrant) { // It's a Match object
+            const linkPreviousMatch = (entrant: string | Match | undefined, slot: 'A' | 'B') => {
+                if (entrant && typeof entrant === 'object' && 'round' in entrant) { // It's a Match object
                     const prevMatch = matches.find(m => m.id === entrant.id);
                     if (prevMatch) {
                         prevMatch.nextMatchId = newMatch.id;
@@ -144,17 +142,16 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[], final
             
             linkPreviousMatch(entrantA, 'A');
             linkPreviousMatch(entrantB, 'B');
-
-            if (newMatch.teamAId && newMatch.teamBId) {
-                newMatch.status = 'scheduled';
-            } else if (newMatch.teamAId && !newMatch.teamBId) {
+            
+            if (newMatch.teamAId && !newMatch.teamBId) {
                  newMatch.status = 'bye';
                  newMatch.winnerId = newMatch.teamAId;
             }
             
             matches.push(newMatch);
-            previousRoundEntrants.push(newMatch);
+            nextRoundMatches.push(newMatch);
         }
+        currentRoundEntrants = nextRoundMatches;
     }
 
     return { matches, finalTeamIds: shuffledTeamIds };
