@@ -64,10 +64,10 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[] } => {
     const totalSlots = Math.pow(2, numRounds);
     const numByes = totalSlots - numTeams;
 
+    let round1Matches: Match[] = [];
     const byeTeams = shuffledTeamIds.slice(0, numByes);
     const teamsInRound1 = shuffledTeamIds.slice(numByes);
-    
-    let round1Matches: Match[] = [];
+
     for (let i = 0; i < teamsInRound1.length; i += 2) {
         const match: Match = {
             id: uuidv4(),
@@ -102,7 +102,7 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[] } => {
 
             const teamAId = typeof entrantA === 'string' ? entrantA : (entrantA as Match).winnerId;
             const teamBId = entrantB ? (typeof entrantB === 'string' ? entrantB : (entrantB as Match).winnerId) : null;
-
+            
             const newMatch: Match = {
                 id: uuidv4(),
                 round: round,
