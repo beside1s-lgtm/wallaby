@@ -88,7 +88,6 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
         nextRoundEntrants.push(byeMatch);
     });
 
-    // Pair the remaining teams for Round 1 matches
     const teamsInRound1 = shuffledTeams.slice(numByes);
     const round1Matches: Match[] = [];
     for (let i = 0; i < teamsInRound1.length; i += 2) {
@@ -115,13 +114,12 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
     }
     matches.push(...round1Matches);
     
-    // Handle the case of an odd number of teams in the first round (after byes)
     if (teamsInRound1.length % 2 !== 0) {
         const lastTeam = teamsInRound1[teamsInRound1.length - 1];
          const byeMatch: Match = {
             id: uuidv4(),
             round: 1,
-            matchNumber: 0, // Special number for byes
+            matchNumber: 0,
             teamAId: lastTeam.id,
             teamBId: null,
             scoreA: null,
@@ -166,7 +164,7 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
                 match.winnerId = teamAId;
             }
 
-            if ('id' in entrantA && 'round' in entrantA) { // entrantA is a Match
+            if ('id' in entrantA && 'round' in entrantA) {
                 const prevMatchA = matches.find(m => m.id === entrantA.id);
                 if (prevMatchA) {
                     prevMatchA.nextMatchId = match.id;
@@ -175,7 +173,7 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
             }
             
             if (entrantB) {
-                if ('id' in entrantB && 'round' in entrantB) { // entrantB is a Match
+                if ('id' in entrantB && 'round' in entrantB) {
                     const prevMatchB = matches.find(m => m.id === entrantB.id);
                     if (prevMatchB) {
                         prevMatchB.nextMatchId = match.id;
