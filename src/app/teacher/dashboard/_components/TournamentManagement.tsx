@@ -63,115 +63,104 @@ const nextPowerOfTwo = (n: number): number => {
 function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
   const shuffledTeams = [...teams].sort(() => Math.random() - 0.5);
   const numTeams = shuffledTeams.length;
-  const matches: Match[] = [];
+  const allMatches: Match[] = [];
 
   if (numTeams < 2) return { matches: [] };
 
   const totalSlots = nextPowerOfTwo(numTeams);
   const numByes = totalSlots - numTeams;
+  const numRound1Matches = (numTeams - numByes) / 2;
 
-  const teamsToPlayInRound1 = shuffledTeams.slice(numByes);
-  const byeTeamsForRound1 = shuffledTeams.slice(0, numByes);
-
-  // Round 1
-  const round1Matches: Match[] = [];
-  for (let i = 0; i < teamsToPlayInRound1.length; i += 2) {
-    const teamA = teamsToPlayInRound1[i];
-    const teamB = teamsToPlayInRound1[i + 1];
-
+  let round1Matches: Match[] = [];
+  
+  // Create matches for teams that play in round 1
+  let teamsToPlay = shuffledTeams.slice(numByes);
+  for (let i = 0; i < numRound1Matches; i++) {
     const match: Match = {
       id: uuidv4(),
       round: 1,
-      matchNumber: round1Matches.length + 1,
-      teamAId: teamA.id,
-      teamBId: teamB?.id ?? null,
+      matchNumber: i + 1,
+      teamAId: teamsToPlay[i * 2].id,
+      teamBId: teamsToPlay[i * 2 + 1].id,
       scoreA: null,
       scoreB: null,
-      winnerId: !teamB ? teamA.id : null,
-      status: !teamB ? "bye" : "scheduled",
+      winnerId: null,
+      status: "scheduled",
       nextMatchId: null,
       nextMatchSlot: null,
     };
     round1Matches.push(match);
   }
 
-  // Create "bye" matches for teams that get a bye in round 1
-    const byeMatches: Match[] = byeTeamsForRound1.map((team, index) => ({
-        id: uuidv4(),
-        round: 1,
-        matchNumber: round1Matches.length + index + 1,
-        teamAId: team.id,
-        teamBId: null,
-        scoreA: null,
-        scoreB: null,
-        winnerId: team.id,
-        status: 'bye',
-        nextMatchId: null,
-        nextMatchSlot: null,
-    }));
-    
-  matches.push(...round1Matches, ...byeMatches);
+  // Create "bye" matches for teams that get a bye
+  let byeTeams = shuffledTeams.slice(0, numByes);
+  const byeMatches: Match[] = byeTeams.map((team, index) => ({
+    id: uuidv4(),
+    round: 1,
+    matchNumber: numRound1Matches + index + 1,
+    teamAId: team.id,
+    teamBId: null,
+    scoreA: null,
+    scoreB: null,
+    winnerId: team.id, // A bye is an automatic win
+    status: 'bye',
+    nextMatchId: null,
+    nextMatchSlot: null,
+  }));
 
-  let currentRoundMatches = [...byeMatches, ...round1Matches];
+  allMatches.push(...round1Matches, ...byeMatches);
+
   let currentRound = 1;
+  let matchesInCurrentRound = [...allMatches];
 
-  while (currentRoundMatches.length > 1) {
-    const nextRound = currentRound + 1;
+  while (matchesInCurrentRound.length > 1) {
     const nextRoundMatches: Match[] = [];
-    let matchNumber = 1;
+    const numMatchesThisRound = matchesInCurrentRound.length;
 
-    // To prevent bye teams from playing each other in the next round, we interleave them
-    const sortedCurrentRoundMatches = [...currentRoundMatches].sort((a,b) => a.matchNumber - b.matchNumber);
-    
-    for (let i = 0; i < sortedCurrentRoundMatches.length; i += 2) {
-      const matchA = sortedCurrentRoundMatches[i];
-      const matchB = sortedCurrentRoundMatches[i + 1];
+    for (let i = 0; i < numMatchesThisRound / 2; i++) {
+        const matchA = matchesInCurrentRound[i];
+        const matchB = matchesInCurrentRound[numMatchesThisRound - 1 - i];
 
-      const teamAId = matchA?.winnerId ?? null;
-      const teamBId = matchB?.winnerId ?? null;
-      
-      const newMatch: Match = {
-        id: uuidv4(),
-        round: nextRound,
-        matchNumber: matchNumber++,
-        teamAId,
-        teamBId,
-        scoreA: null,
-        scoreB: null,
-        winnerId: null,
-        status: "scheduled",
-        nextMatchId: null,
-        nextMatchSlot: null,
-      };
+        const newMatch: Match = {
+            id: uuidv4(),
+            round: currentRound + 1,
+            matchNumber: i + 1,
+            teamAId: matchA.winnerId, // Can be null if match not played
+            teamBId: matchB.winnerId, // Can be null if match not played
+            scoreA: null,
+            scoreB: null,
+            winnerId: null,
+            status: "scheduled",
+            nextMatchId: null,
+            nextMatchSlot: null,
+        };
+        
+        // Link previous matches to this new one
+        matchA.nextMatchId = newMatch.id;
+        matchA.nextMatchSlot = "A";
+        matchB.nextMatchId = newMatch.id;
+        matchB.nextMatchSlot = "B";
 
-      if (newMatch.teamAId && !newMatch.teamBId) {
-        newMatch.winnerId = newMatch.teamAId;
-        newMatch.status = "bye";
-      }
-
-      if (matchA) {
-        const prevMatchA = matches.find((m) => m.id === matchA.id);
-        if (prevMatchA) {
-          prevMatchA.nextMatchId = newMatch.id;
-          prevMatchA.nextMatchSlot = "A";
+        // Check for byes in the next round
+        if (newMatch.teamAId && !newMatch.teamBId) {
+          newMatch.winnerId = newMatch.teamAId;
+          newMatch.status = "bye";
         }
-      }
-      if (matchB) {
-        const prevMatchB = matches.find((m) => m.id === matchB.id);
-        if (prevMatchB) {
-          prevMatchB.nextMatchId = newMatch.id;
-          prevMatchB.nextMatchSlot = "B";
+        if (!newMatch.teamAId && newMatch.teamBId) {
+          newMatch.winnerId = newMatch.teamBId;
+          newMatch.status = "bye";
         }
-      }
-      nextRoundMatches.push(newMatch);
+
+        nextRoundMatches.push(newMatch);
     }
-
-    matches.push(...nextRoundMatches);
-    currentRoundMatches = nextRoundMatches;
-    currentRound = nextRound;
+    allMatches.push(...nextRoundMatches);
+    matchesInCurrentRound = nextRoundMatches;
+    currentRound++;
   }
-  return { matches };
+  
+  return { matches: allMatches };
 }
+
 
 /* -------------------------------------------------------
  * 메인 컴포넌트
@@ -267,7 +256,7 @@ export default function TournamentManagement({
             name: tournamentName,
           });
           setCurrentTournament(prev => prev ? { ...prev, name: tournamentName } : null);
-          onTournamentUpdate();
+          setTournaments(prev => prev.map(t => t.id === currentTournament.id ? { ...t, name: tournamentName } : t));
           toast({ title: "대회 이름 변경 완료" });
         } else {
           toast({ title: "변경 사항 없음" });
@@ -292,8 +281,7 @@ export default function TournamentManagement({
         const newTournament = await saveTournament(tournamentData);
         
         setTournaments(prev => [newTournament, ...prev]);
-        setCurrentTournament(newTournament);
-        setSelectedTournamentId(newTournament.id);
+        handleLoadTournament(newTournament.id, newTournament); // Load the newly created tournament immediately
 
         toast({ title: "새로운 대회 생성 완료" });
       }
@@ -314,7 +302,6 @@ export default function TournamentManagement({
 
       const reloadedTournament = { ...currentTournament, matches: newMatches };
       setTournaments(prev => prev.map(t => t.id === reloadedTournament.id ? reloadedTournament : t));
-      setCurrentTournament(reloadedTournament);
       handleLoadTournament(reloadedTournament.id, reloadedTournament);
 
       toast({ title: "대진표 재추첨 완료" });
@@ -425,7 +412,7 @@ export default function TournamentManagement({
     setIsLoading(true);
     try {
       const tournamentToUpdate = JSON.parse(JSON.stringify(currentTournament)) as Tournament;
-      const matchToUpdate = tournamentToUpdate.matches.find(m => m.id === matchId);
+      let matchToUpdate = tournamentToUpdate.matches.find(m => m.id === matchId);
       
       if (matchToUpdate) {
         matchToUpdate.scoreA = scoreA;
@@ -433,16 +420,31 @@ export default function TournamentManagement({
         matchToUpdate.status = "completed";
         matchToUpdate.winnerId = scoreA > scoreB ? matchToUpdate.teamAId : matchToUpdate.teamBId;
         
-        if (matchToUpdate.winnerId && matchToUpdate.nextMatchId) {
-          const nextMatch = tournamentToUpdate.matches.find(m => m.id === matchToUpdate.nextMatchId);
+        // Propagate winner to the next match
+        while (matchToUpdate && matchToUpdate.nextMatchId) {
+          const nextMatch = tournamentToUpdate.matches.find(m => m.id === matchToUpdate!.nextMatchId);
           if (nextMatch) {
-            if (matchToUpdate.nextMatchSlot === 'A') nextMatch.teamAId = matchToUpdate.winnerId;
-            else if (matchToUpdate.nextMatchSlot === 'B') nextMatch.teamBId = matchToUpdate.winnerId;
-
-            if (nextMatch.teamAId && !nextMatch.teamBId && nextMatch.status === "scheduled") {
-              nextMatch.status = "bye";
-              nextMatch.winnerId = nextMatch.teamAId;
+            if (matchToUpdate.nextMatchSlot === 'A') {
+              nextMatch.teamAId = matchToUpdate.winnerId;
+            } else {
+              nextMatch.teamBId = matchToUpdate.winnerId;
             }
+             
+            // Check if the next match becomes a bye
+            if (nextMatch.teamAId && !nextMatch.teamBId && nextMatch.status === 'scheduled') {
+                nextMatch.winnerId = nextMatch.teamAId;
+                nextMatch.status = 'bye';
+            } else if (!nextMatch.teamAId && nextMatch.teamBId && nextMatch.status === 'scheduled') {
+                nextMatch.winnerId = nextMatch.teamBId;
+                nextMatch.status = 'bye';
+            } else {
+              // If it's no longer a bye, ensure status is scheduled
+              nextMatch.winnerId = null;
+              nextMatch.status = 'scheduled';
+            }
+            matchToUpdate = nextMatch;
+          } else {
+            break;
           }
         }
       }
@@ -468,32 +470,26 @@ export default function TournamentManagement({
       const resetMatchRecursive = (mId: string | null): boolean => {
         if (!mId) return true;
         const matchToReset = tournamentToUpdate.matches.find(m => m.id === mId);
-        if (!matchToReset || (matchToReset.status !== "completed")) return true;
+        if (!matchToReset || matchToReset.status !== 'completed') return true;
 
         if (matchToReset.nextMatchId) {
           const nextMatch = tournamentToUpdate.matches.find(m => m.id === matchToReset.nextMatchId);
-          if (nextMatch && nextMatch.status === 'completed') {
-            if (!resetMatchRecursive(nextMatch.id)) return false;
-          }
-           if (nextMatch) {
-            if (matchToReset.nextMatchSlot === "A") nextMatch.teamAId = null;
-            else nextMatch.teamBId = null;
-            
-            if (nextMatch.teamAId && !nextMatch.teamBId) {
-                nextMatch.status = "bye";
-                nextMatch.winnerId = nextMatch.teamAId;
-            } else {
-                nextMatch.status = "scheduled";
-                nextMatch.winnerId = null;
-            }
+          if (nextMatch) {
+             if (nextMatch.status === 'completed') {
+                if (!resetMatchRecursive(nextMatch.id)) return false;
+             }
+             if (matchToReset.nextMatchSlot === "A") nextMatch.teamAId = null;
+             else nextMatch.teamBId = null;
+             
+             nextMatch.status = 'scheduled';
+             nextMatch.winnerId = null;
           }
         }
 
         matchToReset.scoreA = null;
         matchToReset.scoreB = null;
         matchToReset.winnerId = null;
-        matchToReset.status = matchToReset.teamAId && !matchToReset.teamBId ? "bye" : "scheduled";
-        if (matchToReset.status === 'bye') matchToReset.winnerId = matchToReset.teamAId;
+        matchToReset.status = 'scheduled';
 
         setMatchResults((prev) => ({ ...prev, [mId]: { scoreA: "", scoreB: "" }}));
         return true;
@@ -672,10 +668,12 @@ const MatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateM
           <Input type="number" className="h-7 w-14 text-center" placeholder="-" value={matchResults[match.id]?.scoreB ?? ""}
             onChange={(e) => onResultChange(match.id, "B", e.target.value)} disabled={match.status !== 'scheduled' || !match.teamBId} />
         </div>
-        {match.status === "scheduled" && match.teamAId && match.teamBId && (
+        
+        {match.status === 'scheduled' && match.teamAId && match.teamBId && (
           <Button size="sm" className="h-7 w-full" onClick={() => onUpdateMatch(match.id)}><Save className="mr-2 h-3 w-3" /> 결과 저장</Button>
         )}
-        {match.status === "completed" && match.teamBId && (
+        
+        {match.status === "completed" && (
           <AlertDialog>
             <AlertDialogTrigger asChild><Button size="sm" variant="ghost" className="h-7 w-full"><RotateCcw className="mr-2 h-3 w-3" /> 결과 초기화</Button></AlertDialogTrigger>
             <AlertDialogContent>
