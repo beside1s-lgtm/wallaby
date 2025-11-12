@@ -936,7 +936,7 @@ export const getLatestTournamentForStudent = async (school: string, studentId: s
   }
 };
 
-export const updateTournament = async (school: string, tournamentId: string, data: Partial<Tournament>): Promise<void> => {
+export const updateTournament = async (school: string, tournamentId: string, data: Partial<Omit<Tournament, 'id' | 'school'>>): Promise<void> => {
   await signIn();
   const tournamentRef = doc(db, 'schools', school, 'tournaments', tournamentId);
   await updateDoc(tournamentRef, data).catch(e => {

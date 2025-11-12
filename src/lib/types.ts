@@ -92,6 +92,7 @@ export type Tournament = {
   name: string;
   type: 'round-robin' | 'tournament' | 'league-tournament';
   teamGroupId: string; // ID of the TeamGroup used for this tournament
-  matches: Match[]; // For single tournament or final tournament stage
+  teams: Team[]; // Shuffled list of teams participating
+  matches: Match[];
   createdAt: any;
 };
