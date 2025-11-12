@@ -103,6 +103,8 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[] } => {
             const entrantA = currentEntrants[i];
             const entrantB = currentEntrants[i + 1];
 
+            if (entrantA === undefined) continue;
+
             const teamAId = typeof entrantA === 'string' ? entrantA : (entrantA as Match).winnerId;
             const teamBId = entrantB ? (typeof entrantB === 'string' ? entrantB : (entrantB as Match).winnerId) : null;
             
@@ -121,14 +123,14 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[] } => {
             };
             
             if (entrantA && typeof entrantA === 'object' && entrantA !== null) {
-                const prevMatchA = matches.find(m => m.id === entrantA.id);
+                const prevMatchA = matches.find(m => m.id === (entrantA as Match).id);
                 if (prevMatchA) {
                     prevMatchA.nextMatchId = newMatch.id;
                     prevMatchA.nextMatchSlot = 'A';
                 }
             }
              if (entrantB && typeof entrantB === 'object' && entrantB !== null) {
-                const prevMatchB = matches.find(m => m.id === entrantB.id);
+                const prevMatchB = matches.find(m => m.id === (entrantB as Match).id);
                 if (prevMatchB) {
                     prevMatchB.nextMatchId = newMatch.id;
                     prevMatchB.nextMatchSlot = 'B';
@@ -720,5 +722,7 @@ const MatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateM
         </div>
     );
 };
+
+    
 
     
