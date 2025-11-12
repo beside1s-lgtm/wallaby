@@ -42,7 +42,7 @@ export default function TeacherDashboardPage() {
   const [records, setRecords] = useState<MeasurementRecord[]>([]);
   const [teamGroups, setTeamGroups] = useState<TeamGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("class-analytics");
+  const [activeTab, setActiveTab] = useState("tournaments");
 
   const loadData = async () => {
     if (isAuthLoading || !school) return;
@@ -125,13 +125,13 @@ export default function TeacherDashboardPage() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-7 mb-6">
+            <TabsTrigger value="tournaments">
+              <Swords className="h-4 w-4" />
+              <span className="hidden sm:inline ml-2">대회</span>
+            </TabsTrigger>
             <TabsTrigger value="class-analytics">
               <BarChart3 className="h-4 w-4" />
               <span className="hidden sm:inline ml-2">학급별 분석</span>
-            </TabsTrigger>
-             <TabsTrigger value="tournaments">
-              <Swords className="h-4 w-4" />
-              <span className="hidden sm:inline ml-2">대회</span>
             </TabsTrigger>
             <TabsTrigger value="record-input">
               <Edit className="h-4 w-4" />
@@ -155,19 +155,19 @@ export default function TeacherDashboardPage() {
             </TabsTrigger>
           </TabsList>
 
+          <TabsContent value="tournaments">
+            <TournamentManagement
+              teamGroups={teamGroups}
+              onTournamentUpdate={forceUpdate}
+            />
+          </TabsContent>
+          
           <TabsContent value="class-analytics">
             <ClassAnalytics
               allStudents={students}
               allItems={items}
               allRecords={records}
               onRecordUpdate={forceUpdate}
-            />
-          </TabsContent>
-          
-           <TabsContent value="tournaments">
-            <TournamentManagement
-              teamGroups={teamGroups}
-              onTournamentUpdate={forceUpdate}
             />
           </TabsContent>
 
