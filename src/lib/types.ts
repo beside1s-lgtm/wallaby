@@ -94,8 +94,11 @@ export type Tournament = {
   school: string;
   name: string;
   type: 'round-robin' | 'tournament' | 'league-tournament';
-  teamGroupId?: string; // 이제 선택 사항
+  teamGroupId?: string;
   teams: Team[]; // 직접 팀 정보를 저장
   matches: Match[];
   createdAt: any;
+  divideBy?: 'teams' | 'members' | 'single';
+  numTeams?: number;
+  membersPerTeam?: number;
 };
