@@ -15,6 +15,7 @@ import Ranking from "./_components/Ranking";
 import RecordInput from "./_components/RecordInput";
 import AiWelcome from "./_components/AiWelcome";
 import TournamentManagement from "./_components/TournamentManagement";
+import TeamBalancer from "./_components/TeamBalancer";
 import {
   Users,
   ClipboardList,
@@ -24,6 +25,7 @@ import {
   Database,
   Edit,
   Swords,
+  Shuffle,
 } from "lucide-react";
 import { DashboardHeaderContents } from "@/components/DashboardHeader";
 import {
@@ -156,9 +158,24 @@ export default function TeacherDashboardPage() {
           </TabsList>
 
           <TabsContent value="tournaments">
-            <TournamentManagement
-              onTournamentUpdate={forceUpdate}
-            />
+             <Tabs defaultValue="tournament-management">
+                <TabsList className="grid w-full grid-cols-2 mb-6">
+                    <TabsTrigger value="tournament-management"><Swords className="mr-2 h-4 w-4" />대회 관리</TabsTrigger>
+                    <TabsTrigger value="team-balancer"><Shuffle className="mr-2 h-4 w-4" />팀 자동 편성</TabsTrigger>
+                </TabsList>
+                <TabsContent value="tournament-management">
+                    <TournamentManagement onTournamentUpdate={forceUpdate} allTeamGroups={teamGroups} />
+                </TabsContent>
+                <TabsContent value="team-balancer">
+                    <TeamBalancer
+                        allStudents={students}
+                        allItems={items}
+                        allRecords={records}
+                        teamGroups={teamGroups}
+                        onTeamGroupUpdate={forceUpdate}
+                    />
+                </TabsContent>
+             </Tabs>
           </TabsContent>
           
           <TabsContent value="class-analytics">
@@ -183,8 +200,6 @@ export default function TeacherDashboardPage() {
               allStudents={students}
               allItems={items}
               allRecords={records}
-              teamGroups={teamGroups}
-              onTeamGroupUpdate={forceUpdate}
             />
           </TabsContent>
 
