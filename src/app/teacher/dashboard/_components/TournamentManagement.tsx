@@ -64,10 +64,10 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[] } => {
     const totalSlots = Math.pow(2, numRounds);
     const numByes = totalSlots - numTeams;
 
-    let round1Matches: Match[] = [];
     const byeTeams = shuffledTeamIds.slice(0, numByes);
     const teamsInRound1 = shuffledTeamIds.slice(numByes);
 
+    let round1Matches: Match[] = [];
     for (let i = 0; i < teamsInRound1.length; i += 2) {
         const match: Match = {
             id: uuidv4(),
@@ -82,7 +82,7 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[] } => {
             nextMatchId: null,
             nextMatchSlot: null,
         };
-        // If there's no opponent, it's a bye for team A in this "match"
+        
         if (!match.teamBId) {
           match.status = 'bye';
           match.winnerId = match.teamAId;
@@ -100,8 +100,8 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[] } => {
             const entrantA = currentEntrants[i];
             const entrantB = currentEntrants[i + 1];
 
-            const teamAId = typeof entrantA === 'string' ? entrantA : (entrantA as Match).winnerId;
-            const teamBId = entrantB ? (typeof entrantB === 'string' ? entrantB : (entrantB as Match).winnerId) : null;
+            const teamAId = entrantA ? (typeof entrantA === 'string' ? entrantA : entrantA.winnerId) : null;
+            const teamBId = entrantB ? (typeof entrantB === 'string' ? entrantB : entrantB.winnerId) : null;
             
             const newMatch: Match = {
                 id: uuidv4(),
@@ -117,7 +117,7 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[] } => {
                 nextMatchSlot: null,
             };
             
-            if (typeof entrantA === 'object' && entrantA !== null) {
+            if (entrantA && typeof entrantA === 'object' && entrantA !== null) {
                 const prevMatchA = matches.find(m => m.id === entrantA.id);
                 if (prevMatchA) {
                     prevMatchA.nextMatchId = newMatch.id;
@@ -462,8 +462,12 @@ export default function TournamentManagement({
         const fullTeam = teamGroup?.teams.find(t => t.id === team.id);
         if (fullTeam && teamGroup && fullTeam.members) {
             const firstStudent = fullTeam.members[0];
-            const teamName = firstStudent ? `${firstStudent.grade}-${firstStudent.classNum} ${relativeTeamIndex(fullTeam, teamGroup)}팀` : `팀 ${fullTeam.teamIndex + 1}`;
-            map.set(team.id, teamName);
+            if (firstStudent) {
+              const teamName = `${firstStudent.grade}-${firstStudent.classNum} ${relativeTeamIndex(fullTeam, teamGroup)}팀`;
+              map.set(team.id, teamName);
+            } else {
+              map.set(team.id, `팀 ${fullTeam.teamIndex + 1}`);
+            }
         } else if (fullTeam) {
              map.set(team.id, `팀 ${fullTeam.teamIndex + 1}`);
         }
