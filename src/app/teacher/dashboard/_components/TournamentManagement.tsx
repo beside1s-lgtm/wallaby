@@ -118,22 +118,16 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
   let finalRound1: Match[] = [];
   const byeMatches = round1Matches.filter(m => m.status === 'bye');
   const regularMatches = round1Matches.filter(m => m.status === 'scheduled');
-
-  let byeIndex = 0;
-  let regularIndex = 0;
-  // 2라운드 슬롯이 4개일 때, 1-4, 2-3 이 붙도록 배치
-  // [bye1, regular1, regular2, bye2] -> (bye1 vs reg1), (reg2 vs bye2)
-  if (totalSlots === 4 && byeMatches.length === 2 && regularMatches.length === 1) {
-    finalRound1 = [byeMatches[0], regularMatches[0], byeMatches[1]];
-  } else {
-    // 일반적인 섞기 로직
-    while(byeIndex < byeMatches.length || regularIndex < regularMatches.length) {
-      if (byeIndex < byeMatches.length) {
-        finalRound1.push(byeMatches[byeIndex++]);
-      }
-      if (regularIndex < regularMatches.length) {
-        finalRound1.push(regularMatches[regularIndex++]);
-      }
+  
+  // Interleave bye matches with regular matches
+  let byeIdx = 0;
+  let regularIdx = 0;
+  while(byeIdx < byeMatches.length || regularIdx < regularMatches.length) {
+    if(byeIdx < byeMatches.length) {
+      finalRound1.push(byeMatches[byeIdx++]);
+    }
+    if(regularIdx < regularMatches.length) {
+      finalRound1.push(regularMatches[regularIdx++]);
     }
   }
 
@@ -167,6 +161,15 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
         nextMatchId: null,
         nextMatchSlot: null,
       };
+      
+      // If one of the slots is a bye, the other automatically wins
+      if (newMatch.teamAId && !newMatch.teamBId) {
+        newMatch.winnerId = newMatch.teamAId;
+        newMatch.status = 'bye';
+      } else if (!newMatch.teamAId && newMatch.teamBId) {
+        newMatch.winnerId = newMatch.teamBId;
+        newMatch.status = 'bye';
+      }
 
       matchA.nextMatchId = newMatch.id;
       matchA.nextMatchSlot = "A";
@@ -175,24 +178,24 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
 
       nextRoundMatches.push(newMatch);
     }
-    // 홀수 팀이 남았을 경우 마지막 팀은 부전승
+    
+    // This case should not happen with proper power-of-two padding, but as a safeguard:
     if (currentRoundEntrants.length % 2 !== 0) {
-        const byeMatchSource = currentRoundEntrants[currentRoundEntrants.length - 1];
+        const lastEntrant = currentRoundEntrants[currentRoundEntrants.length - 1];
+        // This entrant gets a bye to the next round, which needs to be handled
+        // For simplicity in this structure, we'll assume powers of two, this logic is a fallback.
         const byeMatch: Match = {
             id: uuidv4(),
             round: currentRound + 1,
             matchNumber: nextRoundMatches.length + 1,
-            teamAId: byeMatchSource.winnerId,
+            teamAId: lastEntrant.winnerId,
             teamBId: null,
-            scoreA: null,
-            scoreB: null,
-            winnerId: byeMatchSource.winnerId,
-            status: "bye",
-            nextMatchId: null,
-            nextMatchSlot: null,
+            winnerId: lastEntrant.winnerId,
+            status: 'bye',
+            scoreA: null, scoreB: null, nextMatchId: null, nextMatchSlot: null,
         };
-        byeMatchSource.nextMatchId = byeMatch.id;
-        byeMatchSource.nextMatchSlot = 'A';
+        lastEntrant.nextMatchId = byeMatch.id;
+        lastEntrant.nextMatchSlot = 'A';
         nextRoundMatches.push(byeMatch);
     }
 
@@ -325,7 +328,7 @@ export default function TournamentManagement({
         // 새 대회 생성
         const { matches } = generateTournamentBracket(teamsForBracket);
 
-        let tournamentData: Omit<Tournament, "id" | "createdAt"> = {
+        let tournamentData: Omit<Tournament, "id" | "createdAt" | "teamGroupId" | "divideBy" | "numTeams" | "membersPerTeam"> & Partial<Pick<Tournament, "teamGroupId" | "divideBy" | "numTeams" | "membersPerTeam">> = {
           school,
           name: tournamentName,
           type: tournamentType,
@@ -704,25 +707,29 @@ export default function TournamentManagement({
       </Card>
       {currentTournament && Object.keys(matchesByRound).length > 0 && (
         <Card>
-          <CardHeader><CardTitle>{currentTournament.name} 대진표</CardTitle></CardHeader>
+          <CardHeader className="text-center">
+            <CardTitle>{currentTournament.name} 대진표</CardTitle>
+          </CardHeader>
           <CardContent className="overflow-x-auto p-4">
-            <div className="flex items-start space-x-8">
-              {Object.entries(matchesByRound).map(([round, matches]) => (
-                <div key={round} className="flex flex-col space-y-4 min-w-[180px]">
-                  <h4 className="font-bold text-center text-lg">
-                    {parseInt(round) === fmRound ? "결승"
-                      : Object.keys(matchesByRound).length > 1 && parseInt(round) === fmRound - 1 ? "준결승"
-                      : `${Math.ceil(currentTournament.teams.length / (Math.pow(2, parseInt(round)-1)))}강`}
-                  </h4>
-                  <div className="flex flex-col justify-around h-full space-y-4">
-                    {matches.map((match) => (
-                      <MatchNode key={match.id} match={match} teamNameMap={teamNameMap} matchResults={matchResults}
-                        onResultChange={handleMatchResultChange} onUpdateMatch={handleUpdateMatch} onResetMatch={handleResetMatch}
-                        onUpdateTeamName={handleUpdateTeamName} />
-                    ))}
+            <div className="flex justify-center">
+              <div className="flex items-start space-x-8">
+                {Object.entries(matchesByRound).map(([round, matches]) => (
+                  <div key={round} className="flex flex-col space-y-4 min-w-[180px]">
+                    <h4 className="font-bold text-center text-lg">
+                      {parseInt(round) === fmRound ? "결승"
+                        : Object.keys(matchesByRound).length > 1 && parseInt(round) === fmRound - 1 ? "준결승"
+                        : `${Math.ceil(currentTournament.teams.length / (Math.pow(2, parseInt(round)-1)))}강`}
+                    </h4>
+                    <div className="flex flex-col justify-around h-full space-y-4">
+                      {matches.map((match) => (
+                        <MatchNode key={match.id} match={match} teamNameMap={teamNameMap} matchResults={matchResults}
+                          onResultChange={handleMatchResultChange} onUpdateMatch={handleUpdateMatch} onResetMatch={handleResetMatch}
+                          onUpdateTeamName={handleUpdateTeamName} />
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </CardContent>
         </Card>
