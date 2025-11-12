@@ -48,7 +48,7 @@ import {
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { getStudentFeedback } from '@/ai/flows/student-ai-feedback';
 import { Loader2, Wand2, Trash2, Users, User as UserIcon, Swords } from 'lucide-react';
-import type { Student, MeasurementRecord, MeasurementItem, TeamGroup, Tournament } from '@/lib/types';
+import type { Student, MeasurementRecord, MeasurementItem, TeamGroup, Tournament, Match } from '@/lib/types';
 import { getPapsGrade, getCustomItemGrade, normalizePapsRecord, normalizeCustomRecord } from '@/lib/paps';
 import { getRecords } from '@/lib/store';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -217,6 +217,22 @@ export default function StudentDashboardPage() {
     }
     loadData();
   }, [student?.id, school, toast, isAuthLoading]);
+
+    const matchesByRound = useMemo(() => {
+        if (!tournament?.matches) return {};
+        return tournament.matches.reduce((acc, match) => {
+        const round = match.round;
+        if (!acc[round]) acc[round] = [];
+        acc[round].push(match);
+        acc[round].sort((a, b) => a.matchNumber - b.matchNumber);
+        return acc;
+        }, {} as Record<number, Match[]>);
+    }, [tournament]);
+
+    const teamNameMap = useMemo(() => {
+        if (!tournament?.teams) return new Map<string, string>();
+        return new Map(tournament.teams.map((team) => [team.id, team.name]));
+    }, [tournament]);
   
   const selectedItem = useMemo(() => {
       return measurementItems.find(item => item.name === selectedItemName);
@@ -456,19 +472,87 @@ export default function StudentDashboardPage() {
         </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Swords /> 나의 대회</CardTitle>
-          <CardDescription>{tournament?.name || '참가 중인 대회가 없습니다.'}</CardDescription>
+        <CardHeader className="text-center">
+          <CardTitle className="flex items-center justify-center gap-2">
+            <Swords /> {tournament?.name || "나의 대회"}
+          </CardTitle>
+          <CardDescription>
+            {tournament
+              ? "현재 진행 중인 대회 대진표입니다."
+              : "참가 중인 대회가 없습니다."}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          {tournament ? (
-            <div>
-              {/* TODO: Display tournament bracket or schedule */}
-              <p>대회 정보를 여기에 표시합니다.</p>
+          {tournament && Object.keys(matchesByRound).length > 0 ? (
+            <div className="overflow-x-auto p-4">
+              <div className="flex justify-center">
+                <div className="flex items-start space-x-8">
+                  {Object.entries(matchesByRound).map(([round, matches]) => (
+                    <div
+                      key={round}
+                      className="flex flex-col space-y-4 min-w-[180px]"
+                    >
+                      <h4 className="font-bold text-center text-lg">
+                        {parseInt(round) ===
+                        Math.max(...Object.keys(matchesByRound).map(Number))
+                          ? "결승"
+                          : `${matches.length * 2}강`}
+                      </h4>
+                      <div className="flex flex-col justify-around h-full space-y-4">
+                        {matches.map((match) => {
+                          const winnerIsA =
+                            !!match.winnerId &&
+                            match.winnerId === match.teamAId;
+                          const winnerIsB =
+                            !!match.winnerId &&
+                            match.winnerId === match.teamBId;
+
+                          return (
+                            <Card key={match.id} className="p-2">
+                              <CardContent className="p-1 space-y-1">
+                                <div className="flex items-center justify-between text-sm">
+                                  <span
+                                    className={`truncate ${
+                                      winnerIsA ? "font-bold text-primary" : ""
+                                    }`}
+                                  >
+                                    {match.teamAId
+                                      ? teamNameMap.get(match.teamAId) ?? "미정"
+                                      : "미정"}
+                                  </span>
+                                  <span className="font-semibold ml-2">
+                                    {match.scoreA ?? "-"}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                  <span
+                                    className={`truncate ${
+                                      winnerIsB ? "font-bold text-primary" : ""
+                                    }`}
+                                  >
+                                    {match.teamBId
+                                      ? teamNameMap.get(match.teamBId) ?? "미정"
+                                      : match.status === "bye"
+                                      ? "(부전승)"
+                                      : "미정"}
+                                  </span>
+                                  <span className="font-semibold ml-2">
+                                    {match.scoreB ?? "-"}
+                                  </span>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           ) : (
-             <div className="flex items-center justify-center h-24 text-muted-foreground">
-                <p>선생님이 대회를 생성하고 전달하면 여기에 표시됩니다.</p>
+            <div className="flex items-center justify-center h-24 text-muted-foreground">
+              <p>선생님이 대회를 생성하고 전달하면 여기에 표시됩니다.</p>
             </div>
           )}
         </CardContent>
