@@ -68,9 +68,27 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
     
     let currentRoundEntrants: (Team | Match)[] = [];
 
+    // Bye teams go directly to round 2
     const byeTeams = shuffledTeams.slice(0, numByes);
-    currentRoundEntrants.push(...byeTeams);
+    byeTeams.forEach(team => {
+        const byeMatch: Match = {
+            id: uuidv4(),
+            round: 1,
+            matchNumber: -1, // Special indicator for a bye
+            teamAId: team.id,
+            teamBId: null,
+            scoreA: null,
+            scoreB: null,
+            winnerId: team.id,
+            status: 'bye',
+            nextMatchId: null,
+            nextMatchSlot: null,
+        };
+        matches.push(byeMatch);
+        currentRoundEntrants.push(byeMatch);
+    });
 
+    // Round 1 matches
     const teamsInRound1 = shuffledTeams.slice(numByes);
     for (let i = 0; i < teamsInRound1.length; i += 2) {
         const teamA = teamsInRound1[i];
@@ -92,18 +110,29 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
             };
             matches.push(match);
             currentRoundEntrants.push(match);
+        } else if (teamA) {
+            // This handles the case of an odd number of teams in the first round (e.g., 3 teams)
+            const byeMatch: Match = {
+                id: uuidv4(),
+                round: 1,
+                matchNumber: (i / 2) + 1,
+                teamAId: teamA.id,
+                teamBId: null,
+                scoreA: null,
+                scoreB: null,
+                winnerId: teamA.id,
+                status: 'bye',
+                nextMatchId: null,
+                nextMatchSlot: null,
+            };
+            matches.push(byeMatch);
+            currentRoundEntrants.push(byeMatch);
         }
     }
     
-    // Handle odd number of teams in the first match round (e.g., 3 teams play, 1 gets a bye to round 2)
-    if (teamsInRound1.length % 2 !== 0) {
-        const lastTeam = teamsInRound1[teamsInRound1.length - 1];
-        currentRoundEntrants.push(lastTeam);
-    }
-    
-    for (let round = 2; round <= numRounds; round++) {
+    let roundNumber = 2;
+    while (currentRoundEntrants.length > 1) {
         const nextRoundEntrants: Match[] = [];
-
         for (let i = 0; i < currentRoundEntrants.length; i += 2) {
             const entrantA = currentRoundEntrants[i];
             const entrantB = currentRoundEntrants[i + 1];
@@ -113,7 +142,7 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
             
             const match: Match = {
                 id: uuidv4(),
-                round: round,
+                round: roundNumber,
                 matchNumber: (i / 2) + 1,
                 teamAId: teamAId,
                 teamBId: teamBId,
@@ -125,22 +154,22 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
                 nextMatchSlot: null,
             };
             
-            if (!teamBId) {
+            if (!teamBId) { // Should not happen in rounds > 1 with correct logic, but as a safeguard
                 match.status = 'bye';
                 match.winnerId = teamAId;
             }
 
-            if ('id' in entrantA) { // entrantA is either a Team or a Match
-                const prevMatchA = matches.find(m => m.id === entrantA.id);
-                if (prevMatchA) { // if entrantA was a Match
+            if ('id' in entrantA) {
+                 const prevMatchA = matches.find(m => m.id === entrantA.id);
+                 if (prevMatchA) {
                     prevMatchA.nextMatchId = match.id;
                     prevMatchA.nextMatchSlot = 'A';
-                }
+                 }
             }
             
             if (entrantB && 'id' in entrantB) {
                 const prevMatchB = matches.find(m => m.id === entrantB.id);
-                if (prevMatchB) { // if entrantB was a Match
+                if (prevMatchB) {
                     prevMatchB.nextMatchId = match.id;
                     prevMatchB.nextMatchSlot = 'B';
                 }
@@ -150,6 +179,7 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
             nextRoundEntrants.push(match);
         }
         currentRoundEntrants = nextRoundEntrants;
+        roundNumber++;
     }
     
     return { matches, teams: shuffledTeams };
