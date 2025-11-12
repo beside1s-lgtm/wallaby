@@ -95,7 +95,7 @@ interface StudentManagementProps {
   onStudentsUpdate: () => void;
 }
 
-export default function StudentManagement({
+export function StudentManagement({
   students,
   onStudentsUpdate,
 }: StudentManagementProps) {
@@ -343,7 +343,7 @@ export default function StudentManagement({
     <>
       <Card>
         <CardHeader>
-          <CardTitle>학생 명단 관리</CardTitle>
+          <CardTitle>학생 관리</CardTitle>
           <CardDescription>
             학생을 개별 또는 일괄 등록하고, 선택하여 삭제합니다. 학급별로
             명단을 필터링하고 다운로드할 수 있습니다.
@@ -1295,7 +1295,7 @@ export function DatabaseManagement({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>데이터베이스 관리</CardTitle>
+        <CardTitle>데이터 관리</CardTitle>
         <CardDescription>
           학생 진급 처리, 기록 일괄 등록 및 다운로드, 데이터 정리 등
           데이터베이스 관련 작업을 수행합니다.

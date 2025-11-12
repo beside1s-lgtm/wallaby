@@ -129,7 +129,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
   return (
     <Card>
       <CardHeader>
-        <CardTitle>측정 종목 관리</CardTitle>
+        <CardTitle>종목 관리</CardTitle>
         <CardDescription>측정할 종목을 추가하거나 삭제합니다. PAPS 종목 또는 직접 생성한 기타 종목을 관리할 수 있습니다.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

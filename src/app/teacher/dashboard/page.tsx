@@ -6,9 +6,7 @@ import { getStudents, getItems, getRecords, getTeamGroups } from "@/lib/store";
 import type { Student, MeasurementItem, MeasurementRecord, TeamGroup } from "@/lib/types";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import StudentManagement, {
-  DatabaseManagement,
-} from "./_components/StudentManagement";
+import { StudentManagement, DatabaseManagement } from "./_components/StudentManagement";
 import MeasurementManagement from "./_components/MeasurementManagement";
 import ClassAnalytics from "./_components/ClassAnalytics";
 import Ranking from "./_components/Ranking";
@@ -26,6 +24,9 @@ import {
   Edit,
   Swords,
   Shuffle,
+  LineChart,
+  Target,
+  Wrench
 } from "lucide-react";
 import { DashboardHeaderContents } from "@/components/DashboardHeader";
 import {
@@ -44,7 +45,7 @@ export default function TeacherDashboardPage() {
   const [records, setRecords] = useState<MeasurementRecord[]>([]);
   const [teamGroups, setTeamGroups] = useState<TeamGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("tournaments");
+  const [activeTab, setActiveTab] = useState("competition");
 
   const loadData = async () => {
     if (isAuthLoading || !school) return;
@@ -81,7 +82,6 @@ export default function TeacherDashboardPage() {
         <DashboardHeaderContents />
         <Skeleton className="h-48 w-full" />
         <div className="flex space-x-1">
-          <Skeleton className="h-10 flex-1" />
           <Skeleton className="h-10 flex-1" />
           <Skeleton className="h-10 flex-1" />
           <Skeleton className="h-10 flex-1" />
@@ -126,38 +126,22 @@ export default function TeacherDashboardPage() {
         </Card>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-7 mb-6">
-            <TabsTrigger value="tournaments">
+          <TabsList className="grid w-full grid-cols-3 mb-6">
+            <TabsTrigger value="competition">
               <Swords className="h-4 w-4" />
               <span className="hidden sm:inline ml-2">대회</span>
             </TabsTrigger>
-            <TabsTrigger value="class-analytics">
-              <BarChart3 className="h-4 w-4" />
-              <span className="hidden sm:inline ml-2">학급별 분석</span>
+            <TabsTrigger value="measurement">
+              <LineChart className="h-4 w-4" />
+              <span className="hidden sm:inline ml-2">측정</span>
             </TabsTrigger>
-            <TabsTrigger value="record-input">
-              <Edit className="h-4 w-4" />
-              <span className="hidden sm:inline ml-2">기록 입력</span>
-            </TabsTrigger>
-            <TabsTrigger value="ranking">
-              <Trophy className="h-4 w-4" />
-              <span className="hidden sm:inline ml-2">종목별 순위</span>
-            </TabsTrigger>
-            <TabsTrigger value="students">
-              <Users className="h-4 w-4" />
-              <span className="hidden sm:inline ml-2">학생 명단</span>
-            </TabsTrigger>
-            <TabsTrigger value="measurements">
-              <ClipboardList className="h-4 w-4" />
-              <span className="hidden sm:inline ml-2">측정 종목</span>
-            </TabsTrigger>
-            <TabsTrigger value="database-management">
+            <TabsTrigger value="data">
               <Database className="h-4 w-4" />
-              <span className="hidden sm:inline ml-2">데이터 관리</span>
+              <span className="hidden sm:inline ml-2">데이터</span>
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="tournaments">
+          <TabsContent value="competition">
              <Tabs defaultValue="tournament-management">
                 <TabsList className="grid w-full grid-cols-2 mb-6">
                     <TabsTrigger value="tournament-management"><Swords className="mr-2 h-4 w-4" />대회 관리</TabsTrigger>
@@ -178,48 +162,63 @@ export default function TeacherDashboardPage() {
              </Tabs>
           </TabsContent>
           
-          <TabsContent value="class-analytics">
-            <ClassAnalytics
-              allStudents={students}
-              allItems={items}
-              allRecords={records}
-              onRecordUpdate={forceUpdate}
-            />
+          <TabsContent value="measurement">
+            <Tabs defaultValue="record-input">
+              <TabsList className="grid w-full grid-cols-3 mb-6">
+                <TabsTrigger value="record-input"><Edit className="mr-2 h-4 w-4" />기록 입력</TabsTrigger>
+                <TabsTrigger value="class-analytics"><BarChart3 className="mr-2 h-4 w-4" />학급별 분석</TabsTrigger>
+                <TabsTrigger value="ranking"><Trophy className="mr-2 h-4 w-4" />종목별 순위</TabsTrigger>
+              </TabsList>
+              <TabsContent value="record-input">
+                <RecordInput
+                  allStudents={students}
+                  allItems={items}
+                  onRecordUpdate={forceUpdate}
+                />
+              </TabsContent>
+              <TabsContent value="class-analytics">
+                <ClassAnalytics
+                  allStudents={students}
+                  allItems={items}
+                  allRecords={records}
+                  onRecordUpdate={forceUpdate}
+                />
+              </TabsContent>
+              <TabsContent value="ranking">
+                <Ranking
+                  allStudents={students}
+                  allItems={items}
+                  allRecords={records}
+                />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
-          <TabsContent value="record-input">
-            <RecordInput
-              allStudents={students}
-              allItems={items}
-              onRecordUpdate={forceUpdate}
-            />
-          </TabsContent>
-
-          <TabsContent value="ranking">
-            <Ranking
-              allStudents={students}
-              allItems={items}
-              allRecords={records}
-            />
-          </TabsContent>
-
-          <TabsContent value="students">
-            <StudentManagement
-              students={students}
-              onStudentsUpdate={forceUpdate}
-            />
-          </TabsContent>
-
-          <TabsContent value="measurements">
-            <MeasurementManagement items={items} onItemsUpdate={forceUpdate} />
-          </TabsContent>
-          <TabsContent value="database-management">
-            <DatabaseManagement
-              students={students}
-              records={records}
-              items={items}
-              onUpdate={forceUpdate}
-            />
+          <TabsContent value="data">
+             <Tabs defaultValue="student-management">
+                <TabsList className="grid w-full grid-cols-3 mb-6">
+                    <TabsTrigger value="student-management"><Users className="mr-2 h-4 w-4" />학생 관리</TabsTrigger>
+                    <TabsTrigger value="item-management"><Target className="mr-2 h-4 w-4" />종목 관리</TabsTrigger>
+                    <TabsTrigger value="database-management"><Wrench className="mr-2 h-4 w-4" />데이터 관리</TabsTrigger>
+                </TabsList>
+                <TabsContent value="student-management">
+                   <StudentManagement
+                      students={students}
+                      onStudentsUpdate={forceUpdate}
+                    />
+                </TabsContent>
+                 <TabsContent value="item-management">
+                    <MeasurementManagement items={items} onItemsUpdate={forceUpdate} />
+                </TabsContent>
+                <TabsContent value="database-management">
+                    <DatabaseManagement
+                      students={students}
+                      records={records}
+                      items={items}
+                      onUpdate={forceUpdate}
+                    />
+                </TabsContent>
+             </Tabs>
           </TabsContent>
         </Tabs>
       </div>
