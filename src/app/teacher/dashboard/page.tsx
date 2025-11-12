@@ -157,7 +157,6 @@ export default function TeacherDashboardPage() {
 
           <TabsContent value="tournaments">
             <TournamentManagement
-              teamGroups={teamGroups}
               onTournamentUpdate={forceUpdate}
             />
           </TabsContent>
