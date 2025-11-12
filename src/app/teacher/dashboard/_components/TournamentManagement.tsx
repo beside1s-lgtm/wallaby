@@ -58,13 +58,8 @@ type TournamentManagementProps = {
  * ----------------------------------------------------- */
 const nextPowerOfTwo = (n: number): number => {
   if (n <= 1) return 1;
-  // 원 코드 로직 유지
   return 1 << (n - 1).toString(2).length;
 };
-
-/** 팀/매치 유니온에서 승자 ID를 꺼낼 때 null-safe로 사용하기 위한 헬퍼 */
-const winnerOf = (m: Match | undefined | null): string | null =>
-  m?.winnerId ?? null;
 
 /* -------------------------------------------------------
  * 브래킷 생성 (랜덤 섞기 + 부전승 처리)
@@ -87,7 +82,7 @@ function generateTournamentBracket(teamIds: string[]): { matches: Match[] } {
   const round1Matches: Match[] = [];
   for (let i = 0; i < teamsToPlay.length; i += 2) {
     const teamA = teamsToPlay[i];
-    const teamB = teamsToPlay[i + 1]; // undefined일 수 있음
+    const teamB = teamsToPlay[i + 1];
 
     const match: Match = {
       id: uuidv4(),
@@ -97,7 +92,7 @@ function generateTournamentBracket(teamIds: string[]): { matches: Match[] } {
       teamBId: teamB ?? null,
       scoreA: null,
       scoreB: null,
-      winnerId: !teamB ? teamA : null, // teamB가 없으면 A 부전승
+      winnerId: !teamB ? teamA : null,
       status: !teamB ? "bye" : "scheduled",
       nextMatchId: null,
       nextMatchSlot: null,
@@ -144,13 +139,11 @@ function generateTournamentBracket(teamIds: string[]): { matches: Match[] } {
         nextMatchSlot: null,
       };
 
-      // 홀수 진출자 처리 (부전승)
       if (newMatch.teamAId && !newMatch.teamBId) {
         newMatch.winnerId = newMatch.teamAId;
         newMatch.status = "bye";
       }
 
-      // 이전 경기와 연결 (상위 매치 nextMatchId/Slot 세팅)
       if (typeof entrantA === "object" && entrantA !== null) {
         const prevMatchA = matches.find((m) => m.id === (entrantA as Match).id);
         if (prevMatchA) {
