@@ -68,7 +68,6 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
     
     let nextRoundEntrants: (Team | Match)[] = [];
 
-    // Assign byes to the first `numByes` teams
     const byeTeams = shuffledTeams.slice(0, numByes);
     byeTeams.forEach(team => {
         const byeMatch: Match = {
@@ -90,7 +89,7 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
 
     const teamsInRound1 = shuffledTeams.slice(numByes);
     const round1Matches: Match[] = [];
-    for (let i = 0; i < teamsInRound1.length; i += 2) {
+    for (let i = 0; i < teamsInRound1.length - 1; i += 2) {
         const teamA = teamsInRound1[i];
         const teamB = teamsInRound1[i+1];
         
@@ -143,8 +142,8 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
             const entrantA = currentRoundEntrants[i];
             const entrantB = currentRoundEntrants[i + 1];
 
-            const teamAId = 'winnerId' in entrantA ? entrantA.winnerId : entrantA.id;
-            const teamBId = entrantB ? ('winnerId' in entrantB ? entrantB.winnerId : entrantB.id) : null;
+            const teamAId = ('winnerId' in entrantA) ? entrantA.winnerId : entrantA.id;
+            const teamBId = entrantB ? (('winnerId' in entrantB) ? entrantB.winnerId : entrantB.id) : null;
             
             const match: Match = {
                 id: uuidv4(),
