@@ -48,7 +48,9 @@ import {
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { getStudentFeedback } from '@/ai/flows/student-ai-feedback';
 import { getScoutingReport } from '@/ai/flows/scouting-report-flow';
+import { getTeamAnalysis } from '@/ai/flows/team-analysis-flow';
 import type { ScoutingReportOutput } from '@/ai/flows/scouting-report-flow';
+import type { TeamAnalysisOutput } from '@/ai/flows/team-analysis-flow';
 import { Loader2, Wand2, Trash2, Users, User as UserIcon, Swords, Bot } from 'lucide-react';
 import type { Student, MeasurementRecord, MeasurementItem, TeamGroup, Tournament, Match } from '@/lib/types';
 import { getPapsGrade, getCustomItemGrade, normalizePapsRecord, normalizeCustomRecord } from '@/lib/paps';
@@ -82,7 +84,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 type AiReport = {
   type: 'scouting' | 'team';
-  data: ScoutingReportOutput;
+  data: ScoutingReportOutput | TeamAnalysisOutput;
 }
 
 export default function StudentDashboardPage() {
@@ -441,18 +443,32 @@ export default function StudentDashboardPage() {
   };
 
   const handleGetTeamReport = async () => {
-      toast({ title: '팀 리포트', description: '이 기능은 현재 준비 중입니다.' });
-      // This is a placeholder for team report generation logic
-      // For now, we will simulate a report.
-      setActiveReport({
-        type: 'team',
-        data: {
-          strengths: '팀의 강점은 현재 준비 중입니다.',
-          weaknesses: '팀의 약점은 현재 준비 중입니다.',
-          assessment: '팀의 종합 평가는 현재 준비 중입니다.',
-          position: '추천 전략은 현재 준비 중입니다.'
+    if (teamAverageScores.length === 0 || !myTeam) {
+        toast({ variant: 'destructive', title: '팀 분석 불가', description: '팀 편성 및 분석 데이터가 필요합니다.' });
+        return;
+    }
+    
+    setIsReportLoading(true);
+    setActiveReport(null);
+    try {
+        const teamName = `팀 ${myTeam.teamIndex + 1}`;
+        const result = await getTeamAnalysis({
+            teamName,
+            abilityScores: teamAverageScores
+        });
+        const reportData: ScoutingReportOutput = {
+          strengths: result.strengths,
+          weaknesses: result.weaknesses,
+          assessment: result.assessment,
+          position: result.strategy, // Reuse position field for strategy
         }
-      });
+        setActiveReport({ type: 'team', data: reportData });
+    } catch(error) {
+        console.error('AI 팀 분석 요청 실패:', error);
+        toast({ variant: 'destructive', title: 'AI 팀 분석 오류', description: '팀 분석 리포트를 생성하는 중 오류가 발생했습니다.'});
+    } finally {
+        setIsReportLoading(false);
+    }
   }
 
   const { chartData, availableItems } = useMemo(() => {
@@ -962,11 +978,11 @@ export default function StudentDashboardPage() {
                                     </div>
                                      <div>
                                         <h4 className="font-bold">종합 평가 (선수 유형)</h4>
-                                        <p className="whitespace-pre-wrap">{activeReport.data.assessment}</p>
+                                        <p className="whitespace-pre-wrap">{(activeReport.data as ScoutingReportOutput).assessment}</p>
                                     </div>
                                      <div>
                                         <h4 className="font-bold">추천 포지션</h4>
-                                        <p className="whitespace-pre-wrap">{activeReport.data.position}</p>
+                                        <p className="whitespace-pre-wrap">{(activeReport.data as ScoutingReportOutput).position}</p>
                                     </div>
                                 </CardContent>
                             </Card>
