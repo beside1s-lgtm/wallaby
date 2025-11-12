@@ -16,13 +16,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -49,6 +42,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { v4 as uuidv4 } from "uuid";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+
 
 type TournamentManagementProps = {
   onTournamentUpdate: () => void;
@@ -76,8 +71,7 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
   const numByes = totalSlots - numTeams;
 
   const byeTeams = numByes > 0 ? shuffledTeams.slice(0, numByes) : [];
-  const teamsToPlay =
-    numByes > 0 ? shuffledTeams.slice(numByes) : shuffledTeams;
+  const teamsToPlay = numByes > 0 ? shuffledTeams.slice(numByes) : shuffledTeams;
 
   // Round 1
   const round1Matches: Match[] = [];
@@ -103,7 +97,29 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
   matches.push(...round1Matches);
 
   // Subsequent rounds
-  let currentEntrants: (Team | Match)[] = [...byeTeams, ...round1Matches];
+  // 부전승 팀과 1라운드 승리팀을 교차 배치하여 부전승끼리 붙는 것을 방지
+  const round2Entrants: (Team | Match)[] = [];
+  const midPoint = Math.ceil(byeTeams.length / 2);
+  const byeTeamsPart1 = byeTeams.slice(0, midPoint);
+  const byeTeamsPart2 = byeTeams.slice(midPoint);
+  const matchesPart1 = round1Matches.slice(0, round1Matches.length / 2);
+  const matchesPart2 = round1Matches.slice(round1Matches.length / 2);
+
+  let tempEntrants = [...byeTeamsPart1, ...matchesPart1, ...byeTeamsPart2, ...matchesPart2];
+
+  // Interleave byeTeams and round1Matches
+  let p1 = 0;
+  let p2 = 0;
+  while(p1 < byeTeams.length || p2 < round1Matches.length) {
+    if(p1 < byeTeams.length) {
+        round2Entrants.push(byeTeams[p1++]);
+    }
+    if(p2 < round1Matches.length) {
+        round2Entrants.push(round1Matches[p2++]);
+    }
+  }
+
+  let currentEntrants: (Team | Match)[] = round2Entrants;
   let currentRound = 1;
 
   while (currentEntrants.length > 1) {
@@ -115,14 +131,9 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
       const entrantA = currentEntrants[i];
       const entrantB = currentEntrants[i + 1];
 
-      const teamAId =
-        "name" in entrantA ? entrantA.id : (entrantA as Match)?.winnerId ?? null;
-      const teamBId = entrantB
-        ? "name" in entrantB
-          ? entrantB.id
-          : (entrantB as Match)?.winnerId ?? null
-        : null;
-
+      const teamAId = entrantA ? ('members' in entrantA ? entrantA.id : (entrantA as Match).winnerId) : null;
+      const teamBId = entrantB ? ('members' in entrantB ? entrantB.id : (entrantB as Match).winnerId) : null;
+      
       const newMatch: Match = {
         id: uuidv4(),
         round: nextRound,
@@ -142,14 +153,14 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
         newMatch.status = "bye";
       }
 
-      if (typeof entrantA === "object" && "matches" in entrantA) {
+      if (entrantA && 'matches' in entrantA) {
         const prevMatchA = matches.find((m) => m.id === entrantA.id);
         if (prevMatchA) {
           prevMatchA.nextMatchId = newMatch.id;
           prevMatchA.nextMatchSlot = "A";
         }
       }
-      if (entrantB && typeof entrantB === "object" && "matches" in entrantB) {
+      if (entrantB && 'matches' in entrantB) {
         const prevMatchB = matches.find((m) => m.id === entrantB.id);
         if (prevMatchB) {
           prevMatchB.nextMatchId = newMatch.id;
@@ -266,6 +277,7 @@ export default function TournamentManagement({
       } else {
          if (teamList.length < 2) {
           toast({ variant: "destructive", title: "팀 부족", description: "대진표를 생성하려면 최소 2팀이 필요합니다." });
+          setIsLoading(false);
           return;
         }
         // 새 대회 생성
@@ -525,23 +537,23 @@ export default function TournamentManagement({
         <CardContent className="space-y-6">
           <div className="space-y-4 p-4 border rounded-md bg-muted/50">
             <h3 className="font-semibold">대회 불러오기 또는 새로 만들기</h3>
-            <div className="flex flex-wrap gap-2 items-center">
-              <Select onValueChange={(id) => handleLoadTournament(id)} value={selectedTournamentId}>
-                <SelectTrigger className="flex-1 min-w-[200px]"><SelectValue placeholder="저장된 대회를 선택하세요..." /></SelectTrigger>
-                <SelectContent>
-                  {isLoading ? <SelectItem value="loading" disabled>로딩 중...</SelectItem>
-                    : tournaments.length > 0 ? tournaments.map((t) => (<SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>))
-                    : <SelectItem value="none" disabled>저장된 대회가 없습니다.</SelectItem>}
-                </SelectContent>
-              </Select>
-              <Button variant="outline" onClick={resetForm}><RefreshCw className="mr-2 h-4 w-4" />새 대회</Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild><Button variant="destructive" disabled={!currentTournament}><Trash2 className="mr-2 h-4 w-4" />대회 삭제</Button></AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader><AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle><AlertDialogDescription>이 작업은 되돌릴 수 없습니다. 대회 정보가 영구적으로 삭제됩니다.</AlertDialogDescription></AlertDialogHeader>
-                  <AlertDialogFooter><AlertDialogCancel>취소</AlertDialogCancel><AlertDialogAction onClick={handleDelete}>삭제</AlertDialogAction></AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+             <div className="flex flex-wrap gap-2 items-center">
+                <Select onValueChange={(id) => handleLoadTournament(id)} value={selectedTournamentId}>
+                    <SelectTrigger className="flex-1 min-w-[200px]"><SelectValue placeholder="저장된 대회를 선택하세요..." /></SelectTrigger>
+                    <SelectContent>
+                        {isLoading ? <SelectItem value="loading" disabled>로딩 중...</SelectItem>
+                        : tournaments.length > 0 ? tournaments.map((t) => (<SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>))
+                        : <SelectItem value="none" disabled>저장된 대회가 없습니다.</SelectItem>}
+                    </SelectContent>
+                </Select>
+                <Button variant="outline" onClick={resetForm}><RefreshCw className="mr-2 h-4 w-4" />새 대회</Button>
+                <AlertDialog>
+                    <AlertDialogTrigger asChild><Button variant="destructive" disabled={!currentTournament}><Trash2 className="mr-2 h-4 w-4" />대회 삭제</Button></AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader><AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle><AlertDialogDescription>이 작업은 되돌릴 수 없습니다. 대회 정보가 영구적으로 삭제됩니다.</AlertDialogDescription></AlertDialogHeader>
+                        <AlertDialogFooter><AlertDialogCancel>취소</AlertDialogCancel><AlertDialogAction onClick={handleDelete}>삭제</AlertDialogAction></AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </div>
           </div>
           <div className="space-y-4 p-4 border rounded-md">
