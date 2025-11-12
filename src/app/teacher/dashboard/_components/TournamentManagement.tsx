@@ -116,7 +116,7 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[] } => {
                 nextMatchId: null,
                 nextMatchSlot: null,
             };
-
+            
             if (typeof entrantA === 'object' && entrantA !== null) {
                 const prevMatchA = matches.find(m => m.id === entrantA.id);
                 if (prevMatchA) {
@@ -619,7 +619,7 @@ export default function TournamentManagement({
                 <div className="flex items-start space-x-8">
                     {Object.entries(matchesByRound).map(([round, matches]) => (
                         <div key={round} className="flex flex-col space-y-8 min-w-[280px]">
-                            <h4 className="font-bold text-center">{parseInt(round) === finalMatch?.round ? '결승' : (Object.keys(matchesByRound).length === parseInt(round) ? '결승' : `${matches.length * 2}강`)}</h4>
+                            <h4 className="font-bold text-center">{parseInt(round) === finalMatch?.round ? '결승' : (Object.keys(matchesByRound).length === parseInt(round) ? '준결승' : `${matches.length * 2}강`)}</h4>
                             <div className="flex flex-col justify-around h-full space-y-16">
                                 {matches.map(match => (
                                     <MatchNode 
