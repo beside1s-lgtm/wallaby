@@ -53,6 +53,7 @@ type TournamentManagementProps = {
   onTournamentUpdate: () => void;
 };
 
+
 const generateTournamentBracket = (teamIds: string[]): { matches: Match[], finalTeamIds: string[] } => {
     const shuffledTeamIds = [...teamIds].sort(() => Math.random() - 0.5);
     const numTeams = shuffledTeamIds.length;
@@ -68,12 +69,14 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[], final
 
     let nextRoundEntrants: (string | Match)[] = [];
 
-    // Byes
+    // Correctly separate bye teams and first-round teams
     const byeTeams = shuffledTeamIds.slice(0, numByes);
+    const teamsInRound1 = shuffledTeamIds.slice(numByes);
+
+    // Byes advance directly
     nextRoundEntrants.push(...byeTeams);
 
-    // Round 1
-    const teamsInRound1 = shuffledTeamIds.slice(numByes);
+    // Round 1 matches
     let matchNumberR1 = 1;
     for (let i = 0; i < teamsInRound1.length; i += 2) {
         const teamAId = teamsInRound1[i];
@@ -110,18 +113,22 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[], final
 
             const getTeamId = (entrant: string | Match | undefined): string | null => {
                 if (!entrant) return null;
-                if (typeof entrant === 'string') return entrant;
-                // 'winnerId' is the key for Match objects that have been decided or have a bye
-                if ('winnerId' in entrant) return entrant.winnerId; 
-                return null;
+                // If it's a Match object, get its winnerId, otherwise it's a teamId string
+                if (typeof entrant === 'object' && entrant !== null && 'winnerId' in entrant) {
+                    return entrant.winnerId;
+                }
+                return entrant as string;
             };
+
+            const teamAId = getTeamId(entrantA);
+            const teamBId = getTeamId(entrantB);
 
             const newMatch: Match = {
                 id: uuidv4(),
                 round: round,
                 matchNumber: matchNumber++,
-                teamAId: getTeamId(entrantA),
-                teamBId: getTeamId(entrantB),
+                teamAId: teamAId,
+                teamBId: teamBId,
                 scoreA: null,
                 scoreB: null,
                 winnerId: null,
@@ -131,7 +138,7 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[], final
             };
 
             const linkPreviousMatch = (entrant: string | Match | undefined, slot: 'A' | 'B') => {
-                if (entrant && typeof entrant === 'object' && 'round' in entrant) { // It's a Match object
+                if (entrant && typeof entrant === 'object' && 'id' in entrant) {
                     const prevMatch = matches.find(m => m.id === entrant.id);
                     if (prevMatch) {
                         prevMatch.nextMatchId = newMatch.id;
