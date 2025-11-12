@@ -121,7 +121,7 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
     // Handle odd number of entrants by giving the last one a bye
     if (currentEntrants.length % 2 !== 0) {
         const byeEntrant = currentEntrants.pop()!;
-        const byeTeamId = 'id' in byeEntrant ? byeEntrant.id : (byeEntrant as Match).winnerId;
+        const byeTeamId = 'members' in byeEntrant ? byeEntrant.id : (byeEntrant as Match).winnerId;
         const byeMatch: Match = {
             id: uuidv4(),
             round: nextRound,
@@ -149,8 +149,8 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
       const entrantA = currentEntrants[i];
       const entrantB = currentEntrants[i + 1];
 
-      const teamAId = entrantA ? (typeof entrantA === 'object' && 'id' in entrantA && !('members' in entrantA) ? (entrantA as Match).winnerId : (entrantA as Team).id) : null;
-      const teamBId = entrantB ? (typeof entrantB === 'object' && 'id' in entrantB && !('members' in entrantB) ? (entrantB as Match).winnerId : (entrantB as Team).id) : null;
+      const teamAId = entrantA ? ( 'members' in entrantA ? entrantA.id : (entrantA as Match)?.winnerId ?? null) : null;
+      const teamBId = entrantB ? ( 'members' in entrantB ? entrantB.id : (entrantB as Match)?.winnerId ?? null) : null;
       
       const newMatch: Match = {
         id: uuidv4(),
@@ -744,3 +744,5 @@ const TeamNameEditor = ({ teamId, name, className, onUpdate }: { teamId: string 
     </div>
   );
 };
+
+    
