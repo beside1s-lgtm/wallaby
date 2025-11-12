@@ -74,7 +74,7 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[] } => {
             round: 1,
             matchNumber: round1Matches.length + 1,
             teamAId: teamsInRound1[i],
-            teamBId: teamsInRound1[i + 1],
+            teamBId: teamsInRound1[i + 1] || null,
             scoreA: null,
             scoreB: null,
             winnerId: null,
@@ -95,12 +95,15 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[] } => {
             const entrantA = currentEntrants[i];
             const entrantB = currentEntrants[i + 1];
 
+            const teamAId = typeof entrantA === 'string' ? entrantA : (entrantA as Match).winnerId;
+            const teamBId = entrantB ? (typeof entrantB === 'string' ? entrantB : (entrantB as Match).winnerId) : null;
+
             const newMatch: Match = {
                 id: uuidv4(),
                 round: round,
                 matchNumber: matchNumber++,
-                teamAId: typeof entrantA === 'string' ? entrantA : null,
-                teamBId: typeof entrantB === 'string' ? entrantB : null,
+                teamAId: teamAId,
+                teamBId: teamBId,
                 scoreA: null,
                 scoreB: null,
                 winnerId: null,
@@ -110,17 +113,17 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[] } => {
             };
 
             if (typeof entrantA === 'object' && entrantA !== null) {
-                const prevMatch = matches.find(m => m.id === entrantA.id);
-                if (prevMatch) {
-                    prevMatch.nextMatchId = newMatch.id;
-                    prevMatch.nextMatchSlot = 'A';
+                const prevMatchA = matches.find(m => m.id === entrantA.id);
+                if (prevMatchA) {
+                    prevMatchA.nextMatchId = newMatch.id;
+                    prevMatchA.nextMatchSlot = 'A';
                 }
             }
-             if (typeof entrantB === 'object' && entrantB !== null) {
-                const prevMatch = matches.find(m => m.id === entrantB.id);
-                if (prevMatch) {
-                    prevMatch.nextMatchId = newMatch.id;
-                    prevMatch.nextMatchSlot = 'B';
+             if (entrantB && typeof entrantB === 'object' && entrantB !== null) {
+                const prevMatchB = matches.find(m => m.id === entrantB.id);
+                if (prevMatchB) {
+                    prevMatchB.nextMatchId = newMatch.id;
+                    prevMatchB.nextMatchSlot = 'B';
                 }
             }
             
