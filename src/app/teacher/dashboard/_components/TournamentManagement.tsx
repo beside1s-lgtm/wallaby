@@ -66,16 +66,27 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
     const totalSlots = Math.pow(2, numRounds);
     const numByes = totalSlots - numTeams;
     
-    // 1라운드 진출자: 부전승 팀 + 1라운드 경기
     let nextRoundEntrants: (Team | Match)[] = [];
 
-    // 부전승 팀을 먼저 2라운드로 보냅니다.
     const byeTeams = shuffledTeams.slice(0, numByes);
     byeTeams.forEach(team => {
-        nextRoundEntrants.push(team);
+        const byeMatch: Match = {
+            id: uuidv4(),
+            round: 1,
+            matchNumber: 0, // Bye matches can have a special number
+            teamAId: team.id,
+            teamBId: null,
+            scoreA: null,
+            scoreB: null,
+            winnerId: team.id,
+            status: 'bye',
+            nextMatchId: null,
+            nextMatchSlot: null,
+        };
+        matches.push(byeMatch);
+        nextRoundEntrants.push(byeMatch);
     });
 
-    // 1라운드 경기를 치를 팀들
     const teamsInRound1 = shuffledTeams.slice(numByes);
     const round1Matches: Match[] = [];
     for (let i = 0; i < teamsInRound1.length; i += 2) {
@@ -102,24 +113,44 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
     }
     matches.push(...round1Matches);
     
-    // --- 2라운드부터 결승까지 생성 ---
-    let currentRoundEntrants = nextRoundEntrants;
+    // 1라운드에서 홀수 팀이 남아 부전승 처리해야 할 경우
+    if (teamsInRound1.length % 2 !== 0 && teamsInRound1.length > 0) {
+        const lastTeam = teamsInRound1[teamsInRound1.length - 1];
+        const byeMatch: Match = {
+            id: uuidv4(),
+            round: 1,
+            matchNumber: 0,
+            teamAId: lastTeam.id,
+            teamBId: null,
+            scoreA: null,
+            scoreB: null,
+            winnerId: lastTeam.id,
+            status: 'bye',
+            nextMatchId: null,
+            nextMatchSlot: null,
+        };
+        matches.push(byeMatch);
+        nextRoundEntrants.push(byeMatch);
+    }
+    
+    let currentRoundEntrants: (Team | Match)[] = nextRoundEntrants;
     for (let round = 2; round <= numRounds; round++) {
         const currentRoundMatches: Match[] = [];
-        nextRoundEntrants = []; // 다음 라운드를 위해 초기화
+        nextRoundEntrants = []; 
 
         for (let i = 0; i < currentRoundEntrants.length; i += 2) {
             const entrantA = currentRoundEntrants[i];
             const entrantB = currentRoundEntrants[i + 1];
 
             const teamAId = 'winnerId' in entrantA ? entrantA.winnerId : entrantA.id;
+            const teamBId = entrantB ? ('winnerId' in entrantB ? entrantB.winnerId : entrantB.id) : null;
             
             const match: Match = {
                 id: uuidv4(),
                 round: round,
                 matchNumber: currentRoundMatches.length + 1,
                 teamAId: teamAId,
-                teamBId: entrantB ? ('winnerId' in entrantB ? entrantB.winnerId : entrantB.id) : null,
+                teamBId: teamBId,
                 scoreA: null,
                 scoreB: null,
                 winnerId: null,
@@ -128,8 +159,7 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
                 nextMatchSlot: null,
             };
 
-            // 이전 라운드 경기에 다음 경기 ID 연결
-            if ('id' in entrantA && 'round' in entrantA) { // entrantA가 Match 객체인 경우
+            if ('id' in entrantA && 'round' in entrantA) {
                 const prevMatchA = matches.find(m => m.id === entrantA.id);
                 if (prevMatchA) {
                     prevMatchA.nextMatchId = match.id;
@@ -138,14 +168,14 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
             }
 
             if (entrantB) {
-                if ('id' in entrantB && 'round' in entrantB) { // entrantB가 Match 객체인 경우
+                if ('id' in entrantB && 'round' in entrantB) {
                     const prevMatchB = matches.find(m => m.id === entrantB.id);
                     if (prevMatchB) {
                         prevMatchB.nextMatchId = match.id;
                         prevMatchB.nextMatchSlot = 'B';
                     }
                 }
-            } else { // 부전승 처리
+            } else { 
                 match.winnerId = match.teamAId;
                 match.status = 'bye';
             }
