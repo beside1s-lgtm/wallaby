@@ -80,6 +80,11 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
+type AiReport = {
+  type: 'scouting' | 'team';
+  data: ScoutingReportOutput;
+}
+
 export default function StudentDashboardPage() {
   const { user, school, isLoading: isAuthLoading } = useAuth();
   const { toast } = useToast();
@@ -113,11 +118,9 @@ export default function StudentDashboardPage() {
   
   const [tournament, setTournament] = useState<Tournament | null>(null);
 
-  const [scoutingReport, setScoutingReport] = useState<ScoutingReportOutput | null>(null);
+  const [activeReport, setActiveReport] = useState<AiReport | null>(null);
   const [isReportLoading, setIsReportLoading] = useState(false);
-  const [teamReport, setTeamReport] = useState<ScoutingReportOutput | null>(null);
-  const [isTeamReportLoading, setIsTeamReportLoading] = useState(false);
-
+  
   useEffect(() => {
     async function loadData() {
         if (isAuthLoading || !student?.id || !school) {
@@ -398,7 +401,7 @@ export default function StudentDashboardPage() {
     }
     
     setIsReportLoading(true);
-    setScoutingReport(null);
+    setActiveReport(null);
     try {
       const allItemRanks = calculateRanks(school, measurementItems, allRecords, allStudents, fullStudent.grade);
       const studentRanks: Record<string, string> = {};
@@ -423,7 +426,7 @@ export default function StudentDashboardPage() {
       };
 
       const result = await getScoutingReport(input);
-      setScoutingReport(result);
+      setActiveReport({type: 'scouting', data: result});
 
     } catch (error) {
       console.error('AI 스카우팅 리포트 요청 실패:', error);
@@ -438,7 +441,18 @@ export default function StudentDashboardPage() {
   };
 
   const handleGetTeamReport = async () => {
-    toast({ title: '팀 리포트', description: '이 기능은 현재 준비 중입니다.' });
+      toast({ title: '팀 리포트', description: '이 기능은 현재 준비 중입니다.' });
+      // This is a placeholder for team report generation logic
+      // For now, we will simulate a report.
+      setActiveReport({
+        type: 'team',
+        data: {
+          strengths: '팀의 강점은 현재 준비 중입니다.',
+          weaknesses: '팀의 약점은 현재 준비 중입니다.',
+          assessment: '팀의 종합 평가는 현재 준비 중입니다.',
+          position: '추천 전략은 현재 준비 중입니다.'
+        }
+      });
   }
 
   const { chartData, availableItems } = useMemo(() => {
@@ -917,11 +931,11 @@ export default function StudentDashboardPage() {
                         <div className="flex flex-col sm:flex-row w-full gap-4">
                            <Button onClick={handleGetScoutingReport} disabled={isReportLoading || abilityScores.length === 0} className="flex-1">
                                 <Bot className="mr-2 h-4 w-4" />
-                                {isReportLoading && !scoutingReport ? "리포트 생성 중..." : "나의 스카우팅 리포트"}
+                                {isReportLoading && activeReport?.type !== 'scouting' ? "리포트 생성 중..." : "나의 스카우팅 리포트"}
                            </Button>
-                           <Button onClick={handleGetTeamReport} disabled={isTeamReportLoading || teamAverageScores.length === 0} className="flex-1">
+                           <Button onClick={handleGetTeamReport} disabled={isReportLoading || teamAverageScores.length === 0} className="flex-1">
                                 <Users className="mr-2 h-4 w-4" />
-                                {isTeamReportLoading && !teamReport ? "팀 분석 중..." : "우리 팀 전력 분석"}
+                                {isReportLoading && activeReport?.type !== 'team' ? "팀 분석 중..." : "우리 팀 전력 분석"}
                             </Button>
                         </div>
                         {isReportLoading && (
@@ -929,57 +943,30 @@ export default function StudentDashboardPage() {
                                 <Loader2 className="animate-spin" />
                             </div>
                         )}
-                        {scoutingReport && (
+                        {activeReport && (
                             <Card className="w-full bg-secondary">
                                 <CardHeader>
-                                    <CardTitle className="text-lg flex items-center gap-2"><Bot /> AI 스카우팅 리포트</CardTitle>
+                                    <CardTitle className="text-lg flex items-center gap-2">
+                                      {activeReport.type === 'scouting' ? <Bot /> : <Users />}
+                                      {activeReport.type === 'scouting' ? 'AI 스카우팅 리포트' : 'AI 팀 전력 분석'}
+                                    </CardTitle>
                                 </CardHeader>
                                 <CardContent className="space-y-4 text-sm">
                                     <div>
                                         <h4 className="font-bold text-primary">핵심 강점</h4>
-                                        <p className="whitespace-pre-wrap">{scoutingReport.strengths}</p>
+                                        <p className="whitespace-pre-wrap">{activeReport.data.strengths}</p>
                                     </div>
                                     <div>
                                         <h4 className="font-bold text-destructive">보완점</h4>
-                                        <p className="whitespace-pre-wrap">{scoutingReport.weaknesses}</p>
+                                        <p className="whitespace-pre-wrap">{activeReport.data.weaknesses}</p>
                                     </div>
                                      <div>
                                         <h4 className="font-bold">종합 평가 (선수 유형)</h4>
-                                        <p className="whitespace-pre-wrap">{scoutingReport.assessment}</p>
+                                        <p className="whitespace-pre-wrap">{activeReport.data.assessment}</p>
                                     </div>
                                      <div>
                                         <h4 className="font-bold">추천 포지션</h4>
-                                        <p className="whitespace-pre-wrap">{scoutingReport.position}</p>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        )}
-                         {isTeamReportLoading && (
-                            <div className="flex justify-center items-center w-full p-4">
-                                <Loader2 className="animate-spin" />
-                            </div>
-                        )}
-                        {teamReport && (
-                             <Card className="w-full bg-secondary">
-                                <CardHeader>
-                                    <CardTitle className="text-lg flex items-center gap-2"><Users /> AI 팀 전력 분석</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4 text-sm">
-                                     <div>
-                                        <h4 className="font-bold text-primary">팀 강점</h4>
-                                        <p className="whitespace-pre-wrap">{teamReport.strengths}</p>
-                                    </div>
-                                    <div>
-                                        <h4 className="font-bold text-destructive">팀 보완점</h4>
-                                        <p className="whitespace-pre-wrap">{teamReport.weaknesses}</p>
-                                    </div>
-                                     <div>
-                                        <h4 className="font-bold">종합 평가 (팀 유형)</h4>
-                                        <p className="whitespace-pre-wrap">{teamReport.assessment}</p>
-                                    </div>
-                                     <div>
-                                        <h4 className="font-bold">추천 전략</h4>
-                                        <p className="whitespace-pre-wrap">{teamReport.position}</p>
+                                        <p className="whitespace-pre-wrap">{activeReport.data.position}</p>
                                     </div>
                                 </CardContent>
                             </Card>
