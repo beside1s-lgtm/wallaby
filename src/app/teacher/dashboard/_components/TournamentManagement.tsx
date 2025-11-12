@@ -66,25 +66,24 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
     const totalSlots = Math.pow(2, numRounds);
     const numByes = totalSlots - numTeams;
     
-    let nextRoundEntrants: (Match | Team)[] = [];
+    // 1라운드 진출자: 부전승 팀 + 1라운드 경기
+    let nextRoundEntrants: (Team | Match)[] = [];
 
-    // --- 1라운드 생성 ---
-    let teamsInRound1 = [...shuffledTeams];
-    
-    // 부전승 팀 처리 (다음 라운드로 바로 이동)
-    const byeTeams = teamsInRound1.splice(0, numByes);
+    // 부전승 팀을 먼저 2라운드로 보냅니다.
+    const byeTeams = shuffledTeams.slice(0, numByes);
     byeTeams.forEach(team => {
         nextRoundEntrants.push(team);
     });
-    
-    // 1라운드 경기 처리
+
+    // 1라운드 경기를 치를 팀들
+    const teamsInRound1 = shuffledTeams.slice(numByes);
     const round1Matches: Match[] = [];
     for (let i = 0; i < teamsInRound1.length; i += 2) {
         const teamA = teamsInRound1[i];
         const teamB = teamsInRound1[i+1];
         
         if (teamA && teamB) {
-            const match: Match = {
+             const match: Match = {
                 id: uuidv4(),
                 round: 1,
                 matchNumber: round1Matches.length + 1,
@@ -104,14 +103,14 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
     matches.push(...round1Matches);
     
     // --- 2라운드부터 결승까지 생성 ---
+    let currentRoundEntrants = nextRoundEntrants;
     for (let round = 2; round <= numRounds; round++) {
         const currentRoundMatches: Match[] = [];
-        const entrants = [...nextRoundEntrants];
         nextRoundEntrants = []; // 다음 라운드를 위해 초기화
 
-        for (let i = 0; i < entrants.length; i += 2) {
-            const entrantA = entrants[i];
-            const entrantB = entrants[i + 1];
+        for (let i = 0; i < currentRoundEntrants.length; i += 2) {
+            const entrantA = currentRoundEntrants[i];
+            const entrantB = currentRoundEntrants[i + 1];
 
             const teamAId = 'winnerId' in entrantA ? entrantA.winnerId : entrantA.id;
             
@@ -120,7 +119,7 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
                 round: round,
                 matchNumber: currentRoundMatches.length + 1,
                 teamAId: teamAId,
-                teamBId: null, // B는 나중에 채움
+                teamBId: entrantB ? ('winnerId' in entrantB ? entrantB.winnerId : entrantB.id) : null,
                 scoreA: null,
                 scoreB: null,
                 winnerId: null,
@@ -130,7 +129,7 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
             };
 
             // 이전 라운드 경기에 다음 경기 ID 연결
-            if ('winnerId' in entrantA) {
+            if ('id' in entrantA && 'round' in entrantA) { // entrantA가 Match 객체인 경우
                 const prevMatchA = matches.find(m => m.id === entrantA.id);
                 if (prevMatchA) {
                     prevMatchA.nextMatchId = match.id;
@@ -139,10 +138,7 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
             }
 
             if (entrantB) {
-                const teamBId = 'winnerId' in entrantB ? entrantB.winnerId : entrantB.id;
-                match.teamBId = teamBId;
-
-                if ('winnerId' in entrantB) {
+                if ('id' in entrantB && 'round' in entrantB) { // entrantB가 Match 객체인 경우
                     const prevMatchB = matches.find(m => m.id === entrantB.id);
                     if (prevMatchB) {
                         prevMatchB.nextMatchId = match.id;
@@ -158,6 +154,7 @@ const generateTournamentBracket = (teams: Team[]): { matches: Match[], teams: Te
             nextRoundEntrants.push(match);
         }
         matches.push(...currentRoundMatches);
+        currentRoundEntrants = nextRoundEntrants;
     }
     
     return { matches, teams: shuffledTeams };
