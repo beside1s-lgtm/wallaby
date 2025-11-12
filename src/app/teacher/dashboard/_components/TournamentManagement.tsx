@@ -66,14 +66,14 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[], final
     const totalSlots = Math.pow(2, numRounds);
     const numByes = totalSlots - numTeams;
 
-    let previousRoundWinners: (string | null)[] = [];
+    let previousRoundEntrants: (Match | { id: string })[] = [];
     
-    // Round 1
+    const byeTeams = shuffledTeamIds.slice(0, numByes).map(id => ({ id }));
     const teamsInRound1 = shuffledTeamIds.slice(numByes);
-    const byeTeams = shuffledTeamIds.slice(0, numByes);
-    previousRoundWinners.push(...byeTeams);
     
-    let matchNumber = 1;
+    previousRoundEntrants.push(...byeTeams);
+    
+    let matchNumberR1 = 1;
     for (let i = 0; i < teamsInRound1.length; i += 2) {
         const teamAId = teamsInRound1[i];
         const teamBId = teamsInRound1[i + 1];
@@ -82,7 +82,7 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[], final
             const match: Match = {
                 id: uuidv4(),
                 round: 1,
-                matchNumber: matchNumber++,
+                matchNumber: matchNumberR1++,
                 teamAId: teamAId,
                 teamBId: teamBId,
                 scoreA: null,
@@ -93,29 +93,37 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[], final
                 nextMatchSlot: null,
             };
             matches.push(match);
-            previousRoundWinners.push(match.id);
+            previousRoundEntrants.push(match);
         } else {
-            // Last team gets a bye if odd number of players in this round
-            previousRoundWinners.push(teamAId);
+            // This case should not happen with correct bye calculation, but as a fallback:
+            previousRoundEntrants.push({ id: teamAId });
         }
     }
     
     // Subsequent Rounds
     for (let round = 2; round <= numRounds; round++) {
-        const currentRoundEntrants = [...previousRoundWinners];
-        previousRoundWinners = [];
-        matchNumber = 1;
+        const currentRoundEntrants = [...previousRoundEntrants];
+        previousRoundEntrants = [];
+        let matchNumber = 1;
 
         for (let i = 0; i < currentRoundEntrants.length; i += 2) {
-            const entrantAId = currentRoundEntrants[i];
-            const entrantBId = currentRoundEntrants[i+1];
+            const entrantA = currentRoundEntrants[i];
+            const entrantB = currentRoundEntrants[i+1];
             
+            const getTeamId = (entrant: Match | {id: string} | undefined) => {
+                if (!entrant) return null;
+                if ('winnerId' in entrant) { // It's a Match from a previous round
+                    return entrant.winnerId;
+                }
+                return entrant.id; // It's a bye Team
+            }
+
             const newMatch: Match = {
                 id: uuidv4(),
                 round: round,
                 matchNumber: matchNumber++,
-                teamAId: typeof entrantAId === 'string' && !entrantAId.includes('-') ? entrantAId : null,
-                teamBId: typeof entrantBId === 'string' && !entrantBId.includes('-') ? entrantBId : null,
+                teamAId: getTeamId(entrantA),
+                teamBId: getTeamId(entrantB),
                 scoreA: null,
                 scoreB: null,
                 winnerId: null,
@@ -124,9 +132,9 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[], final
                 nextMatchSlot: null,
             };
 
-            const linkPreviousMatch = (entrantId: string | null, slot: 'A' | 'B') => {
-                if (entrantId && typeof entrantId === 'string' && entrantId.includes('-')) {
-                    const prevMatch = matches.find(m => m.id === entrantId);
+            const linkPreviousMatch = (entrant: Match | {id: string} | undefined, slot: 'A' | 'B') => {
+                if (entrant && 'round' in entrant) { // It's a Match object
+                    const prevMatch = matches.find(m => m.id === entrant.id);
                     if (prevMatch) {
                         prevMatch.nextMatchId = newMatch.id;
                         prevMatch.nextMatchSlot = slot;
@@ -134,11 +142,18 @@ const generateTournamentBracket = (teamIds: string[]): { matches: Match[], final
                 }
             };
             
-            linkPreviousMatch(entrantAId, 'A');
-            linkPreviousMatch(entrantBId, 'B');
+            linkPreviousMatch(entrantA, 'A');
+            linkPreviousMatch(entrantB, 'B');
+
+            if (newMatch.teamAId && newMatch.teamBId) {
+                newMatch.status = 'scheduled';
+            } else if (newMatch.teamAId && !newMatch.teamBId) {
+                 newMatch.status = 'bye';
+                 newMatch.winnerId = newMatch.teamAId;
+            }
             
             matches.push(newMatch);
-            previousRoundWinners.push(newMatch.id);
+            previousRoundEntrants.push(newMatch);
         }
     }
 
