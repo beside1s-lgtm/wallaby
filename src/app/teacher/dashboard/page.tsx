@@ -126,16 +126,16 @@ export default function TeacherDashboardPage() {
         </Card>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="mb-6">
-            <TabsTrigger value="measurement" className="text-base font-semibold py-2 px-4">
+          <TabsList className="grid w-full grid-cols-3 mb-6">
+            <TabsTrigger value="measurement" className="text-base font-semibold">
               <LineChart className="h-5 w-5 mr-2" />
               측정 & 분석
             </TabsTrigger>
-            <TabsTrigger value="competition" className="text-base font-semibold py-2 px-4">
+            <TabsTrigger value="competition" className="text-base font-semibold">
               <Swords className="h-5 w-5 mr-2" />
               대회 & 팀
             </TabsTrigger>
-            <TabsTrigger value="data" className="text-base font-semibold py-2 px-4">
+            <TabsTrigger value="data" className="text-base font-semibold">
               <Database className="h-5 w-5 mr-2" />
               데이터 관리
             </TabsTrigger>
