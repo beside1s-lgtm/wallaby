@@ -50,6 +50,12 @@ export type Team = {
   teamIndex: number;
   memberIds: string[];
   members?: Student[]; // Optional, populated on client
+  // For league stats
+  matchesPlayed?: number;
+  wins?: number;
+  losses?: number;
+  draws?: number;
+  points?: number;
 };
 
 export type TeamGroup = {
@@ -77,7 +83,7 @@ export type TeamGroupInput = Omit<TeamGroup, 'id' | 'createdAt' | 'teams'> & {
 // --- Tournament Types ---
 export type Match = {
   id: string;
-  round: number; // For tournaments
+  round?: number; // For tournaments
   matchNumber: number; // For tournaments
   teamAId: string | null;
   teamBId: string | null;
@@ -93,11 +99,12 @@ export type Tournament = {
   id: string;
   school: string;
   name: string;
-  type: 'round-robin' | 'tournament' | 'league-tournament';
+  type: 'tournament' | 'league';
   teamGroupId?: string;
   teams: Team[]; // 직접 팀 정보를 저장
   matches: Match[];
   createdAt: any;
+  meetingsPerTeam?: number;
   // For manual audience targeting
   grade?: string;
   gender?: 'all' | '남' | '여';
