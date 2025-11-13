@@ -1295,7 +1295,7 @@ export function DatabaseManagement({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>데이터 관리</CardTitle>
+        <CardTitle>DB 유틸리티</CardTitle>
         <CardDescription>
           학생 진급 처리, 기록 일괄 등록 및 다운로드, 데이터 정리 등
           데이터베이스 관련 작업을 수행합니다.

@@ -45,7 +45,7 @@ export default function TeacherDashboardPage() {
   const [records, setRecords] = useState<MeasurementRecord[]>([]);
   const [teamGroups, setTeamGroups] = useState<TeamGroup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("competition");
+  const [activeTab, setActiveTab] = useState("measurement");
 
   const loadData = async () => {
     if (isAuthLoading || !school) return;
@@ -126,42 +126,21 @@ export default function TeacherDashboardPage() {
         </Card>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-6">
-            <TabsTrigger value="competition">
-              <Swords className="h-4 w-4" />
-              <span className="hidden sm:inline ml-2">대회</span>
+          <TabsList className="mb-6">
+            <TabsTrigger value="measurement" className="text-base font-semibold py-2 px-4">
+              <LineChart className="h-5 w-5 mr-2" />
+              측정 & 분석
             </TabsTrigger>
-            <TabsTrigger value="measurement">
-              <LineChart className="h-4 w-4" />
-              <span className="hidden sm:inline ml-2">측정</span>
+            <TabsTrigger value="competition" className="text-base font-semibold py-2 px-4">
+              <Swords className="h-5 w-5 mr-2" />
+              대회 & 팀
             </TabsTrigger>
-            <TabsTrigger value="data">
-              <Database className="h-4 w-4" />
-              <span className="hidden sm:inline ml-2">데이터</span>
+            <TabsTrigger value="data" className="text-base font-semibold py-2 px-4">
+              <Database className="h-5 w-5 mr-2" />
+              데이터 관리
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="competition">
-             <Tabs defaultValue="tournament-management">
-                <TabsList className="grid w-full grid-cols-2 mb-6">
-                    <TabsTrigger value="tournament-management"><Swords className="mr-2 h-4 w-4" />대회 관리</TabsTrigger>
-                    <TabsTrigger value="team-balancer"><Shuffle className="mr-2 h-4 w-4" />팀 자동 편성</TabsTrigger>
-                </TabsList>
-                <TabsContent value="tournament-management">
-                    <TournamentManagement onTournamentUpdate={forceUpdate} allTeamGroups={teamGroups} />
-                </TabsContent>
-                <TabsContent value="team-balancer">
-                    <TeamBalancer
-                        allStudents={students}
-                        allItems={items}
-                        allRecords={records}
-                        teamGroups={teamGroups}
-                        onTeamGroupUpdate={forceUpdate}
-                    />
-                </TabsContent>
-             </Tabs>
-          </TabsContent>
-          
           <TabsContent value="measurement">
             <Tabs defaultValue="record-input">
               <TabsList className="grid w-full grid-cols-3 mb-6">
@@ -194,12 +173,33 @@ export default function TeacherDashboardPage() {
             </Tabs>
           </TabsContent>
 
+          <TabsContent value="competition">
+             <Tabs defaultValue="tournament-management">
+                <TabsList className="grid w-full grid-cols-2 mb-6">
+                    <TabsTrigger value="tournament-management"><Swords className="mr-2 h-4 w-4" />대회 관리</TabsTrigger>
+                    <TabsTrigger value="team-balancer"><Shuffle className="mr-2 h-4 w-4" />팀 자동 편성</TabsTrigger>
+                </TabsList>
+                <TabsContent value="tournament-management">
+                    <TournamentManagement onTournamentUpdate={forceUpdate} allTeamGroups={teamGroups} />
+                </TabsContent>
+                <TabsContent value="team-balancer">
+                    <TeamBalancer
+                        allStudents={students}
+                        allItems={items}
+                        allRecords={records}
+                        teamGroups={teamGroups}
+                        onTeamGroupUpdate={forceUpdate}
+                    />
+                </TabsContent>
+             </Tabs>
+          </TabsContent>
+
           <TabsContent value="data">
              <Tabs defaultValue="student-management">
                 <TabsList className="grid w-full grid-cols-3 mb-6">
                     <TabsTrigger value="student-management"><Users className="mr-2 h-4 w-4" />학생 관리</TabsTrigger>
                     <TabsTrigger value="item-management"><Target className="mr-2 h-4 w-4" />종목 관리</TabsTrigger>
-                    <TabsTrigger value="database-management"><Wrench className="mr-2 h-4 w-4" />데이터 관리</TabsTrigger>
+                    <TabsTrigger value="database-management"><Wrench className="mr-2 h-4 w-4" />DB 유틸리티</TabsTrigger>
                 </TabsList>
                 <TabsContent value="student-management">
                    <StudentManagement
