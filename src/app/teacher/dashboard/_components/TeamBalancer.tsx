@@ -460,7 +460,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     }
   };
 
-  const handleBalanceTeams = () => {
+const handleBalanceTeams = () => {
     const selectedStudentIds = Object.entries(balancingSelection)
       .filter(([, isSelected]) => isSelected)
       .map(([studentId]) => studentId);
@@ -480,15 +480,14 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     }
 
     const studentMap = new Map(allStudents.map((s) => [s.id, s]));
+    const studentsToBalance = targetStudents.filter((s) => selectedStudentIds.includes(s.id));
     
     // Special logic for grade-wide, single-team-per-class scenario
     if (analysisScope === "grade" && selectedGrade && divideBy === "single") {
-        const classesInGrade = [...new Set(targetStudents.map(s => s.classNum))];
-        const newTeams = classesInGrade.map(classNum => {
-            return targetStudents.filter(s => 
-                s.classNum === classNum && selectedStudentIds.includes(s.id)
-            );
-        }).filter(team => team.length > 0);
+        const classesInGrade = [...new Set(studentsToBalance.map(s => s.classNum))];
+        const newTeams = classesInGrade.map(classNum => 
+            studentsToBalance.filter(s => s.classNum === classNum)
+        ).filter(team => team.length > 0);
 
         setTeams(newTeams);
         setLeftoverStudents([]);
@@ -497,9 +496,8 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     }
     
     if (divideBy === 'single') {
-        const studentsToGroup = targetStudents.filter((s) => selectedStudentIds.includes(s.id));
-        if (studentsToGroup.length > 0) {
-            setTeams([studentsToGroup]);
+        if (studentsToBalance.length > 0) {
+            setTeams([studentsToBalance]);
             setLeftoverStudents([]);
         } else {
             setTeams([]);
@@ -550,36 +548,33 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         return { teams: newTeams, leftovers: studentsToDistribute };
       }
     };
+    
+    // --- Main balancing logic ---
+    if (selectedGender === 'all') {
+        // Mixed gender balancing
+        const maleStudents = studentsToBalance.filter(s => s.gender === '남');
+        const femaleStudents = studentsToBalance.filter(s => s.gender === '여');
 
-    if (analysisScope === "grade" && selectedGrade && divideBy !== 'single') {
-      const classesInGrade = [
-        ...new Set(targetStudents.map((s) => s.classNum)),
-      ];
-      let allNewTeams: Student[][] = [];
-      let allLeftovers: Student[] = [];
+        const { teams: maleTeams, leftovers: maleLeftovers } = createTeamsForGroup(maleStudents);
+        const { teams: femaleTeams, leftovers: femaleLeftovers } = createTeamsForGroup(femaleStudents);
 
-      classesInGrade.forEach((classNum) => {
-        const classStudents = targetStudents.filter(
-          (s) => s.classNum === classNum && selectedStudentIds.includes(s.id)
-        );
-        if (classStudents.length > 0) {
-          const { teams: classTeams, leftovers: classLeftovers } =
-            createTeamsForGroup(classStudents);
-          allNewTeams = [...allNewTeams, ...classTeams];
-          allLeftovers = [...allLeftovers, ...classLeftovers];
+        const combinedTeams: Student[][] = [];
+        const maxTeams = Math.max(maleTeams.length, femaleTeams.length);
+
+        for (let i = 0; i < maxTeams; i++) {
+            const team = [...(maleTeams[i] || []), ...(femaleTeams[i] || [])];
+            if (team.length > 0) {
+                combinedTeams.push(team);
+            }
         }
-      });
-      setTeams(allNewTeams);
-      setLeftoverStudents(allLeftovers);
+        setTeams(combinedTeams);
+        setLeftoverStudents([...maleLeftovers, ...femaleLeftovers]);
+
     } else {
-      // 'all' or 'class' scope
-      const studentsToBalance = targetStudents.filter((s) =>
-        selectedStudentIds.includes(s.id)
-      );
-      const { teams: newTeams, leftovers } =
-        createTeamsForGroup(studentsToBalance);
-      setTeams(newTeams);
-      setLeftoverStudents(leftovers);
+        // Single gender balancing
+        const { teams: newTeams, leftovers } = createTeamsForGroup(studentsToBalance);
+        setTeams(newTeams);
+        setLeftoverStudents(leftovers);
     }
 
     toast({
@@ -588,6 +583,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         "팀이 자동으로 편성되었습니다. 남은 학생이 있는 경우 수동으로 배정해주세요.",
     });
   };
+
 
   const sortedTeams = useMemo(() => {
     return [...teams].sort((teamA, teamB) => {
