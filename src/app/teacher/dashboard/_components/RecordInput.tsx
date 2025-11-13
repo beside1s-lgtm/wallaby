@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { addOrUpdateRecord, addOrUpdateRecords } from '@/lib/store';
-import { Student, MeasurementItem, MeasurementRecord } from '@/lib/types';
+import { Student, MeasurementItem, MeasurementRecord, TeamGroup } from '@/lib/types';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -36,7 +36,7 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, Calendar as CalendarIcon, User } from 'lucide-react';
+import { Loader2, Search, Calendar as CalendarIcon, User, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -50,9 +50,10 @@ interface RecordInputProps {
     allStudents: Student[];
     allItems: MeasurementItem[];
     onRecordUpdate: () => void;
+    allTeamGroups: TeamGroup[];
 }
 
-export default function RecordInput({ allStudents, allItems, onRecordUpdate }: RecordInputProps) {
+export default function RecordInput({ allStudents, allItems, onRecordUpdate, allTeamGroups }: RecordInputProps) {
   const { school } = useAuth();
   const { toast } = useToast();
   
@@ -71,6 +72,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
   // States for batch recording
   const [selectedGrade, setSelectedGrade] = useState('');
   const [selectedClassNum, setSelectedClassNum] = useState('');
+  const [selectedTeamGroupId, setSelectedTeamGroupId] = useState('');
   const [batchRecordItem, setBatchRecordItem] = useState('');
   const [batchRecordDate, setBatchRecordDate] = useState<Date | undefined>(new Date());
   const [batchRecords, setBatchRecords] = useState<Record<string, { value?: string, height?: string, weight?: string }>>({});
@@ -88,15 +90,36 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
     return { grades, classNumsByGrade };
   }, [allStudents]);
 
-  const filteredStudentsByClass = useMemo(() => {
-    if (!selectedGrade || !selectedClassNum) return [];
-    const classStudents = allStudents.filter(s => s.grade === selectedGrade && s.classNum === selectedClassNum);
-    return classStudents.sort((a,b) => parseInt(a.studentNum) - parseInt(b.studentNum));
-  }, [allStudents, selectedGrade, selectedClassNum]);
+  const studentsForBatch = useMemo(() => {
+    if (selectedTeamGroupId) {
+        const teamGroup = allTeamGroups.find(g => g.id === selectedTeamGroupId);
+        if (!teamGroup) return [];
+
+        const studentMap = new Map(allStudents.map(s => [s.id, s]));
+        
+        return teamGroup.teams.flatMap((team, teamIndex) => 
+            team.memberIds.map((memberId, memberIndex) => {
+                const student = studentMap.get(memberId);
+                return student ? { ...student, teamName: `팀 ${teamIndex + 1}`, teamMemberNumber: memberIndex + 1 } : null;
+            }).filter((s): s is (Student & {teamName: string, teamMemberNumber: number}) => s !== null)
+        );
+
+    } else if (selectedGrade && selectedClassNum) {
+        return allStudents
+            .filter(s => s.grade === selectedGrade && s.classNum === selectedClassNum)
+            .sort((a,b) => parseInt(a.studentNum) - parseInt(b.studentNum))
+            .map(s => ({...s, teamName: '-', teamMemberNumber: parseInt(s.studentNum)}));
+    }
+    return [];
+  }, [allStudents, selectedGrade, selectedClassNum, selectedTeamGroupId, allTeamGroups]);
   
   useEffect(() => {
-    setBatchRecords({}); // Clear batch records on class change
-  }, [selectedGrade, selectedClassNum, batchRecordItem]);
+    setBatchRecords({}); // Clear batch records on filter change
+    if(selectedTeamGroupId) {
+        setSelectedGrade('');
+        setSelectedClassNum('');
+    }
+  }, [selectedGrade, selectedClassNum, batchRecordItem, selectedTeamGroupId]);
 
   useEffect(() => {
     // When selected item for single add changes, reset inputs
@@ -259,7 +282,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
         try {
             const recordsToSave = Object.entries(batchRecords)
                 .map(([studentId, values]) => {
-                    const student = filteredStudentsByClass.find(s => s.id === studentId);
+                    const student = studentsForBatch.find(s => s.id === studentId);
                     if (!student) return null;
 
                     let valueToSave: number | null = null;
@@ -322,6 +345,13 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
         return '';
     };
 
+    const clearFilters = () => {
+        setSelectedGrade('');
+        setSelectedClassNum('');
+        setSelectedTeamGroupId('');
+    };
+
+
   if (!school) return null;
 
   return (
@@ -373,9 +403,9 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
              <Card>
                 <CardHeader>
                     <CardTitle>학급별 측정 기록</CardTitle>
-                    <CardDescription>수업 중 측정한 결과를 학급 전체에 대해 한 번에 입력하고 저장할 수 있습니다.</CardDescription>
+                    <CardDescription>수업 중 측정한 결과를 학급 전체 또는 팀별로 한 번에 입력하고 저장할 수 있습니다.</CardDescription>
                     <div className="flex flex-wrap items-center gap-2 pt-4">
-                        <Select value={selectedGrade} onValueChange={(value) => { setSelectedGrade(value); setSelectedClassNum(''); }}>
+                        <Select value={selectedGrade} onValueChange={(value) => { setSelectedGrade(value); setSelectedClassNum(''); setSelectedTeamGroupId(''); }}>
                             <SelectTrigger className="w-full sm:w-[120px]">
                                 <SelectValue placeholder="학년 선택" />
                             </SelectTrigger>
@@ -384,7 +414,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                             </SelectContent>
                         </Select>
 
-                        <Select value={selectedClassNum} onValueChange={setSelectedClassNum} disabled={!selectedGrade}>
+                        <Select value={selectedClassNum} onValueChange={v => { setSelectedClassNum(v); setSelectedTeamGroupId(''); }} disabled={!selectedGrade}>
                             <SelectTrigger className="w-full sm:w-[120px]">
                                 <SelectValue placeholder="반 선택" />
                             </SelectTrigger>
@@ -392,17 +422,35 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                 {classNumsByGrade[selectedGrade]?.map(classNum => <SelectItem key={classNum} value={classNum}>{classNum}반</SelectItem>)}
                             </SelectContent>
                         </Select>
-                        <Popover>
-                            <PopoverTrigger asChild>
-                            <Button variant={"outline"} className={cn("w-[240px] justify-start text-left font-normal", !batchRecordDate && "text-muted-foreground")}>
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {batchRecordDate ? format(batchRecordDate, "PPP") : <span>날짜 선택</span>}
-                            </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0">
-                                <Calendar mode="single" selected={batchRecordDate} onSelect={setBatchRecordDate} initialFocus />
-                            </PopoverContent>
-                        </Popover>
+                        
+                        <span className="text-sm text-muted-foreground mx-2">또는</span>
+
+                        <Select value={selectedTeamGroupId} onValueChange={v => { setSelectedTeamGroupId(v); setSelectedGrade(''); setSelectedClassNum(''); }}>
+                            <SelectTrigger className="w-full sm:w-[200px]">
+                                <SelectValue placeholder="팀 편성 그룹 선택" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {allTeamGroups.length > 0 ? allTeamGroups.map(group => (
+                                    <SelectItem key={group.id} value={group.id}>{group.description}</SelectItem>
+                                )) : <SelectItem value="none" disabled>저장된 팀 그룹이 없습니다.</SelectItem>}
+                            </SelectContent>
+                        </Select>
+                         
+                        {(selectedGrade || selectedTeamGroupId) && <Button variant="ghost" size="icon" onClick={clearFilters}><X className="h-4 w-4" /></Button>}
+                        
+                        <div className="flex-grow min-w-[240px]">
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !batchRecordDate && "text-muted-foreground")}>
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {batchRecordDate ? format(batchRecordDate, "PPP") : <span>날짜 선택</span>}
+                                </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0">
+                                    <Calendar mode="single" selected={batchRecordDate} onSelect={setBatchRecordDate} initialFocus />
+                                </PopoverContent>
+                            </Popover>
+                        </div>
                         <Select value={batchRecordItem} onValueChange={setBatchRecordItem}>
                             <SelectTrigger className="w-full sm:w-[180px]">
                                 <SelectValue placeholder="측정 종목 선택" />
@@ -411,9 +459,9 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                 {allItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
-                        <Button onClick={handleSaveBatchRecords} disabled={isBatchSubmitting || filteredStudentsByClass.length === 0} className="ml-auto">
+                        <Button onClick={handleSaveBatchRecords} disabled={isBatchSubmitting || studentsForBatch.length === 0} className="ml-auto">
                             {isBatchSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            학급 전체 기록 저장
+                            일괄 저장
                         </Button>
                     </div>
                 </CardHeader>
@@ -422,6 +470,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                     <TableHeader>
                         <TableRow>
                             <TableHead>사진</TableHead>
+                            <TableHead>팀</TableHead>
                             <TableHead>번호</TableHead>
                             <TableHead>이름</TableHead>
                             {selectedItemForBatchAdd?.isCompound ? (
@@ -439,8 +488,8 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredStudentsByClass.length > 0 ? (
-                        filteredStudentsByClass.map(student => {
+                      {studentsForBatch.length > 0 ? (
+                        studentsForBatch.map(student => {
                             const studentRecords = batchRecords[student.id] || {};
                             return (
                                 <TableRow key={student.id}>
@@ -450,7 +499,8 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                                         <AvatarFallback>{student.name.charAt(0)}</AvatarFallback>
                                     </Avatar>
                                 </TableCell>
-                                <TableCell>{student.studentNum}</TableCell>
+                                <TableCell>{student.teamName}</TableCell>
+                                <TableCell>{selectedTeamGroupId ? student.teamMemberNumber : student.studentNum}</TableCell>
                                 <TableCell>{student.name}</TableCell>
                                 {selectedItemForBatchAdd?.isCompound ? (
                                     <>
@@ -507,8 +557,8 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate }: R
                         })
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={6} className="h-24 text-center">
-                            기록을 입력할 학급을 선택해주세요.
+                          <TableCell colSpan={7} className="h-24 text-center">
+                            기록을 입력할 학급 또는 팀 그룹을 선택해주세요.
                           </TableCell>
                         </TableRow>
                       )}

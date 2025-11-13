@@ -153,6 +153,7 @@ export default function TeacherDashboardPage() {
                   allStudents={students}
                   allItems={items}
                   onRecordUpdate={forceUpdate}
+                  allTeamGroups={teamGroups}
                 />
               </TabsContent>
               <TabsContent value="class-analytics">
