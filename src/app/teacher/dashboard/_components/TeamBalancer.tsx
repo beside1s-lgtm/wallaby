@@ -511,30 +511,35 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     
     const createTeamsForGroup = (studentGroup: Student[], numTeamsForDivision: number) => {
       const sortedStudents = studentGroup
-        .map((s) => ({ id: s.id, scoreData: studentScores.get(s.id) }))
-        .filter((s) => s.scoreData)
-        .sort((a, b) => b.scoreData!.totalScore - a.scoreData!.totalScore)
-        .map((s) => studentMap.get(s.id)!);
+        .map((s) => ({ student: s, score: studentScores.get(s.id)?.totalScore || 0 }))
+        .sort((a, b) => b.score - a.score)
+        .map(item => item.student);
       
       const studentsToDistribute = [...sortedStudents];
       
       if (divideBy === "teams") {
-        const newTeams: Student[][] = Array.from({ length: numTeams }, () => []);
+        const newTeams: Student[][] = Array.from({ length: numTeamsForDivision }, () => []);
         if (balanceStrategy === 'uniform') { // 지그재그(Snake draft)
             let direction = 1;
             let teamIndex = 0;
             studentsToDistribute.forEach(student => {
                 newTeams[teamIndex].push(student);
                 teamIndex += direction;
-                if (teamIndex < 0 || teamIndex >= numTeams) {
+                if (teamIndex < 0 || teamIndex >= numTeamsForDivision) {
                     direction *= -1;
                     teamIndex += direction;
                 }
             });
         } else { // 레벨별
-            studentsToDistribute.forEach((student, index) => {
-                newTeams[index % numTeams].push(student);
-            });
+            const studentsPerTeam = Math.floor(studentsToDistribute.length / numTeamsForDivision);
+            let remainder = studentsToDistribute.length % numTeamsForDivision;
+            let currentStudentIndex = 0;
+            for(let i = 0; i < numTeamsForDivision; i++) {
+                let teamSize = studentsPerTeam + (remainder > 0 ? 1 : 0);
+                newTeams[i] = studentsToDistribute.slice(currentStudentIndex, currentStudentIndex + teamSize);
+                currentStudentIndex += teamSize;
+                remainder--;
+            }
         }
         return { teams: newTeams, leftovers: [] };
       } else { // divide by members
@@ -565,7 +570,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
             });
         } else { // 레벨별
             for (let i = 0; i < numTeamsForGroup; i++) {
-                newTeams[i] = groupToDistribute.splice(0, membersPerTeam);
+                newTeams[i] = groupToDistribute.slice(i * membersPerTeam, (i + 1) * membersPerTeam);
             }
         }
         
@@ -574,12 +579,14 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     };
     
     // --- Main balancing logic ---
+    const effectiveNumTeams = divideBy === 'teams' ? numTeams : Math.floor(studentsToBalance.length / membersPerTeam);
+
     if (selectedGender === 'all') {
         const maleStudents = studentsToBalance.filter(s => s.gender === '남');
         const femaleStudents = studentsToBalance.filter(s => s.gender === '여');
 
-        const { teams: maleTeams, leftovers: maleLeftovers } = createTeamsForGroup(maleStudents, numTeams);
-        const { teams: femaleTeams, leftovers: femaleLeftovers } = createTeamsForGroup(femaleStudents, numTeams);
+        const { teams: maleTeams, leftovers: maleLeftovers } = createTeamsForGroup(maleStudents, effectiveNumTeams);
+        const { teams: femaleTeams, leftovers: femaleLeftovers } = createTeamsForGroup(femaleStudents, effectiveNumTeams);
 
         const combinedTeams: Student[][] = [];
         const maxTeams = Math.max(maleTeams.length, femaleTeams.length);
@@ -594,7 +601,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         setLeftoverStudents([...maleLeftovers, ...femaleLeftovers]);
 
     } else {
-        const { teams: newTeams, leftovers } = createTeamsForGroup(studentsToBalance, numTeams);
+        const { teams: newTeams, leftovers } = createTeamsForGroup(studentsToBalance, effectiveNumTeams);
         setTeams(newTeams);
         setLeftoverStudents(leftovers);
     }
@@ -1291,11 +1298,11 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                   >
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="uniform" id="uniform" />
-                      <Label htmlFor="uniform">균등 편성(실력 평준화)</Label>
+                      <Label htmlFor="uniform">균등 편성 (실력 평준화)</Label>
                     </div>
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="level" id="level" />
-                      <Label htmlFor="level">레벨별 편성(실력 그룹화)</Label>
+                      <Label htmlFor="level">레벨별 편성 (실력 그룹화)</Label>
                     </div>
                   </RadioGroup>
                 </div>
@@ -1378,7 +1385,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
 
             {sortedTeams.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
-                {sortedTeams.map((team, index) => {
+                {sortedTeams.map((team, teamIndex) => {
                    const firstStudent = team[0];
                    if (!firstStudent) return null;
                    
@@ -1389,9 +1396,10 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
 
                    const teamTotalScores = team.map(member => studentScores.get(member.id)?.totalScore || 0);
                    const teamAverageTotalScore = teamTotalScores.length > 0 ? Math.round(teamTotalScores.reduce((a, b) => a + b, 0) / teamTotalScores.length) : 0;
+                   const originalIndex = teams.indexOf(team);
 
                   return (
-                    <div key={index} className="border rounded-md p-4 space-y-2">
+                    <div key={originalIndex} className="border rounded-md p-4 space-y-2">
                       <h4 className="font-bold text-center border-b pb-2">
                         {teamName}
                         <span className="font-normal text-sm text-muted-foreground ml-2">({teamAverageTotalScore}점)</span>
@@ -1425,14 +1433,19 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent>
                                         <Label className="px-2 text-xs text-muted-foreground">다른 팀으로 이동</Label>
-                                        {sortedTeams.map((targetTeam, targetIndex) => {
-                                            if (targetIndex === index) return null; // Don't show option to move to the same team
+                                        {sortedTeams.map((targetTeam, targetTeamIndex) => {
+                                            const originalTargetIndex = teams.indexOf(targetTeam);
+                                            if (originalIndex === originalTargetIndex) return null; // Don't show option to move to the same team
+                                            
                                             const targetFirstStudent = targetTeam[0];
                                             if (!targetFirstStudent) return null;
-                                            const targetTeamName = `${targetFirstStudent.grade}-${targetFirstStudent.classNum}반 ${teamsInClass.findIndex(t => t === targetTeam) + 1}팀`;
+                                            
+                                            const targetTeamsInClass = sortedTeams.filter(t => t.length > 0 && t[0].grade === targetFirstStudent.grade && t[0].classNum === targetFirstStudent.classNum);
+                                            const targetRelativeIndex = targetTeamsInClass.findIndex(t => t === targetTeam);
+                                            const targetTeamName = `${targetFirstStudent.grade}-${targetFirstStudent.classNum}반 ${targetRelativeIndex + 1}팀`;
                                             
                                             return (
-                                                <DropdownMenuItem key={targetIndex} onClick={() => handleMoveStudent(student.id, index, targetIndex)}>
+                                                <DropdownMenuItem key={originalTargetIndex} onClick={() => handleMoveStudent(student.id, originalIndex, originalTargetIndex)}>
                                                     {targetTeamName}으로 이동
                                                 </DropdownMenuItem>
                                             );
