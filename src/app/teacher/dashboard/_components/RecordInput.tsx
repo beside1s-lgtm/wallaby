@@ -49,7 +49,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 interface RecordInputProps {
     allStudents: Student[];
     allItems: MeasurementItem[];
-    onRecordUpdate: () => void;
+    onRecordUpdate: (records: MeasurementRecord[] | string, action: 'update' | 'delete') => void;
     allTeamGroups: TeamGroup[];
 }
 
@@ -100,7 +100,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
         return teamGroup.teams.flatMap((team, teamIndex) => 
             team.memberIds.map((memberId, memberIndex) => {
                 const student = studentMap.get(memberId);
-                return student ? { ...student, teamName: `팀 ${teamIndex + 1}`, teamMemberNumber: memberIndex + 1 } : null;
+                return student ? { ...student, teamName: `팀 ${t.teamIndex + 1}`, teamMemberNumber: memberIndex + 1 } : null;
             }).filter((s): s is (Student & {teamName: string, teamMemberNumber: number}) => s !== null)
         ).sort((a,b) => {
             if(a.teamName < b.teamName) return -1;
@@ -239,7 +239,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
     setIsSubmitting(true);
     
     try {
-        await addOrUpdateRecord({
+        const updatedRecord = await addOrUpdateRecord({
           studentId: selectedStudent.id,
           school: school,
           item: selectedItemName,
@@ -247,7 +247,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
           date: format(recordDate, 'yyyy-MM-dd'),
         });
 
-        await onRecordUpdate();
+        onRecordUpdate([updatedRecord], 'update');
         
         toast({
           title: '기록 저장 완료',
@@ -284,47 +284,45 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
 
         setIsBatchSubmitting(true);
         try {
-            const recordsToSave = Object.entries(batchRecords)
-                .map(([studentId, values]) => {
-                    const student = studentsForBatch.find(s => s.id === studentId);
-                    if (!student) return null;
+            const recordsToProcess: (Omit<MeasurementRecord, 'id'> & { student: Student })[] = [];
+            
+            for (const studentId of Object.keys(batchRecords)) {
+                const values = batchRecords[studentId];
+                const student = studentsForBatch.find(s => s.id === studentId);
+                if (!student) continue;
 
-                    let valueToSave: number | null = null;
-                    let recordData: any = {
-                      studentId: student.id,
-                      school: school,
-                      item: batchRecordItem,
-                      date: format(batchRecordDate, 'yyyy-MM-dd'),
-                    };
-
-                    if (selectedItemForBatchAdd?.isCompound) {
-                        const h = parseFloat(values.height || '');
-                        const w = parseFloat(values.weight || '');
-                        if (!isNaN(h) && !isNaN(w) && h > 0 && w > 0) {
-                            const heightInMeters = h / 100;
-                            valueToSave = parseFloat((w / (heightInMeters * heightInMeters)).toFixed(2));
-                            recordData.height = h;
-                            recordData.weight = w;
-                        } else {
-                            return null;
-                        }
-                    } else {
-                        const numericValue = parseFloat(values.value || '');
-                        if (isNaN(numericValue)) return null;
+                let valueToSave: number | null = null;
+                
+                if (selectedItemForBatchAdd?.isCompound) {
+                    const h = parseFloat(values.height || '');
+                    const w = parseFloat(values.weight || '');
+                    if (!isNaN(h) && !isNaN(w) && h > 0 && w > 0) {
+                        const heightInMeters = h / 100;
+                        valueToSave = parseFloat((w / (heightInMeters * heightInMeters)).toFixed(2));
+                    }
+                } else {
+                    const numericValue = parseFloat(values.value || '');
+                    if (!isNaN(numericValue)) {
                         valueToSave = numericValue;
                     }
-                    
-                    if (valueToSave === null) return null;
+                }
 
-                    recordData.value = valueToSave;
-                    return recordData;
-                })
-                .filter((r): r is (Omit<MeasurementRecord, 'id'> & { height?: number, weight?: number }) => r !== null);
+                if (valueToSave !== null) {
+                    recordsToProcess.push({
+                        student,
+                        studentId: student.id,
+                        school,
+                        item: batchRecordItem,
+                        value: valueToSave,
+                        date: format(batchRecordDate, 'yyyy-MM-dd'),
+                    });
+                }
+            }
             
-            if (recordsToSave.length > 0) {
-                await addOrUpdateRecords(school, allStudents, recordsToSave);
-                await onRecordUpdate();
-                toast({ title: '저장 완료', description: `${batchRecordItem}에 대한 ${recordsToSave.length}개의 기록이 저장/업데이트되었습니다.` });
+            if (recordsToProcess.length > 0) {
+                const updatedRecords = await addOrUpdateRecords(school, recordsToProcess);
+                onRecordUpdate(updatedRecords, 'update');
+                toast({ title: '저장 완료', description: `${batchRecordItem}에 대한 ${recordsToProcess.length}개의 기록이 저장/업데이트되었습니다.` });
                 setBatchRecords({}); // Clear inputs after saving
             } else {
                 toast({ variant: 'destructive', title: '저장할 기록 없음', description: '유효한 기록을 입력해주세요.' });

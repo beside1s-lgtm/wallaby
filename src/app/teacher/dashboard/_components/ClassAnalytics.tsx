@@ -102,7 +102,7 @@ interface ClassAnalyticsProps {
   allStudents: Student[];
   allItems: MeasurementItem[];
   allRecords: MeasurementRecord[];
-  onRecordUpdate: () => void;
+  onRecordUpdate: (records: MeasurementRecord[] | string, action: 'update' | 'delete') => void;
 }
 
 const chartConfig = {
@@ -316,7 +316,7 @@ export default function ClassAnalytics({
     if (!school) return;
     try {
       await deleteRecord(school, recordId);
-      await onRecordUpdate();
+      onRecordUpdate(recordId, 'delete');
       toast({
         title: "기록 삭제 완료",
         description: "선택한 기록이 삭제되었습니다.",
@@ -1377,7 +1377,7 @@ function EditRecordDialog({
   record: MeasurementRecord, 
   student: Student,
   allItems: MeasurementItem[], 
-  onRecordUpdate: () => void 
+  onRecordUpdate: (records: MeasurementRecord[], action: 'update' | 'delete') => void;
 }) {
   const { school } = useAuth();
   const { toast } = useToast();
@@ -1435,7 +1435,7 @@ function EditRecordDialog({
 
     setIsSubmitting(true);
     try {
-      await addOrUpdateRecord({
+      const updatedRecord = await addOrUpdateRecord({
         id: record.id,
         studentId: student.id,
         school: school,
@@ -1443,7 +1443,7 @@ function EditRecordDialog({
         value: valueToSave,
         date: format(date, 'yyyy-MM-dd'),
       });
-      await onRecordUpdate();
+      onRecordUpdate([updatedRecord], 'update');
       toast({ title: '수정 완료', description: '기록이 성공적으로 수정되었습니다.' });
       setIsOpen(false);
     } catch (error) {

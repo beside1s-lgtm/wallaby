@@ -163,6 +163,7 @@ export default function StudentDashboardPage() {
                     ...teamData,
                     teams: teamData.teams.map(team => ({
                         ...team,
+                        name: `팀 ${team.teamIndex + 1}`,
                         members: team.memberIds.map(id => studentMap.get(id)).filter((s): s is Student => !!s)
                     }))
                 };
@@ -469,7 +470,7 @@ export default function StudentDashboardPage() {
         console.error('AI 팀 분석 요청 실패:', error);
         toast({ variant: 'destructive', title: 'AI 팀 분석 오류', description: '팀 분석 리포트를 생성하는 중 오류가 발생했습니다.'});
     } finally {
-        setIsReportLoading(false);
+      setIsReportLoading(false);
     }
   }
 

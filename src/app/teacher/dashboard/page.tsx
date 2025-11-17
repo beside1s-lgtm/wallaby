@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { getStudents, getItems, getRecords, getTeamGroups } from "@/lib/store";
 import type { Student, MeasurementItem, MeasurementRecord, TeamGroup } from "@/lib/types";
@@ -47,34 +47,46 @@ export default function TeacherDashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("measurement");
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     if (isAuthLoading || !school) return;
-      setIsLoading(true);
-      try {
-        const [studentData, itemData, recordData, teamGroupData] = await Promise.all([
-          getStudents(school),
-          getItems(school),
-          getRecords(school),
-          getTeamGroups(school),
-        ]);
-        setStudents(studentData);
-        setItems(itemData);
-        setRecords(recordData);
-        setTeamGroups(teamGroupData);
-      } catch (error) {
-        console.error("Failed to load dashboard data:", error);
-      } finally {
-        setIsLoading(false);
-      }
-  }
+    setIsLoading(true);
+    try {
+      const [studentData, itemData, recordData, teamGroupData] = await Promise.all([
+        getStudents(school),
+        getItems(school),
+        getRecords(school),
+        getTeamGroups(school),
+      ]);
+      setStudents(studentData);
+      setItems(itemData);
+      setRecords(recordData);
+      setTeamGroups(teamGroupData);
+    } catch (error) {
+      console.error("Failed to load dashboard data:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [school, isAuthLoading]);
 
   useEffect(() => {
     loadData();
-  }, [school, isAuthLoading]);
-
-  const forceUpdate = async () => {
+  }, [loadData]);
+  
+  const handleDataUpdate = useCallback(async () => {
     await loadData();
-  };
+  }, [loadData]);
+  
+  const updateLocalRecords = useCallback((updatedRecords: MeasurementRecord[] | string, action: 'update' | 'delete') => {
+    if (action === 'delete' && typeof updatedRecords === 'string') {
+      setRecords(prev => prev.filter(r => r.id !== updatedRecords));
+    } else if (action === 'update' && Array.isArray(updatedRecords)) {
+      setRecords(prev => {
+        const updatedRecordMap = new Map(updatedRecords.map(r => [r.id, r]));
+        const newRecords = prev.filter(r => !updatedRecordMap.has(r.id));
+        return [...newRecords, ...updatedRecords];
+      });
+    }
+  }, []);
 
   if (isLoading || isAuthLoading) {
     return (
@@ -126,7 +138,7 @@ export default function TeacherDashboardPage() {
         </Card>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-6">
+           <TabsList className="grid w-full grid-cols-3 mb-6">
             <TabsTrigger value="measurement" className="text-base font-semibold">
               <LineChart className="h-5 w-5 mr-2" />
               측정 & 분석
@@ -152,7 +164,7 @@ export default function TeacherDashboardPage() {
                 <RecordInput
                   allStudents={students}
                   allItems={items}
-                  onRecordUpdate={forceUpdate}
+                  onRecordUpdate={updateLocalRecords}
                   allTeamGroups={teamGroups}
                 />
               </TabsContent>
@@ -161,7 +173,7 @@ export default function TeacherDashboardPage() {
                   allStudents={students}
                   allItems={items}
                   allRecords={records}
-                  onRecordUpdate={forceUpdate}
+                  onRecordUpdate={updateLocalRecords}
                 />
               </TabsContent>
               <TabsContent value="ranking">
@@ -181,7 +193,7 @@ export default function TeacherDashboardPage() {
                     <TabsTrigger value="team-balancer"><Shuffle className="mr-2 h-4 w-4" />팀 자동 편성</TabsTrigger>
                 </TabsList>
                 <TabsContent value="tournament-management">
-                    <TournamentManagement onTournamentUpdate={forceUpdate} allTeamGroups={teamGroups} />
+                    <TournamentManagement onTournamentUpdate={handleDataUpdate} allTeamGroups={teamGroups} />
                 </TabsContent>
                 <TabsContent value="team-balancer">
                     <TeamBalancer
@@ -189,7 +201,7 @@ export default function TeacherDashboardPage() {
                         allItems={items}
                         allRecords={records}
                         teamGroups={teamGroups}
-                        onTeamGroupUpdate={forceUpdate}
+                        onTeamGroupUpdate={handleDataUpdate}
                     />
                 </TabsContent>
              </Tabs>
@@ -205,18 +217,18 @@ export default function TeacherDashboardPage() {
                 <TabsContent value="student-management">
                    <StudentManagement
                       students={students}
-                      onStudentsUpdate={forceUpdate}
+                      onStudentsUpdate={handleDataUpdate}
                     />
                 </TabsContent>
                  <TabsContent value="item-management">
-                    <MeasurementManagement items={items} onItemsUpdate={forceUpdate} />
+                    <MeasurementManagement items={items} onItemsUpdate={handleDataUpdate} />
                 </TabsContent>
                 <TabsContent value="database-management">
                     <DatabaseManagement
                       students={students}
                       records={records}
                       items={items}
-                      onUpdate={forceUpdate}
+                      onUpdate={handleDataUpdate}
                     />
                 </TabsContent>
              </Tabs>
