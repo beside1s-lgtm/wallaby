@@ -52,6 +52,7 @@ import {
   PlusCircle,
   Trash2,
   RefreshCw,
+  ChevronDown,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -68,6 +69,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 
 
 interface TeamBalancerProps {
@@ -460,7 +462,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     }
   };
 
-const handleBalanceTeams = () => {
+  const handleBalanceTeams = () => {
     const selectedStudentIds = Object.entries(balancingSelection)
       .filter(([, isSelected]) => isSelected)
       .map(([studentId]) => studentId);
@@ -506,8 +508,8 @@ const handleBalanceTeams = () => {
         toast({ title: "팀 생성 완료", description: "선택된 모든 학생으로 한 팀을 만들었습니다." });
         return;
     }
-
-    const createTeamsForGroup = (studentGroup: Student[]) => {
+    
+    const createTeamsForGroup = (studentGroup: Student[], numTeamsForDivision: number) => {
       const sortedStudents = studentGroup
         .map((s) => ({ id: s.id, scoreData: studentScores.get(s.id) }))
         .filter((s) => s.scoreData)
@@ -518,9 +520,22 @@ const handleBalanceTeams = () => {
       
       if (divideBy === "teams") {
         const newTeams: Student[][] = Array.from({ length: numTeams }, () => []);
-        studentsToDistribute.forEach((student, index) => {
-          newTeams[index % numTeams].push(student);
-        });
+        if (balanceStrategy === 'uniform') { // 지그재그(Snake draft)
+            let direction = 1;
+            let teamIndex = 0;
+            studentsToDistribute.forEach(student => {
+                newTeams[teamIndex].push(student);
+                teamIndex += direction;
+                if (teamIndex < 0 || teamIndex >= numTeams) {
+                    direction *= -1;
+                    teamIndex += direction;
+                }
+            });
+        } else { // 레벨별
+            studentsToDistribute.forEach((student, index) => {
+                newTeams[index % numTeams].push(student);
+            });
+        }
         return { teams: newTeams, leftovers: [] };
       } else { // divide by members
         const numTeamsForGroup = Math.floor(
@@ -535,14 +550,23 @@ const handleBalanceTeams = () => {
           () => []
         );
 
-        if (balanceStrategy === 'level') {
-            for (let i = 0; i < numTeamsForGroup; i++) {
-                newTeams[i] = studentsToDistribute.splice(0, membersPerTeam);
-            }
-        } else { // uniform
-            studentsToDistribute.splice(0, numTeamsForGroup * membersPerTeam).forEach((student, index) => {
-                newTeams[index % numTeamsForGroup].push(student);
+        const groupToDistribute = studentsToDistribute.splice(0, numTeamsForGroup * membersPerTeam);
+
+        if (balanceStrategy === 'uniform') { // 지그재그(Snake draft)
+            let direction = 1;
+            let teamIndex = 0;
+            groupToDistribute.forEach(student => {
+                newTeams[teamIndex].push(student);
+                teamIndex += direction;
+                if (teamIndex < 0 || teamIndex >= numTeamsForGroup) {
+                    direction *= -1;
+                    teamIndex += direction;
+                }
             });
+        } else { // 레벨별
+            for (let i = 0; i < numTeamsForGroup; i++) {
+                newTeams[i] = groupToDistribute.splice(0, membersPerTeam);
+            }
         }
         
         return { teams: newTeams, leftovers: studentsToDistribute };
@@ -551,12 +575,11 @@ const handleBalanceTeams = () => {
     
     // --- Main balancing logic ---
     if (selectedGender === 'all') {
-        // Mixed gender balancing
         const maleStudents = studentsToBalance.filter(s => s.gender === '남');
         const femaleStudents = studentsToBalance.filter(s => s.gender === '여');
 
-        const { teams: maleTeams, leftovers: maleLeftovers } = createTeamsForGroup(maleStudents);
-        const { teams: femaleTeams, leftovers: femaleLeftovers } = createTeamsForGroup(femaleStudents);
+        const { teams: maleTeams, leftovers: maleLeftovers } = createTeamsForGroup(maleStudents, numTeams);
+        const { teams: femaleTeams, leftovers: femaleLeftovers } = createTeamsForGroup(femaleStudents, numTeams);
 
         const combinedTeams: Student[][] = [];
         const maxTeams = Math.max(maleTeams.length, femaleTeams.length);
@@ -571,8 +594,7 @@ const handleBalanceTeams = () => {
         setLeftoverStudents([...maleLeftovers, ...femaleLeftovers]);
 
     } else {
-        // Single gender balancing
-        const { teams: newTeams, leftovers } = createTeamsForGroup(studentsToBalance);
+        const { teams: newTeams, leftovers } = createTeamsForGroup(studentsToBalance, numTeams);
         setTeams(newTeams);
         setLeftoverStudents(leftovers);
     }
@@ -650,6 +672,32 @@ const handleBalanceTeams = () => {
     setLeftoverStudents((prevLeftovers) =>
       prevLeftovers.filter((s) => s.id !== studentId)
     );
+  };
+  
+  const handleMoveStudent = (studentId: string, fromTeamIndex: number, toTeamIndex: number) => {
+    let studentToMove: Student | undefined;
+
+    // Find and remove student from the original team
+    const newFromTeam = teams[fromTeamIndex].filter(s => {
+        if (s.id === studentId) {
+            studentToMove = s;
+            return false;
+        }
+        return true;
+    });
+
+    if (!studentToMove) return;
+
+    // Add student to the new team
+    const newToTeam = [...teams[toTeamIndex], studentToMove];
+
+    // Update the teams state
+    setTeams(prevTeams => {
+        const newTeams = [...prevTeams];
+        newTeams[fromTeamIndex] = newFromTeam;
+        newTeams[toTeamIndex] = newToTeam;
+        return newTeams;
+    });
   };
 
   const handleDownloadTeams = () => {
@@ -1243,11 +1291,11 @@ const handleBalanceTeams = () => {
                   >
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="uniform" id="uniform" />
-                      <Label htmlFor="uniform">균등 편성</Label>
+                      <Label htmlFor="uniform">균등 편성(실력 평준화)</Label>
                     </div>
                     <div className="flex items-center space-x-2">
                       <RadioGroupItem value="level" id="level" />
-                      <Label htmlFor="level">레벨 편성</Label>
+                      <Label htmlFor="level">레벨별 편성(실력 그룹화)</Label>
                     </div>
                   </RadioGroup>
                 </div>
@@ -1366,9 +1414,31 @@ const handleBalanceTeams = () => {
                         </div>
                       )}
                       <div className="text-sm pt-2 border-t">
-                          <div className="flex flex-wrap gap-x-3 gap-y-1">
+                          <div className="flex flex-col gap-1">
                               {team.map((student) => (
-                                <span key={student.id}>{student.name}</span>
+                                 <DropdownMenu key={student.id}>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" className="h-auto p-1 justify-start w-full text-left">
+                                            {student.name}
+                                            <ChevronDown className="h-4 w-4 ml-auto text-muted-foreground" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent>
+                                        <Label className="px-2 text-xs text-muted-foreground">다른 팀으로 이동</Label>
+                                        {sortedTeams.map((targetTeam, targetIndex) => {
+                                            if (targetIndex === index) return null; // Don't show option to move to the same team
+                                            const targetFirstStudent = targetTeam[0];
+                                            if (!targetFirstStudent) return null;
+                                            const targetTeamName = `${targetFirstStudent.grade}-${targetFirstStudent.classNum}반 ${teamsInClass.findIndex(t => t === targetTeam) + 1}팀`;
+                                            
+                                            return (
+                                                <DropdownMenuItem key={targetIndex} onClick={() => handleMoveStudent(student.id, index, targetIndex)}>
+                                                    {targetTeamName}으로 이동
+                                                </DropdownMenuItem>
+                                            );
+                                        })}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                               ))}
                           </div>
                       </div>
