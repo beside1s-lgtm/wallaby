@@ -70,6 +70,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 
 interface TeamBalancerProps {
@@ -81,6 +82,15 @@ interface TeamBalancerProps {
   onTeamGroupDelete: (groupId: string) => void;
 }
 
+type ClassSelection = {
+  [grade: string]: {
+    all: boolean;
+    classes: {
+      [classNum: string]: boolean;
+    }
+  }
+}
+
 export default function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGroupUpdate, onTeamGroupDelete }: TeamBalancerProps) {
   const { school } = useAuth();
   const { toast } = useToast();
@@ -88,11 +98,8 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
   const [savedTeamGroups, setSavedTeamGroups] = useState<TeamGroup[]>([]);
   const [selectedTeamGroupId, setSelectedTeamGroupId] = useState<string>('');
 
-  const [analysisScope, setAnalysisScope] = useState<"all" | "grade" | "class">(
-    "grade"
-  );
-  const [selectedGrade, setSelectedGrade] = useState("");
-  const [selectedClassNum, setSelectedClassNum] = useState("");
+  const [classSelection, setClassSelection] = useState<ClassSelection>({});
+
   const [selectedGender, setSelectedGender] = useState<"all" | "남" | "여" | "separate">(
     "all"
   );
@@ -129,12 +136,64 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     setSavedTeamGroups(teamGroups);
   }, [teamGroups]);
 
+  const { grades, classNumsByGrade, groupedItems } = useMemo(() => {
+    const grades = [...new Set(allStudents.map((s) => s.grade))].sort((a,b) => parseInt(a) - parseInt(b));
+    const classNumsByGrade: Record<string, string[]> = {};
+    const initialSelection: ClassSelection = {};
+
+    grades.forEach((grade) => {
+      const classes = [...new Set(
+        allStudents.filter((s) => s.grade === grade).map((s) => s.classNum)
+      )].sort((a,b) => parseInt(a) - parseInt(b));
+      classNumsByGrade[grade] = classes;
+      
+      initialSelection[grade] = { all: false, classes: {} };
+      classes.forEach(classNum => {
+        initialSelection[grade].classes[classNum] = false;
+      });
+    });
+
+    const grouped: Record<string, MeasurementItem[]> = { PAPS: [] };
+    allItems.forEach((item) => {
+      const category = item.category || (item.isPaps ? "PAPS" : "기타");
+      if (!grouped[category]) grouped[category] = [];
+      grouped[category].push(item);
+    });
+    const orderedGroups: Record<string, MeasurementItem[]> = {
+      PAPS: grouped["PAPS"],
+    };
+    Object.keys(grouped).forEach((key) => {
+      if (key !== "PAPS" && key !== "기타") orderedGroups[key] = grouped[key];
+    });
+    if (grouped["기타"]?.length > 0) orderedGroups["기타"] = grouped["기타"];
+
+    return { grades, classNumsByGrade, groupedItems: orderedGroups };
+  }, [allStudents, allItems]);
+
+  useEffect(() => {
+    // Initialize classSelection state based on available grades and classes
+    const initialSelection: ClassSelection = {};
+     grades.forEach((grade) => {
+      initialSelection[grade] = { all: false, classes: {} };
+      classNumsByGrade[grade]?.forEach(classNum => {
+        initialSelection[grade].classes[classNum] = false;
+      });
+    });
+    setClassSelection(initialSelection);
+  }, [grades, classNumsByGrade]);
+
+
   const resetToNewTeam = () => {
     setSelectedTeamGroupId('');
     setTeamGroupName('');
-    setAnalysisScope('grade');
-    setSelectedGrade('');
-    setSelectedClassNum('');
+    const newSelection: ClassSelection = {};
+    Object.keys(classSelection).forEach(grade => {
+      newSelection[grade] = { all: false, classes: {} };
+      Object.keys(classSelection[grade].classes).forEach(classNum => {
+        newSelection[grade].classes[classNum] = false;
+      });
+    });
+    setClassSelection(newSelection);
     setSelectedGender('all');
     setExcludeNonParticipants(true);
     setSelectedItemNames([]);
@@ -155,9 +214,20 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     if (!group) return;
 
     setTeamGroupName(group.description);
-    setAnalysisScope(group.analysisScope);
-    setSelectedGrade(group.grade || '');
-    setSelectedClassNum(group.classNum || '');
+    
+    // Restore class selection
+    const newSelection: ClassSelection = {};
+    grades.forEach(grade => {
+        newSelection[grade] = { all: false, classes: {} };
+        classNumsByGrade[grade]?.forEach(classNum => {
+            const isSelected = group.teams.some(team => team.some(member => member.grade === grade && member.classNum === classNum));
+            newSelection[grade].classes[classNum] = isSelected;
+        });
+        const allSelected = classNumsByGrade[grade]?.every(cn => newSelection[grade].classes[cn]);
+        newSelection[grade].all = !!allSelected;
+    });
+    setClassSelection(newSelection);
+    
     setSelectedGender(group.gender || 'all');
     setSelectedItemNames(group.itemNamesForBalancing || []);
     setDivideBy(group.divideBy || 'teams');
@@ -169,7 +239,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
       team.memberIds.map(id => studentMap.get(id)).filter((s): s is Student => !!s)
     );
     setTeams(populatedTeams);
-    setLeftoverStudents([]); // Assuming loaded groups have no leftovers
+    setLeftoverStudents([]);
     
     toast({ title: "팀 편성 로드 완료", description: `'${group.description}' 정보를 불러왔습니다.`});
   };
@@ -187,64 +257,28 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     }
   };
 
-
-  const { grades, classNumsByGrade, groupedItems } = useMemo(() => {
-    const grades = [...new Set(allStudents.map((s) => s.grade))].sort();
-    const classNumsByGrade: Record<string, string[]> = {};
-    grades.forEach((grade) => {
-      classNumsByGrade[grade] = [
-        ...new Set(
-          allStudents.filter((s) => s.grade === grade).map((s) => s.classNum)
-        ),
-      ].sort();
-    });
-
-    const grouped: Record<string, MeasurementItem[]> = { PAPS: [] };
-    allItems.forEach((item) => {
-      const category = item.category || (item.isPaps ? "PAPS" : "기타");
-      if (!grouped[category]) grouped[category] = [];
-      grouped[category].push(item);
-    });
-    const orderedGroups: Record<string, MeasurementItem[]> = {
-      PAPS: grouped["PAPS"],
-    };
-    Object.keys(grouped).forEach((key) => {
-      if (key !== "PAPS" && key !== "기타") orderedGroups[key] = grouped[key];
-    });
-    if (grouped["기타"]?.length > 0) orderedGroups["기타"] = grouped["기타"];
-
-    return { grades, classNumsByGrade, groupedItems: orderedGroups };
-  }, [allStudents, allItems]);
-
   const targetStudents = useMemo(() => {
-    let students = allStudents;
-    switch (analysisScope) {
-      case "all":
-        students = allStudents;
-        break;
-      case "grade":
-        students = selectedGrade
-          ? allStudents.filter((s) => s.grade === selectedGrade)
-          : [];
-        break;
-      case "class":
-        students =
-          selectedGrade && selectedClassNum
-            ? allStudents.filter(
-                (s) => s.grade === selectedGrade && s.classNum === selectedClassNum
-              )
-            : [];
-        break;
-      default:
-        students = [];
-    }
+    const selectedClasses: { grade: string; classNum: string }[] = [];
+    Object.entries(classSelection).forEach(([grade, selection]) => {
+      Object.entries(selection.classes).forEach(([classNum, isSelected]) => {
+        if (isSelected) {
+          selectedClasses.push({ grade, classNum });
+        }
+      });
+    });
+
+    if (selectedClasses.length === 0) return [];
+    
+    let students = allStudents.filter(s => 
+      selectedClasses.some(sc => sc.grade === s.grade && sc.classNum === s.classNum)
+    );
 
     if (selectedGender !== "all" && selectedGender !== "separate") {
       students = students.filter((s) => s.gender === selectedGender);
     }
 
     return students;
-  }, [analysisScope, selectedGrade, selectedClassNum, selectedGender, allStudents]);
+  }, [classSelection, selectedGender, allStudents]);
 
   useEffect(() => {
     if (targetStudents.length > 0 && selectedItemNames.length > 0) {
@@ -262,45 +296,36 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         );
       });
 
-      const gradeForRanking =
-        analysisScope === "all"
-          ? undefined
-          : analysisScope === "grade"
-          ? selectedGrade
-          : targetStudents[0]?.grade || "";
-      const allRanks = calculateRanks(
-        school,
-        allItems,
-        allRecords,
-        allStudents,
-        gradeForRanking
-      );
-
+      const ranksByGrade = new Map<string, Record<string, { studentId: string; value: number; rank: number; }[]>>();
+      
+      const uniqueGrades = [...new Set(studentsForAnalysis.map(s => s.grade))];
+      uniqueGrades.forEach(grade => {
+         ranksByGrade.set(grade, calculateRanks(school, allItems, allRecords, allStudents, grade));
+      });
+      
       selectedItemNames.forEach((itemName) => {
         const itemInfo = allItems.find((i) => i.name === itemName);
         if (!itemInfo) return;
+        
+        studentsForAnalysis.forEach(student => {
+            const studentRanks = ranksByGrade.get(student.grade);
+            const itemRanks = studentRanks ? studentRanks[itemName] : undefined;
 
-        const itemRanks = allRanks[itemName];
-
-        if (itemRanks) {
-          const totalInRank = itemRanks.length;
-          itemRanks.forEach((rankInfo) => {
-            if (!studentsForAnalysis.some((s) => s.id === rankInfo.studentId))
-              return;
-
-            const score = Math.round(
-              (1 - (rankInfo.rank - 1) / totalInRank) * 100
-            );
-            if (!studentIdToRawScores.has(rankInfo.studentId)) {
-              studentIdToRawScores.set(rankInfo.studentId, {
-                totalScore: 0,
-                scores: [],
-              });
+            let score = 0;
+            if (itemRanks) {
+                const rankInfo = itemRanks.find(r => r.studentId === student.id);
+                if (rankInfo) {
+                    const totalInRank = itemRanks.length;
+                    score = Math.round((1 - (rankInfo.rank - 1) / totalInRank) * 100);
+                }
             }
-            const studentData = studentIdToRawScores.get(rankInfo.studentId)!;
+
+            if (!studentIdToRawScores.has(student.id)) {
+                studentIdToRawScores.set(student.id, { totalScore: 0, scores: [] });
+            }
+            const studentData = studentIdToRawScores.get(student.id)!;
             studentData.scores.push({ item: itemName, score: score });
-          });
-        }
+        });
       });
 
       studentsForAnalysis.forEach((student) => {
@@ -364,8 +389,6 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     allItems,
     school,
     allStudents,
-    analysisScope,
-    selectedGrade,
     selectedTeamGroupId,
   ]);
 
@@ -415,18 +438,12 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
       if (!student) return;
 
       const studentRanks: Record<string, string> = {};
-      const gradeForRanking =
-        analysisScope === "all"
-          ? undefined
-          : analysisScope === "grade"
-          ? selectedGrade
-          : student.grade || "";
       const ranksByItem = calculateRanks(
         school,
         allItems,
         allRecords,
         allStudents,
-        gradeForRanking
+        student.grade
       );
 
       selectedItemNames.forEach((item) => {
@@ -482,34 +499,21 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
       return;
     }
 
-    const studentMap = new Map(allStudents.map((s) => [s.id, s]));
     const studentsToBalance = targetStudents.filter((s) => selectedStudentIds.includes(s.id));
     
-    // Special logic for grade-wide, single-team-per-class scenario
-    if (analysisScope === "grade" && selectedGrade && divideBy === "single") {
-        const classesInGrade = [...new Set(studentsToBalance.map(s => s.classNum))];
-        const newTeams = classesInGrade.map(classNum => 
-            studentsToBalance.filter(s => s.classNum === classNum)
-        ).filter(team => team.length > 0);
+    // Group students by class
+    const studentsByClass: Record<string, Student[]> = {};
+    studentsToBalance.forEach(student => {
+      const classKey = `${student.grade}-${student.classNum}`;
+      if (!studentsByClass[classKey]) {
+        studentsByClass[classKey] = [];
+      }
+      studentsByClass[classKey].push(student);
+    });
 
-        setTeams(newTeams);
-        setLeftoverStudents([]);
-        toast({ title: "학급별 팀 생성 완료", description: `${selectedGrade}학년의 각 반을 하나의 팀으로 만들었습니다.` });
-        return;
-    }
-    
-    if (divideBy === 'single') {
-        if (studentsToBalance.length > 0) {
-            setTeams([studentsToBalance]);
-            setLeftoverStudents([]);
-        } else {
-            setTeams([]);
-            setLeftoverStudents([]);
-        }
-        toast({ title: "팀 생성 완료", description: "선택된 모든 학생으로 한 팀을 만들었습니다." });
-        return;
-    }
-    
+    let finalTeams: Student[][] = [];
+    let finalLeftovers: Student[] = [];
+
     const createTeamsForGroup = (studentGroup: Student[], numTeamsForDivision: number) => {
       const sortedStudents = studentGroup
         .map((s) => ({ student: s, score: studentScores.get(s.id)?.totalScore || 0 }))
@@ -520,7 +524,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
       
       if (divideBy === "teams") {
         const newTeams: Student[][] = Array.from({ length: numTeamsForDivision }, () => []);
-        if (balanceStrategy === 'uniform') { // 지그재그(Snake draft)
+        if (balanceStrategy === 'uniform') { 
             let direction = 1;
             let teamIndex = 0;
             studentsToDistribute.forEach(student => {
@@ -554,7 +558,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
 
         const groupToDistribute = studentsToDistribute.splice(0, numTeamsForGroup * membersPerTeam);
 
-        if (balanceStrategy === 'uniform') { // 지그재그(Snake draft)
+        if (balanceStrategy === 'uniform') {
             let direction = 1;
             let teamIndex = 0;
             groupToDistribute.forEach(student => {
@@ -565,7 +569,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                     teamIndex += direction;
                 }
             });
-        } else { // 레벨별
+        } else {
             const studentsPerLevel = numTeamsForGroup;
             for(let i=0; i<groupToDistribute.length; i++) {
                 const level = Math.floor(i / studentsPerLevel);
@@ -578,37 +582,62 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
       }
     };
     
-    // --- Main balancing logic ---
-    const effectiveNumTeams = divideBy === 'teams' ? numTeams : Math.max(1, Math.floor(studentsToBalance.length / membersPerTeam));
-    if (effectiveNumTeams === 0 && divideBy !== 'single') {
-        toast({
-            variant: "destructive",
-            title: "팀 편성 불가",
-            description: "팀을 만들기에 학생 수가 부족합니다.",
-        });
-        return;
-    }
+    Object.values(studentsByClass).forEach(classStudentGroup => {
+        const effectiveNumTeams = divideBy === 'teams' ? numTeams : Math.max(1, Math.floor(classStudentGroup.length / membersPerTeam));
+        if (effectiveNumTeams === 0 && divideBy !== 'single') {
+            finalLeftovers.push(...classStudentGroup);
+            return;
+        }
 
-    if (selectedGender === 'separate') {
-        const maleStudents = studentsToBalance.filter(s => s.gender === '남');
-        const femaleStudents = studentsToBalance.filter(s => s.gender === '여');
+        if (divideBy === 'single') {
+            finalTeams.push(classStudentGroup);
+            return;
+        }
 
-        const { teams: maleTeams, leftovers: maleLeftovers } = createTeamsForGroup(maleStudents, effectiveNumTeams);
-        const { teams: femaleTeams, leftovers: femaleLeftovers } = createTeamsForGroup(femaleStudents, effectiveNumTeams);
+        if (selectedGender === 'separate') {
+            const maleStudents = classStudentGroup.filter(s => s.gender === '남');
+            const femaleStudents = classStudentGroup.filter(s => s.gender === '여');
 
-        setTeams([...maleTeams, ...femaleTeams]);
-        setLeftoverStudents([...maleLeftovers, ...femaleLeftovers]);
+            const { teams: maleTeams, leftovers: maleLeftovers } = createTeamsForGroup(maleStudents, effectiveNumTeams);
+            const { teams: femaleTeams, leftovers: femaleLeftovers } = createTeamsForGroup(femaleStudents, effectiveNumTeams);
 
-    } else {
-        const { teams: newTeams, leftovers } = createTeamsForGroup(studentsToBalance, effectiveNumTeams);
-        setTeams(newTeams);
-        setLeftoverStudents(leftovers);
-    }
+            finalTeams.push(...maleTeams, ...femaleTeams);
+            finalLeftovers.push(...maleLeftovers, ...femaleLeftovers);
+        } else {
+            const { teams: newTeams, leftovers } = createTeamsForGroup(classStudentGroup, effectiveNumTeams);
+            finalTeams.push(...newTeams);
+            finalLeftovers.push(...leftovers);
+        }
+    });
+
+    setTeams(finalTeams);
+    setLeftoverStudents(finalLeftovers);
 
     toast({
       title: "팀 편성 완료",
       description:
         "팀이 자동으로 편성되었습니다. 남은 학생이 있는 경우 수동으로 배정해주세요.",
+    });
+  };
+
+  const handleClassSelectionChange = (grade: string, classNum: string, checked: boolean) => {
+    setClassSelection(prev => {
+      const newSelection = { ...prev };
+      newSelection[grade].classes[classNum] = checked;
+      const allChecked = Object.values(newSelection[grade].classes).every(Boolean);
+      newSelection[grade].all = allChecked;
+      return newSelection;
+    });
+  };
+
+  const handleGradeSelectionChange = (grade: string, checked: boolean) => {
+    setClassSelection(prev => {
+      const newSelection = { ...prev };
+      newSelection[grade].all = checked;
+      Object.keys(newSelection[grade].classes).forEach(classNum => {
+        newSelection[grade].classes[classNum] = checked;
+      });
+      return newSelection;
     });
   };
 
@@ -720,10 +749,9 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     }
 
     let fileName = `${school}_자동편성팀.csv`;
-    if (analysisScope === "grade" && selectedGrade) {
-      fileName = `${school}_${selectedGrade}학년_자동편성팀.csv`;
-    } else if (analysisScope === "class" && selectedGrade && selectedClassNum) {
-      fileName = `${school}_${selectedGrade}-${selectedClassNum}_자동편성팀.csv`;
+    const selectedGrades = Object.keys(classSelection).filter(grade => classSelection[grade].all || Object.values(classSelection[grade].classes).some(Boolean));
+    if (selectedGrades.length === 1) {
+        fileName = `${school}_${selectedGrades[0]}학년_자동편성팀.csv`;
     }
 
     const dataToExport = sortedTeams.flatMap((team, index) => {
@@ -780,9 +808,6 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
           memberIds: team.map((student) => student.id),
         })),
         itemNamesForBalancing: selectedItemNames,
-        analysisScope,
-        grade: selectedGrade || undefined,
-        classNum: selectedClassNum || undefined,
         gender: selectedGender,
         divideBy,
       };
@@ -799,7 +824,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         title: "전달 완료",
         description: "편성된 팀 명단이 학생들에게 전달되었습니다.",
       });
-      onTeamGroupUpdate(newGroup); // Refresh list
+      onTeamGroupUpdate(newGroup);
     } catch (error) {
       console.error("Failed to send teams:", error);
       toast({
@@ -877,75 +902,43 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
 
         <div className="space-y-4 p-4 border rounded-md">
           <h3 className="font-semibold">1. 분석 대상 설정</h3>
-          <p className="text-sm text-muted-foreground">
-            편성 범위를 '학년별'로 선택 시, 해당 학년의 각 반별로 팀이
-            독립적으로 생성됩니다.
-          </p>
           <div className="flex flex-wrap items-end gap-4">
-            <div>
-              <Label>편성 범위</Label>
-              <Select
-                value={analysisScope}
-                onValueChange={(v) => setAnalysisScope(v as any)}
-                disabled={!!selectedTeamGroupId}
-              >
-                <SelectTrigger className="w-full sm:w-[120px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체</SelectItem>
-                  <SelectItem value="grade">학년별</SelectItem>
-                  <SelectItem value="class">학급별</SelectItem>
-                </SelectContent>
-              </Select>
+             <div className="space-y-2">
+                <Label>편성 대상 학급</Label>
+                <Accordion type="multiple" className="w-full sm:w-[400px] border rounded-md p-2 bg-background">
+                    {grades.map(grade => (
+                        <AccordionItem value={grade} key={grade}>
+                            <AccordionTrigger className="py-2">
+                                <div className="flex items-center gap-2">
+                                    <Checkbox 
+                                        id={`grade-all-${grade}`}
+                                        checked={classSelection[grade]?.all}
+                                        onCheckedChange={(checked) => handleGradeSelectionChange(grade, !!checked)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        disabled={!!selectedTeamGroupId}
+                                    />
+                                    <Label htmlFor={`grade-all-${grade}`}>{grade}학년 전체</Label>
+                                </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="pt-2 pl-6">
+                                <div className="grid grid-cols-3 gap-2">
+                                    {classNumsByGrade[grade]?.map(classNum => (
+                                        <div key={classNum} className="flex items-center gap-2">
+                                            <Checkbox 
+                                                id={`class-${grade}-${classNum}`}
+                                                checked={classSelection[grade]?.classes[classNum] || false}
+                                                onCheckedChange={(checked) => handleClassSelectionChange(grade, classNum, !!checked)}
+                                                disabled={!!selectedTeamGroupId}
+                                            />
+                                            <Label htmlFor={`class-${grade}-${classNum}`}>{classNum}반</Label>
+                                        </div>
+                                    ))}
+                                </div>
+                            </AccordionContent>
+                        </AccordionItem>
+                    ))}
+                </Accordion>
             </div>
-
-            {(analysisScope === "grade" || analysisScope === "class") && (
-              <div>
-                <Label>학년</Label>
-                <Select
-                  value={selectedGrade}
-                  onValueChange={(v) => {
-                    setSelectedGrade(v);
-                    setSelectedClassNum("");
-                  }}
-                  disabled={!!selectedTeamGroupId}
-                >
-                  <SelectTrigger className="w-full sm:w-[120px]">
-                    <SelectValue placeholder="학년 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {grades.map((grade) => (
-                      <SelectItem key={grade} value={grade}>
-                        {grade}학년
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {analysisScope === "class" && (
-              <div>
-                <Label>학급</Label>
-                <Select
-                  value={selectedClassNum}
-                  onValueChange={setSelectedClassNum}
-                  disabled={!selectedGrade || !!selectedTeamGroupId}
-                >
-                  <SelectTrigger className="w-full sm:w-[120px]">
-                    <SelectValue placeholder="반 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {classNumsByGrade[selectedGrade]?.map((classNum) => (
-                      <SelectItem key={classNum} value={classNum}>
-                        {classNum}반
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
             <div>
               <Label>성별</Label>
               <Select
@@ -1393,7 +1386,11 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                    if (!firstStudent) return null;
                    
                     const genderDisplay = selectedGender === 'separate' ? (firstStudent.gender === '남' ? '(남)' : '(여)') : '';
-                    const teamName = `${firstStudent.grade}-${firstStudent.classNum}반 ${genderDisplay} 팀 ${teams.indexOf(team) + 1}`;
+                    
+                    const teamsInClass = sortedTeams.filter(t => t.length > 0 && t[0].grade === firstStudent.grade && t[0].classNum === firstStudent.classNum && (selectedGender !== 'separate' || t[0].gender === firstStudent.gender));
+                    const relativeIndex = teamsInClass.findIndex(t => t === team);
+
+                    const teamName = `${firstStudent.grade}-${firstStudent.classNum}반 ${genderDisplay} 팀 ${relativeIndex + 1}`;
 
                    const avgData = teamAverageScores.get(teams.indexOf(team));
 
@@ -1449,7 +1446,9 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                                             }
 
                                             const targetGenderDisplay = selectedGender === 'separate' ? (targetFirstStudent.gender === '남' ? '(남)' : '(여)') : '';
-                                            const targetTeamName = `${targetFirstStudent.grade}-${targetFirstStudent.classNum}반 ${targetGenderDisplay} 팀 ${originalTargetIndex + 1}`;
+                                            const teamsInTargetClass = sortedTeams.filter(t => t.length > 0 && t[0].grade === targetFirstStudent.grade && t[0].classNum === targetFirstStudent.classNum && (selectedGender !== 'separate' || t[0].gender === targetFirstStudent.gender));
+                                            const targetRelativeIndex = teamsInTargetClass.findIndex(t => t === targetTeam);
+                                            const targetTeamName = `${targetFirstStudent.grade}-${targetFirstStudent.classNum}반 ${targetGenderDisplay} 팀 ${targetRelativeIndex + 1}`;
                                             
                                             return (
                                                 <DropdownMenuItem key={originalTargetIndex} onClick={() => handleMoveStudent(student.id, originalIndex, originalTargetIndex)}>
