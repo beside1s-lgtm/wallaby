@@ -7,7 +7,7 @@ import {
   saveTeamGroup,
   deleteTeamGroup,
 } from "@/lib/store";
-import { Student, MeasurementItem, MeasurementRecord, TeamGroup, TeamGroupInput } from "@/lib/types";
+import { Student, MeasurementItem, MeasurementRecord, TeamGroup, TeamGroupInput, Team } from "@/lib/types";
 import {
   Card,
   CardContent,
@@ -217,10 +217,19 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     
     // Restore class selection
     const newSelection: ClassSelection = {};
+    const studentMap = new Map(allStudents.map(s => [s.id, s]));
+    
+    const teamsWithMembers: Team[] = group.teams.map(team => ({
+        ...team,
+        members: team.memberIds.map(id => studentMap.get(id)).filter((s): s is Student => !!s)
+    }));
+
     grades.forEach(grade => {
         newSelection[grade] = { all: false, classes: {} };
         classNumsByGrade[grade]?.forEach(classNum => {
-            const isSelected = group.teams.some(team => team.some(member => member.grade === grade && member.classNum === classNum));
+            const isSelected = teamsWithMembers.some(team => 
+                team.members && team.members.some(member => member.grade === grade && member.classNum === classNum)
+            );
             newSelection[grade].classes[classNum] = isSelected;
         });
         const allSelected = classNumsByGrade[grade]?.every(cn => newSelection[grade].classes[cn]);
@@ -233,12 +242,8 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     setDivideBy(group.divideBy || 'teams');
     setNumTeams(group.numTeams || 2);
     setMembersPerTeam(group.membersPerTeam || 4);
-
-    const studentMap = new Map(allStudents.map(s => [s.id, s]));
-    const populatedTeams = group.teams.map(team => 
-      team.memberIds.map(id => studentMap.get(id)).filter((s): s is Student => !!s)
-    );
-    setTeams(populatedTeams);
+    
+    setTeams(teamsWithMembers.map(t => t.members || []));
     setLeftoverStudents([]);
     
     toast({ title: "팀 편성 로드 완료", description: `'${group.description}' 정보를 불러왔습니다.`});
@@ -524,7 +529,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
       
       if (divideBy === "teams") {
         const newTeams: Student[][] = Array.from({ length: numTeamsForDivision }, () => []);
-        if (balanceStrategy === 'uniform') { 
+        if (balanceStrategy === 'uniform') { // 균등 편성 (지그재그)
             let direction = 1;
             let teamIndex = 0;
             studentsToDistribute.forEach(student => {
@@ -535,7 +540,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                     teamIndex += direction;
                 }
             });
-        } else { // 레벨별
+        } else { // 레벨별 편성 (순서대로)
             const studentsPerTeam = Math.ceil(studentsToDistribute.length / numTeamsForDivision);
             for (let i = 0; i < numTeamsForDivision; i++) {
                 const teamSlice = studentsToDistribute.slice(i * studentsPerTeam, (i + 1) * studentsPerTeam);
@@ -558,7 +563,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
 
         const groupToDistribute = studentsToDistribute.splice(0, numTeamsForGroup * membersPerTeam);
 
-        if (balanceStrategy === 'uniform') {
+        if (balanceStrategy === 'uniform') { // 균등 편성 (지그재그)
             let direction = 1;
             let teamIndex = 0;
             groupToDistribute.forEach(student => {
@@ -569,11 +574,9 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                     teamIndex += direction;
                 }
             });
-        } else {
-            const studentsPerLevel = numTeamsForGroup;
+        } else { // 레벨별 편성 (순서대로)
             for(let i=0; i<groupToDistribute.length; i++) {
-                const level = Math.floor(i / studentsPerLevel);
-                const teamIndex = i % studentsPerLevel;
+                const teamIndex = i % numTeamsForGroup;
                 newTeams[teamIndex].push(groupToDistribute[i]);
             }
         }
@@ -672,7 +675,8 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     const averages = new Map<number, { item: string; score: number }[]>();
     if (selectedItemNames.length === 0) return averages;
 
-    sortedTeams.forEach((team, index) => {
+    sortedTeams.forEach((team, teamIndex) => {
+        const originalIndex = teams.indexOf(team);
         const teamScores: { [key: string]: number[] } = {};
         selectedItemNames.forEach(name => { teamScores[name] = []; });
 
@@ -690,7 +694,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
             const average = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
             return { item: itemName, score: Math.round(average) };
         });
-        averages.set(teams.indexOf(team), avgScores);
+        averages.set(originalIndex, avgScores);
     });
 
     return averages;
@@ -915,8 +919,9 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                                     onCheckedChange={(checked) => handleGradeSelectionChange(grade, !!checked)}
                                     disabled={!!selectedTeamGroupId}
                                 />
-                                <Label htmlFor={`grade-all-${grade}`} className="font-semibold flex-1 py-2">{grade}학년 전체</Label>
-                                <AccordionTrigger className="p-0" />
+                                <AccordionTrigger>
+                                  <Label htmlFor={`grade-all-${grade}`} className="font-semibold flex-1 py-2">{grade}학년 전체</Label>
+                                </AccordionTrigger>
                             </div>
                             <AccordionContent className="pt-2 pl-6">
                                 <div className="grid grid-cols-3 gap-2">
