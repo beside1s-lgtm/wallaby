@@ -908,18 +908,16 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                 <Accordion type="multiple" className="w-full sm:w-[400px] border rounded-md p-2 bg-background">
                     {grades.map(grade => (
                         <AccordionItem value={grade} key={grade}>
-                            <AccordionTrigger className="py-2">
-                                <div className="flex items-center gap-2">
-                                    <Checkbox 
-                                        id={`grade-all-${grade}`}
-                                        checked={classSelection[grade]?.all}
-                                        onCheckedChange={(checked) => handleGradeSelectionChange(grade, !!checked)}
-                                        onClick={(e) => e.stopPropagation()}
-                                        disabled={!!selectedTeamGroupId}
-                                    />
-                                    <Label htmlFor={`grade-all-${grade}`}>{grade}학년 전체</Label>
-                                </div>
-                            </AccordionTrigger>
+                            <div className="flex items-center gap-2 pr-4">
+                                <Checkbox 
+                                    id={`grade-all-${grade}`}
+                                    checked={classSelection[grade]?.all}
+                                    onCheckedChange={(checked) => handleGradeSelectionChange(grade, !!checked)}
+                                    disabled={!!selectedTeamGroupId}
+                                />
+                                <Label htmlFor={`grade-all-${grade}`} className="font-semibold flex-1 py-2">{grade}학년 전체</Label>
+                                <AccordionTrigger className="p-0" />
+                            </div>
                             <AccordionContent className="pt-2 pl-6">
                                 <div className="grid grid-cols-3 gap-2">
                                     {classNumsByGrade[grade]?.map(classNum => (
