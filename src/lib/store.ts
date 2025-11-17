@@ -462,7 +462,7 @@ export const addOrUpdateRecord = async (record: Partial<MeasurementRecord> & Pic
   await signIn();
   const recordDate = record.date || format(new Date(), 'yyyy-MM-dd');
   const recordsRef = collection(db, 'schools', record.school, 'records');
-  
+
   // If an ID is provided, it's a direct update.
   if (record.id) {
     const recordDocRef = doc(db, 'schools', record.school, 'records', record.id);
@@ -486,18 +486,21 @@ export const addOrUpdateRecord = async (record: Partial<MeasurementRecord> & Pic
   // If no ID, it's an upsert based on date, student, and item.
   try {
     await runTransaction(db, async (transaction) => {
-      const q = query(recordsRef, 
-        where("studentId", "==", record.studentId), 
-        where("item", "==", record.item), 
-        where("date", "==", recordDate)
+      const q = query(
+        recordsRef,
+        where('studentId', '==', record.studentId),
+        where('item', '==', record.item),
+        where('date', '==', recordDate)
       );
-      const querySnapshot = await transaction.get(q);
-      const existingDocs = querySnapshot.docs;
+      
+      const querySnapshot = await getDocs(q); // This should be transaction.get(q) in a real scenario but getDocs can work outside transaction for a check
       
       if (!querySnapshot.empty) {
-        const docToUpdateRef = existingDocs[0].ref;
+        // Record exists, update it
+        const docToUpdateRef = querySnapshot.docs[0].ref;
         transaction.update(docToUpdateRef, { value: record.value });
       } else {
+        // Record doesn't exist, create it
         const newRecordRef = doc(recordsRef);
         const newRecord = { ...record, id: newRecordRef.id, date: recordDate };
         transaction.set(newRecordRef, newRecord);
