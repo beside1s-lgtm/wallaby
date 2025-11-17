@@ -470,7 +470,8 @@ export const addOrUpdateRecord = async (record: Partial<MeasurementRecord> & Pic
         recordsRef,
         where('studentId', '==', record.studentId),
         where('item', '==', record.item),
-        where('date', '==', recordDate)
+        where('date', '==', recordDate),
+        limit(1)
       );
       
       const querySnapshot = await getDocs(q);
@@ -545,48 +546,67 @@ export const addOrUpdateRecords = async (school: string, recordsToProcess: (Omit
   await signIn();
   const recordsRef = collection(db, 'schools', school, 'records');
   const updatedRecords: MeasurementRecord[] = [];
+  
+  if (recordsToProcess.length === 0) {
+      return [];
+  }
+  
+  const firstRecord = recordsToProcess[0];
+  const recordDate = firstRecord.date;
+  const recordItem = firstRecord.item;
+  const studentIds = recordsToProcess.map(r => r.studentId);
+
+  // 1. Fetch all existing records for the given students, item, and date in one go.
+  const existingRecordsQuery = query(
+    recordsRef,
+    where('studentId', 'in', studentIds),
+    where('item', '==', recordItem),
+    where('date', '==', recordDate)
+  );
+
+  const existingDocsSnapshot = await getDocs(existingRecordsQuery);
+  const existingRecordsMap = new Map(existingDocsSnapshot.docs.map(doc => [doc.data().studentId, { id: doc.id, ...doc.data() } as MeasurementRecord]));
 
   const batch = writeBatch(db);
 
   for (const record of recordsToProcess) {
-    const q = query(
-      recordsRef,
-      where('studentId', '==', record.studentId),
-      where('item', '==', record.item),
-      where('date', '==', record.date)
-    );
-    
-    // We have to do getDocs outside of transaction/batch for this use case
-    const querySnapshot = await getDocs(q);
+    const existingRecord = existingRecordsMap.get(record.studentId);
 
-    if (!querySnapshot.empty) {
-      const docToUpdate = querySnapshot.docs[0];
-      batch.update(docToUpdate.ref, { value: record.value });
-      updatedRecords.push({ ...docToUpdate.data(), value: record.value } as MeasurementRecord);
+    if (existingRecord) {
+      // Update existing record
+      const docRef = doc(recordsRef, existingRecord.id);
+      batch.update(docRef, { value: record.value });
+      updatedRecords.push({ ...existingRecord, value: record.value });
     } else {
+      // Create new record
       const newRecordRef = doc(recordsRef);
-      const newRecord = { ...record, id: newRecordRef.id };
-      delete (newRecord as any).student; // clean up student object before saving
+      const newRecord = { 
+          id: newRecordRef.id,
+          studentId: record.studentId,
+          school: record.school,
+          item: record.item,
+          value: record.value,
+          date: record.date
+       };
       batch.set(newRecordRef, newRecord);
       updatedRecords.push(newRecord);
     }
   }
 
-  if (recordsToProcess.length > 0) {
-    await batch.commit().catch(e => {
-      if (e.code === 'permission-denied') {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: `schools/${school}/records`,
-          operation: 'write',
-          requestResourceData: { message: `Batch add/update ${recordsToProcess.length} records.` }
-        }));
-      }
-      throw e;
-    });
-  }
+  await batch.commit().catch(e => {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: `schools/${school}/records`,
+        operation: 'write',
+        requestResourceData: { message: `Batch add/update ${recordsToProcess.length} records.` }
+      }));
+    }
+    throw e;
+  });
 
   return updatedRecords;
 };
+
 
 export const getRecordsByStudent = async (school: string, studentId: string): Promise<MeasurementRecord[]> => {
   await signIn();
