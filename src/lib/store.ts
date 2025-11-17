@@ -493,7 +493,7 @@ export const addOrUpdateRecord = async (record: Partial<MeasurementRecord> & Pic
         where('date', '==', recordDate)
       );
       
-      const querySnapshot = await getDocs(q); // This should be transaction.get(q) in a real scenario but getDocs can work outside transaction for a check
+      const querySnapshot = await transaction.get(q);
       
       if (!querySnapshot.empty) {
         // Record exists, update it
@@ -562,92 +562,59 @@ export const deleteRecordsByDateAndItem = async (school: string, date: string, i
 
 export const addOrUpdateRecords = async (school: string, allStudents: Student[], newRecords: any[]) => {
   await signIn();
-  const batch = writeBatch(db);
-  const studentMap = new Map(allStudents.map(s => [`${s.school}-${s.grade}-${s.classNum}-${s.studentNum}-${s.name}`, s]));
-  const currentItems = await getItems(school);
-  const itemMap = new Map(currentItems.map(i => [i.name, i]));
   
-  const allExistingRecords = await getRecords(school);
-  const existingRecordsMap = new Map<string, MeasurementRecord>();
-  allExistingRecords.forEach(rec => {
-    const key = `${rec.studentId}-${rec.item}-${rec.date}`;
-    existingRecordsMap.set(key, rec);
-  });
+  const recordsToSave = [];
+  const recordsRef = collection(db, 'schools', school, 'records');
 
-  const newItemsToAdd: Omit<MeasurementItem, 'id' | 'category'>[] = [];
   for (const record of newRecords) {
-    if (record.item && !itemMap.has(record.item) && !newItemsToAdd.some(i => i.name === record.item)) {
-       newItemsToAdd.push({
-            name: record.item,
-            unit: record.unit || '점',
-            recordType: record.recordType || 'distance',
-            isPaps: false
-        });
-    }
-  }
-
-  if (newItemsToAdd.length > 0) {
-    const itemPromises = newItemsToAdd.map(item => addItem(school, item));
-    const addedItems = await Promise.all(itemPromises);
-    addedItems.forEach(item => itemMap.set(item.name, item));
-  }
-  
-  for (const record of newRecords) {
-    const studentKey = `${record.school}-${record.grade}-${record.classNum}-${record.studentNum}-${record.name}`;
-    const student = studentMap.get(studentKey);
-    const itemInfo = itemMap.get(record.item);
-    
-    if (!student || !itemInfo) continue;
-
     const recordDate = record.date || format(new Date(), 'yyyy-MM-dd');
-    let recordValue;
+    const q = query(
+      recordsRef,
+      where('studentId', '==', record.studentId),
+      where('item', '==', record.item),
+      where('date', '==', recordDate)
+    );
+    const querySnapshot = await getDocs(q);
 
-    if (itemInfo.isCompound) {
-      const h = parseFloat(record.height);
-      const w = parseFloat(record.weight);
-      if (isNaN(h) || isNaN(w) || h <= 0 || w <= 0) continue;
-      const heightInMeters = h / 100;
-      recordValue = parseFloat((w / (heightInMeters * heightInMeters)).toFixed(2));
+    if (!querySnapshot.empty) {
+      // Record exists, update it
+      const docToUpdate = querySnapshot.docs[0];
+      recordsToSave.push({
+        type: 'update',
+        ref: docToUpdate.ref,
+        data: { value: record.value },
+      });
     } else {
-      recordValue = parseFloat(record.value);
-      if(isNaN(recordValue)) continue;
-    }
-
-
-    const recordKey = `${student.id}-${record.item}-${recordDate}`;
-    const existingRecord = existingRecordsMap.get(recordKey);
-
-    const recordsCollectionRef = collection(db, 'schools', school, 'records');
-
-    if (existingRecord) {
-      if (existingRecord.value !== recordValue) {
-        const docRef = doc(recordsCollectionRef, existingRecord.id);
-        batch.update(docRef, { value: recordValue });
-      }
-    } else {
-      const newRecordRef = doc(recordsCollectionRef);
-      const recordToAdd = {
-        id: newRecordRef.id,
-        studentId: student.id,
-        school: school,
-        item: record.item,
-        value: recordValue,
-        date: recordDate,
-      };
-      batch.set(newRecordRef, recordToAdd);
+      // Record doesn't exist, create it
+      const newRecordRef = doc(recordsRef);
+      recordsToSave.push({
+        type: 'set',
+        ref: newRecordRef,
+        data: { ...record, id: newRecordRef.id, date: recordDate },
+      });
     }
   }
 
-  await batch.commit().catch(e => {
-    if (e.code === 'permission-denied') {
+  if (recordsToSave.length > 0) {
+    const batch = writeBatch(db);
+    recordsToSave.forEach(op => {
+      if (op.type === 'update') {
+        batch.update(op.ref, op.data);
+      } else {
+        batch.set(op.ref, op.data);
+      }
+    });
+    await batch.commit().catch(e => {
+      if (e.code === 'permission-denied') {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: `schools/${school}/records`,
-            operation: 'write',
-            requestResourceData: { message: `Batch add/update records.` }
+          path: `schools/${school}/records`,
+          operation: 'write',
+          requestResourceData: { message: `Batch add/update records.` }
         }));
-    }
-    throw e;
-  });
+      }
+      throw e;
+    });
+  }
 };
 
 export const getRecordsByStudent = async (school: string, studentId: string): Promise<MeasurementRecord[]> => {
