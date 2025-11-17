@@ -57,6 +57,7 @@ import { getPapsGrade, getCustomItemGrade, normalizePapsRecord, normalizeCustomR
 import { getRecords } from '@/lib/store';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { format } from 'date-fns';
 
 
 const chartConfig = {
@@ -84,7 +85,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 type AiReport = {
   type: 'scouting' | 'team';
-  data: ScoutingReportOutput | TeamAnalysisOutput;
+  data: ScoutingReportOutput;
 }
 
 export default function StudentDashboardPage() {
@@ -233,7 +234,7 @@ export default function StudentDashboardPage() {
     const matchesByRound = useMemo(() => {
         if (!tournament?.matches) return {};
         return tournament.matches.reduce((acc, match) => {
-        const round = match.round;
+        const round = match.round || 1;
         if (!acc[round]) acc[round] = [];
         acc[round].push(match);
         acc[round].sort((a, b) => a.matchNumber - b.matchNumber);
@@ -302,6 +303,7 @@ export default function StudentDashboardPage() {
             school: school,
             item: selectedItemName,
             value: valueToSave,
+            date: format(new Date(), 'yyyy-MM-dd'),
         });
 
         await fetchRecords();
@@ -768,7 +770,7 @@ export default function StudentDashboardPage() {
                 </Card>
             </TabsContent>
             <TabsContent value="my-competition" className="space-y-8 mt-6">
-                 <Card>
+                <Card>
                     <CardHeader className="text-center">
                     <CardTitle className="flex items-center justify-center gap-2">
                         <Swords /> {tournament?.name || "나의 대회"}
