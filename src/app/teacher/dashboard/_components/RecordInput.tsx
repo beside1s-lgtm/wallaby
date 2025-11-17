@@ -163,7 +163,6 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
 
   const inputPlaceholder = useMemo(() => {
     if (!selectedItemForSingleAdd) return "측정 결과 (숫자만 입력)";
-    if (selectedItemForSingleAdd.recordType === 'level') return "결과 (예: 상, 중, 하 또는 1, 2, 3)";
     return `결과 (${selectedItemForSingleAdd.unit})`;
   }, [selectedItemForSingleAdd]);
 
@@ -222,14 +221,6 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
       }
       const heightInMeters = h / 100;
       valueToSave = parseFloat((w / (heightInMeters * heightInMeters)).toFixed(2));
-    } else if (selectedItemForSingleAdd?.recordType === 'level') {
-        const levelMap: { [key: string]: number } = { '상': 1, '중': 2, '하': 3, '1': 1, '2': 2, '3': 3 };
-        const levelValue = levelMap[recordValue.trim().toLowerCase()];
-        if (!levelValue) {
-            toast({ variant: 'destructive', title: '입력 오류', description: '상, 중, 하 또는 1, 2, 3 중 하나를 입력해주세요.' });
-            return;
-        }
-        valueToSave = levelValue;
     } else {
       if (!recordValue) {
         toast({ variant: 'destructive', title: '입력 오류', description: '결과를 입력해주세요.' });
@@ -293,8 +284,6 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
 
         setIsBatchSubmitting(true);
         try {
-            const levelMap: { [key: string]: number } = { '상': 1, '중': 2, '하': 3, '1': 1, '2': 2, '3': 3 };
-
             const recordsToSave = Object.entries(batchRecords)
                 .map(([studentId, values]) => {
                     const student = studentsForBatch.find(s => s.id === studentId);
@@ -319,10 +308,6 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                         } else {
                             return null;
                         }
-                    } else if (selectedItemForBatchAdd?.recordType === 'level') {
-                        const levelValue = levelMap[(values.value || '').trim().toLowerCase()];
-                        if (!levelValue) return null;
-                        valueToSave = levelValue;
                     } else {
                         const numericValue = parseFloat(values.value || '');
                         if (isNaN(numericValue)) return null;
@@ -498,7 +483,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                                 </>
                             ) : (
                                 <>
-                                    <TableHead>기록 ({selectedItemForBatchAdd?.recordType === 'level' ? '상/중/하' : selectedItemForBatchAdd?.unit})</TableHead>
+                                    <TableHead>기록 ({selectedItemForBatchAdd?.unit})</TableHead>
                                     <TableHead>결과</TableHead>
                                 </>
                             )}
@@ -552,8 +537,8 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                                      <>
                                         <TableCell>
                                             <Input
-                                                type={selectedItemForBatchAdd?.recordType === 'level' ? 'text' : 'number'}
-                                                placeholder={selectedItemForBatchAdd?.recordType === 'level' ? '상/중/하' : (selectedItemForBatchAdd?.unit || '기록')}
+                                                type="number"
+                                                placeholder={selectedItemForBatchAdd?.unit || '기록'}
                                                 value={studentRecords.value || ''}
                                                 onChange={(e) => handleBatchRecordChange(student.id, 'value', e.target.value)}
                                                 className="max-w-[120px]"
@@ -668,7 +653,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                                         placeholder={inputPlaceholder}
                                         value={recordValue}
                                         onChange={e => setRecordValue(e.target.value)}
-                                        type={selectedItemForSingleAdd?.recordType === 'level' ? 'text' : 'number'}
+                                        type="number"
                                     />
                                 </div>
                             )}
