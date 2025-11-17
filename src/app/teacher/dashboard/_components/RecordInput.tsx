@@ -102,7 +102,11 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                 const student = studentMap.get(memberId);
                 return student ? { ...student, teamName: `팀 ${teamIndex + 1}`, teamMemberNumber: memberIndex + 1 } : null;
             }).filter((s): s is (Student & {teamName: string, teamMemberNumber: number}) => s !== null)
-        );
+        ).sort((a,b) => {
+            if(a.teamName < b.teamName) return -1;
+            if(a.teamName > b.teamName) return 1;
+            return a.teamMemberNumber - b.teamMemberNumber;
+        });
 
     } else if (selectedGrade && selectedClassNum) {
         return allStudents
@@ -159,7 +163,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
 
   const inputPlaceholder = useMemo(() => {
     if (!selectedItemForSingleAdd) return "측정 결과 (숫자만 입력)";
-    if (selectedItemForSingleAdd.recordType === 'level') return "결과 (예: 1=상, 2=중, 3=하)";
+    if (selectedItemForSingleAdd.recordType === 'level') return "결과 (예: 상, 중, 하 또는 1, 2, 3)";
     return `결과 (${selectedItemForSingleAdd.unit})`;
   }, [selectedItemForSingleAdd]);
 
@@ -208,6 +212,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
     }
     
     let valueToSave: number | null = null;
+
     if (selectedItemForSingleAdd?.isCompound) {
       const h = parseFloat(height);
       const w = parseFloat(weight);
@@ -217,6 +222,14 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
       }
       const heightInMeters = h / 100;
       valueToSave = parseFloat((w / (heightInMeters * heightInMeters)).toFixed(2));
+    } else if (selectedItemForSingleAdd?.recordType === 'level') {
+        const levelMap: { [key: string]: number } = { '상': 1, '중': 2, '하': 3, '1': 1, '2': 2, '3': 3 };
+        const levelValue = levelMap[recordValue.trim().toLowerCase()];
+        if (!levelValue) {
+            toast({ variant: 'destructive', title: '입력 오류', description: '상, 중, 하 또는 1, 2, 3 중 하나를 입력해주세요.' });
+            return;
+        }
+        valueToSave = levelValue;
     } else {
       if (!recordValue) {
         toast({ variant: 'destructive', title: '입력 오류', description: '결과를 입력해주세요.' });
@@ -280,6 +293,8 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
 
         setIsBatchSubmitting(true);
         try {
+            const levelMap: { [key: string]: number } = { '상': 1, '중': 2, '하': 3, '1': 1, '2': 2, '3': 3 };
+
             const recordsToSave = Object.entries(batchRecords)
                 .map(([studentId, values]) => {
                     const student = studentsForBatch.find(s => s.id === studentId);
@@ -296,16 +311,18 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                     if (selectedItemForBatchAdd?.isCompound) {
                         const h = parseFloat(values.height || '');
                         const w = parseFloat(values.weight || '');
-                        // Only proceed if both values are entered and valid
                         if (!isNaN(h) && !isNaN(w) && h > 0 && w > 0) {
                             const heightInMeters = h / 100;
                             valueToSave = parseFloat((w / (heightInMeters * heightInMeters)).toFixed(2));
                             recordData.height = h;
                             recordData.weight = w;
                         } else {
-                            // If any value is missing or invalid, don't save a BMI record for this student
                             return null;
                         }
+                    } else if (selectedItemForBatchAdd?.recordType === 'level') {
+                        const levelValue = levelMap[(values.value || '').trim().toLowerCase()];
+                        if (!levelValue) return null;
+                        valueToSave = levelValue;
                     } else {
                         const numericValue = parseFloat(values.value || '');
                         if (isNaN(numericValue)) return null;
@@ -481,7 +498,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                                 </>
                             ) : (
                                 <>
-                                    <TableHead>기록 ({selectedItemForBatchAdd?.unit || ''})</TableHead>
+                                    <TableHead>기록 ({selectedItemForBatchAdd?.recordType === 'level' ? '상/중/하' : selectedItemForBatchAdd?.unit})</TableHead>
                                     <TableHead>결과</TableHead>
                                 </>
                             )}
@@ -535,8 +552,8 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                                      <>
                                         <TableCell>
                                             <Input
-                                                type="number"
-                                                placeholder={selectedItemForBatchAdd?.unit || '기록'}
+                                                type={selectedItemForBatchAdd?.recordType === 'level' ? 'text' : 'number'}
+                                                placeholder={selectedItemForBatchAdd?.recordType === 'level' ? '상/중/하' : (selectedItemForBatchAdd?.unit || '기록')}
                                                 value={studentRecords.value || ''}
                                                 onChange={(e) => handleBatchRecordChange(student.id, 'value', e.target.value)}
                                                 className="max-w-[120px]"
@@ -651,7 +668,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                                         placeholder={inputPlaceholder}
                                         value={recordValue}
                                         onChange={e => setRecordValue(e.target.value)}
-                                        type="number"
+                                        type={selectedItemForSingleAdd?.recordType === 'level' ? 'text' : 'number'}
                                     />
                                 </div>
                             )}
