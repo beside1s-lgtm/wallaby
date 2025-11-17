@@ -77,10 +77,11 @@ interface TeamBalancerProps {
   allItems: MeasurementItem[];
   allRecords: MeasurementRecord[];
   teamGroups: TeamGroup[];
-  onTeamGroupUpdate: () => void;
+  onTeamGroupUpdate: (newGroup: TeamGroup) => void;
+  onTeamGroupDelete: (groupId: string) => void;
 }
 
-export default function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGroupUpdate }: TeamBalancerProps) {
+export default function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGroupUpdate, onTeamGroupDelete }: TeamBalancerProps) {
   const { school } = useAuth();
   const { toast } = useToast();
 
@@ -177,7 +178,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     if (!school || !selectedTeamGroupId) return;
     try {
       await deleteTeamGroup(school, selectedTeamGroupId);
-      await onTeamGroupUpdate();
+      onTeamGroupDelete(selectedTeamGroupId);
       resetToNewTeam();
       toast({ title: "삭제 완료", description: "선택한 팀 편성을 삭제했습니다." });
     } catch (error) {
@@ -531,14 +532,10 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                 }
             });
         } else { // 레벨별
-            const studentsPerTeam = Math.floor(studentsToDistribute.length / numTeamsForDivision);
-            let remainder = studentsToDistribute.length % numTeamsForDivision;
             let currentStudentIndex = 0;
-            for(let i = 0; i < numTeamsForDivision; i++) {
-                let teamSize = studentsPerTeam + (remainder > 0 ? 1 : 0);
-                newTeams[i] = studentsToDistribute.slice(currentStudentIndex, currentStudentIndex + teamSize);
-                currentStudentIndex += teamSize;
-                remainder--;
+            for(let i = 0; i < studentsToDistribute.length; i++) {
+                newTeams[currentStudentIndex % numTeamsForDivision].push(studentsToDistribute[i]);
+                currentStudentIndex++;
             }
         }
         return { teams: newTeams, leftovers: [] };
@@ -569,8 +566,8 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                 }
             });
         } else { // 레벨별
-            for (let i = 0; i < numTeamsForGroup; i++) {
-                newTeams[i] = groupToDistribute.slice(i * membersPerTeam, (i + 1) * membersPerTeam);
+             for (let i = 0; i < groupToDistribute.length; i++) {
+                newTeams[i % numTeamsForGroup].push(groupToDistribute[i]);
             }
         }
         
@@ -792,12 +789,12 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         teamData.membersPerTeam = membersPerTeam;
       }
       
-      await saveTeamGroup(teamData as TeamGroupInput);
+      const newGroup = await saveTeamGroup(teamData as TeamGroupInput);
       toast({
         title: "전달 완료",
         description: "편성된 팀 명단이 학생들에게 전달되었습니다.",
       });
-      onTeamGroupUpdate(); // Refresh list
+      onTeamGroupUpdate(newGroup); // Refresh list
     } catch (error) {
       console.error("Failed to send teams:", error);
       toast({

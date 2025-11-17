@@ -76,16 +76,24 @@ export default function TeacherDashboardPage() {
     await loadData();
   }, [loadData]);
   
-  const updateLocalRecords = useCallback((updatedRecords: MeasurementRecord[] | string, action: 'update' | 'delete') => {
-    if (action === 'delete' && typeof updatedRecords === 'string') {
-      setRecords(prev => prev.filter(r => r.id !== updatedRecords));
-    } else if (action === 'update' && Array.isArray(updatedRecords)) {
+  const updateLocalRecords = useCallback((updatedOrDeleted: MeasurementRecord[] | string, action: 'update' | 'delete') => {
+    if (action === 'delete' && typeof updatedOrDeleted === 'string') {
+      setRecords(prev => prev.filter(r => r.id !== updatedOrDeleted));
+    } else if (action === 'update' && Array.isArray(updatedOrDeleted)) {
       setRecords(prev => {
-        const updatedRecordMap = new Map(updatedRecords.map(r => [r.id, r]));
+        const updatedRecordMap = new Map(updatedOrDeleted.map(r => [r.id, r]));
         const newRecords = prev.filter(r => !updatedRecordMap.has(r.id));
-        return [...newRecords, ...updatedRecords];
+        return [...newRecords, ...updatedOrDeleted];
       });
     }
+  }, []);
+
+  const handleTeamGroupAdded = useCallback((newGroup: TeamGroup) => {
+    setTeamGroups(prev => [newGroup, ...prev]);
+  }, []);
+  
+  const handleTeamGroupDeleted = useCallback((groupId: string) => {
+    setTeamGroups(prev => prev.filter(g => g.id !== groupId));
   }, []);
 
   if (isLoading || isAuthLoading) {
@@ -201,7 +209,8 @@ export default function TeacherDashboardPage() {
                         allItems={items}
                         allRecords={records}
                         teamGroups={teamGroups}
-                        onTeamGroupUpdate={handleDataUpdate}
+                        onTeamGroupUpdate={handleTeamGroupAdded}
+                        onTeamGroupDelete={handleTeamGroupDeleted}
                     />
                 </TabsContent>
              </Tabs>

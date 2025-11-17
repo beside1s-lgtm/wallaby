@@ -548,7 +548,6 @@ export const addOrUpdateRecords = async (school: string, recordsToProcess: (Omit
   }
 
   const recordsRef = collection(db, 'schools', school, 'records');
-  const updatedRecords: MeasurementRecord[] = [];
   
   const firstRecord = recordsToProcess[0];
   const recordDate = firstRecord.date;
@@ -579,7 +578,7 @@ export const addOrUpdateRecords = async (school: string, recordsToProcess: (Omit
   });
 
   const batch = writeBatch(db);
-  const recordsToSave = [];
+  const recordsToSave: MeasurementRecord[] = [];
 
   for (const record of recordsToProcess) {
     const existingRecord = existingRecordsMap.get(record.studentId);
@@ -590,7 +589,7 @@ export const addOrUpdateRecords = async (school: string, recordsToProcess: (Omit
       recordsToSave.push({ ...existingRecord, value: record.value });
     } else {
       const newRecordRef = doc(recordsRef);
-      const newRecord = { 
+      const newRecord: MeasurementRecord = { 
           id: newRecordRef.id,
           studentId: record.studentId,
           school: record.school,
@@ -738,7 +737,7 @@ export const cleanUpDuplicateRecords = async (school: string): Promise<number> =
 };
 
 // --- Team Groups ---
-export const saveTeamGroup = async (teamGroupData: TeamGroupInput): Promise<void> => {
+export const saveTeamGroup = async (teamGroupData: TeamGroupInput): Promise<TeamGroup> => {
     await signIn();
     const teamGroupsRef = collection(db, 'schools', teamGroupData.school, 'teamGroups');
     
@@ -749,14 +748,13 @@ export const saveTeamGroup = async (teamGroupData: TeamGroupInput): Promise<void
     }));
 
     const newTeamGroupRef = doc(teamGroupsRef);
-    const dataToSave = {
+    const dataToSave: Omit<TeamGroup, 'createdAt'> = {
         ...teamGroupData,
-        teams: teamsWithIds,
+        teams: teamsWithIds.map((t, i) => ({ ...t, name: `팀 ${i+1}`})), // Default name, can be edited later
         id: newTeamGroupRef.id,
-        createdAt: serverTimestamp(),
     };
 
-    await setDoc(newTeamGroupRef, dataToSave).catch(e => {
+    await setDoc(newTeamGroupRef, {...dataToSave, createdAt: serverTimestamp()}).catch(e => {
         if (e.code === 'permission-denied') {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: newTeamGroupRef.path,
@@ -766,6 +764,9 @@ export const saveTeamGroup = async (teamGroupData: TeamGroupInput): Promise<void
         }
         throw e;
     });
+
+    const savedDoc = await getDoc(newTeamGroupRef);
+    return savedDoc.data() as TeamGroup;
 };
 
 export const getTeamGroups = async (school: string): Promise<TeamGroup[]> => {
