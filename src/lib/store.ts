@@ -491,7 +491,7 @@ export const addOrUpdateRecord = async (record: Partial<MeasurementRecord> & Pic
         where("item", "==", record.item), 
         where("date", "==", recordDate)
       );
-      const querySnapshot = await getDocs(q);
+      const querySnapshot = await transaction.get(q);
       const existingDocs = querySnapshot.docs;
       
       if (!querySnapshot.empty) {
