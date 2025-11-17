@@ -93,7 +93,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
   );
   const [selectedGrade, setSelectedGrade] = useState("");
   const [selectedClassNum, setSelectedClassNum] = useState("");
-  const [selectedGender, setSelectedGender] = useState<"all" | "남" | "여">(
+  const [selectedGender, setSelectedGender] = useState<"all" | "남" | "여" | "separate">(
     "all"
   );
   const [excludeNonParticipants, setExcludeNonParticipants] = useState(true);
@@ -239,7 +239,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         students = [];
     }
 
-    if (selectedGender !== "all") {
+    if (selectedGender !== "all" && selectedGender !== "separate") {
       students = students.filter((s) => s.gender === selectedGender);
     }
 
@@ -532,13 +532,13 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                 }
             });
         } else { // 레벨별
-            let currentStudentIndex = 0;
-            for(let i = 0; i < studentsToDistribute.length; i++) {
-                newTeams[currentStudentIndex % numTeamsForDivision].push(studentsToDistribute[i]);
-                currentStudentIndex++;
+            const studentsPerTeam = Math.ceil(studentsToDistribute.length / numTeamsForDivision);
+            for (let i = 0; i < numTeamsForDivision; i++) {
+                const teamSlice = studentsToDistribute.slice(i * studentsPerTeam, (i + 1) * studentsPerTeam);
+                newTeams[i] = teamSlice;
             }
         }
-        return { teams: newTeams, leftovers: [] };
+        return { teams: newTeams.filter(t => t.length > 0), leftovers: [] };
       } else { // divide by members
         const numTeamsForGroup = Math.floor(
           studentsToDistribute.length / membersPerTeam
@@ -566,8 +566,11 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                 }
             });
         } else { // 레벨별
-             for (let i = 0; i < groupToDistribute.length; i++) {
-                newTeams[i % numTeamsForGroup].push(groupToDistribute[i]);
+            const studentsPerLevel = numTeamsForGroup;
+            for(let i=0; i<groupToDistribute.length; i++) {
+                const level = Math.floor(i / studentsPerLevel);
+                const teamIndex = i % studentsPerLevel;
+                newTeams[teamIndex].push(groupToDistribute[i]);
             }
         }
         
@@ -576,25 +579,24 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     };
     
     // --- Main balancing logic ---
-    const effectiveNumTeams = divideBy === 'teams' ? numTeams : Math.floor(studentsToBalance.length / membersPerTeam);
+    const effectiveNumTeams = divideBy === 'teams' ? numTeams : Math.max(1, Math.floor(studentsToBalance.length / membersPerTeam));
+    if (effectiveNumTeams === 0 && divideBy !== 'single') {
+        toast({
+            variant: "destructive",
+            title: "팀 편성 불가",
+            description: "팀을 만들기에 학생 수가 부족합니다.",
+        });
+        return;
+    }
 
-    if (selectedGender === 'all') {
+    if (selectedGender === 'separate') {
         const maleStudents = studentsToBalance.filter(s => s.gender === '남');
         const femaleStudents = studentsToBalance.filter(s => s.gender === '여');
 
         const { teams: maleTeams, leftovers: maleLeftovers } = createTeamsForGroup(maleStudents, effectiveNumTeams);
         const { teams: femaleTeams, leftovers: femaleLeftovers } = createTeamsForGroup(femaleStudents, effectiveNumTeams);
 
-        const combinedTeams: Student[][] = [];
-        const maxTeams = Math.max(maleTeams.length, femaleTeams.length);
-
-        for (let i = 0; i < maxTeams; i++) {
-            const team = [...(maleTeams[i] || []), ...(femaleTeams[i] || [])];
-            if (team.length > 0) {
-                combinedTeams.push(team);
-            }
-        }
-        setTeams(combinedTeams);
+        setTeams([...maleTeams, ...femaleTeams]);
         setLeftoverStudents([...maleLeftovers, ...femaleLeftovers]);
 
     } else {
@@ -616,6 +618,11 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
       const studentA = teamA[0];
       const studentB = teamB[0];
       if (!studentA || !studentB) return 0;
+      
+      const genderOrder = {'남': 1, '여': 2};
+      const genderA = genderOrder[studentA.gender] || 3;
+      const genderB = genderOrder[studentB.gender] || 3;
+      if (genderA !== genderB) return genderA - genderB;
 
       const gradeA = parseInt(studentA.grade);
       const gradeB = parseInt(studentB.grade);
@@ -625,12 +632,10 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
       const classB = parseInt(studentB.classNum);
       if (classA !== classB) return classA - classB;
 
-      // To sort by team index within the same class, we need to find their original relative index.
-      const teamsInClassA = teams.filter(t => t.length > 0 && t[0].grade === studentA.grade && t[0].classNum === studentA.classNum);
-      const indexA = teamsInClassA.indexOf(teamA);
-      const indexB = teamsInClassA.indexOf(teamB);
+      const teamAIndex = teams.indexOf(teamA);
+      const teamBIndex = teams.indexOf(teamB);
       
-      return indexA - indexB;
+      return teamAIndex - teamBIndex;
     });
   }, [teams]);
 
@@ -948,11 +953,12 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                 onValueChange={(v) => setSelectedGender(v as any)}
                 disabled={!!selectedTeamGroupId}
               >
-                <SelectTrigger className="w-full sm:w-[120px]">
+                <SelectTrigger className="w-full sm:w-[150px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">전체(혼성)</SelectItem>
+                  <SelectItem value="separate">성별 분리 편성</SelectItem>
                   <SelectItem value="남">남</SelectItem>
                   <SelectItem value="여">여</SelectItem>
                 </SelectContent>
@@ -1386,9 +1392,9 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                    const firstStudent = team[0];
                    if (!firstStudent) return null;
                    
-                   const teamsInClass = sortedTeams.filter(t => t.length > 0 && t[0].grade === firstStudent.grade && t[0].classNum === firstStudent.classNum);
-                   const relativeIndex = teamsInClass.findIndex(t => t === team);
-                   const teamName = `${firstStudent.grade}-${firstStudent.classNum}반 ${relativeIndex + 1}팀`;
+                    const genderDisplay = selectedGender === 'separate' ? (firstStudent.gender === '남' ? '(남)' : '(여)') : '';
+                    const teamName = `${firstStudent.grade}-${firstStudent.classNum}반 ${genderDisplay} 팀 ${teams.indexOf(team) + 1}`;
+
                    const avgData = teamAverageScores.get(teams.indexOf(team));
 
                    const teamTotalScores = team.map(member => studentScores.get(member.id)?.totalScore || 0);
@@ -1437,9 +1443,13 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                                             const targetFirstStudent = targetTeam[0];
                                             if (!targetFirstStudent) return null;
                                             
-                                            const targetTeamsInClass = sortedTeams.filter(t => t.length > 0 && t[0].grade === targetFirstStudent.grade && t[0].classNum === targetFirstStudent.classNum);
-                                            const targetRelativeIndex = targetTeamsInClass.findIndex(t => t === targetTeam);
-                                            const targetTeamName = `${targetFirstStudent.grade}-${targetFirstStudent.classNum}반 ${targetRelativeIndex + 1}팀`;
+                                            // Ensure student can only be moved to a team of the same gender if separate was chosen
+                                            if (selectedGender === 'separate' && student.gender !== targetFirstStudent.gender) {
+                                                return null;
+                                            }
+
+                                            const targetGenderDisplay = selectedGender === 'separate' ? (targetFirstStudent.gender === '남' ? '(남)' : '(여)') : '';
+                                            const targetTeamName = `${targetFirstStudent.grade}-${targetFirstStudent.classNum}반 ${targetGenderDisplay} 팀 ${originalTargetIndex + 1}`;
                                             
                                             return (
                                                 <DropdownMenuItem key={originalTargetIndex} onClick={() => handleMoveStudent(student.id, originalIndex, originalTargetIndex)}>
