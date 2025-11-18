@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -25,11 +24,22 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Loader2, Rocket } from 'lucide-react';
-import { getSchoolByName } from '@/lib/store';
+import { initializeData, getSchoolByName } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { signIn } from '@/lib/firebase';
+import Link from 'next/link';
 
 const loginSchema = z.object({
   school: z.string().min(1, '학교 이름을 입력해주세요.'),
@@ -38,17 +48,40 @@ const loginSchema = z.object({
 
 type LoginValues = z.infer<typeof loginSchema>;
 
+const registerSchema = z.object({
+  school: z.string().min(1, '학교 이름을 입력해주세요.'),
+  password: z.string().min(4, '비밀번호는 4자 이상이어야 합니다.'),
+  confirmPassword: z.string(),
+}).refine(data => data.password === data.confirmPassword, {
+    message: '비밀번호가 일치하지 않습니다.',
+    path: ['confirmPassword'],
+});
+
+type RegisterValues = z.infer<typeof registerSchema>;
+
+
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
 
-  const form = useForm<LoginValues>({
+  const loginForm = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
       school: '',
       password: '',
+    },
+  });
+  
+  const registerForm = useForm<RegisterValues>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      school: '',
+      password: '',
+      confirmPassword: '',
     },
   });
 
@@ -91,6 +124,42 @@ export default function LoginPage() {
     }
   };
 
+  const handleRegister = async (values: RegisterValues) => {
+    setIsRegistering(true);
+    try {
+      await signIn();
+      const existingSchool = await getSchoolByName(values.school);
+
+      if (existingSchool) {
+        toast({ variant: 'destructive', title: '등록 실패', description: '이미 등록된 학교 이름입니다. 다른 이름을 사용해주세요.' });
+        setIsRegistering(false);
+        return;
+      }
+
+      await initializeData(values.school, values.password);
+      
+      login('teacher', { name: '교사', school: values.school });
+
+      toast({
+        title: '등록 성공',
+        description: `${values.school}이(가) 성공적으로 등록되었습니다. 초기 데이터가 설정됩니다.`
+      });
+
+      setIsRegisterDialogOpen(false);
+      router.push('/teacher/dashboard');
+
+    } catch (error) {
+      console.error("Registration failed: ", error);
+      toast({
+        variant: 'destructive',
+        title: '등록 실패',
+        description: '오류가 발생했습니다. 다시 시도해주세요.',
+      });
+    } finally {
+      setIsRegistering(false);
+    }
+  };
+
   const handleIconClick = (e: React.MouseEvent<SVGSVGElement>) => {
     e.preventDefault();
     const svgElement = e.currentTarget.outerHTML;
@@ -121,10 +190,10 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleTeacherLogin)} className="space-y-4">
+          <Form {...loginForm}>
+            <form onSubmit={loginForm.handleSubmit(handleTeacherLogin)} className="space-y-4">
               <FormField
-                control={form.control}
+                control={loginForm.control}
                 name="school"
                 render={({ field }) => (
                   <FormItem>
@@ -137,7 +206,7 @@ export default function LoginPage() {
                 )}
               />
               <FormField
-                control={form.control}
+                control={loginForm.control}
                 name="password"
                 render={({ field }) => (
                   <FormItem>
@@ -160,9 +229,73 @@ export default function LoginPage() {
            <div className="text-center text-sm text-muted-foreground">
              학교가 아직 등록되지 않았나요?
            </div>
-           <Button asChild variant="outline" className="w-full">
-             <Link href="/teacher/register">신규 학교 등록하기</Link>
-           </Button>
+           
+           <Dialog open={isRegisterDialogOpen} onOpenChange={setIsRegisterDialogOpen}>
+              <DialogTrigger asChild>
+                 <Button variant="outline" className="w-full">신규 학교 등록하기</Button>
+              </DialogTrigger>
+              <DialogContent>
+                  <DialogHeader>
+                      <DialogTitle>신규 학교 등록</DialogTitle>
+                      <DialogDescription>
+                          새로운 학교를 등록하고 교사 계정을 생성합니다.
+                      </DialogDescription>
+                  </DialogHeader>
+                  <Form {...registerForm}>
+                      <form onSubmit={registerForm.handleSubmit(handleRegister)} className="space-y-4">
+                          <FormField
+                              control={registerForm.control}
+                              name="school"
+                              render={({ field }) => (
+                                  <FormItem>
+                                      <FormLabel>학교 이름</FormLabel>
+                                      <FormControl>
+                                          <Input placeholder="예: 행복초등학교" {...field} />
+                                      </FormControl>
+                                      <FormMessage />
+                                  </FormItem>
+                              )}
+                          />
+                          <FormField
+                              control={registerForm.control}
+                              name="password"
+                              render={({ field }) => (
+                                  <FormItem>
+                                      <FormLabel>새 비밀번호 (4자 이상)</FormLabel>
+                                      <FormControl>
+                                          <Input type="password" {...field} />
+                                      </FormControl>
+                                      <FormMessage />
+                                  </FormItem>
+                              )}
+                          />
+                          <FormField
+                              control={registerForm.control}
+                              name="confirmPassword"
+                              render={({ field }) => (
+                                  <FormItem>
+                                      <FormLabel>비밀번호 확인</FormLabel>
+                                      <FormControl>
+                                          <Input type="password" {...field} />
+                                      </FormControl>
+                                      <FormMessage />
+                                  </FormItem>
+                              )}
+                          />
+                          <DialogFooter>
+                              <DialogClose asChild>
+                                  <Button type="button" variant="outline">취소</Button>
+                              </DialogClose>
+                              <Button type="submit" disabled={isRegistering}>
+                                  {isRegistering ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                  등록 및 로그인
+                              </Button>
+                          </DialogFooter>
+                      </form>
+                  </Form>
+              </DialogContent>
+           </Dialog>
+
            <Separator className="my-4" />
           <div className="text-center text-sm text-muted-foreground pt-4">
             학생으로 접속하시나요?
