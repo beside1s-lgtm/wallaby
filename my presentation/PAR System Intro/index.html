@@ -4,11 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>체육 성장 기록 시스템</title>
-    <!-- 1. 폰트 시스템 (Paperlogy) --><link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fonts-archive/Paperlogy/subsets/Paperlogy-dynamic-subset.css" type="text/css"/>
-    <!-- 2. 아이콘 시스템 (Font Awesome) - 프레젠테이션형 인포그래픽에 필요 --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- 1. 폰트 시스템 (Paperlogy) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/fonts-archive/Paperlogy/subsets/Paperlogy-dynamic-subset.css" type="text/css"/>
+    <!-- 2. 아이콘 시스템 (Font Awesome) - 프레젠테이션형 인포그래픽에 필요 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
     <style>
-        /* 3.2. [2단계] 알고즘적 테마 적용 */
+        /* 3.2. [2단계] 알고리즘적 테마 적용 */
         /* 사용자 이미지 분석 -> 신규 'Dark Tech' 테마 강제 적용 */
         :root {
             --primary-color: #8A9AFA; /* 이미지 로고/텍스트의 밝은 보라/파랑 */
@@ -84,15 +86,14 @@
             opacity: 0.8;
         }
 
-        /* 이미지 아이콘을 위한 CSS 스타일 */
+        /* [수정됨] 이미지 아이콘 크기 반응형으로 조절 */
         .dominant-icon-image {
-            width: 120px; 
-            height: 120px; 
+            width: 80%; /* 컨테이너의 80% */
+            max-width: 450px; /* 최대 크기 제한 */
+            height: auto; /* 비율 유지를 위해 자동 높이 */
             margin-bottom: 2rem;
             opacity: 0.9; 
-            object-fit: contain; /* [수정됨] cover -> contain 으로 변경하여 이미지가 잘리지 않게 함 */
-            /* [수정됨] 다크모드에서 이미지가 너무 밝을 경우를 대비 (필요시 주석 해제) */
-            /* filter: brightness(0.9) contrast(1.1); */
+            object-fit: contain; 
         }
 
         /* 2. 지배적 시각 요소 + 3. 텍스트 재구성 */
@@ -169,8 +170,6 @@
             top: 5px;
         }
 
-        /* [제거됨] Radar Chart 관련 CSS 모두 삭제 */
-
         /* 슬라이드 네비게이션 버튼 */
         .nav-btn {
             position: absolute;
@@ -216,8 +215,8 @@
     </style>
 </head>
 <body>
-
-    <!-- [3.0. 0단계] 콘텐츠 정제 및 개조식 변환 적용 --><!-- 슬라이드 1: MainTitle -->
+    <!-- v2.1: Image resize fix -->
+    <!-- 슬라이드 1: MainTitle -->
     <section class="slide hero" id="slide-1">
         <!-- 2순위: 지배적 시각 요소 (이미지) -->
         <!-- 'assets/1.png'를 실제 이미지 파일 경로로 변경해주세요. -->
@@ -316,17 +315,21 @@
         <a href="#slide-6" class="nav-btn next"><i class="fas fa-arrow-down"></i></a>
     </section>
 
-    <!-- 슬라이드 6: 지속적인 성장 관리 (짝수 - 텍스트/시각) --><section class="slide" id="slide-6">
+    <!-- 슬라이드 6: 지속적인 성장 관리 (짝수 - 텍스트/시각) -->
+    <section class="slide" id="slide-6">
         <div class="slide-content">
-            <!-- 3. 텍스트 재구성 --><div class="text-container">
+            <!-- 3. 텍스트 재구성 -->
+            <div class="text-container">
                 <h2>지속적인 성장 관리</h2>
                 <ul>
-                    <!-- 개조식 변환 적용 --><li>학년도 변경 시 간편한 진급 정보 업데이트</li>
+                    <!-- 개조식 변환 적용 -->
+                    <li>학년도 변경 시 간편한 진급 정보 업데이트</li>
                     <li>중단 없는 데이터 추적 및 기록 관리</li>
                     <li>장기적인 학생 성장 포트폴리오 구축</li>
                 </ul>
             </div>
-            <!-- 2순위: 지배적 시각 요소 (아이콘) --><div class="visual-container">
+            <!-- 2순위: 지배적 시각 요소 (아이콘) -->
+            <div class="visual-container">
                 <i class="fas fa-sync-alt dominant-icon"></i>
             </div>
         </div>
@@ -343,6 +346,5 @@
         <a href="#slide-6" class="nav-btn prev"><i class="fas fa-arrow-up"></i></a>
     </section>
 
-    <!-- [제거됨] Radar Chart 관련 JavaScript 삭제 -->
 </body>
 </html>
