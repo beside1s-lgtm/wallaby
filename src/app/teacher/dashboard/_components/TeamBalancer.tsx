@@ -53,6 +53,7 @@ import {
   Trash2,
   RefreshCw,
   ChevronDown,
+  Move,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -69,8 +70,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { cn } from "@/lib/utils";
 
 
 interface TeamBalancerProps {
@@ -90,6 +91,11 @@ type ClassSelection = {
     }
   }
 }
+
+type MovingStudentState = {
+  studentId: string;
+  sourceTeamIndex: number;
+} | null;
 
 export default function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGroupUpdate, onTeamGroupDelete }: TeamBalancerProps) {
   const { school } = useAuth();
@@ -126,6 +132,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
   >({});
   
   const [teamGroupName, setTeamGroupName] = useState("");
+  const [movingStudent, setMovingStudent] = useState<MovingStudentState>(null);
 
   const [scoutingReport, setScoutingReport] =
     useState<ScoutingReportOutput | null>(null);
@@ -215,7 +222,6 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
 
     setTeamGroupName(group.description);
     
-    // Restore class selection
     const newSelection: ClassSelection = {};
     const studentMap = new Map(allStudents.map(s => [s.id, s]));
     
@@ -529,7 +535,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
       
       if (divideBy === "teams") {
         const newTeams: Student[][] = Array.from({ length: numTeamsForDivision }, () => []);
-        if (balanceStrategy === 'uniform') { // 균등 편성 (지그재그)
+        if (balanceStrategy === 'uniform') { // 균등 편성 (지그재그/snake draft)
             let direction = 1;
             let teamIndex = 0;
             studentsToDistribute.forEach(student => {
@@ -540,11 +546,10 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                     teamIndex += direction;
                 }
             });
-        } else { // 레벨별 편성 (순서대로)
-            const studentsPerTeam = Math.ceil(studentsToDistribute.length / numTeamsForDivision);
-            for (let i = 0; i < numTeamsForDivision; i++) {
-                const teamSlice = studentsToDistribute.slice(i * studentsPerTeam, (i + 1) * studentsPerTeam);
-                newTeams[i] = teamSlice;
+        } else { // 레벨별 편성 (순서대로 그룹핑)
+             for(let i=0; i<studentsToDistribute.length; i++) {
+                const teamIndex = i % numTeamsForDivision;
+                newTeams[teamIndex].push(studentsToDistribute[i]);
             }
         }
         return { teams: newTeams.filter(t => t.length > 0), leftovers: [] };
@@ -716,31 +721,48 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     );
   };
   
-  const handleMoveStudent = (studentId: string, fromTeamIndex: number, toTeamIndex: number) => {
-    let studentToMove: Student | undefined;
+    const handleMoveStudent = (studentId: string, fromTeamIndex: number, toTeamIndex: number) => {
+        let studentToMove: Student | undefined;
 
-    // Find and remove student from the original team
-    const newFromTeam = teams[fromTeamIndex].filter(s => {
-        if (s.id === studentId) {
-            studentToMove = s;
-            return false;
+        const newFromTeam = teams[fromTeamIndex].filter(s => {
+            if (s.id === studentId) {
+                studentToMove = s;
+                return false;
+            }
+            return true;
+        });
+
+        if (!studentToMove) return;
+
+        const newToTeam = [...teams[toTeamIndex], studentToMove];
+
+        setTeams(prevTeams => {
+            const newTeams = [...prevTeams];
+            newTeams[fromTeamIndex] = newFromTeam;
+            newTeams[toTeamIndex] = newToTeam;
+            return newTeams.filter(team => team.length > 0);
+        });
+
+        setMovingStudent(null);
+    };
+
+    const handleStudentClick = (studentId: string, teamIndex: number) => {
+        if (movingStudent && movingStudent.studentId === studentId) {
+            setMovingStudent(null); // Deselect if clicking the same student
+        } else {
+            setMovingStudent({ studentId, sourceTeamIndex: teamIndex });
         }
-        return true;
-    });
+    };
 
-    if (!studentToMove) return;
+    const handleTeamCardClick = (targetTeamIndex: number) => {
+        if (movingStudent && movingStudent.sourceTeamIndex !== targetTeamIndex) {
+            handleMoveStudent(movingStudent.studentId, movingStudent.sourceTeamIndex, targetTeamIndex);
+        } else {
+            // Clicking outside or on the same team cancels the move
+            setMovingStudent(null);
+        }
+    };
 
-    // Add student to the new team
-    const newToTeam = [...teams[toTeamIndex], studentToMove];
-
-    // Update the teams state
-    setTeams(prevTeams => {
-        const newTeams = [...prevTeams];
-        newTeams[fromTeamIndex] = newFromTeam;
-        newTeams[toTeamIndex] = newToTeam;
-        return newTeams;
-    });
-  };
 
   const handleDownloadTeams = () => {
     if (teams.length === 0) {
@@ -1212,7 +1234,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         )}
 
         {(studentScores.size > 0 || teams.length > 0) && (
-          <div className="space-y-4 p-4 border rounded-md">
+          <div className="space-y-4 p-4 border rounded-md" onClick={(e) => { if (e.target === e.currentTarget) setMovingStudent(null); }}>
             <h3 className="font-semibold">3. 팀 편성</h3>
             <div className="flex flex-wrap items-end gap-4">
               <div>
@@ -1402,7 +1424,14 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                    const originalIndex = teams.indexOf(team);
 
                   return (
-                    <div key={originalIndex} className="border rounded-md p-4 space-y-2">
+                    <div
+                        key={originalIndex}
+                        className={cn(
+                            "border rounded-md p-4 space-y-2 cursor-pointer transition-all",
+                            movingStudent && movingStudent.sourceTeamIndex !== originalIndex ? "border-dashed border-primary hover:bg-primary/10" : "hover:bg-muted/50",
+                        )}
+                        onClick={() => handleTeamCardClick(originalIndex)}
+                    >
                       <h4 className="font-bold text-center border-b pb-2">
                         {teamName}
                         <span className="font-normal text-sm text-muted-foreground ml-2">({teamAverageTotalScore}점)</span>
@@ -1427,40 +1456,22 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                       <div className="text-sm pt-2 border-t">
                           <div className="flex flex-col gap-1">
                               {team.map((student) => (
-                                 <DropdownMenu key={student.id}>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" className="h-auto p-1 justify-start w-full text-left">
-                                            {student.name}
-                                            <ChevronDown className="h-4 w-4 ml-auto text-muted-foreground" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent>
-                                        <Label className="px-2 text-xs text-muted-foreground">다른 팀으로 이동</Label>
-                                        {sortedTeams.map((targetTeam, targetTeamIndex) => {
-                                            const originalTargetIndex = teams.indexOf(targetTeam);
-                                            if (originalIndex === originalTargetIndex) return null; // Don't show option to move to the same team
-                                            
-                                            const targetFirstStudent = targetTeam[0];
-                                            if (!targetFirstStudent) return null;
-                                            
-                                            // Ensure student can only be moved to a team of the same gender if separate was chosen
-                                            if (selectedGender === 'separate' && student.gender !== targetFirstStudent.gender) {
-                                                return null;
-                                            }
-
-                                            const targetGenderDisplay = selectedGender === 'separate' ? (targetFirstStudent.gender === '남' ? '(남)' : '(여)') : '';
-                                            const teamsInTargetClass = sortedTeams.filter(t => t.length > 0 && t[0].grade === targetFirstStudent.grade && t[0].classNum === targetFirstStudent.classNum && (selectedGender !== 'separate' || t[0].gender === targetFirstStudent.gender));
-                                            const targetRelativeIndex = teamsInTargetClass.findIndex(t => t === targetTeam);
-                                            const targetTeamName = `${targetFirstStudent.grade}-${targetFirstStudent.classNum}반 ${targetGenderDisplay} 팀 ${targetRelativeIndex + 1}`;
-                                            
-                                            return (
-                                                <DropdownMenuItem key={originalTargetIndex} onClick={() => handleMoveStudent(student.id, originalIndex, originalTargetIndex)}>
-                                                    {targetTeamName}으로 이동
-                                                </DropdownMenuItem>
-                                            );
-                                        })}
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
+                                <div
+                                    key={student.id}
+                                    onClick={(e) => {
+                                        e.stopPropagation(); // Prevent card click when clicking on a student
+                                        handleStudentClick(student.id, originalIndex);
+                                    }}
+                                    className={cn(
+                                        "flex items-center p-1 rounded-md cursor-pointer hover:bg-secondary",
+                                        movingStudent?.studentId === student.id && "bg-primary/20 ring-2 ring-primary"
+                                    )}
+                                >
+                                    <span>{student.name}</span>
+                                    {movingStudent?.studentId === student.id && (
+                                        <Move className="h-4 w-4 ml-auto text-primary" />
+                                    )}
+                                </div>
                               ))}
                           </div>
                       </div>
