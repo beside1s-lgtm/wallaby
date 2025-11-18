@@ -51,7 +51,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 4rem;
+            padding: 4rem 8rem; /* [수정됨] 좌우 여백 8rem으로 증가 */
             scroll-snap-align: start;
             border-bottom: 1px solid var(--border-color); /* 테마에 맞게 테두리색 변경 */
             position: relative; /* 네비게이션 버튼 배치를 위한 기준 */
@@ -65,31 +65,29 @@
         .slide.hero, .slide.thank-you {
             flex-direction: column;
             text-align: center;
-            /* [수정됨] 기본 배경색을 사용하도록 변경 */
             background-color: var(--background-color); 
-            color: var(--text-color); /* 3.2. [2단계]-4: 지능형 대비 보장 (자동) */
-            /* [수정됨] Hero와 Thankyou는 100vh 고정 유지 (내용물이 적으므로) */
+            color: var(--text-color); 
             height: 100vh; 
         }
 
         .slide.hero h1, .slide.thank-you h1 {
             font-size: 4rem;
             margin-bottom: 1rem;
-            color: var(--primary-color); /* [수정됨] 제목을 악센트 색상으로 강조 */
-            word-break: keep-all; /* [수정됨] 단어 줄바꿈 수정 */
+            color: var(--primary-color); 
+            word-break: keep-all; 
         }
 
         .slide.hero .dominant-icon, .slide.thank-you .dominant-icon {
             font-size: 6rem; /* 2순위: 거대한 아이콘 */
             margin-bottom: 2rem;
-            color: var(--primary-color); /* [수정됨] 아이콘을 악센트 색상으로 변경 */
+            color: var(--primary-color); 
             opacity: 0.8;
         }
 
         /* [수정됨] 이미지 아이콘 크기 반응형으로 조절 */
         .dominant-icon-image {
             width: 80%; /* 컨테이너의 80% */
-            max-width: 450px; /* 최대 크기 제한 */
+            max-width: 500px; /* [수정됨] 최대 크기 500px로 증가 */
             height: auto; /* 비율 유지를 위해 자동 높이 */
             margin-bottom: 2rem;
             opacity: 0.9; 
@@ -103,7 +101,7 @@
             gap: 4rem;
             align-items: center;
             width: 100%;
-            max-width: 1200px;
+            max-width: 1200px; /* [수정됨] 1200px로 복원 */
         }
 
         /* 4. 레이아웃 교차 적용 */
@@ -154,7 +152,7 @@
         }
 
         .text-container li {
-            font-size: 1.25rem;
+            font-size: 1.3rem; /* [수정됨] 텍스트 크기 증가 */
             margin-bottom: 1rem;
             padding-left: 2rem;
             position: relative;
@@ -215,7 +213,7 @@
     </style>
 </head>
 <body>
-    <!-- v2.1: Image resize fix -->
+    <!-- v2.4: Clean Rebuild -->
     <!-- 슬라이드 1: MainTitle -->
     <section class="slide hero" id="slide-1">
         <!-- 2순위: 지배적 시각 요소 (이미지) -->
