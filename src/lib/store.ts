@@ -506,30 +506,38 @@ export const setRecords = async (school: string, records: MeasurementRecord[]) =
 export const addOrUpdateRecord = async (record: Partial<MeasurementRecord> & Pick<MeasurementRecord, 'school' | 'studentId' | 'item' | 'value' | 'date'>): Promise<MeasurementRecord> => {
   await signIn();
   const recordsRef = collection(db, 'schools', record.school, 'records');
+  
+  const q = query(
+    recordsRef,
+    where('studentId', '==', record.studentId),
+    where('item', '==', record.item),
+    where('date', '==', record.date),
+    limit(1)
+  );
+
+  const querySnapshot = await getDocs(q).catch(e => {
+      if (e.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: recordsRef.path,
+            operation: 'list',
+            requestResourceData: { query: 'Find record to update' }
+        }));
+      }
+      throw e;
+  });
+
   let finalRecord: MeasurementRecord;
 
   try {
-    await runTransaction(db, async (transaction) => {
-      const q = query(
-        recordsRef,
-        where('studentId', '==', record.studentId),
-        where('item', '==', record.item),
-        where('date', '==', record.date),
-        limit(1)
-      );
-      
-      const querySnapshot = await transaction.get(q);
-      
-      if (!querySnapshot.empty) {
-        const docToUpdateRef = querySnapshot.docs[0].ref;
-        transaction.update(docToUpdateRef, { value: record.value });
-        finalRecord = { ...querySnapshot.docs[0].data(), value: record.value } as MeasurementRecord;
-      } else {
-        const newRecordRef = record.id ? doc(recordsRef, record.id) : doc(recordsRef);
-        finalRecord = { ...record, id: newRecordRef.id } as MeasurementRecord;
-        transaction.set(newRecordRef, finalRecord);
-      }
-    });
+    if (!querySnapshot.empty) {
+      const docToUpdateRef = querySnapshot.docs[0].ref;
+      await updateDoc(docToUpdateRef, { value: record.value });
+      finalRecord = { ...querySnapshot.docs[0].data(), id: docToUpdateRef.id, value: record.value } as MeasurementRecord;
+    } else {
+      const newRecordRef = record.id ? doc(recordsRef, record.id) : doc(recordsRef);
+      finalRecord = { ...record, id: newRecordRef.id } as MeasurementRecord;
+      await setDoc(newRecordRef, finalRecord);
+    }
   } catch (e: any) {
     if (e.code === 'permission-denied') {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -540,7 +548,7 @@ export const addOrUpdateRecord = async (record: Partial<MeasurementRecord> & Pic
     }
     throw e;
   }
-  // @ts-ignore
+  
   return finalRecord;
 };
 
