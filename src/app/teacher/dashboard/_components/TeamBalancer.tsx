@@ -6,6 +6,7 @@ import {
   exportToCsv,
   saveTeamGroup,
   deleteTeamGroup,
+  updateTeamGroup,
 } from "@/lib/store";
 import { Student, MeasurementItem, MeasurementRecord, TeamGroup, TeamGroupInput, Team } from "@/lib/types";
 import {
@@ -845,12 +846,26 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         teamData.membersPerTeam = membersPerTeam;
       }
       
-      const newGroup = await saveTeamGroup(teamData as TeamGroupInput);
-      toast({
-        title: "전달 완료",
-        description: "편성된 팀 명단이 학생들에게 전달되었습니다.",
-      });
-      onTeamGroupUpdate(newGroup);
+      let updatedGroup: TeamGroup;
+
+      if(selectedTeamGroupId) {
+        // Update existing group
+        updatedGroup = await updateTeamGroup(selectedTeamGroupId, teamData as TeamGroupInput);
+         toast({
+          title: "업데이트 완료",
+          description: "수정된 팀 명단이 학생들에게 업데이트되었습니다.",
+        });
+      } else {
+        // Create new group
+        updatedGroup = await saveTeamGroup(teamData as TeamGroupInput);
+        toast({
+          title: "전달 완료",
+          description: "편성된 팀 명단이 학생들에게 전달되었습니다.",
+        });
+      }
+
+      onTeamGroupUpdate(updatedGroup);
+
     } catch (error) {
       console.error("Failed to send teams:", error);
       toast({
@@ -934,15 +949,16 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                 <Accordion type="multiple" className="w-full sm:w-[400px] border rounded-md p-2 bg-background">
                     {grades.map(grade => (
                         <AccordionItem value={grade} key={grade}>
-                            <div className="flex items-center gap-2 pr-4">
+                            <div className="flex items-center gap-2">
                                 <Checkbox 
                                     id={`grade-all-${grade}`}
                                     checked={classSelection[grade]?.all}
                                     onCheckedChange={(checked) => handleGradeSelectionChange(grade, !!checked)}
                                     disabled={!!selectedTeamGroupId}
+                                    className="ml-2"
                                 />
-                                <AccordionTrigger>
-                                  <Label htmlFor={`grade-all-${grade}`} className="font-semibold flex-1 py-2">{grade}학년 전체</Label>
+                                <AccordionTrigger className="flex-1">
+                                  <Label htmlFor={`grade-all-${grade}`} className="font-semibold py-2 cursor-pointer">{grade}학년 전체</Label>
                                 </AccordionTrigger>
                             </div>
                             <AccordionContent className="pt-2 pl-6">
@@ -1344,7 +1360,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
               <Button
                 onClick={handleSendTeams}
                 disabled={
-                  teams.length === 0 || isSending || leftoverStudents.length > 0 || !!selectedTeamGroupId
+                  teams.length === 0 || isSending || leftoverStudents.length > 0
                 }
               >
                 {isSending ? (
@@ -1352,7 +1368,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                 ) : (
                   <Send className="mr-2 h-4 w-4" />
                 )}
-                학생들에게 전달
+                {selectedTeamGroupId ? "수정 내용 전달" : "학생들에게 전달"}
               </Button>
             </div>
 

@@ -822,6 +822,35 @@ export const saveTeamGroup = async (teamGroupData: TeamGroupInput): Promise<Team
     return savedDoc.data() as TeamGroup;
 };
 
+export const updateTeamGroup = async (teamGroupId: string, teamGroupData: TeamGroupInput): Promise<TeamGroup> => {
+    await signIn();
+    const teamGroupRef = doc(db, 'schools', teamGroupData.school, 'teamGroups', teamGroupId);
+    
+    const teamsWithIds: Omit<Team, 'name'>[] = teamGroupData.teams.map(team => ({
+        ...team,
+        id: team.id || uuidv4(),
+    }));
+
+    const dataToUpdate: Omit<TeamGroup, 'id' | 'createdAt'> = {
+        ...teamGroupData,
+        teams: teamsWithIds.map((t, i) => ({ ...t, name: `팀 ${i+1}`})),
+    };
+    
+    await updateDoc(teamGroupRef, dataToUpdate).catch(e => {
+        if (e.code === 'permission-denied') {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: teamGroupRef.path,
+                operation: 'update',
+                requestResourceData: dataToUpdate
+            }));
+        }
+        throw e;
+    });
+
+    const updatedDoc = await getDoc(teamGroupRef);
+    return updatedDoc.data() as TeamGroup;
+};
+
 export const getTeamGroups = async (school: string): Promise<TeamGroup[]> => {
   await signIn();
   const teamGroupsRef = collection(db, 'schools', school, 'teamGroups');
