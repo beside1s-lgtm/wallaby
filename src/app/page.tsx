@@ -34,7 +34,7 @@ import {
   DialogClose,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Loader2, Rocket } from 'lucide-react';
+import { Loader2, Rocket, Settings } from 'lucide-react';
 import { initializeData, getSchoolByName } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
@@ -160,151 +160,144 @@ export default function LoginPage() {
     }
   };
 
-  const handleIconClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    e.preventDefault();
-    const svgElement = e.currentTarget.outerHTML;
-    const blob = new Blob([svgElement], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'rocket-icon.svg';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-      <div className="flex items-center gap-4 mb-8 text-4xl font-bold text-primary">
-        <a href="#" title="Download Rocket Icon">
-          <Rocket className="w-12 h-12 cursor-pointer" onClick={handleIconClick} />
-        </a>
-        <h1 className="font-headline">체육 성장 기록 시스템</h1>
-      </div>
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>교사 로그인</CardTitle>
-          <CardDescription>
-            등록된 학교 이름과 비밀번호로 로그인하세요.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...loginForm}>
-            <form onSubmit={loginForm.handleSubmit(handleTeacherLogin)} className="space-y-4">
-              <FormField
-                control={loginForm.control}
-                name="school"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>학교 이름</FormLabel>
-                    <FormControl>
-                      <Input placeholder="예: 테스트초등학교" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={loginForm.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>비밀번호</FormLabel>
-                    <FormControl>
-                      <Input type="password" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                로그인
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-        <CardFooter className="flex-col items-center gap-4">
-           <div className="text-center text-sm text-muted-foreground">
-             학교가 아직 등록되지 않았나요?
-           </div>
-           
-           <Dialog open={isRegisterDialogOpen} onOpenChange={setIsRegisterDialogOpen}>
-              <DialogTrigger asChild>
-                 <Button variant="outline" className="w-full">신규 학교 등록하기</Button>
-              </DialogTrigger>
-              <DialogContent>
-                  <DialogHeader>
-                      <DialogTitle>신규 학교 등록</DialogTitle>
-                      <DialogDescription>
-                          새로운 학교를 등록하고 교사 계정을 생성합니다.
-                      </DialogDescription>
-                  </DialogHeader>
-                  <Form {...registerForm}>
-                      <form onSubmit={registerForm.handleSubmit(handleRegister)} className="space-y-4">
-                          <FormField
-                              control={registerForm.control}
-                              name="school"
-                              render={({ field }) => (
-                                  <FormItem>
-                                      <FormLabel>학교 이름</FormLabel>
-                                      <FormControl>
-                                          <Input placeholder="예: 행복초등학교" {...field} />
-                                      </FormControl>
-                                      <FormMessage />
-                                  </FormItem>
-                              )}
-                          />
-                          <FormField
-                              control={registerForm.control}
-                              name="password"
-                              render={({ field }) => (
-                                  <FormItem>
-                                      <FormLabel>새 비밀번호 (4자 이상)</FormLabel>
-                                      <FormControl>
-                                          <Input type="password" {...field} />
-                                      </FormControl>
-                                      <FormMessage />
-                                  </FormItem>
-                              )}
-                          />
-                          <FormField
-                              control={registerForm.control}
-                              name="confirmPassword"
-                              render={({ field }) => (
-                                  <FormItem>
-                                      <FormLabel>비밀번호 확인</FormLabel>
-                                      <FormControl>
-                                          <Input type="password" {...field} />
-                                      </FormControl>
-                                      <FormMessage />
-                                  </FormItem>
-                              )}
-                          />
-                          <DialogFooter>
-                              <DialogClose asChild>
-                                  <Button type="button" variant="outline">취소</Button>
-                              </DialogClose>
-                              <Button type="submit" disabled={isRegistering}>
-                                  {isRegistering ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                  등록 및 로그인
-                              </Button>
-                          </DialogFooter>
-                      </form>
-                  </Form>
-              </DialogContent>
-           </Dialog>
+    <div className="relative min-h-screen">
+        <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
+        <div className="flex items-center gap-4 mb-8 text-4xl font-bold text-primary">
+            <Rocket className="w-12 h-12" />
+            <h1 className="font-headline">체육 성장 기록 시스템</h1>
+        </div>
+        <Card className="w-full max-w-md">
+            <CardHeader>
+            <CardTitle>교사 로그인</CardTitle>
+            <CardDescription>
+                등록된 학교 이름과 비밀번호로 로그인하세요.
+            </CardDescription>
+            </CardHeader>
+            <CardContent>
+            <Form {...loginForm}>
+                <form onSubmit={loginForm.handleSubmit(handleTeacherLogin)} className="space-y-4">
+                <FormField
+                    control={loginForm.control}
+                    name="school"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>학교 이름</FormLabel>
+                        <FormControl>
+                        <Input placeholder="예: 테스트초등학교" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+                <FormField
+                    control={loginForm.control}
+                    name="password"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>비밀번호</FormLabel>
+                        <FormControl>
+                        <Input type="password" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+                <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    로그인
+                </Button>
+                </form>
+            </Form>
+            </CardContent>
+            <CardFooter className="flex-col items-center gap-4">
+            <div className="text-center text-sm text-muted-foreground">
+                학교가 아직 등록되지 않았나요?
+            </div>
+            
+            <Dialog open={isRegisterDialogOpen} onOpenChange={setIsRegisterDialogOpen}>
+                <DialogTrigger asChild>
+                    <Button variant="outline" className="w-full">신규 학교 등록하기</Button>
+                </DialogTrigger>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>신규 학교 등록</DialogTitle>
+                        <DialogDescription>
+                            새로운 학교를 등록하고 교사 계정을 생성합니다.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <Form {...registerForm}>
+                        <form onSubmit={registerForm.handleSubmit(handleRegister)} className="space-y-4">
+                            <FormField
+                                control={registerForm.control}
+                                name="school"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>학교 이름</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder="예: 행복초등학교" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={registerForm.control}
+                                name="password"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>새 비밀번호 (4자 이상)</FormLabel>
+                                        <FormControl>
+                                            <Input type="password" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={registerForm.control}
+                                name="confirmPassword"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>비밀번호 확인</FormLabel>
+                                        <FormControl>
+                                            <Input type="password" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                            <DialogFooter>
+                                <DialogClose asChild>
+                                    <Button type="button" variant="outline">취소</Button>
+                                </DialogClose>
+                                <Button type="submit" disabled={isRegistering}>
+                                    {isRegistering ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                    등록 및 로그인
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </Form>
+                </DialogContent>
+            </Dialog>
 
-           <Separator className="my-4" />
-          <div className="text-center text-sm text-muted-foreground pt-4">
-            학생으로 접속하시나요?
-          </div>
-          <Button asChild variant="outline" className="w-full">
-            <Link href="/student-login">학생 로그인</Link>
-          </Button>
-        </CardFooter>
-      </Card>
-    </main>
+            <Separator className="my-4" />
+            <div className="text-center text-sm text-muted-foreground pt-4">
+                학생으로 접속하시나요?
+            </div>
+            <Button asChild variant="outline" className="w-full">
+                <Link href="/student-login">학생 로그인</Link>
+            </Button>
+            </CardFooter>
+        </Card>
+        </main>
+        <footer className="absolute bottom-4 right-4">
+            <Link href="/admin">
+                <Button variant="ghost" size="icon">
+                    <Settings className="h-6 w-6 text-muted-foreground" />
+                </Button>
+            </Link>
+        </footer>
+    </div>
   );
 }

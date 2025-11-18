@@ -84,6 +84,51 @@ export const exportToCsv = (filename: string, rows: object[]) => {
   exportToCsvUtil(filename, rows);
 }
 
+export const getSchools = async (): Promise<School[]> => {
+    await signIn();
+    const schoolsRef = collection(db, 'schools');
+    const snapshot = await getDocs(schoolsRef).catch(e => {
+        if (e.code === 'permission-denied') {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: schoolsRef.path,
+                operation: 'list'
+            }));
+        }
+        throw e;
+    });
+    return snapshot.docs.map(doc => doc.data() as School);
+};
+
+export const deleteSchoolAndData = async (schoolName: string): Promise<void> => {
+    await signIn();
+    const batch = writeBatch(db);
+    
+    const collectionsToDelete = ['students', 'items', 'records', 'teamGroups', 'tournaments'];
+
+    for (const coll of collectionsToDelete) {
+        const collRef = collection(db, 'schools', schoolName, coll);
+        const snapshot = await getDocs(collRef);
+        snapshot.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+    }
+
+    const schoolRef = doc(db, 'schools', schoolName);
+    batch.delete(schoolRef);
+
+    await batch.commit().catch(e => {
+        if (e.code === 'permission-denied') {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: `schools/${schoolName}`,
+                operation: 'write',
+                requestResourceData: { message: `Deleting school ${schoolName} and all subcollections.` }
+            }));
+        }
+        throw e;
+    });
+};
+
+
 export const getSchoolByName = async (schoolName: string): Promise<School | null> => {
   await signIn();
   const schoolRef = doc(db, 'schools', schoolName);
