@@ -25,7 +25,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Loader2, Rocket } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { initializeData, getSchoolByName } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
 import { signIn } from '@/lib/firebase';
@@ -64,6 +64,7 @@ export default function RegisterPage() {
 
       if (existingSchool) {
         toast({ variant: 'destructive', title: '등록 실패', description: '이미 등록된 학교 이름입니다. 다른 이름을 사용해주세요.' });
+        setIsSubmitting(false);
         return;
       }
 
@@ -89,10 +90,26 @@ export default function RegisterPage() {
     }
   };
 
+  const handleIconClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    e.preventDefault();
+    const svgElement = e.currentTarget.outerHTML;
+    const blob = new Blob([svgElement], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'rocket-icon.svg';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
        <div className="flex items-center gap-4 mb-8 text-4xl font-bold text-primary">
-        <Rocket className="w-12 h-12" />
+        <a href="#" title="Download Rocket Icon">
+          <Rocket className="w-12 h-12 cursor-pointer" onClick={handleIconClick} />
+        </a>
         <h1 className="font-headline">체육 성장 기록 시스템</h1>
       </div>
       <Card className="w-full max-w-md">

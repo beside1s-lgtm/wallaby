@@ -60,16 +60,19 @@ export default function LoginPage() {
 
       if (!school) {
         toast({ variant: 'destructive', title: '로그인 실패', description: '등록되지 않은 학교입니다. 신규 등록을 진행해주세요.' });
+        setIsSubmitting(false);
         return;
       }
       
       if (!school.password) {
         toast({ variant: 'destructive', title: '로그인 실패', description: '비밀번호가 설정되지 않은 학교입니다. 관리자에게 문의하세요.' });
+        setIsSubmitting(false);
         return;
       }
 
       if (school.password !== values.password) {
         toast({ variant: 'destructive', title: '로그인 실패', description: '비밀번호가 일치하지 않습니다.' });
+        setIsSubmitting(false);
         return;
       }
       
@@ -88,10 +91,26 @@ export default function LoginPage() {
     }
   };
 
+  const handleIconClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    e.preventDefault();
+    const svgElement = e.currentTarget.outerHTML;
+    const blob = new Blob([svgElement], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'rocket-icon.svg';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
       <div className="flex items-center gap-4 mb-8 text-4xl font-bold text-primary">
-        <Rocket className="w-12 h-12" />
+        <a href="#" title="Download Rocket Icon">
+          <Rocket className="w-12 h-12 cursor-pointer" onClick={handleIconClick} />
+        </a>
         <h1 className="font-headline">체육 성장 기록 시스템</h1>
       </div>
       <Card className="w-full max-w-md">
