@@ -594,74 +594,38 @@ export const deleteRecordsByDateAndItem = async (school: string, date: string, i
     return snapshot.size;
 };
 
-export const addOrUpdateRecords = async (school: string, recordsToProcess: (Omit<MeasurementRecord, 'id'> & { student: Student })[]): Promise<MeasurementRecord[]> => {
+export const addOrUpdateRecords = async (school: string, students: Student[], parsedRecords: any[]): Promise<MeasurementRecord[]> => {
   await signIn();
-  if (recordsToProcess.length === 0) {
-    return [];
-  }
-
-  const recordsRef = collection(db, 'schools', school, 'records');
-  
-  const firstRecord = recordsToProcess[0];
-  const recordDate = firstRecord.date;
-  const recordItem = firstRecord.item;
-  const studentIds = recordsToProcess.map(r => r.studentId);
-  const studentIdChunks: string[][] = [];
-
-  for (let i = 0; i < studentIds.length; i += 30) {
-    studentIdChunks.push(studentIds.slice(i, i + 30));
-  }
-
-  const queryPromises = studentIdChunks.map(chunk => 
-    getDocs(query(
-      recordsRef,
-      where('studentId', 'in', chunk),
-      where('item', '==', recordItem),
-      where('date', '==', recordDate)
-    ))
-  );
-
-  const querySnapshots = await Promise.all(queryPromises);
-  const existingRecordsMap = new Map<string, MeasurementRecord>();
-  querySnapshots.forEach(snapshot => {
-    snapshot.docs.forEach(doc => {
-      const data = doc.data() as MeasurementRecord;
-      existingRecordsMap.set(data.studentId, { ...data, id: doc.id });
-    });
-  });
-
-  const batch = writeBatch(db);
   const recordsToSave: MeasurementRecord[] = [];
+  const studentMap = new Map(students.map(s => [`${s.grade}-${s.classNum}-${s.studentNum}-${s.name}`, s]));
 
-  for (const record of recordsToProcess) {
-    const existingRecord = existingRecordsMap.get(record.studentId);
-
-    if (existingRecord) {
-      const docRef = doc(recordsRef, existingRecord.id);
-      batch.update(docRef, { value: record.value });
-      recordsToSave.push({ ...existingRecord, value: record.value });
-    } else {
-      const newRecordRef = doc(recordsRef);
-      const newRecord: MeasurementRecord = { 
-          id: newRecordRef.id,
-          studentId: record.studentId,
-          school: record.school,
-          item: record.item,
-          value: record.value,
-          date: record.date
-       };
-      batch.set(newRecordRef, newRecord);
-      recordsToSave.push(newRecord);
+  for (const rec of parsedRecords) {
+    const studentKey = `${rec.grade}-${rec.classNum}-${rec.studentNum}-${rec.name}`;
+    const student = studentMap.get(studentKey);
+    if (student && rec.item && rec.value && rec.date) {
+      recordsToSave.push({
+        id: uuidv4(),
+        school,
+        studentId: student.id,
+        item: rec.item,
+        value: parseFloat(rec.value),
+        date: rec.date,
+      });
     }
   }
 
   if (recordsToSave.length > 0) {
+    const batch = writeBatch(db);
+    recordsToSave.forEach(record => {
+      const docRef = doc(collection(db, 'schools', school, 'records'));
+      batch.set(docRef, { ...record, id: docRef.id });
+    });
     await batch.commit().catch(e => {
         if (e.code === 'permission-denied') {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: `schools/${school}/records`,
                 operation: 'write',
-                requestResourceData: { message: `Batch add/update ${recordsToSave.length} records.` }
+                requestResourceData: { message: `Batch uploading ${recordsToSave.length} records.` }
             }));
         }
         throw e;
@@ -836,7 +800,7 @@ export const updateTeamGroup = async (teamGroupId: string, teamGroupData: TeamGr
         teams: teamsWithIds.map((t, i) => ({ ...t, name: `팀 ${i+1}`})),
     };
     
-    await updateDoc(teamGroupRef, dataToUpdate).catch(e => {
+    await updateDoc(teamGroupRef, dataToUpdate as any).catch(e => {
         if (e.code === 'permission-denied') {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: teamGroupRef.path,
@@ -925,6 +889,7 @@ export const saveTournament = async (tournament: Omit<Tournament, 'id' | 'create
   if (tournament.teamGroupId === undefined) delete dataToSave.teamGroupId;
   if (tournament.grade === undefined) delete dataToSave.grade;
   if (tournament.gender === undefined) delete dataToSave.gender;
+  if (tournament.meetingsPerTeam === undefined) delete dataToSave.meetingsPerTeam;
 
 
   await setDoc(newDocRef, dataToSave).catch(e => {
