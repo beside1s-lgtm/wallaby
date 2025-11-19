@@ -306,8 +306,15 @@ export default function TournamentManagement({
                   const firstStudent = t.memberIds.length > 0 ? studentMap.get(t.memberIds[0]) : null;
                   const genderDisplay = group.gender === 'separate' ? (firstStudent?.gender === '남' ? '(남)' : '(여)') : '';
                   
+                  const teamsInClass = group.teams.filter(team => {
+                    const fs = team.memberIds.length > 0 ? studentMap.get(team.memberIds[0]) : null;
+                    if (!fs || !firstStudent) return false;
+                    return fs.grade === firstStudent.grade && fs.classNum === firstStudent.classNum && (group.gender !== 'separate' || fs.gender === firstStudent.gender);
+                  });
+                  const relativeIndex = teamsInClass.findIndex(team => team.id === t.id);
+
                   const teamName = firstStudent 
-                    ? `${firstStudent.grade}-${firstStudent.classNum}반 ${genderDisplay} 팀 ${t.teamIndex + 1}`.trim()
+                    ? `${firstStudent.grade}-${firstStudent.classNum}반 ${genderDisplay} 팀 ${relativeIndex + 1}`.trim()
                     : `팀 ${t.teamIndex + 1}`;
 
                   return { ...t, id: uuidv4(), name: teamName };
@@ -754,7 +761,7 @@ export default function TournamentManagement({
             <CardTitle>{currentTournament.name} 대진표</CardTitle>
           </CardHeader>
           <CardContent className="overflow-x-auto p-4">
-            <div className="flex justify-center">
+            <div className="flex justify-center min-w-max">
               <div className="flex items-start space-x-8">
                 {Object.entries(matchesByRound).map(([round, matches]) => (
                   <div key={round} className="flex flex-col space-y-4 min-w-[180px]">

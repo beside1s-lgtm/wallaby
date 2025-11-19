@@ -784,7 +784,7 @@ export default function StudentDashboardPage() {
                     </CardHeader>
                     <CardContent className="overflow-x-auto p-4">
                     {tournament && Object.keys(matchesByRound).length > 0 ? (
-                        <div className="flex justify-center">
+                        <div className="flex justify-center min-w-max">
                         <div className="flex items-start space-x-8">
                             {Object.entries(matchesByRound).map(([round, matches]) => (
                                 <div
