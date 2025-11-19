@@ -191,6 +191,10 @@ function generateLeagueMatches(teams: Team[], meetingsPerTeam: number): { matche
 /* -------------------------------------------------------
  * 메인 컴포넌트
  * ----------------------------------------------------- */
+interface TournamentManagementProps {
+    onTournamentUpdate: () => void;
+    allTeamGroups: TeamGroup[];
+}
 export default function TournamentManagement({
   onTournamentUpdate,
   allTeamGroups
@@ -305,7 +309,7 @@ export default function TournamentManagement({
           ? generateTournamentBracket(teamsForBracket)
           : generateLeagueMatches(teamsForBracket, meetingsPerTeam);
 
-        let tournamentData: Omit<Tournament, "id" | "createdAt"> = {
+        let tournamentData: Omit<Tournament, 'id' | 'createdAt'> = {
           school,
           name: tournamentName,
           type: tournamentType,

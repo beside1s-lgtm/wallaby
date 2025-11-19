@@ -782,11 +782,10 @@ export default function StudentDashboardPage() {
                         : "참가 중인 대회가 없습니다."}
                     </CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="overflow-x-auto p-4">
                     {tournament && Object.keys(matchesByRound).length > 0 ? (
-                        <div className="overflow-x-auto p-4">
                         <div className="flex justify-center">
-                            <div className="flex items-start space-x-8">
+                        <div className="flex items-start space-x-8">
                             {Object.entries(matchesByRound).map(([round, matches]) => (
                                 <div
                                 key={round}
@@ -848,7 +847,6 @@ export default function StudentDashboardPage() {
                                 </div>
                             ))}
                             </div>
-                        </div>
                         </div>
                     ) : (
                         <div className="flex items-center justify-center h-24 text-muted-foreground">
