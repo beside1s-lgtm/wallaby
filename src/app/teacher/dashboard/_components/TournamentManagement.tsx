@@ -194,10 +194,12 @@ function generateLeagueMatches(teams: Team[], meetingsPerTeam: number): { matche
 interface TournamentManagementProps {
     onTournamentUpdate: () => void;
     allTeamGroups: TeamGroup[];
+    allStudents: Student[];
 }
 export default function TournamentManagement({
   onTournamentUpdate,
-  allTeamGroups
+  allTeamGroups,
+  allStudents
 }: TournamentManagementProps) {
   const { school } = useAuth();
   const { toast } = useToast();
@@ -295,9 +297,25 @@ export default function TournamentManagement({
           toast({ title: "변경 사항 없음" });
         }
       } else {
-         const teamsForBracket = teamSource === 'group' 
-            ? allTeamGroups.find(g => g.id === selectedTeamGroupId)?.teams.map((t, index) => ({...t, id: uuidv4(), name: `팀 ${t.teamIndex + 1}`})) || []
-            : teamList;
+         let teamsForBracket: Team[] = [];
+         if (teamSource === 'group' && selectedTeamGroupId) {
+            const group = allTeamGroups.find(g => g.id === selectedTeamGroupId);
+            if(group) {
+              const studentMap = new Map(allStudents.map(s => [s.id, s]));
+              teamsForBracket = group.teams.map((t) => {
+                  const firstStudent = t.memberIds.length > 0 ? studentMap.get(t.memberIds[0]) : null;
+                  const genderDisplay = group.gender === 'separate' ? (firstStudent?.gender === '남' ? '(남)' : '(여)') : '';
+                  
+                  const teamName = firstStudent 
+                    ? `${firstStudent.grade}-${firstStudent.classNum}반 ${genderDisplay} 팀 ${t.teamIndex + 1}`.trim()
+                    : `팀 ${t.teamIndex + 1}`;
+
+                  return { ...t, id: uuidv4(), name: teamName };
+              })
+            }
+         } else {
+            teamsForBracket = teamList;
+         }
 
          if (teamsForBracket.length < 2) {
           toast({ variant: "destructive", title: "팀 부족", description: "대진표를 생성하려면 최소 2팀이 필요합니다." });
@@ -769,7 +787,9 @@ export default function TournamentManagement({
                     <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
                         {currentTournament.matches.map(match => (
                             <LeagueMatchNode key={match.id} match={match} teamNameMap={teamNameMap} matchResults={matchResults}
-                                onResultChange={handleMatchResultChange} onUpdateMatch={handleUpdateMatch} onResetMatch={handleResetMatch} />
+                                onResultChange={handleMatchResultChange} onUpdateMatch={handleUpdateMatch} onResetMatch={handleResetMatch} 
+                                onUpdateTeamName={handleUpdateTeamName}
+                                />
                         ))}
                     </div>
                 </div>
@@ -813,20 +833,20 @@ export default function TournamentManagement({
  * 하위 컴포넌트
  * ----------------------------------------------------- */
 
-const LeagueMatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateMatch, onResetMatch }: {
+const LeagueMatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateMatch, onResetMatch, onUpdateTeamName }: {
   match: Match; teamNameMap: Map<string, string>; matchResults: Record<string, { scoreA: string; scoreB: string }>;
   onResultChange: (matchId: string, team: "A" | "B", score: string) => void;
   onUpdateMatch: (matchId: string) => void; onResetMatch: (matchId: string) => void;
+  onUpdateTeamName: (teamId: string, newName: string) => void;
 }) => {
-    const teamA = match.teamAId ? teamNameMap.get(match.teamAId) ?? "미정" : "미정";
-    const teamB = match.teamBId ? teamNameMap.get(match.teamBId) ?? "미정" : "미정";
-
     return (
         <Card className="p-3">
             <div className="flex items-center justify-between">
-                <span className="font-semibold text-sm">{teamA}</span>
+                <TeamNameEditor teamId={match.teamAId} name={match.teamAId ? teamNameMap.get(match.teamAId) ?? "미정" : "미정"}
+                  onUpdate={onUpdateTeamName} className="font-semibold text-sm" />
                 <span className="text-xs text-muted-foreground">VS</span>
-                <span className="font-semibold text-sm">{teamB}</span>
+                <TeamNameEditor teamId={match.teamBId} name={match.teamBId ? teamNameMap.get(match.teamBId) ?? "미정" : "미정"}
+                  onUpdate={onUpdateTeamName} className="font-semibold text-sm" />
             </div>
             <div className="flex items-center justify-center gap-2 mt-2">
                  <Input type="number" className="h-8 w-16 text-center" placeholder="-" value={matchResults[match.id]?.scoreA ?? ""}

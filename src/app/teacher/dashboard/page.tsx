@@ -88,8 +88,17 @@ export default function TeacherDashboardPage() {
     }
   }, []);
 
-  const handleTeamGroupAdded = useCallback((newGroup: TeamGroup) => {
-    setTeamGroups(prev => [newGroup, ...prev]);
+  const handleTeamGroupAddedOrUpdated = useCallback((updatedGroup: TeamGroup) => {
+    setTeamGroups(prev => {
+      const index = prev.findIndex(g => g.id === updatedGroup.id);
+      if (index > -1) {
+        const newGroups = [...prev];
+        newGroups[index] = updatedGroup;
+        return newGroups;
+      } else {
+        return [updatedGroup, ...prev];
+      }
+    });
   }, []);
   
   const handleTeamGroupDeleted = useCallback((groupId: string) => {
@@ -201,7 +210,11 @@ export default function TeacherDashboardPage() {
                     <TabsTrigger value="team-balancer"><Shuffle className="mr-2 h-4 w-4" />팀 자동 편성</TabsTrigger>
                 </TabsList>
                 <TabsContent value="tournament-management">
-                    <TournamentManagement onTournamentUpdate={handleDataUpdate} allTeamGroups={teamGroups} />
+                    <TournamentManagement 
+                      onTournamentUpdate={handleDataUpdate} 
+                      allTeamGroups={teamGroups} 
+                      allStudents={students}
+                    />
                 </TabsContent>
                 <TabsContent value="team-balancer">
                     <TeamBalancer
@@ -209,7 +222,7 @@ export default function TeacherDashboardPage() {
                         allItems={items}
                         allRecords={records}
                         teamGroups={teamGroups}
-                        onTeamGroupUpdate={handleTeamGroupAdded}
+                        onTeamGroupUpdate={handleTeamGroupAddedOrUpdated}
                         onTeamGroupDelete={handleTeamGroupDeleted}
                     />
                 </TabsContent>
