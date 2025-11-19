@@ -949,21 +949,21 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                 <Accordion type="multiple" className="w-full sm:w-[400px] border rounded-md p-2 bg-background">
                     {grades.map(grade => (
                         <AccordionItem value={grade} key={grade}>
-                            <div className="flex items-center space-x-2 py-2">
-                                <Checkbox 
-                                    id={`grade-all-${grade}`}
-                                    checked={classSelection[grade]?.all || false}
-                                    onCheckedChange={(checked) => handleGradeSelectionChange(grade, !!checked)}
-                                    disabled={!!selectedTeamGroupId}
-                                    className="ml-2"
-                                />
-                                <AccordionTrigger asChild>
-                                    <Label htmlFor={`grade-all-${grade}`} className="font-semibold cursor-pointer flex-1 flex justify-between items-center">
+                            <AccordionTrigger>
+                                <div className="flex items-center space-x-2 py-2 flex-1">
+                                    <Checkbox 
+                                        id={`grade-all-${grade}`}
+                                        checked={classSelection[grade]?.all || false}
+                                        onCheckedChange={(checked) => handleGradeSelectionChange(grade, !!checked)}
+                                        disabled={!!selectedTeamGroupId}
+                                        className="ml-2"
+                                        onClick={(e) => e.stopPropagation()}
+                                    />
+                                    <Label htmlFor={`grade-all-${grade}`} className="font-semibold cursor-pointer flex-1">
                                         {grade}학년 전체
-                                        <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
                                     </Label>
-                                </AccordionTrigger>
-                            </div>
+                                </div>
+                            </AccordionTrigger>
                             <AccordionContent className="pt-2 pl-6">
                                 <div className="grid grid-cols-3 gap-2">
                                     {classNumsByGrade[grade]?.map(classNum => (
@@ -1425,31 +1425,31 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
 
             {sortedTeams.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
-                {sortedTeams.map((team, teamIndex) => {
-                   const firstStudent = team[0];
-                   if (!firstStudent) return null;
-                   
-                    const genderDisplay = selectedGender === 'separate' ? (firstStudent.gender === '남' ? '(남)' : '(여)') : '';
-                    
-                    const teamsInClass = sortedTeams.filter(t => t.length > 0 && t[0].grade === firstStudent.grade && t[0].classNum === firstStudent.classNum && (selectedGender !== 'separate' || t[0].gender === firstStudent.gender));
-                    const relativeIndex = teamsInClass.findIndex(t => t === team);
+                {sortedTeams.map((team, index) => {
+                  const originalIndex = teams.indexOf(team);
+                  const firstStudent = team[0];
+                  if (!firstStudent) return null;
+                  
+                  const genderDisplay = selectedGender === 'separate' ? (firstStudent.gender === '남' ? '(남)' : '(여)') : '';
+                  
+                  const teamsInClass = sortedTeams.filter(t => t.length > 0 && t[0].grade === firstStudent.grade && t[0].classNum === firstStudent.classNum && (selectedGender !== 'separate' || t[0].gender === firstStudent.gender));
+                  const relativeIndex = teamsInClass.findIndex(t => t === team);
 
-                    const teamName = `${firstStudent.grade}-${firstStudent.classNum}반 ${genderDisplay} 팀 ${relativeIndex + 1}`;
+                  const teamName = `${firstStudent.grade}-${firstStudent.classNum}반 ${genderDisplay} 팀 ${relativeIndex + 1}`;
 
-                   const avgData = teamAverageScores.get(teams.indexOf(team));
+                  const avgData = teamAverageScores.get(originalIndex);
 
-                   const teamTotalScores = team.map(member => studentScores.get(member.id)?.totalScore || 0);
-                   const teamAverageTotalScore = teamTotalScores.length > 0 ? Math.round(teamTotalScores.reduce((a, b) => a + b, 0) / teamTotalScores.length) : 0;
-                   const originalIndex = teams.indexOf(team);
+                  const teamTotalScores = team.map(member => studentScores.get(member.id)?.totalScore || 0);
+                  const teamAverageTotalScore = teamTotalScores.length > 0 ? Math.round(teamTotalScores.reduce((a, b) => a + b, 0) / teamTotalScores.length) : 0;
 
                   return (
                     <div
-                        key={`${originalIndex}-${firstStudent.id}`}
-                        className={cn(
-                            "border rounded-md p-4 space-y-2 cursor-pointer transition-all",
-                            movingStudent && movingStudent.sourceTeamIndex !== originalIndex ? "border-dashed border-primary hover:bg-primary/10" : "hover:bg-muted/50",
-                        )}
-                        onClick={() => handleTeamCardClick(originalIndex)}
+                      key={`${originalIndex}-${firstStudent.id}`}
+                      className={cn(
+                          "border rounded-md p-4 space-y-2 cursor-pointer transition-all",
+                          movingStudent && movingStudent.sourceTeamIndex !== originalIndex ? "border-dashed border-primary hover:bg-primary/10" : "hover:bg-muted/50",
+                      )}
+                      onClick={() => handleTeamCardClick(originalIndex)}
                     >
                       <h4 className="font-bold text-center border-b pb-2">
                         {teamName}
