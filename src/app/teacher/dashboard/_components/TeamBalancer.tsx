@@ -681,7 +681,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     const averages = new Map<number, { item: string; score: number }[]>();
     if (selectedItemNames.length === 0) return averages;
 
-    sortedTeams.forEach((team, teamIndex) => {
+    sortedTeams.forEach((team, index) => {
         const originalIndex = teams.indexOf(team);
         const teamScores: { [key: string]: number[] } = {};
         selectedItemNames.forEach(name => { teamScores[name] = []; });
