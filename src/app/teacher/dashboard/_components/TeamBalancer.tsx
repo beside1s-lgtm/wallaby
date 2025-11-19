@@ -216,27 +216,25 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     setSelectedStudentId(null);
   };
   
-  const handleLoadTeamGroup = (groupId: string) => {
+ const handleLoadTeamGroup = (groupId: string) => {
     setSelectedTeamGroupId(groupId);
     const group = savedTeamGroups.find(g => g.id === groupId);
     if (!group) return;
 
     setTeamGroupName(group.description);
-    
-    const newSelection: ClassSelection = {};
+
     const studentMap = new Map(allStudents.map(s => [s.id, s]));
-    
+
     const teamsWithMembers: Team[] = group.teams.map(team => ({
         ...team,
         members: team.memberIds.map(id => studentMap.get(id)).filter((s): s is Student => !!s)
     }));
 
+    const newSelection: ClassSelection = {};
     grades.forEach(grade => {
         newSelection[grade] = { all: false, classes: {} };
         classNumsByGrade[grade]?.forEach(classNum => {
-            const isSelected = teamsWithMembers.some(team => 
-                team.members && team.members.some(member => member.grade === grade && member.classNum === classNum)
-            );
+            const isSelected = teamsWithMembers.some(team => team.members && team.members.some(member => member.grade === grade && member.classNum === classNum));
             newSelection[grade].classes[classNum] = isSelected;
         });
         const allSelected = classNumsByGrade[grade]?.every(cn => newSelection[grade].classes[cn]);
@@ -255,6 +253,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     
     toast({ title: "팀 편성 로드 완료", description: `'${group.description}' 정보를 불러왔습니다.`});
   };
+
 
   const handleDeleteTeamGroup = async () => {
     if (!school || !selectedTeamGroupId) return;
@@ -827,7 +826,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     }
     setIsSending(true);
     try {
-      const teamData: Partial<TeamGroupInput> = {
+      const teamData: TeamGroupInput = {
         school,
         description: teamGroupName,
         teams: teams.map((team, index) => ({
@@ -837,27 +836,20 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         itemNamesForBalancing: selectedItemNames,
         gender: selectedGender,
         divideBy,
+        numTeams: divideBy === 'teams' ? numTeams : undefined,
+        membersPerTeam: divideBy === 'members' ? membersPerTeam : undefined,
       };
-
-      if (divideBy === 'teams') {
-        teamData.numTeams = numTeams;
-      }
-      if (divideBy === 'members') {
-        teamData.membersPerTeam = membersPerTeam;
-      }
       
       let updatedGroup: TeamGroup;
 
       if(selectedTeamGroupId) {
-        // Update existing group
-        updatedGroup = await updateTeamGroup(selectedTeamGroupId, teamData as TeamGroupInput);
+        updatedGroup = await updateTeamGroup(selectedTeamGroupId, teamData);
          toast({
           title: "업데이트 완료",
           description: "수정된 팀 명단이 학생들에게 업데이트되었습니다.",
         });
       } else {
-        // Create new group
-        updatedGroup = await saveTeamGroup(teamData as TeamGroupInput);
+        updatedGroup = await saveTeamGroup(teamData);
         toast({
           title: "전달 완료",
           description: "편성된 팀 명단이 학생들에게 전달되었습니다.",
@@ -949,21 +941,19 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                 <Accordion type="multiple" className="w-full sm:w-[400px] border rounded-md p-2 bg-background">
                     {grades.map(grade => (
                         <AccordionItem value={grade} key={grade}>
-                            <AccordionTrigger>
-                                <div className="flex items-center space-x-2 py-2 flex-1">
-                                    <Checkbox 
-                                        id={`grade-all-${grade}`}
-                                        checked={classSelection[grade]?.all || false}
-                                        onCheckedChange={(checked) => handleGradeSelectionChange(grade, !!checked)}
-                                        disabled={!!selectedTeamGroupId}
-                                        className="ml-2"
-                                        onClick={(e) => e.stopPropagation()}
-                                    />
-                                    <Label htmlFor={`grade-all-${grade}`} className="font-semibold cursor-pointer flex-1">
-                                        {grade}학년 전체
-                                    </Label>
-                                </div>
-                            </AccordionTrigger>
+                            <div className="flex items-center space-x-2 py-2">
+                                <Checkbox 
+                                    id={`grade-all-${grade}`}
+                                    checked={classSelection[grade]?.all || false}
+                                    onCheckedChange={(checked) => handleGradeSelectionChange(grade, !!checked)}
+                                    disabled={!!selectedTeamGroupId}
+                                    className="ml-2"
+                                />
+                                <Label htmlFor={`grade-all-${grade}`} className="font-semibold cursor-pointer flex-1">
+                                    {grade}학년 전체
+                                </Label>
+                                <AccordionTrigger />
+                            </div>
                             <AccordionContent className="pt-2 pl-6">
                                 <div className="grid grid-cols-3 gap-2">
                                     {classNumsByGrade[grade]?.map(classNum => (
@@ -1427,6 +1417,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
                 {sortedTeams.map((team, index) => {
                   const originalIndex = teams.indexOf(team);
+                  if (originalIndex === -1) return null;
                   const firstStudent = team[0];
                   if (!firstStudent) return null;
                   
