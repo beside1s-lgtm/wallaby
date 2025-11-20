@@ -795,12 +795,15 @@ export const updateTeamGroup = async (teamGroupId: string, teamGroupData: TeamGr
         id: team.id || uuidv4(),
     }));
 
-    const dataToUpdate: Omit<TeamGroup, 'id' | 'createdAt'> = {
+    const dataToUpdate: Omit<TeamGroup, 'id' | 'createdAt'> & { [key: string]: any } = {
         ...teamGroupData,
         teams: teamsWithIds.map((t, i) => ({ ...t, name: `팀 ${i+1}`})),
     };
+
+    if (dataToUpdate.numTeams === undefined) delete dataToUpdate.numTeams;
+    if (dataToUpdate.membersPerTeam === undefined) delete dataToUpdate.membersPerTeam;
     
-    await updateDoc(teamGroupRef, dataToUpdate as any).catch(e => {
+    await updateDoc(teamGroupRef, dataToUpdate).catch(e => {
         if (e.code === 'permission-denied') {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: teamGroupRef.path,
