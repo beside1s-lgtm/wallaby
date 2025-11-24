@@ -53,8 +53,8 @@ import {
   PlusCircle,
   Trash2,
   RefreshCw,
-  ChevronDown,
   Move,
+  Search,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -73,6 +73,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 
 interface TeamBalancerProps {
@@ -139,6 +140,10 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     useState<ScoutingReportOutput | null>(null);
   const [isReportLoading, setIsReportLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
+
+  const [studentSearchTerm, setStudentSearchTerm] = useState("");
+  const [foundStudentsForSelection, setFoundStudentsForSelection] = useState<Student[]>([]);
+  const [isStudentSelectionDialogOpen, setIsStudentSelectionDialogOpen] = useState(false);
   
   useEffect(() => {
     setSavedTeamGroups(teamGroups);
@@ -763,6 +768,32 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         }
     };
 
+    const handleSearchStudentForReport = () => {
+        if (!studentSearchTerm) {
+            toast({ variant: 'destructive', title: '검색어 필요', description: '학생 이름을 입력해주세요.' });
+            return;
+        }
+
+        const found = [...studentScores.keys()]
+            .map(id => allStudents.find(s => s.id === id))
+            .filter((s): s is Student => !!s)
+            .filter(s => s.name.toLowerCase().includes(studentSearchTerm.toLowerCase()));
+
+        if (found.length === 0) {
+            toast({ variant: 'destructive', title: '검색 결과 없음', description: '분석 대상 목록에 해당 학생이 없습니다.' });
+        } else if (found.length === 1) {
+            setSelectedStudentId(found[0].id);
+        } else {
+            setFoundStudentsForSelection(found);
+            setIsStudentSelectionDialogOpen(true);
+        }
+    };
+
+    const handleSelectStudentFromDialog = (studentId: string) => {
+        setSelectedStudentId(studentId);
+        setIsStudentSelectionDialogOpen(false);
+    };
+
 
   const handleDownloadTeams = () => {
     if (teams.length === 0) {
@@ -881,6 +912,43 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
   };
 
   return (
+    <>
+     <Dialog open={isStudentSelectionDialogOpen} onOpenChange={setIsStudentSelectionDialogOpen}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>동명이인 학생 선택</DialogTitle>
+                <DialogDescription>'{studentSearchTerm}'(으)로 검색된 학생 중 한 명을 선택해주세요.</DialogDescription>
+            </DialogHeader>
+            <div className="max-h-[60vh] overflow-y-auto">
+                 <Table>
+                      <TableHeader>
+                          <TableRow>
+                              <TableHead>이름</TableHead>
+                              <TableHead>학년</TableHead>
+                              <TableHead>반</TableHead>
+                              <TableHead>번호</TableHead>
+                              <TableHead></TableHead>
+                          </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {foundStudentsForSelection.map(student => (
+                            <TableRow key={student.id}>
+                                <TableCell>{student.name}</TableCell>
+                                <TableCell>{student.grade}</TableCell>
+                                <TableCell>{student.classNum}</TableCell>
+                                <TableCell>{student.studentNum}</TableCell>
+                                <TableCell className="text-right">
+                                    <Button size="sm" onClick={() => handleSelectStudentFromDialog(student.id)}>
+                                        선택
+                                    </Button>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                      </TableBody>
+                  </Table>
+            </div>
+        </DialogContent>
+    </Dialog>
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
@@ -1068,27 +1136,15 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
               <div>
                 <Label>학생 선택</Label>
                 <div className="flex gap-2">
-                  <Select
-                    onValueChange={setSelectedStudentId}
-                    value={selectedStudentId || ""}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="학생을 선택하여 능력치 그래프 보기" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[...studentScores.keys()].map((studentId) => {
-                        const student = allStudents.find(
-                          (s) => s.id === studentId
-                        );
-                        return student ? (
-                          <SelectItem key={student.id} value={student.id}>
-                            {student.name} ({student.grade}-{student.classNum}-
-                            {student.studentNum})
-                          </SelectItem>
-                        ) : null;
-                      })}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    placeholder="학생 이름으로 검색..."
+                    value={studentSearchTerm}
+                    onChange={(e) => setStudentSearchTerm(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearchStudentForReport()}
+                  />
+                   <Button onClick={handleSearchStudentForReport}>
+                    <Search className="mr-2 h-4 w-4" /> 검색
+                   </Button>
                   <Button
                     onClick={handleAiReport}
                     disabled={!selectedStudentId || isReportLoading}
@@ -1418,6 +1474,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                 {sortedTeams.map((team, index) => {
                   const originalIndex = teams.indexOf(team);
                   if (originalIndex === -1) return null;
+                  
                   const firstStudent = team[0];
                   if (!firstStudent) return null;
                   
@@ -1494,5 +1551,6 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         )}
       </CardContent>
     </Card>
+    </>
   );
 }
