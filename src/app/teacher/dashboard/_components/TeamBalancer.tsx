@@ -1,5 +1,5 @@
 "use client";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import {
   calculateRanks,
@@ -8,7 +8,7 @@ import {
   deleteTeamGroup,
   updateTeamGroup,
 } from "@/lib/store";
-import { Student, MeasurementItem, MeasurementRecord, TeamGroup, TeamGroupInput, Team } from "@/lib/types";
+import { Student, MeasurementItem, MeasurementRecord, TeamGroup, Team } from "@/lib/types";
 import {
   Card,
   CardContent,
@@ -144,6 +144,8 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
   const [studentSearchTerm, setStudentSearchTerm] = useState("");
   const [foundStudentsForSelection, setFoundStudentsForSelection] = useState<Student[]>([]);
   const [isStudentSelectionDialogOpen, setIsStudentSelectionDialogOpen] = useState(false);
+
+  const studentRowRefs = useRef<Map<string, HTMLTableRowElement | null>>(new Map());
   
   useEffect(() => {
     setSavedTeamGroups(teamGroups);
@@ -434,6 +436,13 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
   }, [selectedStudentId, studentScores]);
 
   useEffect(() => {
+    if (selectedStudentId) {
+      const studentRow = studentRowRefs.current.get(selectedStudentId);
+      studentRow?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [selectedStudentId]);
+
+  useEffect(() => {
     // Clear AI report when student selection changes
     setScoutingReport(null);
   }, [selectedStudentId]);
@@ -632,6 +641,24 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         "팀이 자동으로 편성되었습니다. 남은 학생이 있는 경우 수동으로 배정해주세요.",
     });
   };
+
+  const handleCreateTeamFromSelection = () => {
+    const selectedStudentIds = Object.keys(balancingSelection).filter(id => balancingSelection[id]);
+    if (selectedStudentIds.length === 0) {
+        toast({ variant: 'destructive', title: '학생 미선택', description: '팀으로 만들 학생을 먼저 선택해주세요.' });
+        return;
+    }
+    const newTeam = allStudents.filter(s => selectedStudentIds.includes(s.id));
+    setTeams(prev => [...prev, newTeam]);
+
+    // Uncheck selected students
+    const newBalancingSelection = { ...balancingSelection };
+    selectedStudentIds.forEach(id => {
+        newBalancingSelection[id] = false;
+    });
+    setBalancingSelection(newBalancingSelection);
+  };
+
 
   const handleClassSelectionChange = (grade: string, classNum: string, checked: boolean) => {
     setClassSelection(prev => {
@@ -861,6 +888,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         school,
         description: teamGroupName,
         teams: teams.map((team, index) => ({
+          id: team[0]?.id ? `team-${team[0].id}-${index}`: `team-empty-${index}`,
           teamIndex: index,
           memberIds: team.map((student) => student.id),
         })),
@@ -1010,17 +1038,19 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                     {grades.map(grade => (
                         <AccordionItem value={grade} key={grade}>
                             <div className="flex items-center space-x-2 py-2">
-                                <Checkbox 
-                                    id={`grade-all-${grade}`}
-                                    checked={classSelection[grade]?.all || false}
-                                    onCheckedChange={(checked) => handleGradeSelectionChange(grade, !!checked)}
-                                    disabled={!!selectedTeamGroupId}
-                                    className="ml-2"
-                                />
-                                <Label htmlFor={`grade-all-${grade}`} className="font-semibold cursor-pointer flex-1">
-                                    {grade}학년 전체
-                                </Label>
-                                <AccordionTrigger />
+                                <div onClick={(e) => e.stopPropagation()} className="ml-2">
+                                    <Checkbox 
+                                        id={`grade-all-${grade}`}
+                                        checked={classSelection[grade]?.all || false}
+                                        onCheckedChange={(checked) => handleGradeSelectionChange(grade, !!checked)}
+                                        disabled={!!selectedTeamGroupId}
+                                    />
+                                </div>
+                                <AccordionTrigger className="flex-1 p-0 ml-2">
+                                     <Label htmlFor={`grade-all-${grade}`} className="font-semibold cursor-pointer flex-1 text-left">
+                                        {grade}학년 전체
+                                    </Label>
+                                </AccordionTrigger>
                             </div>
                             <AccordionContent className="pt-2 pl-6">
                                 <div className="grid grid-cols-3 gap-2">
@@ -1259,6 +1289,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                         return (
                           <TableRow
                             key={studentId}
+                            ref={(el) => studentRowRefs.current.set(studentId, el)}
                             onClick={() => setSelectedStudentId(studentId)}
                             className="cursor-pointer"
                             data-state={
@@ -1294,6 +1325,11 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                   </TableBody>
                 </Table>
               </div>
+            </div>
+            <div className="flex justify-end mt-2">
+                <Button onClick={handleCreateTeamFromSelection} disabled={!!selectedTeamGroupId}>
+                    <PlusCircle className="mr-2 h-4 w-4" /> 선택 학생으로 팀 만들기
+                </Button>
             </div>
           </div>
         )}
