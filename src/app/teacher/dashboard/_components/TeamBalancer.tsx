@@ -50,7 +50,6 @@ import {
   Loader2,
   Wand2,
   Send,
-  PlusCircle,
   Trash2,
   RefreshCw,
   Move,
@@ -604,33 +603,32 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
       }
     };
     
-    Object.values(studentsByClass).forEach(classStudentGroup => {
-        const effectiveNumTeams = divideBy === 'teams' ? numTeams : Math.max(1, Math.floor(classStudentGroup.length / membersPerTeam));
-        if (effectiveNumTeams === 0 && divideBy !== 'single') {
-            finalLeftovers.push(...classStudentGroup);
-            return;
-        }
+    if (divideBy === 'single') {
+        finalTeams.push(studentsToBalance);
+    } else {
+      Object.values(studentsByClass).forEach(classStudentGroup => {
+          const effectiveNumTeams = divideBy === 'teams' ? numTeams : Math.max(1, Math.floor(classStudentGroup.length / membersPerTeam));
+          if (effectiveNumTeams === 0) {
+              finalLeftovers.push(...classStudentGroup);
+              return;
+          }
 
-        if (divideBy === 'single') {
-            finalTeams.push(classStudentGroup);
-            return;
-        }
+          if (selectedGender === 'separate') {
+              const maleStudents = classStudentGroup.filter(s => s.gender === '남');
+              const femaleStudents = classStudentGroup.filter(s => s.gender === '여');
 
-        if (selectedGender === 'separate') {
-            const maleStudents = classStudentGroup.filter(s => s.gender === '남');
-            const femaleStudents = classStudentGroup.filter(s => s.gender === '여');
+              const { teams: maleTeams, leftovers: maleLeftovers } = createTeamsForGroup(maleStudents, effectiveNumTeams);
+              const { teams: femaleTeams, leftovers: femaleLeftovers } = createTeamsForGroup(femaleStudents, effectiveNumTeams);
 
-            const { teams: maleTeams, leftovers: maleLeftovers } = createTeamsForGroup(maleStudents, effectiveNumTeams);
-            const { teams: femaleTeams, leftovers: femaleLeftovers } = createTeamsForGroup(femaleStudents, effectiveNumTeams);
-
-            finalTeams.push(...maleTeams, ...femaleTeams);
-            finalLeftovers.push(...maleLeftovers, ...femaleLeftovers);
-        } else {
-            const { teams: newTeams, leftovers } = createTeamsForGroup(classStudentGroup, effectiveNumTeams);
-            finalTeams.push(...newTeams);
-            finalLeftovers.push(...leftovers);
-        }
-    });
+              finalTeams.push(...maleTeams, ...femaleTeams);
+              finalLeftovers.push(...maleLeftovers, ...femaleLeftovers);
+          } else {
+              const { teams: newTeams, leftovers } = createTeamsForGroup(classStudentGroup, effectiveNumTeams);
+              finalTeams.push(...newTeams);
+              finalLeftovers.push(...leftovers);
+          }
+      });
+    }
 
     setTeams(finalTeams);
     setLeftoverStudents(finalLeftovers);
@@ -879,6 +877,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         divideBy,
         numTeams: divideBy === 'teams' ? numTeams : undefined,
         membersPerTeam: divideBy === 'members' ? membersPerTeam : undefined,
+        analysisScope: 'class', // Simplified for now
       };
       
       let updatedGroup: TeamGroup;
@@ -1017,38 +1016,39 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
              <div className="space-y-2">
                 <Label>편성 대상 학급</Label>
                 <Accordion type="multiple" className="w-full sm:w-[400px] border rounded-md p-2 bg-background">
-                    {grades.map(grade => (
-                        <AccordionItem value={grade} key={grade}>
-                            <div className="flex items-center space-x-2 py-2">
-                                <Checkbox 
-                                    id={`grade-all-${grade}`}
-                                    checked={classSelection[grade]?.all || false}
-                                    onCheckedChange={(checked) => handleGradeSelectionChange(grade, !!checked)}
-                                    disabled={!!selectedTeamGroupId}
-                                />
-                                <AccordionTrigger asChild>
-                                    <Label htmlFor={`grade-all-${grade}`} className="font-semibold cursor-pointer flex-1 text-left">
-                                        {grade}학년 전체
-                                    </Label>
-                                </AccordionTrigger>
+                  {grades.map(grade => (
+                    <AccordionItem value={grade} key={grade}>
+                      <div className="flex items-center space-x-2 py-2">
+                        <div className="flex items-center space-x-2">
+                            <Checkbox 
+                                id={`grade-all-${grade}`}
+                                checked={classSelection[grade]?.all || false}
+                                onCheckedChange={(checked) => handleGradeSelectionChange(grade, !!checked)}
+                                disabled={!!selectedTeamGroupId}
+                            />
+                            <Label htmlFor={`grade-all-${grade}`} className="font-semibold cursor-pointer text-left">
+                                {grade}학년 전체
+                            </Label>
+                        </div>
+                        <AccordionTrigger />
+                      </div>
+                      <AccordionContent className="pt-2 pl-6">
+                        <div className="grid grid-cols-3 gap-2">
+                          {classNumsByGrade[grade]?.map(classNum => (
+                            <div key={classNum} className="flex items-center gap-2">
+                              <Checkbox 
+                                id={`class-${grade}-${classNum}`}
+                                checked={classSelection[grade]?.classes[classNum] || false}
+                                onCheckedChange={(checked) => handleClassSelectionChange(grade, classNum, !!checked)}
+                                disabled={!!selectedTeamGroupId}
+                              />
+                              <Label htmlFor={`class-${grade}-${classNum}`}>{classNum}반</Label>
                             </div>
-                            <AccordionContent className="pt-2 pl-6">
-                                <div className="grid grid-cols-3 gap-2">
-                                    {classNumsByGrade[grade]?.map(classNum => (
-                                        <div key={classNum} className="flex items-center gap-2">
-                                            <Checkbox 
-                                                id={`class-${grade}-${classNum}`}
-                                                checked={classSelection[grade]?.classes[classNum] || false}
-                                                onCheckedChange={(checked) => handleClassSelectionChange(grade, classNum, !!checked)}
-                                                disabled={!!selectedTeamGroupId}
-                                            />
-                                            <Label htmlFor={`class-${grade}-${classNum}`}>{classNum}반</Label>
-                                        </div>
-                                    ))}
-                                </div>
-                            </AccordionContent>
-                        </AccordionItem>
-                    ))}
+                          ))}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
                 </Accordion>
             </div>
             <div>
@@ -1468,8 +1468,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                                 handleAssignLeftover(student.id, originalIndex)
                               }
                             >
-                              <PlusCircle className="mr-1 h-4 w-4" />
-                              {teamName}
+                              + {teamName}
                             </Button>
                           );
                         })}
@@ -1503,7 +1502,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
 
                   return (
                     <div
-                      key={`${originalIndex}-${firstStudent.id}`}
+                      key={`${originalIndex}-${team[0]?.id || index}`}
                       className={cn(
                           "border rounded-md p-4 space-y-2 cursor-pointer transition-all",
                           movingStudent && movingStudent.sourceTeamIndex !== originalIndex ? "border-dashed border-primary hover:bg-primary/10" : "hover:bg-muted/50",
