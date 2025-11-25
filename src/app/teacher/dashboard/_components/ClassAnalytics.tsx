@@ -819,7 +819,7 @@ export default function ClassAnalytics({
       </Dialog>
       <Card>
         <CardHeader>
-          <CardTitle>학급별 학생 기록 조회 및 분석</CardTitle>
+          <CardTitle>학생별 분석</CardTitle>
           <CardDescription>
             학생을 검색하거나 학급을 선택하여 상세 기록과 AI 분석을 확인하고,
             기록을 추가/관리할 수 있습니다.
@@ -1377,7 +1377,7 @@ function EditRecordDialog({
   record: MeasurementRecord, 
   student: Student,
   allItems: MeasurementItem[], 
-  onRecordUpdate: (records: MeasurementRecord[], action: 'update' | 'delete') => void;
+  onRecordUpdate: (records: MeasurementRecord[] | string, action: 'update' | 'delete') => void;
 }) {
   const { school } = useAuth();
   const { toast } = useToast();

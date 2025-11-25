@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StudentManagement, DatabaseManagement } from "./_components/StudentManagement";
 import MeasurementManagement from "./_components/MeasurementManagement";
 import ClassAnalytics from "./_components/ClassAnalytics";
+import RecordBrowser from "./_components/RecordBrowser";
 import Ranking from "./_components/Ranking";
 import RecordInput from "./_components/RecordInput";
 import AiWelcome from "./_components/AiWelcome";
@@ -26,7 +27,8 @@ import {
   Shuffle,
   LineChart,
   Target,
-  Wrench
+  Wrench,
+  Search,
 } from "lucide-react";
 import { DashboardHeaderContents } from "@/components/DashboardHeader";
 import {
@@ -174,7 +176,7 @@ export default function TeacherDashboardPage() {
             <Tabs defaultValue="record-input">
               <TabsList className="grid w-full grid-cols-3 mb-6">
                 <TabsTrigger value="record-input"><Edit className="mr-2 h-4 w-4" />기록 입력</TabsTrigger>
-                <TabsTrigger value="class-analytics"><BarChart3 className="mr-2 h-4 w-4" />학급별 분석</TabsTrigger>
+                <TabsTrigger value="record-analysis"><BarChart3 className="mr-2 h-4 w-4" />기록 분석</TabsTrigger>
                 <TabsTrigger value="ranking"><Trophy className="mr-2 h-4 w-4" />종목별 순위</TabsTrigger>
               </TabsList>
               <TabsContent value="record-input">
@@ -185,13 +187,28 @@ export default function TeacherDashboardPage() {
                   allTeamGroups={teamGroups}
                 />
               </TabsContent>
-              <TabsContent value="class-analytics">
-                <ClassAnalytics
-                  allStudents={students}
-                  allItems={items}
-                  allRecords={records}
-                  onRecordUpdate={updateLocalRecords}
-                />
+              <TabsContent value="record-analysis">
+                 <Tabs defaultValue="student-analytics">
+                    <TabsList className="grid w-full grid-cols-2 mb-6">
+                      <TabsTrigger value="student-analytics"><Users className="mr-2 h-4 w-4" />학생별 분석</TabsTrigger>
+                      <TabsTrigger value="record-browser"><Search className="mr-2 h-4 w-4" />기록 조회</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="student-analytics">
+                      <ClassAnalytics
+                        allStudents={students}
+                        allItems={items}
+                        allRecords={records}
+                        onRecordUpdate={updateLocalRecords}
+                      />
+                    </TabsContent>
+                    <TabsContent value="record-browser">
+                       <RecordBrowser 
+                        allStudents={students}
+                        allItems={items}
+                        allRecords={records}
+                       />
+                    </TabsContent>
+                 </Tabs>
               </TabsContent>
               <TabsContent value="ranking">
                 <Ranking
