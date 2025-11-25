@@ -3,7 +3,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { exportToCsv } from '@/lib/store';
 import type { Student, MeasurementItem, MeasurementRecord } from '@/lib/types';
-import { getPapsGrade, normalizePapsRecord } from '@/lib/paps';
+import { getPapsGrade, calculatePapsScore } from '@/lib/paps';
 import {
   Card,
   CardContent,
@@ -137,10 +137,9 @@ export default function RecordBrowser({
         if (latestRecord) {
             const grade = getPapsGrade(latestRecord.item, student, latestRecord.value);
             studentData[factor] = grade ? `${grade}등급` : 'N/A';
-            if (grade) {
-                const achievementScore = normalizePapsRecord(grade, latestRecord.value, latestRecord.item, student);
-                const papsItemScore = achievementScore * 0.2; // 100점 만점 성취도를 20점 만점으로 변환
-                totalPapsScore += papsItemScore;
+            const score = calculatePapsScore(latestRecord.item, student, latestRecord.value);
+            if (score !== null) {
+                totalPapsScore += score;
                 scoredFactorCount++;
             }
         } else {
