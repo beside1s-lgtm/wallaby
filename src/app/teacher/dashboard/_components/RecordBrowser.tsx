@@ -44,17 +44,17 @@ interface RecordBrowserProps {
 const papsFactors: Record<string, string> = {
     '왕복오래달리기': '심폐지구력',
     '오래달리기': '심폐지구력',
-    '윗몸 말아올리기': '근지구력',
-    '팔굽혀펴기': '근지구력',
-    '무릎 대고 팔굽혀펴기': '근지구력',
+    '윗몸 말아올리기': '근력/근지구력',
+    '팔굽혀펴기': '근력/근지구력',
+    '무릎 대고 팔굽혀펴기': '근력/근지구력',
+    '악력': '근력/근지구력',
     '앉아윗몸앞으로굽히기': '유연성',
-    '악력': '근력',
     '50m 달리기': '순발력',
     '제자리 멀리뛰기': '순발력',
     '체질량지수(BMI)': '체질량지수(BMI)',
 };
 
-const factorOrder = ['심폐지구력', '근지구력', '근력', '유연성', '순발력', '체질량지수(BMI)'];
+const factorOrder = ['학년', '반', '번호', '이름', '성별', '심폐지구력', '유연성', '근력/근지구력', '순발력', '체질량지수(BMI)', '종합등급'];
 
 
 export default function RecordBrowser({
@@ -91,19 +91,31 @@ export default function RecordBrowser({
         filteredStudents = filteredStudents.filter(s => s.classNum === classNumFilter);
       }
     }
+
+    const sortedStudents = [...filteredStudents].sort((a,b) => {
+        const gradeDiff = parseInt(a.grade) - parseInt(b.grade);
+        if (gradeDiff !== 0) return gradeDiff;
+        const classDiff = parseInt(a.classNum) - parseInt(b.classNum);
+        if (classDiff !== 0) return classDiff;
+        return parseInt(a.studentNum) - parseInt(b.studentNum);
+    });
     
-    return filteredStudents.map(student => {
+    return sortedStudents.map(student => {
       const studentData: Record<string, any> = {
-        이름: student.name,
-        학년: student.grade,
-        반: student.classNum,
+        '학년': student.grade,
+        '반': student.classNum,
+        '번호': student.studentNum,
+        '이름': student.name,
+        '성별': student.gender,
       };
 
       const studentRecords = allRecords.filter(r => r.studentId === student.id);
       let totalScore = 0;
       let gradeCount = 0;
+      
+      const papsFactorKeys = ['심폐지구력', '유연성', '근력/근지구력', '순발력', '체질량지수(BMI)'];
 
-      factorOrder.forEach(factor => {
+      papsFactorKeys.forEach(factor => {
         const factorItems = Object.keys(papsFactors).filter(key => papsFactors[key] === factor);
         let latestRecord: MeasurementRecord | undefined;
         
@@ -136,14 +148,12 @@ export default function RecordBrowser({
       
       if (gradeCount > 0) {
         const averagePoints = totalScore / gradeCount;
-        studentData['종합점수'] = ((averagePoints / 5) * 100).toFixed(1);
         if (averagePoints >= 4.5) studentData['종합등급'] = '1등급';
         else if (averagePoints >= 3.5) studentData['종합등급'] = '2등급';
         else if (averagePoints >= 2.5) studentData['종합등급'] = '3등급';
         else if (averagePoints >= 1.5) studentData['종합등급'] = '4등급';
         else studentData['종합등급'] = '5등급';
       } else {
-        studentData['종합점수'] = '-';
         studentData['종합등급'] = '-';
       }
       
@@ -252,7 +262,7 @@ export default function RecordBrowser({
           <Table>
             <TableHeader>
               <TableRow>
-                {studentTableData.length > 0 && Object.keys(studentTableData[0]).map(key => (
+                {factorOrder.map(key => (
                   <TableHead key={key}>{key}</TableHead>
                 ))}
               </TableRow>
@@ -261,14 +271,14 @@ export default function RecordBrowser({
               {studentTableData.length > 0 ? (
                 studentTableData.map((row, index) => (
                   <TableRow key={index}>
-                    {Object.values(row).map((value, cellIndex) => (
-                      <TableCell key={cellIndex}>{value}</TableCell>
+                    {factorOrder.map((key, cellIndex) => (
+                      <TableCell key={cellIndex}>{row[key]}</TableCell>
                     ))}
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={factorOrder.length + 4} className="h-24 text-center">
+                  <TableCell colSpan={factorOrder.length} className="h-24 text-center">
                     선택된 조건에 해당하는 기록이 없습니다.
                   </TableCell>
                 </TableRow>
