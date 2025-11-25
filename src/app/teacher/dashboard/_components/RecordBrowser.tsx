@@ -41,6 +41,8 @@ interface RecordBrowserProps {
   allRecords: MeasurementRecord[];
 }
 
+type ViewType = 'grade' | 'score' | 'record';
+
 const papsFactors: Record<string, string> = {
     '왕복오래달리기': '심폐지구력',
     '오래달리기': '심폐지구력',
@@ -54,7 +56,7 @@ const papsFactors: Record<string, string> = {
     '체질량지수(BMI)': '체질량지수(BMI)',
 };
 
-const factorOrder = ['학년', '반', '번호', '이름', '성별', '심폐지구력', '유연성', '근력/근지구력', '순발력', '체질량지수(BMI)', '종합등급'];
+const factorOrder = ['학년', '반', '번호', '이름', '성별', '심폐지구력', '유연성', '근력/근지구력', '순발력', '체질량지수(BMI)', '종합'];
 
 
 export default function RecordBrowser({
@@ -67,6 +69,7 @@ export default function RecordBrowser({
   const [gradeFilter, setGradeFilter] = useState('all');
   const [classNumFilter, setClassNumFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState<Date | 'latest' | undefined>('latest');
+  const [viewType, setViewType] = useState<ViewType>('grade');
 
   const { grades, classNumsByGrade, availableDates } = useMemo(() => {
     const grades = [...new Set(allStudents.map((s) => s.grade))].sort((a,b) => parseInt(a) - parseInt(b));
@@ -118,10 +121,14 @@ export default function RecordBrowser({
       papsFactorKeys.forEach(factor => {
         const factorItems = Object.keys(papsFactors).filter(key => papsFactors[key] === factor);
         let latestRecord: MeasurementRecord | undefined;
+        let latestItem: MeasurementItem | undefined;
         
-        for(const item of factorItems) {
+        for(const itemName of factorItems) {
+            const item = allItems.find(i => i.name === itemName);
+            if (!item) continue;
+
             const recordsForItem = studentRecords.filter(r => {
-                if (r.item !== item) return false;
+                if (r.item !== itemName) return false;
                 if (dateFilter === 'latest') return true;
                 return dateFilter && r.date === format(dateFilter, 'yyyy-MM-dd');
             });
@@ -130,14 +137,23 @@ export default function RecordBrowser({
               const currentLatest = recordsForItem.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
               if (!latestRecord || new Date(currentLatest.date) > new Date(latestRecord.date)) {
                   latestRecord = currentLatest;
+                  latestItem = item;
               }
             }
         }
         
-        if (latestRecord) {
+        if (latestRecord && latestItem) {
             const grade = getPapsGrade(latestRecord.item, student, latestRecord.value);
-            studentData[factor] = grade ? `${grade}등급` : 'N/A';
             const score = calculatePapsScore(latestRecord.item, student, latestRecord.value);
+            
+            if(viewType === 'grade') {
+                studentData[factor] = grade ? `${grade}등급` : 'N/A';
+            } else if (viewType === 'score') {
+                studentData[factor] = score !== null ? score : 'N/A';
+            } else { // 'record'
+                studentData[factor] = `${latestRecord.value}${latestItem.unit}`;
+            }
+
             if (score !== null) {
                 totalPapsScore += score;
                 scoredFactorCount++;
@@ -147,22 +163,30 @@ export default function RecordBrowser({
         }
       });
       
+      let finalGrade = '-';
+      let finalScore = 0;
+
       if (scoredFactorCount > 0) {
-        // PAPS 5개 영역의 총점 (100점 만점)으로 환산
-        const finalScore = (totalPapsScore / (scoredFactorCount * 20)) * 100;
+        finalScore = (totalPapsScore / (scoredFactorCount * 20)) * 100;
         
-        if (finalScore >= 80) studentData['종합등급'] = '1등급';
-        else if (finalScore >= 60) studentData['종합등급'] = '2등급';
-        else if (finalScore >= 40) studentData['종합등급'] = '3등급';
-        else if (finalScore >= 20) studentData['종합등급'] = '4등급';
-        else studentData['종합등급'] = '5등급';
-      } else {
-        studentData['종합등급'] = '-';
+        if (finalScore >= 80) finalGrade = '1등급';
+        else if (finalScore >= 60) finalGrade = '2등급';
+        else if (finalScore >= 40) finalGrade = '3등급';
+        else if (finalScore >= 20) finalGrade = '4등급';
+        else finalGrade = '5등급';
+      }
+
+      if(viewType === 'grade') {
+        studentData['종합'] = finalGrade;
+      } else if (viewType === 'score') {
+        studentData['종합'] = scoredFactorCount > 0 ? Math.round(finalScore) : 'N/A';
+      } else { // 'record'
+        studentData['종합'] = finalGrade;
       }
       
       return studentData;
     });
-  }, [allStudents, allRecords, gradeFilter, classNumFilter, dateFilter]);
+  }, [allStudents, allRecords, allItems, gradeFilter, classNumFilter, dateFilter, viewType]);
   
 
   const handleDownloadCsv = () => {
@@ -175,13 +199,23 @@ export default function RecordBrowser({
       return;
     }
     
-    const fileName = `종합_체력_현황_${new Date().toISOString().split('T')[0]}.csv`;
+    const fileName = `종합_체력_현황_${viewType}_${new Date().toISOString().split('T')[0]}.csv`;
     exportToCsv(fileName, studentTableData);
     toast({
       title: '다운로드 시작',
       description: '종합 체력 현황을 CSV 파일로 다운로드합니다.',
     });
   };
+
+  const finalFactorOrder = useMemo(() => {
+    const newOrder = [...factorOrder];
+    const 종합Index = newOrder.indexOf('종합');
+    if (종합Index !== -1) {
+        newOrder[종합Index] = viewType === 'score' ? '종합점수' : '종합등급';
+    }
+    return newOrder;
+  }, [viewType]);
+
 
   return (
     <Card>
@@ -253,6 +287,17 @@ export default function RecordBrowser({
                 </div>
             </PopoverContent>
           </Popover>
+
+          <Select value={viewType} onValueChange={(v) => setViewType(v as ViewType)}>
+            <SelectTrigger className="w-full sm:w-[150px]">
+                <SelectValue placeholder="표시 형식" />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="grade">등급</SelectItem>
+                <SelectItem value="score">점수</SelectItem>
+                <SelectItem value="record">실제 기록</SelectItem>
+            </SelectContent>
+          </Select>
           
           <Button onClick={handleDownloadCsv} variant="outline" className="ml-auto">
             <FileDown className="mr-2 h-4 w-4" />
@@ -265,7 +310,7 @@ export default function RecordBrowser({
           <Table>
             <TableHeader>
               <TableRow>
-                {factorOrder.map(key => (
+                {finalFactorOrder.map(key => (
                   <TableHead key={key}>{key}</TableHead>
                 ))}
               </TableRow>
@@ -274,14 +319,17 @@ export default function RecordBrowser({
               {studentTableData.length > 0 ? (
                 studentTableData.map((row, index) => (
                   <TableRow key={index}>
-                    {factorOrder.map((key, cellIndex) => (
-                      <TableCell key={cellIndex}>{row[key]}</TableCell>
-                    ))}
+                    {finalFactorOrder.map((key, cellIndex) => {
+                      const displayKey = key === '종합점수' || key === '종합등급' ? '종합' : key;
+                      return (
+                        <TableCell key={cellIndex}>{row[displayKey]}</TableCell>
+                      )
+                    })}
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={factorOrder.length} className="h-24 text-center">
+                  <TableCell colSpan={finalFactorOrder.length} className="h-24 text-center">
                     선택된 조건에 해당하는 기록이 없습니다.
                   </TableCell>
                 </TableRow>
