@@ -137,7 +137,7 @@ export default function RecordBrowser({
         if (latestRecord) {
             const grade = getPapsGrade(latestRecord.item, student, latestRecord.value);
             studentData[factor] = grade ? `${grade}등급` : 'N/A';
-            if (grade && factor !== '체질량지수(BMI)') {
+            if (grade) {
                 const achievementScore = normalizePapsRecord(grade, latestRecord.value, latestRecord.item, student);
                 const papsItemScore = achievementScore * 0.2; // 100점 만점 성취도를 20점 만점으로 변환
                 totalPapsScore += papsItemScore;
@@ -149,7 +149,7 @@ export default function RecordBrowser({
       });
       
       if (scoredFactorCount > 0) {
-        // PAPS 4개 영역(심폐, 유연, 근력, 순발력)의 총점 (80점 만점)을 100점 만점으로 환산
+        // PAPS 5개 영역의 총점 (100점 만점)으로 환산
         const finalScore = (totalPapsScore / (scoredFactorCount * 20)) * 100;
         
         if (finalScore >= 80) studentData['종합등급'] = '1등급';
