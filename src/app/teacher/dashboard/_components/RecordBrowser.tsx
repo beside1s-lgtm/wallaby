@@ -3,7 +3,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { exportToCsv } from '@/lib/store';
 import type { Student, MeasurementItem, MeasurementRecord } from '@/lib/types';
-import { getPapsGrade } from '@/lib/paps';
+import { getPapsGrade, normalizePapsRecord } from '@/lib/paps';
 import {
   Card,
   CardContent,
@@ -110,8 +110,8 @@ export default function RecordBrowser({
       };
 
       const studentRecords = allRecords.filter(r => r.studentId === student.id);
-      let totalScore = 0;
-      let gradeCount = 0;
+      let totalPapsScore = 0;
+      let scoredFactorCount = 0;
       
       const papsFactorKeys = ['심폐지구력', '유연성', '근력/근지구력', '순발력', '체질량지수(BMI)'];
 
@@ -138,20 +138,24 @@ export default function RecordBrowser({
             const grade = getPapsGrade(latestRecord.item, student, latestRecord.value);
             studentData[factor] = grade ? `${grade}등급` : 'N/A';
             if (grade && factor !== '체질량지수(BMI)') {
-                totalScore += (6 - grade); // 1등급=5점, 5등급=1점
-                gradeCount++;
+                const achievementScore = normalizePapsRecord(grade, latestRecord.value, latestRecord.item, student);
+                const papsItemScore = achievementScore * 0.2; // 100점 만점 성취도를 20점 만점으로 변환
+                totalPapsScore += papsItemScore;
+                scoredFactorCount++;
             }
         } else {
             studentData[factor] = '-';
         }
       });
       
-      if (gradeCount > 0) {
-        const averagePoints = totalScore / gradeCount;
-        if (averagePoints >= 4.5) studentData['종합등급'] = '1등급';
-        else if (averagePoints >= 3.5) studentData['종합등급'] = '2등급';
-        else if (averagePoints >= 2.5) studentData['종합등급'] = '3등급';
-        else if (averagePoints >= 1.5) studentData['종합등급'] = '4등급';
+      if (scoredFactorCount > 0) {
+        // PAPS 4개 영역(심폐, 유연, 근력, 순발력)의 총점 (80점 만점)을 100점 만점으로 환산
+        const finalScore = (totalPapsScore / (scoredFactorCount * 20)) * 100;
+        
+        if (finalScore >= 80) studentData['종합등급'] = '1등급';
+        else if (finalScore >= 60) studentData['종합등급'] = '2등급';
+        else if (finalScore >= 40) studentData['종합등급'] = '3등급';
+        else if (finalScore >= 20) studentData['종합등급'] = '4등급';
         else studentData['종합등급'] = '5등급';
       } else {
         studentData['종합등급'] = '-';
