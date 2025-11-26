@@ -51,13 +51,14 @@ import { getScoutingReport } from '@/ai/flows/scouting-report-flow';
 import { getTeamAnalysis } from '@/ai/flows/team-analysis-flow';
 import type { ScoutingReportOutput } from '@/ai/flows/scouting-report-flow';
 import type { TeamAnalysisOutput } from '@/ai/flows/team-analysis-flow';
-import { Loader2, Wand2, Trash2, Users, User as UserIcon, Swords, Bot } from 'lucide-react';
+import { Loader2, Wand2, Trash2, Users, User as UserIcon, Swords, Bot, Printer } from 'lucide-react';
 import type { Student, MeasurementRecord, MeasurementItem, TeamGroup, Tournament, Match } from '@/lib/types';
 import { getPapsGrade, getCustomItemGrade, normalizePapsRecord, normalizeCustomRecord } from '@/lib/paps';
 import { getRecords } from '@/lib/store';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
+import Link from 'next/link';
 
 
 const chartConfig = {
@@ -562,6 +563,7 @@ export default function StudentDashboardPage() {
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-4">
             <Avatar className="w-16 h-16">
                 <AvatarImage src={fullStudent.photoUrl || undefined} alt={fullStudent.name} />
@@ -576,6 +578,13 @@ export default function StudentDashboardPage() {
                <p className="text-muted-foreground">{fullStudent.grade}학년 {fullStudent.classNum}반</p>
             </div>
         </div>
+        <Button asChild>
+          <Link href="/student/report" target="_blank">
+            <Printer className="mr-2 h-4 w-4" />
+            성장 리포트 출력
+          </Link>
+        </Button>
+      </div>
 
         <Tabs defaultValue="growth-record" className="w-full">
             <TabsList className="grid w-full grid-cols-3">
