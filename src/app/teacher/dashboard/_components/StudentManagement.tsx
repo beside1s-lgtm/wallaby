@@ -997,11 +997,14 @@ export function DatabaseManagement({
   const [isUploading, setIsUploading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const [deleteDate, setDeleteDate] = useState<Date | undefined>();
+  const [deleteDate, setDeleteDate] = useState<string>("");
   const [deleteItem, setDeleteItem] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const [downloadItem, setDownloadItem] = useState("");
+  const [studentSearch, setStudentSearch] = useState('');
+  const [foundStudent, setFoundStudent] = useState<Student | null>(null);
+  
+  const recordDates = useMemo(() => [...new Set(records.map(r => r.date))].sort((a,b) => new Date(b).getTime() - new Date(a).getTime()), [records]);
 
   const handleRecordCsvUpload = (
     event: React.ChangeEvent<HTMLInputElement>
@@ -1038,117 +1041,52 @@ export function DatabaseManagement({
     event.target.value = ""; // Reset file input
   };
 
-  const handleDownloadAllRecords = async () => {
-    if (!school) return;
-    if (records.length === 0) {
-      toast({
-        variant: "destructive",
-        title: "데이터 없음",
-        description: "다운로드할 기록이 없습니다.",
-      });
-      return;
+  const handleSearchStudent = () => {
+    if (!studentSearch.trim()) {
+        toast({ variant: 'destructive', title: '검색 오류', description: '검색할 학생 이름을 입력해주세요.' });
+        return;
     }
-
-    const studentMap = new Map(students.map((s) => [s.id, s]));
-
-    const dataToExport = records.map((record) => {
-      const student = studentMap.get(record.studentId);
-      return {
-        학교: record.school,
-        학년: student?.grade || "",
-        반: student?.classNum || "",
-        번호: student?.studentNum || "",
-        이름: student?.name || "알수없음",
-        성별: student?.gender || "",
-        측정종목: record.item,
-        기록: record.value,
-        측정일: record.date,
-      };
-    });
-
-    exportToCsv(`${school}_전체_학생_기록.csv`, dataToExport);
-    toast({
-      title: "다운로드 시작",
-      description: "전체 학생 기록을 CSV 파일로 다운로드합니다.",
-    });
+    const found = students.filter(s => s.name.toLowerCase().includes(studentSearch.toLowerCase()));
+    if (found.length === 1) {
+        setFoundStudent(found[0]);
+        toast({ title: '학생 선택됨', description: `${found[0].name} 학생의 기록을 다운로드할 수 있습니다.`});
+    } else if (found.length > 1) {
+        // Here you could open a dialog to select one, for now, just toast
+        toast({ variant: 'destructive', title: '여러 학생 발견됨', description: '더 구체적인 이름으로 검색해주세요.'});
+        setFoundStudent(null);
+    } else {
+        toast({ variant: 'destructive', title: '검색 결과 없음' });
+        setFoundStudent(null);
+    }
   };
 
-  const handleDownloadItemRecords = async () => {
-    if (!school || !downloadItem) {
-      toast({
-        variant: "destructive",
-        title: "선택 오류",
-        description: "다운로드할 종목을 선택해주세요.",
-      });
-      return;
-    }
+  const handleDownloadStudentRecords = () => {
+      if (!school || !foundStudent) {
+          toast({ variant: 'destructive', title: '다운로드 실패', description: '학생을 먼저 선택해주세요.' });
+          return;
+      }
+      const studentRecords = records.filter(r => r.studentId === foundStudent.id);
+      if (studentRecords.length === 0) {
+          toast({ variant: 'destructive', title: '데이터 없음', description: '해당 학생의 기록이 없습니다.' });
+          return;
+      }
+      
+      const dataToExport = studentRecords.map(record => ({
+          학교: school,
+          학년: foundStudent.grade,
+          반: foundStudent.classNum,
+          번호: foundStudent.studentNum,
+          이름: foundStudent.name,
+          성별: foundStudent.gender,
+          측정종목: record.item,
+          기록: record.value,
+          측정일: record.date,
+      }));
 
-    const itemRecords = records.filter((r) => r.item === downloadItem);
-
-    if (itemRecords.length === 0) {
-      toast({
-        variant: "destructive",
-        title: "데이터 없음",
-        description: `'${downloadItem}' 종목에 대한 기록이 없습니다.`,
-      });
-      return;
-    }
-
-    const studentMap = new Map(students.map((s) => [s.id, s]));
-
-    const dataToExport = itemRecords.map((record) => {
-      const student = studentMap.get(record.studentId);
-      return {
-        학교: record.school,
-        학년: student?.grade || "",
-        반: student?.classNum || "",
-        번호: student?.studentNum || "",
-        이름: student?.name || "알수없음",
-        성별: student?.gender || "",
-        측정종목: record.item,
-        기록: record.value,
-        측정일: record.date,
-      };
-    });
-
-    exportToCsv(`${school}_${downloadItem}_기록.csv`, dataToExport);
-    toast({
-      title: "다운로드 시작",
-      description: `'${downloadItem}' 종목 기록을 CSV 파일로 다운로드합니다.`,
-    });
+      exportToCsv(`${school}_${foundStudent.name}_기록.csv`, dataToExport);
+      toast({ title: '다운로드 시작', description: `${foundStudent.name} 학생의 기록을 다운로드합니다.` });
   };
 
-  const handleDownloadRecordTemplate = async () => {
-    if (!school) return;
-    const templateData = [
-      {
-        school: school,
-        grade: "1",
-        classNum: "1",
-        studentNum: "1",
-        name: "홍길동",
-        item: "50m 달리기",
-        value: 9.5,
-        date: "2024-01-01",
-      },
-    ];
-
-    const itemsData = items.map((item) => ({
-      종목명: item.name,
-      단위: item.unit,
-    }));
-
-    const files = [
-      { name: "기록_등록_템플릿.csv", data: templateData },
-      { name: "등록된_종목_목록.csv", data: itemsData },
-    ];
-
-    exportToZip("기록_등록_템플릿.zip", files);
-    toast({
-      title: "다운로드 시작",
-      description: "템플릿과 종목 목록을 ZIP 파일로 다운로드합니다.",
-    });
-  };
 
   const handleBulkDelete = async () => {
     if (!school || !deleteDate || !deleteItem) {
@@ -1161,10 +1099,9 @@ export function DatabaseManagement({
     }
     setIsDeleting(true);
     try {
-      const dateStr = format(deleteDate, "yyyy-MM-dd");
       const deletedCount = await deleteRecordsByDateAndItem(
         school,
-        dateStr,
+        deleteDate,
         deleteItem
       );
 
@@ -1172,10 +1109,10 @@ export function DatabaseManagement({
 
       toast({
         title: "삭제 완료",
-        description: `${dateStr}의 ${deleteItem} 기록 ${deletedCount}건이 삭제되었습니다.`,
+        description: `${deleteDate}의 ${deleteItem === 'all' ? '모든' : deleteItem} 기록 ${deletedCount}건이 삭제되었습니다.`,
       });
 
-      setDeleteDate(undefined);
+      setDeleteDate("");
       setDeleteItem("");
     } catch (error) {
       console.error("Failed to bulk delete records:", error);
@@ -1341,11 +1278,11 @@ export function DatabaseManagement({
           </div>
         </div>
 
-        <div className="border-b pb-6">
-          <h3 className="text-lg font-semibold mb-2">기록 등록 및 다운로드</h3>
-          <p className="text-sm text-muted-foreground mb-4">
+        <div className="border-b pb-6 space-y-4">
+          <h3 className="text-lg font-semibold">기록 등록 및 다운로드</h3>
+          <p className="text-sm text-muted-foreground">
             CSV 파일을 사용하여 여러 학생의 기록을 한 번에 등록하거나, 전체 또는
-            특정 종목의 기록을 다운로드합니다.
+            특정 학생/종목의 기록을 다운로드합니다.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button
@@ -1374,40 +1311,17 @@ export function DatabaseManagement({
               onChange={handleRecordCsvUpload}
               style={{ display: "none" }}
             />
-            <Button variant="link" onClick={handleDownloadRecordTemplate}>
+            <Button variant="link" onClick={() => exportToZip("기록_등록_템플릿.zip", [{ name: "기록_등록_템플릿.csv", data: [{ school, grade: "1", classNum: "1", studentNum: "1", name: "홍길동", item: "50m 달리기", value: 9.5, date: "2024-01-01"}] }, { name: "등록된_종목_목록.csv", data: items.map(item => ({ '종목명': item.name, '단위': item.unit })) }])}>
               기록용 템플릿
             </Button>
-
-            <div className="flex flex-wrap gap-2 items-center ml-0 sm:ml-auto">
-              <Select value={downloadItem} onValueChange={setDownloadItem}>
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="종목 선택 (선택 사항)" />
-                </SelectTrigger>
-                <SelectContent>
-                  {items.map((item) => (
-                    <SelectItem key={item.id} value={item.name}>
-                      {item.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <div className="flex gap-2 w-full sm:w-auto">
-                <Button
-                  className="flex-1"
-                  variant="outline"
-                  onClick={handleDownloadItemRecords}
-                  disabled={!downloadItem}
-                >
-                  <FileDown className="mr-2 h-4 w-4" /> 선택 기록
-                </Button>
-                <Button
-                  className="flex-1"
-                  variant="outline"
-                  onClick={handleDownloadAllRecords}
-                >
-                  <FileDown className="mr-2 h-4 w-4" /> 전체 기록
-                </Button>
-              </div>
+          </div>
+          <div className="space-y-2">
+            <Label>학생 또는 종목별 기록 다운로드</Label>
+            <div className="flex flex-wrap gap-2 items-center">
+                <Input placeholder="학생 이름 검색..." value={studentSearch} onChange={e => setStudentSearch(e.target.value)} className="w-full sm:w-auto" onKeyDown={e => e.key === 'Enter' && handleSearchStudent()} />
+                <Button onClick={handleSearchStudent}>검색</Button>
+                 <Button variant="outline" onClick={handleDownloadStudentRecords} disabled={!foundStudent}><FileDown className="mr-2 h-4 w-4" />{foundStudent ? `${foundStudent.name} 기록` : '학생 기록'}</Button>
+                 <Button variant="outline" onClick={() => exportToCsv(`${school}_전체_학생_기록.csv`, records.map(r => { const s = students.find(st => st.id === r.studentId); return { 학교: s?.school, 학년: s?.grade, 반: s?.classNum, 번호: s?.studentNum, 이름: s?.name, 성별: s?.gender, 측정종목: r.item, 기록: r.value, 측정일: r.date } }))}><FileDown className="mr-2 h-4 w-4" />전체 기록</Button>
             </div>
           </div>
         </div>
@@ -1415,41 +1329,26 @@ export function DatabaseManagement({
         <div className="border-b pb-6">
           <h3 className="text-lg font-semibold mb-2">기록 일괄 삭제</h3>
           <p className="text-sm text-muted-foreground mb-4">
-            특정 날짜에 잘못 입력된 특정 종목의 모든 기록을 한 번에 삭제합니다.
+            특정 날짜에 잘못 입력된 종목의 모든 기록을 한 번에 삭제합니다.
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant={"outline"}
-                  className={cn(
-                    "w-full sm:w-[240px] justify-start text-left font-normal",
-                    !deleteDate && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {deleteDate ? (
-                    format(deleteDate, "PPP")
-                  ) : (
-                    <span>삭제할 날짜 선택</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <Calendar
-                  mode="single"
-                  selected={deleteDate}
-                  onSelect={setDeleteDate}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
+            <Select value={deleteDate} onValueChange={setDeleteDate}>
+              <SelectTrigger className="w-full sm:w-[240px]">
+                <SelectValue placeholder="삭제할 날짜 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                  {recordDates.map(date => (
+                      <SelectItem key={date} value={date}>{date}</SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
 
             <Select value={deleteItem} onValueChange={setDeleteItem}>
               <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue placeholder="삭제할 종목 선택" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="all">모든 종목</SelectItem>
                 {items.map((item) => (
                   <SelectItem key={item.id} value={item.name}>
                     {item.name}
@@ -1476,8 +1375,8 @@ export function DatabaseManagement({
                 <AlertDialogHeader>
                   <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    {deleteDate && `${format(deleteDate, "yyyy-MM-dd")}`}의{" "}
-                    {deleteItem} 기록 전체가 영구적으로 삭제됩니다. 이 작업은
+                    {deleteDate}의{" "}
+                    {deleteItem === 'all' ? '모든 종목' : deleteItem} 기록 전체가 영구적으로 삭제됩니다. 이 작업은
                     되돌릴 수 없습니다.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
