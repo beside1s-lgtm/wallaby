@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { getStudentById, getItems, getRecords, getRecordsByStudent } from '@/lib/store';
+import { getStudentById, getItems, getRecords, getRecordsByStudent, getStudents } from '@/lib/store';
 import { analyzeStudentPerformance } from '@/ai/flows/teacher-ai-assistant';
 import type { Student, MeasurementItem, MeasurementRecord } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
