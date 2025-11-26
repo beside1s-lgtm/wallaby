@@ -93,8 +93,8 @@ const prompt = ai.definePrompt({
   {{else}}
     - 전체 학생 PAPS 분석:
         - 평균 등급: {{paps.overall.averageGrade}}등급
-        - 4, 5등급 학생 비율: {{p.lowPerformingPercentage}}%
-        - 전체 등급 분포: {{json p.overall.gradeDistribution}}
+        - 4, 5등급 학생 비율: {{paps.overall.lowPerformingPercentage}}%
+        - 전체 등급 분포: {{json paps.overall.gradeDistribution}}
     - 학년별 PAPS 분석:
         {{#each paps.byGradeLevel}}
         - {{@key}}학년: 평균 {{this.averageGrade}}등급, 4-5등급 비율 {{this.lowPerformingPercentage}}%
