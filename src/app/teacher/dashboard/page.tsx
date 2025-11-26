@@ -134,21 +134,12 @@ export default function TeacherDashboardPage() {
               AI 수업 브리핑
             </CardTitle>
             <CardDescription>
-              PAPS 종목 또는 기타 종목의 전체 평균 데이터를 기반으로 AI가 생성한
-              요약 및 조언을 확인하세요.
+              전체 학생들의 PAPS 및 기타 종목 평균 데이터를 기반으로 AI가 생성한 요약 및 조언을 확인하세요.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col sm:flex-row gap-4">
             <AiWelcome
-              itemType="paps"
-              title="전체 AI 브리핑"
-              allStudents={students}
-              items={items}
-              records={records}
-            />
-            <AiWelcome
-              itemType="custom"
-              title="기타 종목 브리핑"
+              title="전체 학생 AI 브리핑"
               allStudents={students}
               items={items}
               records={records}
@@ -277,3 +268,5 @@ export default function TeacherDashboardPage() {
     </>
   );
 }
+
+    
