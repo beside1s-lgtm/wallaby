@@ -296,6 +296,7 @@ export default function AiWelcome({ title, allStudents, classStudents, items, re
     if (!school || !hasData || !analysisDataForAI) return;
     
     setIsLoading(true);
+    setBriefingData(null);
     try {
         const result = await getTeacherDashboardBriefing(analysisDataForAI);
         setBriefingData(result);
@@ -311,18 +312,18 @@ export default function AiWelcome({ title, allStudents, classStudents, items, re
   };
   
   useEffect(() => {
-    // Reset briefing data when dialog closes
     if (!isOpen) {
         setBriefingData(null);
-    } else if (isOpen && !briefingData) {
-        fetchBriefing();
     }
   }, [isOpen]);
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button disabled={!hasData} variant="outline">{title}</Button>
+        <Button onClick={fetchBriefing} disabled={!hasData || isLoading} variant="outline">
+          {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lightbulb className="mr-2 h-4 w-4" />}
+          {title}
+        </Button>
       </DialogTrigger>
       <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
         <DialogHeader>
@@ -454,5 +455,3 @@ export default function AiWelcome({ title, allStudents, classStudents, items, re
     </Dialog>
   );
 }
-
-    

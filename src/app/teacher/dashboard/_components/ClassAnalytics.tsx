@@ -1227,7 +1227,6 @@ export default function ClassAnalytics({
                         </SelectContent>
                       </Select>
                       <AiWelcome
-                        itemType="paps"
                         title="학급 AI 브리핑"
                         allStudents={allStudents}
                         classStudents={filteredStudentsByClass}
