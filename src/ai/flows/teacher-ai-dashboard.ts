@@ -145,6 +145,8 @@ const prompt = ai.definePrompt({
 `,
 });
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 const teacherDashboardBriefingFlow = ai.defineFlow(
   {
     name: 'teacherDashboardBriefingFlow',
@@ -152,6 +154,7 @@ const teacherDashboardBriefingFlow = ai.defineFlow(
     outputSchema: TeacherDashboardBriefingOutputSchema,
   },
   async input => {
+    await delay(2000); // 2초 지연 추가
     const {output} = await prompt(input);
 return output!;
   }
