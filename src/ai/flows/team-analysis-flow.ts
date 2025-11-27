@@ -11,6 +11,8 @@ import { ai } from '@/ai/genkit';
 import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'zod';
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 const AbilityScoreSchema = z.object({
   item: z.string().describe('The name of the measurement item.'),
   score: z.number().describe('The average ability score for the item (0-100).'),
@@ -52,8 +54,6 @@ const prompt = ai.definePrompt({
 4.  **추천 전략:** 분석 내용을 바탕으로 팀이 집중해야 할 훈련이나 전략을 추천합니다. (예: "수비 조직력을 강화하여 강한 공격력을 더욱 효과적으로 활용하는 전략이 필요합니다.")
 `,
 });
-
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const teamAnalysisFlow = ai.defineFlow(
   {

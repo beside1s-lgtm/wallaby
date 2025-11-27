@@ -12,6 +12,8 @@ import {ai} from '@/ai/genkit';
 import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'zod';
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 const AnalyzeStudentPerformanceInputSchema = z.object({
   school: z.string().describe('The school of the student.'),
   studentName: z.string().describe('The name of the student to analyze.'),
@@ -62,8 +64,6 @@ PAPS 종목별 등수: {{json ranks}}
 모든 답변은 한국어로, 항목당 한 문장으로 간결하게 작성해주세요.
 `,
 });
-
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const analyzeStudentPerformanceFlow = ai.defineFlow(
   {

@@ -12,6 +12,8 @@ import { googleAI } from '@genkit-ai/google-genai';
 import { z } from 'zod';
 import type { MeasurementItem } from '@/lib/types';
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 const AbilityScoreSchema = z.object({
   item: z.string().describe('The name of the measurement item.'),
   score: z.number().describe('The ability score for the item (0-100).'),
@@ -83,8 +85,6 @@ const prompt = ai.definePrompt({
 `,
 });
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
 const scoutingReportFlow = ai.defineFlow(
   {
     name: 'scoutingReportFlow',
@@ -92,7 +92,6 @@ const scoutingReportFlow = ai.defineFlow(
     outputSchema: ScoutingReportOutputSchema,
   },
   async (input) => {
-    await delay(5000);
     const enrichedScores = input.abilityScores.map(score => {
         const itemInfo = input.allItems.find(i => i.name === score.item);
         return {
@@ -103,6 +102,7 @@ const scoutingReportFlow = ai.defineFlow(
     
     const enrichedInput = { ...input, abilityScores: enrichedScores };
 
+    await delay(5000);
     const { output } = await prompt(enrichedInput);
     return output!;
   }
