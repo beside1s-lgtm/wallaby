@@ -355,22 +355,14 @@ export default function StudentDashboardPage() {
     
     setIsFeedbackLoading(true);
     try {
+      const latestRecord = [...records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+      const itemInfo = measurementItems.find(i => i.name === latestRecord.item);
+      if (!itemInfo) throw new Error("Item info not found");
+
       const allItemRanks = calculateRanks(school, measurementItems, allRecords, allStudents, fullStudent.grade);
-      const studentRanks: Record<string, string> = {};
-       Object.entries(allItemRanks).forEach(([item, ranks]) => {
-            const rankInfo = ranks.find(r => r.studentId === fullStudent.id);
-            if(rankInfo) {
-                studentRanks[item] = `${ranks.length}명 중 ${rankInfo.rank}등`;
-            }
-       });
-
-      const performanceResults = records
-        .map(r => {
-            const itemInfo = measurementItems.find(item => item.name === r.item);
-            return `${r.item}: ${r.value}${itemInfo?.unit || ''}`;
-        })
-        .join('\n');
-
+      const ranksForItem = allItemRanks[latestRecord.item] || [];
+      const rankInfo = ranksForItem.find(r => r.studentId === fullStudent.id && r.value === latestRecord.value);
+      
       const feedbackInput = {
         school: school,
         studentName: fullStudent.name,
@@ -378,10 +370,11 @@ export default function StudentDashboardPage() {
         classNumber: fullStudent.classNum,
         studentNumber: fullStudent.studentNum,
         gender: fullStudent.gender,
-        exerciseType: '종합',
-        performanceResults: `최근 기록\n${performanceResults}`,
-        ranks: studentRanks,
+        exerciseType: latestRecord.item,
+        performanceResult: `${latestRecord.value}${itemInfo.unit || ''}`,
+        rank: rankInfo ? `${ranksForItem.length}명 중 ${rankInfo.rank}등` : undefined,
       };
+
       const result = await getStudentFeedback(feedbackInput);
       setAiFeedback(result.feedback);
     } catch (error) {
@@ -645,7 +638,7 @@ export default function StudentDashboardPage() {
                  <Card className="flex flex-col">
                     <CardHeader>
                         <CardTitle>AI 피드백</CardTitle>
-                        <CardDescription>운동 수행 결과를 바탕으로 AI가 피드백을 제공합니다.</CardDescription>
+                        <CardDescription>가장 최근의 운동 수행 결과를 바탕으로 AI가 피드백을 제공합니다.</CardDescription>
                     </CardHeader>
                     <CardContent className="flex-grow">
                         {isFeedbackLoading ? (
@@ -666,7 +659,7 @@ export default function StudentDashboardPage() {
                         variant="outline"
                         >
                         <Wand2 className="mr-2 h-4 w-4" />
-                        {isFeedbackLoading ? '피드백 생성 중...' : 'AI 피드백 받기'}
+                        {isFeedbackLoading ? '피드백 생성 중...' : '최신 기록 AI 피드백 받기'}
                         </Button>
                     </CardFooter>
                 </Card>
