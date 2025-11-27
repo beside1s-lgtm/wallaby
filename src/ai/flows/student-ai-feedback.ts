@@ -12,6 +12,8 @@ import {ai} from '@/ai/genkit';
 import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'zod';
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 const StudentFeedbackInputSchema = z.object({
   school: z.string().describe('The school of the student.'),
   studentName: z.string().describe('The name of the student.'),
@@ -66,8 +68,6 @@ const prompt = ai.definePrompt({
 5.  주어진 정보 외에 다른 내용을 만들지 마세요. 피드백은 200자 이내로 간결하게 작성해주세요.
 `,
 });
-
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const studentFeedbackFlow = ai.defineFlow(
   {

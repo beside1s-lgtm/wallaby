@@ -14,6 +14,8 @@ import {ai} from '@/ai/genkit';
 import {googleAI} from '@genkit-ai/google-genai';
 import {z} from 'genkit';
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 const GradeDistributionSchema = z.record(z.string(), z.number().describe('The percentage of students for each grade (1-5).'));
 
 const PapsAnalysisSchema = z.object({
@@ -144,8 +146,6 @@ const prompt = ai.definePrompt({
 결과는 반드시 한국어로 작성하고, 각 항목을 1-2문장의 간결하고 명확한 문장으로 요약해주세요.
 `,
 });
-
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const teacherDashboardBriefingFlow = ai.defineFlow(
   {
