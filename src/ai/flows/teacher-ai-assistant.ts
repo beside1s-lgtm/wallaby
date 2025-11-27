@@ -63,6 +63,8 @@ PAPS 종목별 등수: {{json ranks}}
 `,
 });
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 const analyzeStudentPerformanceFlow = ai.defineFlow(
   {
     name: 'analyzeStudentPerformanceFlow',
@@ -70,6 +72,7 @@ const analyzeStudentPerformanceFlow = ai.defineFlow(
     outputSchema: AnalyzeStudentPerformanceOutputSchema,
   },
   async input => {
+    await delay(5000);
     const {output} = await analyzeStudentPerformancePrompt(input);
     return output!;
   }

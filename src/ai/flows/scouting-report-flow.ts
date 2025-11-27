@@ -83,6 +83,8 @@ const prompt = ai.definePrompt({
 `,
 });
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 const scoutingReportFlow = ai.defineFlow(
   {
     name: 'scoutingReportFlow',
@@ -90,6 +92,7 @@ const scoutingReportFlow = ai.defineFlow(
     outputSchema: ScoutingReportOutputSchema,
   },
   async (input) => {
+    await delay(5000);
     const enrichedScores = input.abilityScores.map(score => {
         const itemInfo = input.allItems.find(i => i.name === score.item);
         return {

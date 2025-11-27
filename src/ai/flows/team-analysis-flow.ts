@@ -53,6 +53,8 @@ const prompt = ai.definePrompt({
 `,
 });
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 const teamAnalysisFlow = ai.defineFlow(
   {
     name: 'teamAnalysisFlow',
@@ -60,6 +62,7 @@ const teamAnalysisFlow = ai.defineFlow(
     outputSchema: TeamAnalysisOutputSchema,
   },
   async (input) => {
+    await delay(5000);
     const { output } = await prompt(input);
     return output!;
   }
