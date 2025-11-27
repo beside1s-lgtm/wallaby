@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { getStudentById, getItems, getRecords, getRecordsByStudent, getStudents } from '@/lib/store';
-import { analyzeStudentPerformance } from '@/ai/flows/teacher-ai-assistant';
+import { getStudentById, getItems, getRecords, getRecordsByStudent, getStudents, calculateRanks } from '@/lib/store';
+import { getScoutingReport } from '@/ai/flows/scouting-report-flow';
 import type { Student, MeasurementItem, MeasurementRecord } from '@/lib/types';
+import type { ScoutingReportOutput } from '@/ai/flows/scouting-report-flow';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, User as UserIcon, Printer, Download } from 'lucide-react';
+import { Loader2, User as UserIcon, Printer } from 'lucide-react';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Tooltip } from 'recharts';
 import { getPapsGrade, calculatePapsScore } from '@/lib/paps';
 
@@ -22,12 +23,6 @@ const papsFactors: Record<string, string> = {
 
 const factorOrder = ['심폐지구력', '근력/근지구력', '순발력', '유연성', '체질량지수'];
 
-type AnalysisData = {
-    strengths: string;
-    weaknesses: string;
-    suggestedTrainingMethods: string;
-}
-
 export default function ReportCardPage() {
     const { user, school, isLoading: isAuthLoading } = useAuth();
     const student = user as Student;
@@ -36,7 +31,7 @@ export default function ReportCardPage() {
     const [fullStudent, setFullStudent] = useState<Student | null>(null);
     const [items, setItems] = useState<MeasurementItem[]>([]);
     const [records, setRecords] = useState<MeasurementRecord[]>([]);
-    const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
+    const [analysis, setAnalysis] = useState<ScoutingReportOutput | null>(null);
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -54,36 +49,46 @@ export default function ReportCardPage() {
             if (!student?.id || !school) return;
             setIsLoading(true);
             try {
-                const [studentData, itemData, recordData] = await Promise.all([
+                const [studentData, itemData, recordData, allStudents, allRecords] = await Promise.all([
                     getStudentById(school, student.id),
                     getItems(school),
-                    getRecordsByStudent(school, student.id)
+                    getRecordsByStudent(school, student.id),
+                    getStudents(school),
+                    getRecords(school)
                 ]);
                 setFullStudent(studentData || null);
                 setItems(itemData || []);
                 setRecords(recordData || []);
 
                 if (studentData && recordData.length > 0) {
-                    const allRecordsForRank = await getRecords(school);
-                    const allStudentsForRank = await getStudents(school);
-                    const ranks = getRanksForStudent(school, studentData, itemData, allRecordsForRank, allStudentsForRank);
-                    
-                    const papsRecords = recordData.filter(r => {
-                        const itemInfo = itemData.find(item => item.name === r.item);
-                        return itemInfo?.isPaps;
+                    const allRanks = calculateRanks(school, itemData, allRecords, allStudents, studentData.grade);
+                    const abilityScores = recordData.map(r => {
+                      const rankInfo = allRanks[r.item]?.find(rank => rank.studentId === r.studentId);
+                      const score = rankInfo ? Math.round((1 - (rankInfo.rank - 1) / allRanks[r.item].length) * 100) : 0;
+                      return { item: r.item, score };
                     });
-                    
-                    if (papsRecords.length > 0) {
-                        const performanceData = JSON.stringify(
-                            papsRecords.map(r => ({ item: r.item, value: r.value, date: r.date }))
-                        );
-                        const aiResult = await analyzeStudentPerformance({
-                            school: school,
-                            studentName: studentData.name,
-                            performanceData,
-                            ranks: ranks
-                        });
-                        setAnalysis(aiResult);
+
+                    if (abilityScores.length > 0) {
+                      const studentRanks: Record<string, string> = {};
+                      Object.entries(allRanks).forEach(([item, ranks]) => {
+                          const rankInfo = ranks.find(r => r.studentId === studentData.id);
+                          if(rankInfo && abilityScores.some(s => s.item === item)) {
+                              studentRanks[item] = `${ranks.length}명 중 ${rankInfo.rank}등`;
+                          }
+                      });
+
+                      const input = {
+                        studentName: studentData.name,
+                        abilityScores: abilityScores.map(s => {
+                          const itemInfo = itemData.find(i => i.name === s.item);
+                          return { ...s, category: itemInfo?.category || (itemInfo?.isPaps ? 'PAPS' : '기타') };
+                        }),
+                        ranks: studentRanks,
+                        allItems: itemData
+                      };
+
+                      const aiResult = await getScoutingReport(input);
+                      setAnalysis(aiResult);
                     }
                 }
             } catch (error) {
@@ -327,48 +332,4 @@ export default function ReportCardPage() {
             `}</style>
         </div>
     );
-}
-
-// Helper function
-function getRanksForStudent(school: string, student: Student, allItems: MeasurementItem[], allRecords: MeasurementRecord[], allStudents: Student[]) {
-    const ranks: Record<string, string> = {};
-
-    const itemLatestRecords: Record<string, { value: number, studentId: string }[]> = {};
-
-    allItems.forEach(item => {
-        const itemRecords = allRecords.filter(r => r.item === item.name);
-        const latestRecords: Record<string, MeasurementRecord> = {};
-
-        itemRecords.forEach(record => {
-            const studentOfRecord = allStudents.find(s => s.id === record.studentId);
-            if (studentOfRecord?.grade !== student.grade) return;
-            
-            if (!latestRecords[record.studentId] || new Date(record.date) > new Date(latestRecords[record.studentId].date)) {
-                latestRecords[record.studentId] = record;
-            }
-        });
-        itemLatestRecords[item.name] = Object.values(latestRecords).map(r => ({ value: r.value, studentId: r.studentId }));
-
-        if (item.recordType === 'time') {
-            itemLatestRecords[item.name].sort((a,b) => a.value - b.value);
-        } else {
-            itemLatestRecords[item.name].sort((a,b) => b.value - a.value);
-        }
-
-        const studentRankIndex = itemLatestRecords[item.name].findIndex(r => r.studentId === student.id);
-        if (studentRankIndex !== -1) {
-            let rank = studentRankIndex + 1;
-            // Handle ties
-            for (let i = studentRankIndex - 1; i >= 0; i--) {
-                if (itemLatestRecords[item.name][i].value === itemLatestRecords[item.name][studentRankIndex].value) {
-                    rank = i + 1;
-                } else {
-                    break;
-                }
-            }
-            ranks[item.name] = `${itemLatestRecords[item.name].length}명 중 ${rank}등`;
-        }
-    });
-
-    return ranks;
 }

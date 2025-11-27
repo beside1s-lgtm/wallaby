@@ -458,6 +458,7 @@ export default function StudentDashboardPage() {
           weaknesses: result.weaknesses,
           assessment: result.assessment,
           position: result.strategy, // Reuse position field for strategy
+          suggestedTrainingMethods: '',
         }
         setActiveReport({ type: 'team', data: reportData });
     } catch(error) {
@@ -983,10 +984,24 @@ export default function StudentDashboardPage() {
                                         <h4 className="font-bold">종합 평가 (선수 유형)</h4>
                                         <p className="whitespace-pre-wrap">{(activeReport.data as ScoutingReportOutput).assessment}</p>
                                     </div>
+                                    { activeReport.type === 'scouting' &&
+                                    <>
+                                        <div>
+                                            <h4 className="font-bold">추천 포지션</h4>
+                                            <p className="whitespace-pre-wrap">{(activeReport.data as ScoutingReportOutput).position}</p>
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold">추천 훈련 방법</h4>
+                                            <p className="whitespace-pre-wrap">{(activeReport.data as ScoutingReportOutput).suggestedTrainingMethods}</p>
+                                        </div>
+                                    </>
+                                    }
+                                    { activeReport.type === 'team' &&
                                      <div>
-                                        <h4 className="font-bold">추천 포지션</h4>
-                                        <p className="whitespace-pre-wrap">{(activeReport.data as ScoutingReportOutput).position}</p>
+                                        <h4 className="font-bold">추천 전략</h4>
+                                        <p className="whitespace-pre-wrap">{(activeReport.data as any).position}</p>
                                     </div>
+                                    }
                                 </CardContent>
                             </Card>
                         )}

@@ -40,7 +40,7 @@ const prompt = ai.definePrompt({
   name: 'teamAnalysisPrompt',
   input: { schema: TeamAnalysisInputSchema },
   output: { schema: TeamAnalysisOutputSchema },
-  model: googleAI.model('gemini-2.5-flash-lite'),
+  model: googleAI.model('gemini-1.5-flash-latest'),
   prompt: `당신은 스포츠 팀의 전력을 분석하는 전문 분석가입니다. 주어진 팀의 평균 능력치 데이터를 바탕으로 {{teamName}}에 대한 전력 분석 리포트를 개조식으로 작성해주세요.
 
 ### 분석 데이터:

@@ -74,7 +74,7 @@ const prompt = ai.definePrompt({
   name: 'teacherDashboardBriefingPrompt',
   input: {schema: TeacherDashboardBriefingInputSchema},
   output: {schema: TeacherDashboardBriefingOutputSchema},
-  model: googleAI.model('gemini-2.5-flash-lite'),
+  model: googleAI.model('gemini-1.5-flash-latest'),
   prompt: `당신은 {{school}}의 체육 선생님을 위한 AI 조수입니다. 학생들의 PAPS(학생건강체력평가) 및 기타 종목 데이터를 종합적으로 분석하여 브리핑과 수업 조언을 한국어로 제공해주세요.
 
 ## 분석 데이터:

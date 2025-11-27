@@ -66,7 +66,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { analyzeStudentPerformance } from "@/ai/flows/teacher-ai-assistant";
+import { getScoutingReport } from "@/ai/flows/scouting-report-flow";
 import { Button } from "@/components/ui/button";
 import {
   Loader2,
@@ -91,12 +91,10 @@ import { Calendar } from "@/components/ui/calendar";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import type { ScoutingReportOutput } from "@/ai/flows/scouting-report-flow";
 
-type AiAnalysis = {
-  strengths: string;
-  weaknesses: string;
-  suggestedTrainingMethods: string;
-};
+type AiAnalysis = ScoutingReportOutput;
+
 
 interface ClassAnalyticsProps {
   allStudents: Student[];
@@ -351,51 +349,41 @@ export default function ClassAnalytics({
       
       const studentRanks: Record<string, string> = {};
       Object.entries(allItemRanks).forEach(([item, ranks]) => {
-        const itemInfo = allItems.find(i => i.name === item);
-        if (itemInfo && !itemInfo.isPaps) {
-            return;
-        }
         const rankInfo = ranks.find((r) => r.studentId === selectedStudent.id);
         if (rankInfo) {
           studentRanks[item] = `${ranks.length}명 중 ${rankInfo.rank}등`;
         }
       });
-
-      const papsRecords = studentRecords.filter(r => {
-        const itemInfo = allItems.find(item => item.name === r.item);
-        return itemInfo?.isPaps;
+      
+      const abilityScores = studentRecords.map(r => {
+        const rankInfo = allItemRanks[r.item]?.find(rank => rank.studentId === r.studentId);
+        const score = rankInfo ? Math.round((1 - (rankInfo.rank - 1) / allItemRanks[r.item].length) * 100) : 0;
+        return { item: r.item, score };
       });
-
-      if (papsRecords.length === 0) {
+      
+      if (abilityScores.length === 0) {
         toast({
           variant: "destructive",
           title: "AI 분석 불가",
-          description: "분석할 PAPS 기록이 없습니다.",
+          description: "분석할 기록이 없습니다.",
         });
         setIsAiLoading(false);
         return;
       }
-
-      const performanceData = JSON.stringify(
-        papsRecords.map((r) => {
-          const itemInfo = allItems.find((item) => item.name === r.item);
-          return {
-            item: r.item,
-            value: r.value,
-            date: r.date,
-            recordType: itemInfo?.recordType || "count",
-            isPaps: itemInfo?.isPaps || false,
-          };
-        })
-      );
-
-      const result = await analyzeStudentPerformance({
-        school,
+      
+      const input = {
         studentName: selectedStudent.name,
-        performanceData,
+        abilityScores: abilityScores.map(s => {
+          const itemInfo = allItems.find(i => i.name === s.item);
+          return { ...s, category: itemInfo?.category || (itemInfo?.isPaps ? 'PAPS' : '기타') };
+        }),
         ranks: studentRanks,
-      });
+        allItems: allItems
+      };
+      
+      const result = await getScoutingReport(input);
       setAiAnalysis(result);
+
     } catch (error) {
       console.error("AI analysis failed:", error);
       toast({
@@ -1056,8 +1044,7 @@ export default function ClassAnalytics({
                 <CardHeader>
                   <CardTitle>AI 코칭 어시스턴트</CardTitle>
                   <CardDescription>
-                    학생의 PAPS 기록을 바탕으로 강점, 약점, 추천 훈련 방법을
-                    분석합니다.
+                    학생의 기록을 바탕으로 스카우팅 리포트를 생성합니다.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -1066,21 +1053,37 @@ export default function ClassAnalytics({
                       <Loader2 className="w-8 h-8 animate-spin text-primary" />
                     </div>
                   ) : aiAnalysis ? (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                       <div>
-                        <h4 className="font-bold mb-2 text-green-600">강점</h4>
+                        <h4 className="font-bold mb-2 text-green-600">핵심 강점</h4>
                         <p className="whitespace-pre-wrap">
                           {aiAnalysis.strengths}
                         </p>
                       </div>
                       <div>
-                        <h4 className="font-bold mb-2 text-red-600">약점</h4>
+                        <h4 className="font-bold mb-2 text-red-600">보완점</h4>
                         <p className="whitespace-pre-wrap">
                           {aiAnalysis.weaknesses}
                         </p>
                       </div>
                       <div>
                         <h4 className="font-bold mb-2 text-blue-600">
+                          종합 평가 (선수 유형)
+                        </h4>
+                        <p className="whitespace-pre-wrap">
+                          {aiAnalysis.assessment}
+                        </p>
+                      </div>
+                       <div>
+                        <h4 className="font-bold mb-2 text-indigo-600">
+                          추천 포지션
+                        </h4>
+                        <p className="whitespace-pre-wrap">
+                          {aiAnalysis.position}
+                        </p>
+                      </div>
+                       <div className="md:col-span-2">
+                        <h4 className="font-bold mb-2 text-yellow-600">
                           추천 훈련 방법
                         </h4>
                         <p className="whitespace-pre-wrap">

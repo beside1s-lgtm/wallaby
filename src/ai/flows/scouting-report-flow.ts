@@ -32,7 +32,8 @@ const ScoutingReportOutputSchema = z.object({
     strengths: z.string().describe("Key strengths of the student, summarized in 1-2 bullet points."),
     weaknesses: z.string().describe("Areas for improvement for the student, summarized in 1-2 bullet points."),
     assessment: z.string().describe("An overall assessment of the student's athletic type."),
-    position: z.string().describe("A recommended position based on the analysis.")
+    position: z.string().describe("A recommended position based on the analysis."),
+    suggestedTrainingMethods: z.string().describe('Suggested training methods to improve performance.'),
 });
 export type ScoutingReportOutput = z.infer<typeof ScoutingReportOutputSchema>;
 
@@ -56,8 +57,8 @@ const prompt = ai.definePrompt({
   name: 'scoutingReportPrompt',
   input: { schema: ScoutingReportInputSchema },
   output: { schema: ScoutingReportOutputSchema },
-  model: googleAI.model('gemini-2.5-flash-lite'),
-  prompt: `당신은 학생 선수의 잠재력을 분석하는 전문 스카우터입니다. 주어진 데이터를 바탕으로 {{studentName}} 학생에 대한 스카우팅 리포트를 개조식으로 작성해주세요.
+  model: googleAI.model('gemini-1.5-flash-latest'),
+  prompt: `당신은 학생 선수의 잠재력을 분석하는 전문 스카우터이자 코치입니다. 주어진 데이터를 바탕으로 {{studentName}} 학생에 대한 스카우팅 리포트를 개조식으로 작성해주세요.
 
 ### 분석 데이터:
 - **학생 이름:** {{studentName}}
@@ -74,6 +75,7 @@ const prompt = ai.definePrompt({
     -   **보완점:** 상대적으로 점수가 '낮은' 1~2개 종목을 약점으로 분석합니다.
     -   **종합 평가 (선수 유형):** 강점을 종합하여 학생의 선수 유형을 한 문장으로 정의합니다. (예: "폭발적인 순발력과 파워를 겸비한 공격형 선수.")
     -   **추천 포지션:** 분석 내용을 바탕으로 가장 적합한 포지션을 추천합니다. (예: "아포짓 스파이커(라이트 공격수) 또는 미들 블로커")
+    -   **추천 훈련 방법:** 분석된 '약점'을 보완하고 전반적인 체력을 향상시키기 위한 구체적이고 실행 가능한 훈련 방법을 제안하세요.
     -   **주의:** 리포트에 구체적인 점수나 등수를 절대 언급하지 마세요.
 
 3.  **PAPS 체력 요소 참고:**
