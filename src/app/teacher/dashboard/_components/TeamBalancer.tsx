@@ -138,6 +138,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
   const [scoutingReport, setScoutingReport] =
     useState<ScoutingReportOutput | null>(null);
   const [isReportLoading, setIsReportLoading] = useState(false);
+  const [isAiButtonDisabled, setIsAiButtonDisabled] = useState(false);
   const [isSending, setIsSending] = useState(false);
 
   const [studentSearchTerm, setStudentSearchTerm] = useState("");
@@ -456,6 +457,8 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
       return;
     }
     setIsReportLoading(true);
+    setIsAiButtonDisabled(true);
+    setTimeout(() => setIsAiButtonDisabled(false), 10000);
     setScoutingReport(null);
     try {
       const student = allStudents.find((s) => s.id === selectedStudentId);
@@ -1157,10 +1160,10 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                    </Button>
                   <Button
                     onClick={handleAiReport}
-                    disabled={!selectedStudentId || isReportLoading}
+                    disabled={!selectedStudentId || isReportLoading || isAiButtonDisabled}
                   >
                     <Wand2 className="mr-2 h-4 w-4" />
-                    {isReportLoading ? "분석 중..." : "AI 리포트"}
+                    {isReportLoading ? "분석 중..." : isAiButtonDisabled ? "10초 후에 다시 시도하세요" : "AI 리포트"}
                   </Button>
                 </div>
                 {selectedStudentData && (

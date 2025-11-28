@@ -104,6 +104,7 @@ export default function StudentDashboardPage() {
   
   const [aiFeedback, setAiFeedback] = useState('');
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
+  const [isAiButtonDisabled, setIsAiButtonDisabled] = useState(false);
 
   const [chartFilter, setChartFilter] = useState<'all' | 'paps' | 'custom'>('all');
   const [chartItemFilter, setChartItemFilter] = useState('all');
@@ -354,6 +355,9 @@ export default function StudentDashboardPage() {
     }
     
     setIsFeedbackLoading(true);
+    setIsAiButtonDisabled(true);
+    setTimeout(() => setIsAiButtonDisabled(false), 10000);
+
     try {
       const latestRecord = [...records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
       const itemInfo = measurementItems.find(i => i.name === latestRecord.item);
@@ -400,6 +404,8 @@ export default function StudentDashboardPage() {
     }
     
     setIsReportLoading(true);
+    setIsAiButtonDisabled(true);
+    setTimeout(() => setIsAiButtonDisabled(false), 10000);
     setActiveReport(null);
     try {
       const allItemRanks = calculateRanks(school, measurementItems, allRecords, allStudents, fullStudent.grade);
@@ -446,6 +452,8 @@ export default function StudentDashboardPage() {
     }
     
     setIsReportLoading(true);
+    setIsAiButtonDisabled(true);
+    setTimeout(() => setIsAiButtonDisabled(false), 10000);
     setActiveReport(null);
     try {
         const teamName = `팀 ${myTeam.teamIndex + 1}`;
@@ -655,12 +663,12 @@ export default function StudentDashboardPage() {
                     <CardFooter>
                         <Button
                         onClick={handleGetFeedback}
-                        disabled={isFeedbackLoading || records.length === 0}
+                        disabled={isFeedbackLoading || records.length === 0 || isAiButtonDisabled}
                         className="w-full"
                         variant="outline"
                         >
                         <Wand2 className="mr-2 h-4 w-4" />
-                        {isFeedbackLoading ? '피드백 생성 중...' : '최신 기록 AI 피드백 받기'}
+                        {isFeedbackLoading ? '피드백 생성 중...' : isAiButtonDisabled ? '10초 후에 다시 시도하세요' : '최신 기록 AI 피드백 받기'}
                         </Button>
                     </CardFooter>
                 </Card>
@@ -949,13 +957,13 @@ export default function StudentDashboardPage() {
                     </CardContent>
                     <CardFooter className="flex-col gap-4">
                         <div className="flex flex-col sm:flex-row w-full gap-4">
-                           <Button onClick={handleGetScoutingReport} disabled={isReportLoading || abilityScores.length === 0} className="flex-1">
+                           <Button onClick={handleGetScoutingReport} disabled={isReportLoading || abilityScores.length === 0 || isAiButtonDisabled} className="flex-1">
                                 <Bot className="mr-2 h-4 w-4" />
-                                {isReportLoading && activeReport?.type !== 'scouting' ? "리포트 생성 중..." : "나의 스카우팅 리포트"}
+                                {isReportLoading && activeReport?.type !== 'scouting' ? "리포트 생성 중..." : isAiButtonDisabled ? '10초 후에 다시 시도하세요' : "나의 스카우팅 리포트"}
                            </Button>
-                           <Button onClick={handleGetTeamReport} disabled={isReportLoading || teamAverageScores.length === 0} className="flex-1">
+                           <Button onClick={handleGetTeamReport} disabled={isReportLoading || teamAverageScores.length === 0 || isAiButtonDisabled} className="flex-1">
                                 <Users className="mr-2 h-4 w-4" />
-                                {isReportLoading && activeReport?.type !== 'team' ? "팀 분석 중..." : "우리 팀 전력 분석"}
+                                {isReportLoading && activeReport?.type !== 'team' ? "팀 분석 중..." : isAiButtonDisabled ? '10초 후에 다시 시도하세요' : "우리 팀 전력 분석"}
                             </Button>
                         </div>
                         {isReportLoading && (

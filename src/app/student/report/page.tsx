@@ -3,9 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { getStudentById, getItems, getRecords, getRecordsByStudent, getStudents, calculateRanks } from '@/lib/store';
-import { getScoutingReport } from '@/ai/flows/scouting-report-flow';
 import type { Student, MeasurementItem, MeasurementRecord } from '@/lib/types';
-import type { ScoutingReportOutput } from '@/ai/flows/scouting-report-flow';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,7 +29,6 @@ export default function ReportCardPage() {
     const [fullStudent, setFullStudent] = useState<Student | null>(null);
     const [items, setItems] = useState<MeasurementItem[]>([]);
     const [records, setRecords] = useState<MeasurementRecord[]>([]);
-    const [analysis, setAnalysis] = useState<ScoutingReportOutput | null>(null);
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -49,48 +46,14 @@ export default function ReportCardPage() {
             if (!student?.id || !school) return;
             setIsLoading(true);
             try {
-                const [studentData, itemData, recordData, allStudents, allRecords] = await Promise.all([
+                const [studentData, itemData, recordData] = await Promise.all([
                     getStudentById(school, student.id),
                     getItems(school),
                     getRecordsByStudent(school, student.id),
-                    getStudents(school),
-                    getRecords(school)
                 ]);
                 setFullStudent(studentData || null);
                 setItems(itemData || []);
                 setRecords(recordData || []);
-
-                if (studentData && recordData.length > 0) {
-                    const allRanks = calculateRanks(school, itemData, allRecords, allStudents, studentData.grade);
-                    const abilityScores = recordData.map(r => {
-                      const rankInfo = allRanks[r.item]?.find(rank => rank.studentId === r.studentId);
-                      const score = rankInfo ? Math.round((1 - (rankInfo.rank - 1) / allRanks[r.item].length) * 100) : 0;
-                      return { item: r.item, score };
-                    });
-
-                    if (abilityScores.length > 0) {
-                      const studentRanks: Record<string, string> = {};
-                      Object.entries(allRanks).forEach(([item, ranks]) => {
-                          const rankInfo = ranks.find(r => r.studentId === studentData.id);
-                          if(rankInfo && abilityScores.some(s => s.item === item)) {
-                              studentRanks[item] = `${ranks.length}명 중 ${rankInfo.rank}등`;
-                          }
-                      });
-
-                      const input = {
-                        studentName: studentData.name,
-                        abilityScores: abilityScores.map(s => {
-                          const itemInfo = itemData.find(i => i.name === s.item);
-                          return { ...s, category: itemInfo?.category || (itemInfo?.isPaps ? 'PAPS' : '기타') };
-                        }),
-                        ranks: studentRanks,
-                        allItems: itemData
-                      };
-
-                      const aiResult = await getScoutingReport(input);
-                      setAnalysis(aiResult);
-                    }
-                }
             } catch (error) {
                 console.error("리포트 데이터 로딩 실패:", error);
             } finally {
@@ -265,28 +228,6 @@ export default function ReportCardPage() {
                         </tbody>
                     </table>
                 </div>
-            </section>
-            
-            <section>
-                 <h2 className="report-section-title">AI 코칭 조언</h2>
-                 {analysis ? (
-                    <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                         <Card>
-                            <CardHeader><CardTitle>강점</CardTitle></CardHeader>
-                            <CardContent className="whitespace-pre-wrap">{analysis.strengths}</CardContent>
-                        </Card>
-                         <Card>
-                            <CardHeader><CardTitle>약점</CardTitle></CardHeader>
-                            <CardContent className="whitespace-pre-wrap">{analysis.weaknesses}</CardContent>
-                        </Card>
-                         <Card>
-                            <CardHeader><CardTitle>추천 훈련</CardTitle></CardHeader>
-                            <CardContent className="whitespace-pre-wrap">{analysis.suggestedTrainingMethods}</CardContent>
-                        </Card>
-                    </div>
-                 ) : (
-                    <div className="mt-4 text-center text-muted-foreground">AI 분석 데이터가 없습니다.</div>
-                 )}
             </section>
 
             <style jsx global>{`

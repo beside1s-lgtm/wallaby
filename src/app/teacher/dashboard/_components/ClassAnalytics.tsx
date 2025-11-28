@@ -182,6 +182,7 @@ export default function ClassAnalytics({
 
   const [aiAnalysis, setAiAnalysis] = useState<AiAnalysis | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isAiButtonDisabled, setIsAiButtonDisabled] = useState(false);
 
   // States for sorting
   const [sortedStudents, setSortedStudents] = useState<
@@ -338,6 +339,8 @@ export default function ClassAnalytics({
   const handleAiAnalysis = async () => {
     if (!selectedStudent || studentRecords.length === 0 || !school) return;
     setIsAiLoading(true);
+    setIsAiButtonDisabled(true);
+    setTimeout(() => setIsAiButtonDisabled(false), 10000);
     try {
       const allItemRanks = calculateRanks(
         school,
@@ -1100,10 +1103,10 @@ export default function ClassAnalytics({
                 <CardFooter>
                   <Button
                     onClick={handleAiAnalysis}
-                    disabled={isAiLoading || studentRecords.length === 0}
+                    disabled={isAiLoading || studentRecords.length === 0 || isAiButtonDisabled}
                   >
                     <Wand2 className="mr-2 h-4 w-4" />
-                    {isAiLoading ? "분석 중..." : "AI 분석 요청"}
+                    {isAiLoading ? "분석 중..." : isAiButtonDisabled ? "10초 후에 다시 시도하세요" : "AI 분석 요청"}
                   </Button>
                 </CardFooter>
               </Card>

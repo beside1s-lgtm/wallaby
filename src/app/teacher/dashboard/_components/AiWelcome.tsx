@@ -44,6 +44,7 @@ export default function AiWelcome({ title, allStudents, classStudents, items, re
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [briefingData, setBriefingData] = useState<BriefingData | null>(null);
+  const [isAiButtonDisabled, setIsAiButtonDisabled] = useState(false);
   
   const isClassBriefing = !!classStudents;
 
@@ -293,10 +294,12 @@ export default function AiWelcome({ title, allStudents, classStudents, items, re
   }, [school, allStudents, classStudents, items, records, title, isClassBriefing]);
 
   const fetchBriefing = async () => {
-    if (!school || !hasData || !analysisDataForAI) return;
+    if (!school || !hasData || !analysisDataForAI || isAiButtonDisabled) return;
     
     setIsLoading(true);
     setBriefingData(null);
+    setIsAiButtonDisabled(true);
+    setTimeout(() => setIsAiButtonDisabled(false), 10000);
     try {
         const result = await getTeacherDashboardBriefing(analysisDataForAI);
         setBriefingData(result);
@@ -320,9 +323,9 @@ export default function AiWelcome({ title, allStudents, classStudents, items, re
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button onClick={fetchBriefing} disabled={!hasData || isLoading} variant="outline">
+        <Button onClick={fetchBriefing} disabled={!hasData || isLoading || isAiButtonDisabled} variant="outline">
           {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lightbulb className="mr-2 h-4 w-4" />}
-          {title}
+          {isLoading ? "분석 중..." : isAiButtonDisabled ? '10초 후에 다시 시도하세요' : title}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
