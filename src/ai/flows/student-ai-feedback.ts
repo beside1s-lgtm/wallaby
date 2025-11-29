@@ -42,7 +42,7 @@ const prompt = ai.definePrompt({
   name: 'studentFeedbackPrompt',
   input: {schema: StudentFeedbackInputSchema},
   output: {schema: StudentFeedbackOutputSchema},
-  model: googleAI.model('gemini-1.5-flash-latest'),
+  model: googleAI.model('gemini-2.0-flash'),
   prompt: `당신은 학생의 운동 성과에 대해 한국어로 동기 부여가 되는 피드백을 제공하는 AI 코치입니다.
 
 학생 정보:

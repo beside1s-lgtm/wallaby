@@ -57,7 +57,7 @@ const prompt = ai.definePrompt({
   name: 'scoutingReportPrompt',
   input: { schema: ScoutingReportInputSchema },
   output: { schema: ScoutingReportOutputSchema },
-  model: googleAI.model('gemini-1.5-flash-latest'),
+  model: googleAI.model('gemini-2.0-flash'),
   prompt: `당신은 학생 선수의 잠재력을 분석하는 전문 스카우터이자 코치입니다. 주어진 데이터를 바탕으로 {{studentName}} 학생에 대한 스카우팅 리포트를 개조식으로 작성해주세요.
 
 ### 분석 데이터:
