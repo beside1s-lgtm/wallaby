@@ -76,7 +76,7 @@ const studentFeedbackFlow = ai.defineFlow(
     outputSchema: StudentFeedbackOutputSchema,
   },
   async input => {
-    await delay(2000); // 2초 지연 추가
+    await delay(1000);
     const {output} = await prompt(input);
     return output!;
   }

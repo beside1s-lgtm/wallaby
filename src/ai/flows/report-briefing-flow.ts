@@ -40,7 +40,7 @@ const prompt = ai.definePrompt({
   name: 'reportBriefingPrompt',
   input: { schema: ReportBriefingInputSchema },
   output: { schema: ReportBriefingOutputSchema },
-  model: googleAI.model('gemini-1.5-flash-latest'),
+  model: googleAI.model('gemini-2.5-flash'),
   prompt: `당신은 학생의 PAPS(학생건강체력평가) 결과를 분석하고 종합적인 피드백을 제공하는 전문 체육 코치입니다.
 
 ### 분석 데이터:
@@ -63,7 +63,7 @@ const reportBriefingFlow = ai.defineFlow(
     outputSchema: ReportBriefingOutputSchema,
   },
   async (input) => {
-    await delay(5000);
+    await delay(1000);
     const { output } = await prompt(input);
     return output!;
   }

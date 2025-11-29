@@ -104,7 +104,7 @@ const scoutingReportFlow = ai.defineFlow(
     
     const enrichedInput = { ...input, abilityScores: enrichedScores };
 
-    await delay(2000);
+    await delay(1000);
     const { output } = await prompt(enrichedInput);
     return output!;
   }

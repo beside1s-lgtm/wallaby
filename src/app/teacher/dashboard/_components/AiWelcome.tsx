@@ -1,3 +1,4 @@
+
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
@@ -342,99 +343,93 @@ export default function AiWelcome({ title, allStudents, classStudents, items, re
             </div>
           ) : briefingData ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="space-y-6">
-                
-                {papsChartData.length > 0 && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <BarChart2 className="w-5 h-5 text-primary" />
-                            PAPS 등급 분포 (%)
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <ResponsiveContainer width="100%" height={250}>
-                          <BarChart data={papsChartData}>
-                            <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                            <YAxis yAxisId="left" stroke="hsl(var(--chart-1))" domain={[0, 100]} unit="%" />
-                            <Tooltip
-                                contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}
-                                formatter={(value) => [`${value}%`, '비율']}
-                            />
-                            <Bar yAxisId="left" dataKey="value" name="등급 비율" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </CardContent>
-                    </Card>
-                )}
-                
-                {customChartData.length > 0 && (
-                     <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <BarChart2 className="w-5 h-5 text-accent" />
-                            기타 종목 평균 목표 달성률 (%)
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <ResponsiveContainer width="100%" height={250}>
-                          <BarChart data={customChartData}>
-                            <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                            <YAxis yAxisId="left" stroke="hsl(var(--chart-2))" domain={[0, 100]} unit="%" />
-                            <Tooltip
-                                contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}
-                                formatter={(value) => [`${value}%`, '평균 달성률']}
-                            />
-                            <Bar yAxisId="left" dataKey="value" name="목표 달성률" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </CardContent>
-                    </Card>
-                )}
-                
-                {progressAnalysisData && progressAnalysisData.length > 0 && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <TrendingUp className="w-5 h-5 text-green-500" />
-                                주요 성장 종목 (평균 성취도)
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <ResponsiveContainer width="100%" height={250}>
-                               <BarChart data={progressAnalysisData} layout="vertical">
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis type="number" domain={[0, 100]} unit="%" />
-                                    <YAxis type="category" dataKey="name" width={100} tick={{fontSize: 12}} />
-                                    <Tooltip
-                                        contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}
-                                        formatter={(value, name) => [`${value}%`, name === 'past' ? '과거 성취도' : '현재 성취도']}
-                                    />
-                                    <Legend />
-                                    <Bar dataKey="past" name="과거" fill="hsl(var(--chart-4))" />
-                                    <Bar dataKey="present" name="현재" fill="hsl(var(--chart-2))" />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </CardContent>
-                    </Card>
-                )}
-
+              {papsChartData.length > 0 && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <Lightbulb className="w-5 h-5 text-primary" />
-                      종합 브리핑
+                        <BarChart2 className="w-5 h-5 text-primary" />
+                        PAPS 등급 분포 (%)
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{briefingData.briefing}</p>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart data={papsChartData}>
+                        <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                        <YAxis yAxisId="left" stroke="hsl(var(--chart-1))" domain={[0, 100]} unit="%" />
+                        <Tooltip
+                            contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}
+                            formatter={(value) => [`${value}%`, '비율']}
+                        />
+                        <Bar yAxisId="left" dataKey="value" name="등급 비율" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
                   </CardContent>
                 </Card>
-              </div>
+              )}
+              
+              {customChartData.length > 0 && (
+                 <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <BarChart2 className="w-5 h-5 text-accent" />
+                        기타 종목 평균 목표 달성률 (%)
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart data={customChartData}>
+                        <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                        <YAxis yAxisId="left" stroke="hsl(var(--chart-2))" domain={[0, 100]} unit="%" />
+                        <Tooltip
+                            contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}
+                            formatter={(value) => [`${value}%`, '평균 달성률']}
+                        />
+                        <Bar yAxisId="left" dataKey="value" name="목표 달성률" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {progressAnalysisData && progressAnalysisData.length > 0 && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <TrendingUp className="w-5 h-5 text-green-500" />
+                            주요 성장 종목 (평균 성취도)
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <ResponsiveContainer width="100%" height={250}>
+                           <BarChart data={progressAnalysisData} layout="vertical">
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis type="number" domain={[0, 100]} unit="%" />
+                                <YAxis type="category" dataKey="name" width={100} tick={{fontSize: 12}} />
+                                <Tooltip
+                                    contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}
+                                    formatter={(value, name) => [`${value}%`, name === 'past' ? '과거 성취도' : '현재 성취도']}
+                                />
+                                <Legend />
+                                <Bar dataKey="past" name="과거" fill="hsl(var(--chart-4))" />
+                                <Bar dataKey="present" name="현재" fill="hsl(var(--chart-2))" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </CardContent>
+                </Card>
+              )}
 
               <Card className="bg-primary/5">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
+                    <Lightbulb className="w-5 h-5 text-primary" />
+                    종합 브리핑
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{briefingData.briefing}</p>
+                </CardContent>
+                 <CardHeader>
+                  <CardTitle className="flex items-center gap-2 pt-4 border-t">
                     <Lightbulb className="w-5 h-5 text-accent" />
                     수업 조언
                   </CardTitle>
