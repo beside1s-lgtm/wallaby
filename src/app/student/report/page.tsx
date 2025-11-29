@@ -2,14 +2,16 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { getStudentById, getItems, getRecords, getRecordsByStudent, getStudents, calculateRanks } from '@/lib/store';
+import { getStudentById, getItems, getRecordsByStudent } from '@/lib/store';
 import type { Student, MeasurementItem, MeasurementRecord } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, User as UserIcon, Printer } from 'lucide-react';
+import { Loader2, User as UserIcon, Printer, Wand2 } from 'lucide-react';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Tooltip } from 'recharts';
 import { getPapsGrade, calculatePapsScore } from '@/lib/paps';
+import { getReportBriefing } from '@/ai/flows/report-briefing-flow';
+import { useToast } from '@/hooks/use-toast';
 
 const papsFactors: Record<string, string> = {
     '왕복오래달리기': '심폐지구력', '오래달리기': '심폐지구력',
@@ -25,10 +27,16 @@ export default function ReportCardPage() {
     const { user, school, isLoading: isAuthLoading } = useAuth();
     const student = user as Student;
     const [isLoading, setIsLoading] = useState(true);
+    const { toast } = useToast();
 
     const [fullStudent, setFullStudent] = useState<Student | null>(null);
     const [items, setItems] = useState<MeasurementItem[]>([]);
     const [records, setRecords] = useState<MeasurementRecord[]>([]);
+
+    const [aiBriefing, setAiBriefing] = useState('');
+    const [isBriefingLoading, setIsBriefingLoading] = useState(false);
+    const [isAiButtonDisabled, setIsAiButtonDisabled] = useState(false);
+
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -134,6 +142,39 @@ export default function ReportCardPage() {
         
         return { papsSummary: summary, radarChartData: radarData, overallGrade: finalGrade, overallScore: Math.round(finalScore) };
     }, [fullStudent, items, records]);
+
+    const handleGetBriefing = async () => {
+        if (!fullStudent || papsSummary.length === 0) {
+            toast({
+                variant: 'destructive',
+                title: '분석 불가',
+                description: 'AI 분석을 위한 데이터가 부족합니다.',
+            });
+            return;
+        }
+
+        setIsBriefingLoading(true);
+        setIsAiButtonDisabled(true);
+        setTimeout(() => setIsAiButtonDisabled(false), 10000);
+
+        try {
+            const result = await getReportBriefing({
+                studentName: fullStudent.name,
+                overallGrade,
+                papsSummary,
+            });
+            setAiBriefing(result.briefing);
+        } catch (error) {
+            console.error('AI 리포트 요약 요청 실패:', error);
+            toast({
+                variant: 'destructive',
+                title: 'AI 분석 오류',
+                description: '분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+            });
+        } finally {
+            setIsBriefingLoading(false);
+        }
+    };
     
     if (isAuthLoading || isLoading) {
         return <div className="flex h-screen items-center justify-center"><Loader2 className="h-16 w-16 animate-spin text-primary" /></div>;
@@ -197,6 +238,27 @@ export default function ReportCardPage() {
                         </div>
                     </div>
                  </div>
+            </section>
+
+             <section className="mb-8">
+                <h2 className="report-section-title">AI 종합 평가</h2>
+                <div className="mt-4">
+                    {isBriefingLoading ? (
+                        <div className="flex items-center justify-center h-24">
+                            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                        </div>
+                    ) : aiBriefing ? (
+                        <p className="text-base leading-relaxed p-4 bg-muted rounded-md">{aiBriefing}</p>
+                    ) : (
+                        <div className="text-center p-4 border-2 border-dashed rounded-md">
+                            <p className="text-muted-foreground mb-4">아래 버튼을 눌러 나의 체력 수준에 대한 AI 분석을 받아보세요.</p>
+                            <Button onClick={handleGetBriefing} disabled={isAiButtonDisabled}>
+                                <Wand2 className="mr-2 h-4 w-4" />
+                                {isAiButtonDisabled ? '10초 후에 다시 시도하세요' : 'AI 분석 요청'}
+                            </Button>
+                        </div>
+                    )}
+                </div>
             </section>
 
             <section className="mb-8">

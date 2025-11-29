@@ -154,7 +154,7 @@ const teacherDashboardBriefingFlow = ai.defineFlow(
     outputSchema: TeacherDashboardBriefingOutputSchema,
   },
   async input => {
-    await delay(5000); // 5초 지연 추가
+    await delay(2000); // 2초 지연 추가
     const {output} = await prompt(input);
 return output!;
   }

@@ -62,7 +62,7 @@ const teamAnalysisFlow = ai.defineFlow(
     outputSchema: TeamAnalysisOutputSchema,
   },
   async (input) => {
-    await delay(5000);
+    await delay(2000);
     const { output } = await prompt(input);
     return output!;
   }
