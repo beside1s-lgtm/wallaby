@@ -56,6 +56,8 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import Link from 'next/link';
+
 
 /* -------------------------------------------------------
  * Utils
@@ -887,7 +889,8 @@ const LeagueMatchNode = ({ match, teamNameMap, matchResults, onResultChange, onU
   onUpdateTeamName: (teamId: string, newName: string) => void;
 }) => {
     return (
-        <Card className="p-3">
+    <Link href={`/teacher/match/${match.id}`} className="block">
+        <Card className="p-3 hover:bg-muted/50 transition-colors">
             <div className="flex items-center justify-between">
                 <TeamNameEditor teamId={match.teamAId} name={match.teamAId ? teamNameMap.get(match.teamAId) ?? "미정" : "미정"}
                   onUpdate={onUpdateTeamName} className="font-semibold text-sm" />
@@ -897,26 +900,27 @@ const LeagueMatchNode = ({ match, teamNameMap, matchResults, onResultChange, onU
             </div>
             <div className="flex items-center justify-center gap-2 mt-2">
                  <Input type="number" className="h-8 w-16 text-center" placeholder="-" value={matchResults[match.id]?.scoreA ?? ""}
-                    onChange={(e) => onResultChange(match.id, "A", e.target.value)} disabled={match.status === 'completed'} />
+                    onChange={(e) => { e.preventDefault(); onResultChange(match.id, "A", e.target.value); }} onClick={(e) => e.preventDefault()} disabled={match.status === 'completed'} />
                  <span>:</span>
                  <Input type="number" className="h-8 w-16 text-center" placeholder="-" value={matchResults[match.id]?.scoreB ?? ""}
-                    onChange={(e) => onResultChange(match.id, "B", e.target.value)} disabled={match.status === 'completed'} />
+                    onChange={(e) => { e.preventDefault(); onResultChange(match.id, "B", e.target.value); }} onClick={(e) => e.preventDefault()} disabled={match.status === 'completed'} />
             </div>
              <div className="flex gap-2 mt-2">
                 {match.status === 'scheduled' && (
-                    <Button size="sm" className="h-7 flex-1" onClick={() => onUpdateMatch(match.id)}><Save className="mr-2 h-3 w-3" /> 저장</Button>
+                    <Button size="sm" className="h-7 flex-1" onClick={(e) => { e.preventDefault(); onUpdateMatch(match.id); }}><Save className="mr-2 h-3 w-3" /> 저장</Button>
                 )}
                 {match.status === 'completed' && (
                      <AlertDialog>
-                        <AlertDialogTrigger asChild><Button size="sm" variant="ghost" className="h-7 flex-1"><RotateCcw className="mr-2 h-3 w-3" /> 초기화</Button></AlertDialogTrigger>
+                        <AlertDialogTrigger asChild><Button size="sm" variant="ghost" className="h-7 flex-1" onClick={(e) => e.preventDefault()}><RotateCcw className="mr-2 h-3 w-3" /> 초기화</Button></AlertDialogTrigger>
                         <AlertDialogContent>
                         <AlertDialogHeader><AlertDialogTitle>결과를 초기화하시겠습니까?</AlertDialogTitle><AlertDialogDescription>이 경기의 점수와 승리 기록이 삭제되고, 순위표가 다시 계산됩니다.</AlertDialogDescription></AlertDialogHeader>
-                        <AlertDialogFooter><AlertDialogCancel>취소</AlertDialogCancel><AlertDialogAction onClick={() => onResetMatch(match.id)}>초기화</AlertDialogAction></AlertDialogFooter>
+                        <AlertDialogFooter><AlertDialogCancel onClick={(e) => e.preventDefault()}>취소</AlertDialogCancel><AlertDialogAction onClick={(e) => { e.preventDefault(); onResetMatch(match.id); }}>초기화</AlertDialogAction></AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
                 )}
             </div>
         </Card>
+    </Link>
     );
 };
 
@@ -932,34 +936,36 @@ const MatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateM
 
   return (
     <div className="relative">
-      <div className="relative flex w-full flex-col justify-center rounded-md border bg-card p-2 shadow-sm space-y-1">
-        <div className="flex items-center justify-between">
-          <TeamNameEditor teamId={match.teamAId} name={match.teamAId ? teamNameMap.get(match.teamAId) ?? "미정" : "미정"} onUpdate={onUpdateTeamName}
-            className={`truncate text-sm ${winnerIsA ? "font-bold text-primary" : ""} ${match.teamAId ? "" : "text-muted-foreground"}`} />
-          <Input type="number" className="h-7 w-14 text-center" placeholder="-" value={matchResults[match.id]?.scoreA ?? ""}
-            onChange={(e) => onResultChange(match.id, "A", e.target.value)} disabled={match.status !== 'scheduled' || !match.teamAId} />
+      <Link href={`/teacher/match/${match.id}`} className="block">
+        <div className="relative flex w-full flex-col justify-center rounded-md border bg-card p-2 shadow-sm space-y-1 hover:bg-muted/50 transition-colors">
+          <div className="flex items-center justify-between">
+            <TeamNameEditor teamId={match.teamAId} name={match.teamAId ? teamNameMap.get(match.teamAId) ?? "미정" : "미정"} onUpdate={onUpdateTeamName}
+              className={`truncate text-sm ${winnerIsA ? "font-bold text-primary" : ""} ${match.teamAId ? "" : "text-muted-foreground"}`} />
+            <Input type="number" className="h-7 w-14 text-center" placeholder="-" value={matchResults[match.id]?.scoreA ?? ""}
+              onChange={(e) => {e.preventDefault(); onResultChange(match.id, "A", e.target.value)}} onClick={(e) => e.preventDefault()} disabled={match.status !== 'scheduled' || !match.teamAId} />
+          </div>
+          <div className="flex items-center justify-between">
+            <TeamNameEditor teamId={match.teamBId} name={match.teamBId ? teamNameMap.get(match.teamBId) ?? "팀 없음" : match.status === "bye" ? "(부전승)" : "미정"} onUpdate={onUpdateTeamName}
+              className={`truncate text-sm ${winnerIsB ? "font-bold text-primary" : ""} ${match.teamBId || match.status === 'bye' ? "" : "text-muted-foreground"}`} />
+            <Input type="number" className="h-7 w-14 text-center" placeholder="-" value={matchResults[match.id]?.scoreB ?? ""}
+              onChange={(e) => {e.preventDefault(); onResultChange(match.id, "B", e.target.value)}} onClick={(e) => e.preventDefault()} disabled={match.status !== 'scheduled' || !match.teamBId} />
+          </div>
+          
+          {match.status === 'scheduled' && match.teamAId && match.teamBId && (
+            <Button size="sm" className="h-7 w-full" onClick={(e) => {e.preventDefault(); onUpdateMatch(match.id)}}><Save className="mr-2 h-3 w-3" /> 결과 저장</Button>
+          )}
+          
+          {match.status === "completed" && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild><Button size="sm" variant="ghost" className="h-7 w-full" onClick={(e) => e.preventDefault()}><RotateCcw className="mr-2 h-3 w-3" /> 결과 초기화</Button></AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader><AlertDialogTitle>결과를 초기화하시겠습니까?</AlertDialogTitle><AlertDialogDescription>이 경기의 점수와 승리 기록이 삭제됩니다. 상위 라운드에 진출했다면 해당 기록도 수정됩니다.</AlertDialogDescription></AlertDialogHeader>
+                <AlertDialogFooter><AlertDialogCancel onClick={(e) => e.preventDefault()}>취소</AlertDialogCancel><AlertDialogAction onClick={(e) => {e.preventDefault(); onResetMatch(match.id)}}>초기화</AlertDialogAction></AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
-        <div className="flex items-center justify-between">
-          <TeamNameEditor teamId={match.teamBId} name={match.teamBId ? teamNameMap.get(match.teamBId) ?? "팀 없음" : match.status === "bye" ? "(부전승)" : "미정"} onUpdate={onUpdateTeamName}
-            className={`truncate text-sm ${winnerIsB ? "font-bold text-primary" : ""} ${match.teamBId || match.status === 'bye' ? "" : "text-muted-foreground"}`} />
-          <Input type="number" className="h-7 w-14 text-center" placeholder="-" value={matchResults[match.id]?.scoreB ?? ""}
-            onChange={(e) => onResultChange(match.id, "B", e.target.value)} disabled={match.status !== 'scheduled' || !match.teamBId} />
-        </div>
-        
-        {match.status === 'scheduled' && match.teamAId && match.teamBId && (
-          <Button size="sm" className="h-7 w-full" onClick={() => onUpdateMatch(match.id)}><Save className="mr-2 h-3 w-3" /> 결과 저장</Button>
-        )}
-        
-        {match.status === "completed" && (
-          <AlertDialog>
-            <AlertDialogTrigger asChild><Button size="sm" variant="ghost" className="h-7 w-full"><RotateCcw className="mr-2 h-3 w-3" /> 결과 초기화</Button></AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader><AlertDialogTitle>결과를 초기화하시겠습니까?</AlertDialogTitle><AlertDialogDescription>이 경기의 점수와 승리 기록이 삭제됩니다. 상위 라운드에 진출했다면 해당 기록도 수정됩니다.</AlertDialogDescription></AlertDialogHeader>
-              <AlertDialogFooter><AlertDialogCancel>취소</AlertDialogCancel><AlertDialogAction onClick={() => onResetMatch(match.id)}>초기화</AlertDialogAction></AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
-      </div>
+      </Link>
     </div>
   );
 };
@@ -979,6 +985,11 @@ const TeamNameEditor = ({ teamId, name, className, onUpdate }: { teamId: string 
     setIsEditing(false);
   };
 
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsEditing(true);
+  }
+
   if (!teamId || name === "미정" || name === "(부전승)" || name === "팀 없음") {
     return <span className={className}>{name}</span>;
   }
@@ -987,7 +998,7 @@ const TeamNameEditor = ({ teamId, name, className, onUpdate }: { teamId: string 
     return (
       <div className="flex items-center gap-1">
         <Input value={newName} onChange={(e) => setNewName(e.target.value)} onBlur={handleUpdate} onKeyDown={(e) => e.key === 'Enter' && handleUpdate()}
-          className="h-7 p-1 text-sm" autoFocus />
+          className="h-7 p-1 text-sm" autoFocus onClick={(e) => e.preventDefault()} />
       </div>
     );
   }
@@ -995,7 +1006,7 @@ const TeamNameEditor = ({ teamId, name, className, onUpdate }: { teamId: string 
   return (
     <div className="flex items-center gap-1 group">
       <span className={className}>{name}</span>
-      <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100" onClick={() => setIsEditing(true)}>
+      <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100" onClick={handleClick}>
         <Pencil className="h-3 w-3 text-muted-foreground" />
       </Button>
     </div>
