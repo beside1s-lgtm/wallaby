@@ -787,29 +787,44 @@ export default function TournamentManagement({
           </CardHeader>
           <CardContent className="overflow-x-auto p-4">
             <div className="flex justify-center min-w-max">
-              <div className="flex items-start space-x-8">
-                {Object.entries(matchesByRound).map(([round, matches]) => (
-                  <div key={round} className="flex flex-col space-y-4 min-w-[200px]">
-                    <h4 className="font-bold text-center text-lg">
-                      {parseInt(round) === fmRound ? "결승"
-                        : Object.keys(matchesByRound).length > 1 && parseInt(round) === fmRound - 1 ? "준결승"
-                        : `${currentTournament.teams.length > Math.pow(2, parseInt(round)) ? Math.pow(2, parseInt(round)) : Math.ceil(currentTournament.teams.length / (Math.pow(2, parseInt(round)-1)))}강`}
-                    </h4>
-                    <div className="flex flex-col justify-around h-full space-y-4">
-                      {matches.map((match) => (
-                        <MatchNode key={match.id} match={match} teamNameMap={teamNameMap} matchResults={matchResults}
-                          onResultChange={handleMatchResultChange} onUpdateMatch={handleUpdateMatch} onResetMatch={handleResetMatch}
-                          onUpdateTeamName={handleUpdateTeamName} />
-                      ))}
+              <div className="flex items-start space-x-8">                
+                {Object.entries(matchesByRound).map(([round, matches]) => {
+                  const roundNumber = parseInt(round, 10);
+                  const teamCount = Math.max(currentTournament?.teams?.length ?? 0, 2);
+                  const bracketSize = 2 ** Math.ceil(Math.log2(teamCount));
+                  const totalRounds = Math.log2(bracketSize);
+
+                  const label =
+                    roundNumber === totalRounds
+                      ? "결승"
+                      : roundNumber === totalRounds - 1
+                      ? "준결승"
+                      : `${bracketSize / 2 ** (roundNumber - 1)}강`;
+
+                  return (
+                    <div key={round} className="flex flex-col space-y-4 min-w-[200px]">
+                      <h4 className="font-bold text-center text-lg">{label}</h4>
+                      <div className="flex flex-col justify-around h-full space-y-4">
+                        {matches.map((match) => (
+                          <MatchNode
+                            key={match.id}
+                            match={match}
+                            teamNameMap={teamNameMap}
+                            matchResults={matchResults}
+                            onResultChange={handleMatchResultChange}
+                            onUpdateMatch={handleUpdateMatch}
+                            onResetMatch={handleResetMatch}
+                            onUpdateTeamName={handleUpdateTeamName}
+                          />
+                        ))}
                     </div>
                   </div>
-                ))}
+                )})}
               </div>
             </div>
           </CardContent>
         </Card>
       )}
-
       {currentTournament && currentTournament.type === 'league' && (
         <Card>
             <CardHeader className="text-center"><CardTitle>{currentTournament.name} 경기 정보</CardTitle></CardHeader>
