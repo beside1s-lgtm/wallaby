@@ -95,21 +95,37 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
     return allTeamGroups.find(g => g.id === selectedTeamGroupId);
   }, [selectedTeamGroupId, allTeamGroups]);
 
+  const studentMap = useMemo(() => new Map(allStudents.map(s => [s.id, s])), [allStudents]);
+
   const studentsForBatch = useMemo(() => {
     if (selectedTeamGroupId) {
         if (!selectedTeamGroup) return [];
 
-        const studentMap = new Map(allStudents.map(s => [s.id, s]));
         const teamToShow = selectedTeamId ? selectedTeamGroup.teams.find(t => t.id === selectedTeamId) : null;
         
         const teamsToProcess = teamToShow ? [teamToShow] : selectedTeamGroup.teams;
 
-        return teamsToProcess.flatMap((team) => 
-            team.memberIds.map((memberId, memberIndex) => {
+        return teamsToProcess.flatMap((team) => {
+            const firstStudent = team.memberIds.length > 0 ? studentMap.get(team.memberIds[0]) : null;
+            let teamName = `팀 ${team.teamIndex + 1}`;
+
+            if(firstStudent){
+                const genderDisplay = selectedTeamGroup?.gender === 'separate' ? (firstStudent?.gender === '남' ? '(남)' : '(여)') : '';
+                const teamsInClass = selectedTeamGroup.teams.filter(t => {
+                    const fs = t.memberIds.length > 0 ? studentMap.get(t.memberIds[0]) : null;
+                    if (!fs) return false;
+                    return fs.grade === firstStudent.grade && fs.classNum === firstStudent.classNum && (selectedTeamGroup?.gender !== 'separate' || fs.gender === firstStudent.gender);
+                });
+                 const teamToFind = teamsInClass.find(t => t.id === team.id);
+                 const relativeIndex = teamToFind ? teamsInClass.indexOf(teamToFind) : -1;
+                 teamName = `${firstStudent.grade}-${firstStudent.classNum}반 ${genderDisplay} 팀 ${relativeIndex + 1}`.trim();
+            }
+
+            return team.memberIds.map((memberId, memberIndex) => {
                 const student = studentMap.get(memberId);
-                return student ? { ...student, teamName: `팀 ${team.teamIndex + 1}`, teamMemberNumber: memberIndex + 1 } : null;
+                return student ? { ...student, teamName, teamMemberNumber: memberIndex + 1 } : null;
             }).filter((s): s is (Student & {teamName: string, teamMemberNumber: number}) => s !== null)
-        ).sort((a,b) => {
+        }).sort((a,b) => {
             if(a.teamName < b.teamName) return -1;
             if(a.teamName > b.teamName) return 1;
             return a.teamMemberNumber - b.teamMemberNumber;
@@ -119,10 +135,10 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
         return allStudents
             .filter(s => s.grade === selectedGrade && s.classNum === selectedClassNum)
             .sort((a,b) => parseInt(a.studentNum) - parseInt(b.studentNum))
-            .map(s => ({...s, teamName: '-', teamMemberNumber: parseInt(s.studentNum)}));
+            .map(s => ({...s, teamName: `${s.grade}-${s.classNum}`, teamMemberNumber: parseInt(s.studentNum)}));
     }
     return [];
-  }, [allStudents, selectedGrade, selectedClassNum, selectedTeamGroupId, selectedTeamId, selectedTeamGroup]);
+  }, [allStudents, selectedGrade, selectedClassNum, selectedTeamGroupId, selectedTeamId, selectedTeamGroup, studentMap]);
   
   useEffect(() => {
     setBatchRecords({}); // Clear batch records on filter change
@@ -362,8 +378,6 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
         setSelectedTeamId('');
     };
 
-    const studentMap = useMemo(() => new Map(allStudents.map(s => [s.id, s])), [allStudents]);
-    
     const sortedTeamsForDropdown = useMemo(() => {
         if (!selectedTeamGroup) return [];
 
@@ -493,7 +507,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                                         return fs.grade === firstStudent.grade && fs.classNum === firstStudent.classNum && (selectedTeamGroup?.gender !== 'separate' || fs.gender === firstStudent.gender);
                                       });
                                       
-                                      const teamToFind = teamsInClass.find(t => JSON.stringify(t.memberIds) === JSON.stringify(team.memberIds));
+                                      const teamToFind = teamsInClass.find(t => t.id === team.id);
                                       const relativeIndex = teamToFind ? teamsInClass.indexOf(teamToFind) : -1;
                                       
                                       const teamName = firstStudent 
