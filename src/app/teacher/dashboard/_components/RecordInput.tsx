@@ -362,6 +362,8 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
         setSelectedTeamId('');
     };
 
+    const studentMap = useMemo(() => new Map(allStudents.map(s => [s.id, s])), [allStudents]);
+
 
   if (!school) return null;
 
@@ -449,14 +451,21 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                          
                         {selectedTeamGroupId && (
                           <Select value={selectedTeamId} onValueChange={v => setSelectedTeamId(v === 'all-teams' ? '' : v)}>
-                              <SelectTrigger className="w-full sm:w-[150px]">
+                              <SelectTrigger className="w-full sm:w-[200px]">
                                   <SelectValue placeholder="팀 선택" />
                               </SelectTrigger>
                               <SelectContent>
                                   <SelectItem value="all-teams">전체 팀</SelectItem>
-                                  {selectedTeamGroup?.teams.map(team => (
-                                      <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
-                                  ))}
+                                  {selectedTeamGroup?.teams.map(team => {
+                                      const firstStudent = team.memberIds.length > 0 ? studentMap.get(team.memberIds[0]) : null;
+                                      const genderDisplay = selectedTeamGroup.gender === 'separate' ? (firstStudent?.gender === '남' ? '(남)' : '(여)') : '';
+                                      const teamName = firstStudent 
+                                          ? `${firstStudent.grade}-${firstStudent.classNum}반 ${genderDisplay} 팀 ${team.teamIndex + 1}`.trim()
+                                          : `팀 ${team.teamIndex + 1}`;
+                                      return (
+                                          <SelectItem key={team.id} value={team.id}>{teamName}</SelectItem>
+                                      );
+                                  })}
                               </SelectContent>
                           </Select>
                         )}
