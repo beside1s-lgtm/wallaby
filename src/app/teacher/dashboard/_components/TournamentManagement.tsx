@@ -71,6 +71,15 @@ const nextPowerOfTwo = (n: number): number => {
   return power;
 };
 
+const getSportFromTournamentName = (name: string): string => {
+    if (name.includes('농구')) return 'basketball';
+    if (name.includes('축구')) return 'soccer';
+    if (name.includes('배구')) return 'volleyball';
+    if (name.includes('피구')) return 'dodgeball';
+    if (name.includes('야구')) return 'baseball';
+    return 'default';
+};
+
 /* -------------------------------------------------------
  * Bracket/League Generation
  * ----------------------------------------------------- */
@@ -811,6 +820,7 @@ export default function TournamentManagement({
                           <MatchNode
                             key={match.id}
                             match={match}
+                            tournament={currentTournament}
                             teamNameMap={teamNameMap}
                             matchResults={matchResults}
                             onResultChange={handleMatchResultChange}
@@ -835,7 +845,7 @@ export default function TournamentManagement({
                     <h3 className="font-semibold text-lg mb-2 text-center">경기 목록</h3>
                     <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
                         {currentTournament.matches.map(match => (
-                            <LeagueMatchNode key={match.id} match={match} teamNameMap={teamNameMap} matchResults={matchResults}
+                            <LeagueMatchNode key={match.id} match={match} tournament={currentTournament} teamNameMap={teamNameMap} matchResults={matchResults}
                                 onResultChange={handleMatchResultChange} onUpdateMatch={handleUpdateMatch} onResetMatch={handleResetMatch} 
                                 onUpdateTeamName={handleUpdateTeamName}
                                 />
@@ -882,14 +892,15 @@ export default function TournamentManagement({
  * 하위 컴포넌트
  * ----------------------------------------------------- */
 
-const LeagueMatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateMatch, onResetMatch, onUpdateTeamName }: {
-  match: Match; teamNameMap: Map<string, string>; matchResults: Record<string, { scoreA: string; scoreB: string }>;
+const LeagueMatchNode = ({ match, tournament, teamNameMap, matchResults, onResultChange, onUpdateMatch, onResetMatch, onUpdateTeamName }: {
+  match: Match; tournament: Tournament; teamNameMap: Map<string, string>; matchResults: Record<string, { scoreA: string; scoreB: string }>;
   onResultChange: (matchId: string, team: "A" | "B", score: string) => void;
   onUpdateMatch: (matchId: string) => void; onResetMatch: (matchId: string) => void;
   onUpdateTeamName: (teamId: string, newName: string) => void;
 }) => {
+    const sport = getSportFromTournamentName(tournament.name);
     return (
-    <Link href={`/teacher/match/${match.id}`} className="block">
+    <Link href={`/teacher/match/${sport}/${match.id}`} className="block">
         <Card className="p-3 hover:bg-muted/50 transition-colors">
             <div className="flex items-center justify-between">
                 <TeamNameEditor teamId={match.teamAId} name={match.teamAId ? teamNameMap.get(match.teamAId) ?? "미정" : "미정"}
@@ -925,18 +936,19 @@ const LeagueMatchNode = ({ match, teamNameMap, matchResults, onResultChange, onU
 };
 
 
-const MatchNode = ({ match, teamNameMap, matchResults, onResultChange, onUpdateMatch, onResetMatch, onUpdateTeamName }: {
-  match: Match; teamNameMap: Map<string, string>; matchResults: Record<string, { scoreA: string; scoreB: string }>;
+const MatchNode = ({ match, tournament, teamNameMap, matchResults, onResultChange, onUpdateMatch, onResetMatch, onUpdateTeamName }: {
+  match: Match; tournament: Tournament; teamNameMap: Map<string, string>; matchResults: Record<string, { scoreA: string; scoreB: string }>;
   onResultChange: (matchId: string, team: "A" | "B", score: string) => void;
   onUpdateMatch: (matchId: string) => void; onResetMatch: (matchId: string) => void;
   onUpdateTeamName: (teamId: string, newName: string) => void;
 }) => {
   const winnerIsA = !!match.winnerId && match.winnerId === match.teamAId;
   const winnerIsB = !!match.winnerId && match.winnerId === match.teamBId;
+  const sport = getSportFromTournamentName(tournament.name);
 
   return (
     <div className="relative">
-      <Link href={`/teacher/match/${match.id}`} className="block">
+      <Link href={`/teacher/match/${sport}/${match.id}`} className="block">
         <div className="relative flex w-full flex-col justify-center rounded-md border bg-card p-2 shadow-sm space-y-1 hover:bg-muted/50 transition-colors">
           <div className="flex items-center justify-between">
             <TeamNameEditor teamId={match.teamAId} name={match.teamAId ? teamNameMap.get(match.teamAId) ?? "미정" : "미정"} onUpdate={onUpdateTeamName}
