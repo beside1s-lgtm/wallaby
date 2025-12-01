@@ -100,7 +100,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
         return teamGroup.teams.flatMap((team, teamIndex) => 
             team.memberIds.map((memberId, memberIndex) => {
                 const student = studentMap.get(memberId);
-                return student ? { ...student, teamName: `팀 ${t.teamIndex + 1}`, teamMemberNumber: memberIndex + 1 } : null;
+                return student ? { ...student, teamName: `팀 ${team.teamIndex + 1}`, teamMemberNumber: memberIndex + 1 } : null;
             }).filter((s): s is (Student & {teamName: string, teamMemberNumber: number}) => s !== null)
         ).sort((a,b) => {
             if(a.teamName < b.teamName) return -1;
