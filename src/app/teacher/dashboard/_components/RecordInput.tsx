@@ -363,6 +363,33 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
     };
 
     const studentMap = useMemo(() => new Map(allStudents.map(s => [s.id, s])), [allStudents]);
+    
+    const sortedTeamsForDropdown = useMemo(() => {
+        if (!selectedTeamGroup) return [];
+
+        return [...selectedTeamGroup.teams].sort((a, b) => {
+            const studentA = a.memberIds.length > 0 ? studentMap.get(a.memberIds[0]) : null;
+            const studentB = b.memberIds.length > 0 ? studentMap.get(b.memberIds[0]) : null;
+            
+            if (!studentA || !studentB) return 0;
+            
+            const gradeA = parseInt(studentA.grade);
+            const gradeB = parseInt(studentB.grade);
+            if (gradeA !== gradeB) return gradeA - gradeB;
+
+            const classA = parseInt(studentA.classNum);
+            const classB = parseInt(studentB.classNum);
+            if (classA !== classB) return classA - classB;
+
+            const genderOrder = {'남': 1, '여': 2};
+            const genderA = genderOrder[studentA.gender] || 3;
+            const genderB = genderOrder[studentB.gender] || 3;
+            if (genderA !== genderB) return genderA - genderB;
+
+            return a.teamIndex - b.teamIndex;
+        });
+
+    }, [selectedTeamGroup, studentMap]);
 
 
   if (!school) return null;
@@ -456,7 +483,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                               </SelectTrigger>
                               <SelectContent>
                                   <SelectItem value="all-teams">전체 팀</SelectItem>
-                                  {selectedTeamGroup?.teams.map(team => {
+                                  {sortedTeamsForDropdown.map(team => {
                                       const firstStudent = team.memberIds.length > 0 ? studentMap.get(team.memberIds[0]) : null;
                                       const genderDisplay = selectedTeamGroup.gender === 'separate' ? (firstStudent?.gender === '남' ? '(남)' : '(여)') : '';
                                       const teamName = firstStudent 
