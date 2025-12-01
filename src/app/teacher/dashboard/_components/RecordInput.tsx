@@ -485,10 +485,21 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                                   <SelectItem value="all-teams">전체 팀</SelectItem>
                                   {sortedTeamsForDropdown.map(team => {
                                       const firstStudent = team.memberIds.length > 0 ? studentMap.get(team.memberIds[0]) : null;
-                                      const genderDisplay = selectedTeamGroup.gender === 'separate' ? (firstStudent?.gender === '남' ? '(남)' : '(여)') : '';
+                                      const genderDisplay = selectedTeamGroup?.gender === 'separate' ? (firstStudent?.gender === '남' ? '(남)' : '(여)') : '';
+                                      
+                                      const teamsInClass = sortedTeamsForDropdown.filter(t => {
+                                        const fs = t.memberIds.length > 0 ? studentMap.get(t.memberIds[0]) : null;
+                                        if (!fs || !firstStudent) return false;
+                                        return fs.grade === firstStudent.grade && fs.classNum === firstStudent.classNum && (selectedTeamGroup?.gender !== 'separate' || fs.gender === firstStudent.gender);
+                                      });
+                                      
+                                      const teamToFind = teamsInClass.find(t => JSON.stringify(t.memberIds) === JSON.stringify(team.memberIds));
+                                      const relativeIndex = teamToFind ? teamsInClass.indexOf(teamToFind) : -1;
+                                      
                                       const teamName = firstStudent 
-                                          ? `${firstStudent.grade}-${firstStudent.classNum}반 ${genderDisplay} 팀 ${team.teamIndex + 1}`.trim()
+                                          ? `${firstStudent.grade}-${firstStudent.classNum}반 ${genderDisplay} 팀 ${relativeIndex + 1}`.trim()
                                           : `팀 ${team.teamIndex + 1}`;
+
                                       return (
                                           <SelectItem key={team.id} value={team.id}>{teamName}</SelectItem>
                                       );
