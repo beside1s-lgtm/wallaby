@@ -73,6 +73,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
   const [selectedGrade, setSelectedGrade] = useState('');
   const [selectedClassNum, setSelectedClassNum] = useState('');
   const [selectedTeamGroupId, setSelectedTeamGroupId] = useState('');
+  const [selectedTeamId, setSelectedTeamId] = useState('');
   const [batchRecordItem, setBatchRecordItem] = useState('');
   const [batchRecordDate, setBatchRecordDate] = useState<Date | undefined>(new Date());
   const [batchRecords, setBatchRecords] = useState<Record<string, { value?: string, height?: string, weight?: string }>>({});
@@ -89,15 +90,21 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
     });
     return { grades, classNumsByGrade };
   }, [allStudents]);
+  
+  const selectedTeamGroup = useMemo(() => {
+    return allTeamGroups.find(g => g.id === selectedTeamGroupId);
+  }, [selectedTeamGroupId, allTeamGroups]);
 
   const studentsForBatch = useMemo(() => {
     if (selectedTeamGroupId) {
-        const teamGroup = allTeamGroups.find(g => g.id === selectedTeamGroupId);
-        if (!teamGroup) return [];
+        if (!selectedTeamGroup) return [];
 
         const studentMap = new Map(allStudents.map(s => [s.id, s]));
+        const teamToShow = selectedTeamId ? selectedTeamGroup.teams.find(t => t.id === selectedTeamId) : null;
         
-        return teamGroup.teams.flatMap((team, teamIndex) => 
+        const teamsToProcess = teamToShow ? [teamToShow] : selectedTeamGroup.teams;
+
+        return teamsToProcess.flatMap((team) => 
             team.memberIds.map((memberId, memberIndex) => {
                 const student = studentMap.get(memberId);
                 return student ? { ...student, teamName: `팀 ${team.teamIndex + 1}`, teamMemberNumber: memberIndex + 1 } : null;
@@ -115,13 +122,16 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
             .map(s => ({...s, teamName: '-', teamMemberNumber: parseInt(s.studentNum)}));
     }
     return [];
-  }, [allStudents, selectedGrade, selectedClassNum, selectedTeamGroupId, allTeamGroups]);
+  }, [allStudents, selectedGrade, selectedClassNum, selectedTeamGroupId, selectedTeamId, selectedTeamGroup]);
   
   useEffect(() => {
     setBatchRecords({}); // Clear batch records on filter change
     if(selectedTeamGroupId) {
         setSelectedGrade('');
         setSelectedClassNum('');
+    }
+    if(!selectedTeamGroupId){
+        setSelectedTeamId('');
     }
   }, [selectedGrade, selectedClassNum, batchRecordItem, selectedTeamGroupId]);
 
@@ -349,6 +359,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
         setSelectedGrade('');
         setSelectedClassNum('');
         setSelectedTeamGroupId('');
+        setSelectedTeamId('');
     };
 
 
@@ -425,7 +436,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                         
                         <span className="text-sm text-muted-foreground mx-2">또는</span>
 
-                        <Select value={selectedTeamGroupId} onValueChange={v => { setSelectedTeamGroupId(v); setSelectedGrade(''); setSelectedClassNum(''); }}>
+                        <Select value={selectedTeamGroupId} onValueChange={v => { setSelectedTeamGroupId(v); setSelectedGrade(''); setSelectedClassNum(''); setSelectedTeamId(''); }}>
                             <SelectTrigger className="w-full sm:w-[200px]">
                                 <SelectValue placeholder="팀 편성 그룹 선택" />
                             </SelectTrigger>
@@ -435,6 +446,20 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                                 )) : <SelectItem value="none" disabled>저장된 팀 그룹이 없습니다.</SelectItem>}
                             </SelectContent>
                         </Select>
+                         
+                        {selectedTeamGroupId && (
+                          <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+                              <SelectTrigger className="w-full sm:w-[150px]">
+                                  <SelectValue placeholder="팀 선택" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                  <SelectItem value="">전체 팀</SelectItem>
+                                  {selectedTeamGroup?.teams.map(team => (
+                                      <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+                                  ))}
+                              </SelectContent>
+                          </Select>
+                        )}
                          
                         {(selectedGrade || selectedTeamGroupId) && <Button variant="ghost" size="icon" onClick={clearFilters}><X className="h-4 w-4" /></Button>}
                         
