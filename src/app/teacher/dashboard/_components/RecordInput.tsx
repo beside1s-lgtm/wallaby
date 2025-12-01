@@ -448,12 +448,12 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                         </Select>
                          
                         {selectedTeamGroupId && (
-                          <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+                          <Select value={selectedTeamId} onValueChange={v => setSelectedTeamId(v === 'all-teams' ? '' : v)}>
                               <SelectTrigger className="w-full sm:w-[150px]">
                                   <SelectValue placeholder="팀 선택" />
                               </SelectTrigger>
                               <SelectContent>
-                                  <SelectItem value="">전체 팀</SelectItem>
+                                  <SelectItem value="all-teams">전체 팀</SelectItem>
                                   {selectedTeamGroup?.teams.map(team => (
                                       <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
                                   ))}
