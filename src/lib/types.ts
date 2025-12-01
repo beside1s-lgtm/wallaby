@@ -104,6 +104,7 @@ export type Tournament = {
   teams: Team[]; // 직접 팀 정보를 저장
   matches: Match[];
   createdAt: any;
+  date?: string; // YYYY-MM-DD for match day
   meetingsPerTeam?: number;
   // For manual audience targeting
   grade?: string;

@@ -2,23 +2,371 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, GripVertical, Save, Shuffle } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { getTournaments, getStudents, addOrUpdateRecords } from '@/lib/store';
+import { Tournament, Student, Team, MeasurementRecord } from '@/lib/types';
+import { Loader2 } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
+
+type StatCategory = 'spike' | 'receive' | 'toss' | 'serve';
+type PlayerStats = {
+  [key in StatCategory]: { attempt: number, success: number }
+};
 
 export default function VolleyballMatchPage() {
   const params = useParams();
   const router = useRouter();
-  const id = params.id as string;
+  const { school } = useAuth();
+  const { toast } = useToast();
+  const matchId = params.id as string;
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [tournament, setTournament] = useState<Tournament | null>(null);
+  const [match, setMatch] = useState<any | null>(null);
+  const [teamA, setTeamA] = useState<Team | null>(null);
+  const [teamB, setTeamB] = useState<Team | null>(null);
+  const [teamAMembers, setTeamAMembers] = useState<Student[]>([]);
+  const [teamBMembers, setTeamBMembers] = useState<Student[]>([]);
+
+  const [selectedTeamId, setSelectedTeamId] = useState<string>('');
+  const [selectedSet, setSelectedSet] = useState('1');
+  const [roster, setRoster] = useState<Student[]>([]);
+  const [stats, setStats] = useState<Record<string, PlayerStats>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [draggedItem, setDraggedItem] = useState<Student | null>(null);
+
+  useEffect(() => {
+    async function fetchData() {
+      if (!school || !matchId) return;
+      setIsLoading(true);
+      try {
+        const tournaments = await getTournaments(school);
+        let foundMatch: any = null;
+        const parentTournament = tournaments.find(t => {
+            const m = t.matches.find(m => m.id === matchId);
+            if (m) {
+                foundMatch = m;
+                return true;
+            }
+            return false;
+        });
+
+        if (parentTournament && foundMatch) {
+            setTournament(parentTournament);
+            setMatch(foundMatch);
+
+            const teamAData = parentTournament.teams.find(t => t.id === foundMatch.teamAId);
+            const teamBData = parentTournament.teams.find(t => t.id === foundMatch.teamBId);
+            setTeamA(teamAData || null);
+            setTeamB(teamBData || null);
+
+            if (teamAData) {
+                setSelectedTeamId(teamAData.id);
+            }
+            
+            const allStudents = await getStudents(school);
+            const studentMap = new Map(allStudents.map(s => [s.id, s]));
+
+            if (teamAData?.memberIds) {
+              setTeamAMembers(teamAData.memberIds.map(id => studentMap.get(id)).filter((s): s is Student => !!s));
+            }
+            if (teamBData?.memberIds) {
+              setTeamBMembers(teamBData.memberIds.map(id => studentMap.get(id)).filter((s): s is Student => !!s));
+            }
+
+        }
+      } catch (error) {
+        console.error("Failed to fetch match data", error);
+        toast({ variant: 'destructive', title: '데이터 로딩 실패' });
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchData();
+  }, [school, matchId, toast]);
+
+  useEffect(() => {
+    const selectedTeam = [teamA, teamB].find(t => t?.id === selectedTeamId);
+    const members = selectedTeamId === teamA?.id ? teamAMembers : teamBMembers;
+    setRoster(members);
+
+    const initialStats: Record<string, PlayerStats> = {};
+    members.forEach(player => {
+        initialStats[player.id] = {
+            spike: { attempt: 0, success: 0 },
+            receive: { attempt: 0, success: 0 },
+            toss: { attempt: 0, success: 0 },
+            serve: { attempt: 0, success: 0 },
+        }
+    });
+    setStats(initialStats);
+  }, [selectedTeamId, teamA, teamB, teamAMembers, teamBMembers]);
+
+  const handleStatChange = (playerId: string, category: StatCategory, type: 'attempt' | 'success', value: string) => {
+    const numValue = parseInt(value, 10);
+    if (isNaN(numValue) && value !== '') return;
+
+    setStats(prev => ({
+        ...prev,
+        [playerId]: {
+            ...prev[playerId],
+            [category]: {
+                ...prev[playerId][category],
+                [type]: isNaN(numValue) ? 0 : numValue
+            }
+        }
+    }));
+  };
+  
+  const calculateSuccessRate = (attempt: number, success: number) => {
+    if (attempt === 0) return '0.0%';
+    return `${((success / attempt) * 100).toFixed(1)}%`;
+  }
+
+  const tableTotals = useMemo(() => {
+    const totals: { [key in StatCategory]: { attempt: number, success: number } } = {
+      spike: { attempt: 0, success: 0 },
+      receive: { attempt: 0, success: 0 },
+      toss: { attempt: 0, success: 0 },
+      serve: { attempt: 0, success: 0 },
+    };
+    roster.forEach(player => {
+      const playerStats = stats[player.id];
+      if (playerStats) {
+        (Object.keys(totals) as StatCategory[]).forEach(cat => {
+          totals[cat].attempt += playerStats[cat].attempt;
+          totals[cat].success += playerStats[cat].success;
+        });
+      }
+    });
+    return totals;
+  }, [stats, roster]);
+
+  const handleSave = async () => {
+    if (!school || !tournament) {
+      toast({ variant: 'destructive', title: '저장 실패', description: '학교 또는 대회 정보를 찾을 수 없습니다.' });
+      return;
+    }
+    setIsSubmitting(true);
+
+    const recordsToSave: Omit<MeasurementRecord, 'id'>[] = [];
+    const recordDate = tournament.date ? format(new Date(tournament.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+    const categoryToItemName: Record<StatCategory, string> = {
+        spike: '스파이크',
+        receive: '리시브',
+        toss: '토스',
+        serve: '서브',
+    };
+
+    roster.forEach(player => {
+      const playerStats = stats[player.id];
+      if (playerStats) {
+        (Object.keys(playerStats) as StatCategory[]).forEach(cat => {
+            const { attempt, success } = playerStats[cat];
+            if (attempt > 0) {
+              const successRate = (success / attempt) * 100;
+              const score = Math.round(successRate / 10); // 10점 만점으로 환산
+
+              recordsToSave.push({
+                  studentId: player.id,
+                  school: school,
+                  item: categoryToItemName[cat],
+                  value: score,
+                  date: recordDate,
+              });
+            }
+        });
+      }
+    });
+    
+    try {
+        if(recordsToSave.length > 0) {
+             await addOrUpdateRecords(school, roster, recordsToSave.map(r => ({...r, ...roster.find(s=>s.id === r.studentId)})));
+        }
+        toast({ title: '기록 저장 완료', description: `${selectedSet}세트 기록이 학생들의 개별 데이터에 반영되었습니다.`});
+
+    } catch (error) {
+        console.error("Failed to save records", error);
+        toast({ variant: 'destructive', title: '기록 저장 실패' });
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+  
+  const handleDragStart = (e: React.DragEvent<HTMLTableRowElement>, student: Student) => {
+    setDraggedItem(student);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+  
+  const handleDragOver = (e: React.DragEvent<HTMLTableRowElement>) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLTableRowElement>, targetItem: Student) => {
+    e.preventDefault();
+    if (!draggedItem || draggedItem.id === targetItem.id) {
+      setDraggedItem(null);
+      return;
+    }
+
+    const currentIndex = roster.findIndex(item => item.id === draggedItem.id);
+    const targetIndex = roster.findIndex(item => item.id === targetItem.id);
+    
+    let newRoster = [...roster];
+    newRoster.splice(currentIndex, 1);
+    newRoster.splice(targetIndex, 0, draggedItem);
+    
+    setRoster(newRoster);
+    setDraggedItem(null);
+  };
+  
+  const randomizeRoster = () => {
+    setRoster(prev => [...prev].sort(() => Math.random() - 0.5));
+  };
+
+
+  if (isLoading) {
+    return <div className="flex justify-center items-center h-screen"><Loader2 className="w-12 h-12 animate-spin" /></div>;
+  }
+
+  if (!tournament || !match) {
+    return <div className="container mx-auto p-4 md:p-6 lg:p-8"><p>경기 정보를 찾을 수 없습니다.</p></div>;
+  }
+  
+  const statCategories: { key: StatCategory, name: string }[] = [
+    { key: 'spike', name: '스파이크' },
+    { key: 'receive', name: '리시브' },
+    { key: 'toss', name: '토스' },
+    { key: 'serve', name: '서브' },
+  ];
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8">
-       <div className="flex items-center gap-4 mb-6">
+      <div className="flex items-center gap-4 mb-6">
         <Button variant="outline" size="icon" onClick={() => router.back()}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-3xl font-bold">배구 경기 기록 페이지</h1>
+        <div>
+            <h1 className="text-3xl font-bold">배구 경기 기록 페이지</h1>
+            <p className="text-muted-foreground">{tournament.name}</p>
+        </div>
       </div>
-      <p className="text-muted-foreground">경기 ID: {id}</p>
-      {/* 여기에 배구 경기 기록을 입력하고 상세 정보를 표시하는 UI가 추가될 예정입니다. */}
+
+      <Card>
+        <CardHeader>
+            <CardTitle>경기 정보 및 기록</CardTitle>
+            <CardDescription>기록할 팀과 세트를 선택하고, 선수별 성적을 입력하세요. 선수 순서는 드래그하여 변경할 수 있습니다.</CardDescription>
+            <div className="flex flex-wrap items-center gap-4 pt-4">
+                <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+                    <SelectTrigger className="w-[200px]">
+                        <SelectValue placeholder="팀 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {teamA && <SelectItem value={teamA.id}>{teamA.name}</SelectItem>}
+                        {teamB && <SelectItem value={teamB.id}>{teamB.name}</SelectItem>}
+                    </SelectContent>
+                </Select>
+                 <Select value={selectedSet} onValueChange={setSelectedSet}>
+                    <SelectTrigger className="w-[120px]">
+                        <SelectValue placeholder="세트 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="1">1세트</SelectItem>
+                        <SelectItem value="2">2세트</SelectItem>
+                        <SelectItem value="3">3세트</SelectItem>
+                        <SelectItem value="4">4세트</SelectItem>
+                        <SelectItem value="5">5세트</SelectItem>
+                    </SelectContent>
+                </Select>
+                 <Button variant="outline" onClick={randomizeRoster}><Shuffle className="w-4 h-4 mr-2" />순서 섞기</Button>
+            </div>
+        </CardHeader>
+        <CardContent>
+            <div className="overflow-x-auto">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead className="w-[50px]"></TableHead>
+                            <TableHead className="w-[120px]">선수</TableHead>
+                            {statCategories.map(cat => (
+                                <TableHead key={cat.key} colSpan={3} className="text-center border-l">{cat.name}</TableHead>
+                            ))}
+                        </TableRow>
+                        <TableRow>
+                            <TableHead></TableHead>
+                            <TableHead></TableHead>
+                            {statCategories.map(cat => (
+                                <React.Fragment key={`${cat.key}-sub`}>
+                                    <TableHead className="text-center border-l w-[80px]">시도</TableHead>
+                                    <TableHead className="text-center w-[80px]">성공</TableHead>
+                                    <TableHead className="text-center w-[90px]">성공률</TableHead>
+                                </React.Fragment>
+                            ))}
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {roster.map(player => {
+                            const playerStats = stats[player.id];
+                            if (!playerStats) return null;
+
+                            return (
+                                <TableRow 
+                                    key={player.id} 
+                                    draggable 
+                                    onDragStart={(e) => handleDragStart(e, player)}
+                                    onDragOver={handleDragOver}
+                                    onDrop={(e) => handleDrop(e, player)}
+                                    className={draggedItem?.id === player.id ? 'opacity-50' : 'cursor-move'}
+                                >
+                                    <TableCell className="text-center"><GripVertical className="h-5 w-5 text-muted-foreground" /></TableCell>
+                                    <TableCell className="font-semibold">{player.name}</TableCell>
+                                    {statCategories.map(cat => (
+                                        <React.Fragment key={`${player.id}-${cat.key}`}>
+                                            <TableCell className="border-l">
+                                                <Input type="number" min="0" className="h-8 text-center" value={playerStats[cat.key].attempt || ''} onChange={e => handleStatChange(player.id, cat.key, 'attempt', e.target.value)} />
+                                            </TableCell>
+                                            <TableCell>
+                                                <Input type="number" min="0" className="h-8 text-center" value={playerStats[cat.key].success || ''} onChange={e => handleStatChange(player.id, cat.key, 'success', e.target.value)} />
+                                            </TableCell>
+                                            <TableCell className="text-center font-medium">
+                                                {calculateSuccessRate(playerStats[cat.key].attempt, playerStats[cat.key].success)}
+                                            </TableCell>
+                                        </React.Fragment>
+                                    ))}
+                                </TableRow>
+                            )
+                        })}
+                        <TableRow className="bg-muted hover:bg-muted font-bold">
+                            <TableCell colSpan={2} className="text-center">팀 합계</TableCell>
+                            {statCategories.map(cat => (
+                                <React.Fragment key={`total-${cat.key}`}>
+                                    <TableCell className="text-center border-l">{tableTotals[cat.key].attempt}</TableCell>
+                                    <TableCell className="text-center">{tableTotals[cat.key].success}</TableCell>
+                                    <TableCell className="text-center">
+                                        {calculateSuccessRate(tableTotals[cat.key].attempt, tableTotals[cat.key].success)}
+                                    </TableCell>
+                                </React.Fragment>
+                            ))}
+                        </TableRow>
+                    </TableBody>
+                </Table>
+            </div>
+             <div className="flex justify-end mt-6">
+                <Button onClick={handleSave} disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    기록 저장
+                </Button>
+            </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -16,6 +16,10 @@ export const initialItems: MeasurementItem[] = [
     { id: '5', name: '앉아윗몸앞으로굽히기', unit: 'cm', recordType: 'distance', isPaps: true, category: 'PAPS' },
     { id: 'bmi', name: '체질량지수(BMI)', unit: 'kg/m²', recordType: 'compound', isPaps: true, isCompound: true, category: 'PAPS' },
     { id: '6', name: '자유투', unit: '성공', recordType: 'count', isPaps: false, goal: 10, category: '농구' },
+    { id: 'v-spike', name: '스파이크', unit: '점', recordType: 'count', isPaps: false, goal: 10, category: '배구' },
+    { id: 'v-receive', name: '리시브', unit: '점', recordType: 'count', isPaps: false, goal: 10, category: '배구' },
+    { id: 'v-toss', name: '토스', unit: '점', recordType: 'count', isPaps: false, goal: 10, category: '배구' },
+    { id: 'v-serve', name: '서브', unit: '점', recordType: 'count', isPaps: false, goal: 10, category: '배구' },
 ];
 
 export const initialRecords: MeasurementRecord[] = [
