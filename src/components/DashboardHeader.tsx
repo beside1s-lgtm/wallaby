@@ -6,6 +6,7 @@ import { LogOut, Rocket, UserCircle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
 
 export function DashboardHeaderContents() {
   const { school } = useAuth();
@@ -19,6 +20,11 @@ export function DashboardHeaderContents() {
 export function DashboardHeader() {
   const { user, logout } = useAuth();
   const { theme, setTheme } = useTheme();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const handleThemeChange = (checked: boolean) => {
     setTheme(checked ? "dark" : "light");
@@ -33,16 +39,18 @@ export function DashboardHeader() {
         </h1>
       </div>
       <div className="flex items-center gap-2 sm:gap-4">
-        <div className="flex items-center space-x-2">
-          <Label htmlFor="theme-switch" className="hidden sm:inline">
-            {theme === "dark" ? "다크 모드" : "라이트 모드"}
-          </Label>
-          <Switch
-            id="theme-switch"
-            checked={theme === "dark"}
-            onCheckedChange={handleThemeChange}
-          />
-        </div>
+        {isMounted && (
+          <div className="flex items-center space-x-2">
+            <Label htmlFor="theme-switch" className="hidden sm:inline">
+              {theme === "dark" ? "다크 모드" : "라이트 모드"}
+            </Label>
+            <Switch
+              id="theme-switch"
+              checked={theme === "dark"}
+              onCheckedChange={handleThemeChange}
+            />
+          </div>
+        )}
         <div className="flex items-center gap-2 text-sm font-medium">
           <UserCircle className="h-5 w-5" />
           <span className="hidden md:inline">
