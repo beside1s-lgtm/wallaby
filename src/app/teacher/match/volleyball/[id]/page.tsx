@@ -351,7 +351,13 @@ export default function VolleyballMatchPage() {
               left: 0;
               top: 0;
               width: 100%;
-              zoom: 0.61;
+            }
+             #print-area .print-table-container {
+                width: 100%;
+                overflow: visible;
+            }
+            #print-area .print-table-container table {
+                width: 100%;
             }
           }
         `}
@@ -412,7 +418,7 @@ export default function VolleyballMatchPage() {
                   <h2 className="text-2xl font-bold">{tournament.name}</h2>
                    <h3 className="text-xl">{teamForPrint?.name} 팀 기록지 - {printView === 'final' ? '최종 합계' : `${printView}세트`}</h3>
               </div>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto print-table-container">
                   <Table>
                       <TableHeader>
                           <TableRow>
