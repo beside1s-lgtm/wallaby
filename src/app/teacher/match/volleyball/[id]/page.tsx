@@ -333,10 +333,7 @@ export default function VolleyballMatchPage() {
         <Button variant="outline" size="icon" onClick={() => router.back()}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <div>
-            <h1 className="text-3xl font-bold">배구 경기 기록 페이지</h1>
-            <p className="text-muted-foreground">{tournament.name}</p>
-        </div>
+        <h1 className="text-3xl font-bold">배구 경기 기록 페이지</h1>
       </div>
 
       <Card>
