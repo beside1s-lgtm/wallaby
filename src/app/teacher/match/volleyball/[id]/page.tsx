@@ -346,34 +346,19 @@ export default function VolleyballMatchPage() {
               margin: 0 !important;
               padding: 0 !important;
             }
-            #print-area {
-              margin: 0;
-              padding: 1cm;
-              width: 100%;
-              height: auto;
-              position: static;
-            }
             .print-hidden {
               display: none !important;
             }
             .print-only {
               display: block !important;
             }
-            .print-table-container {
-              overflow: visible !important;
-              width: 100%;
-            }
-            #print-area table {
-              width: 100%;
-            }
-            @page {
-              size: A4 landscape;
-              margin: 1cm;
+            #print-area {
+              zoom: 0.75;
             }
           }
         `}
       </style>
-      <div className="container mx-auto p-4 md:p-6 lg:p-8 max-w-7xl" id="print-area">
+      <div className="container mx-auto p-4 md:p-6 lg:p-8 max-w-7xl">
         <div className="flex items-center gap-4 mb-6 print-hidden">
           <Button variant="outline" size="icon" onClick={() => router.back()}>
             <ArrowLeft className="h-4 w-4" />
@@ -381,139 +366,145 @@ export default function VolleyballMatchPage() {
           <h1 className="text-3xl font-bold">배구 경기 기록 페이지</h1>
         </div>
         
-        <Card>
-          <CardHeader className="px-6 print-hidden">
-              <CardTitle>경기 정보 및 기록</CardTitle>
-              <CardDescription>기록할 팀과 세트를 선택하고, 선수별 성적을 입력하세요. 선수 순서는 드래그하여 변경할 수 있습니다.</CardDescription>
-              <div className="flex flex-wrap items-center gap-4 pt-4">
-                  <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
-                      <SelectTrigger className="w-full sm:w-[200px]">
-                          <SelectValue placeholder="팀 선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                          {teamA && <SelectItem value={teamA.id}>{teamA.name}</SelectItem>}
-                          {teamB && <SelectItem value={teamB.id}>{teamB.name}</SelectItem>}
-                      </SelectContent>
-                  </Select>
-                  <Select value={selectedSet} onValueChange={setSelectedSet}>
-                      <SelectTrigger className="w-full sm:w-[120px]">
-                          <SelectValue placeholder="세트 선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                          <SelectItem value="1">1세트</SelectItem>
-                          <SelectItem value="2">2세트</SelectItem>
-                          <SelectItem value="3">3세트</SelectItem>
-                          <SelectItem value="4">4세트</SelectItem>
-                          <SelectItem value="5">5세트</SelectItem>
-                      </SelectContent>
-                  </Select>
-                  <Button variant="outline" onClick={randomizeRoster}><Shuffle className="w-4 h-4 mr-2" />순서 섞기</Button>
-                  <div className="flex items-center gap-2 sm:ml-auto">
-                      <Select value={printView} onValueChange={setPrintView}>
-                          <SelectTrigger className="w-full sm:w-[150px]">
-                              <SelectValue placeholder="인쇄 보기 선택" />
-                          </SelectTrigger>
-                          <SelectContent>
-                              <SelectItem value="final">최종 합계</SelectItem>
-                              {Object.keys(matchStats).map(setNum => (
-                                  <SelectItem key={setNum} value={setNum}>{setNum}세트</SelectItem>
-                              ))}
-                          </SelectContent>
-                      </Select>
-                      <Button onClick={handlePrint}><Printer className="w-4 h-4 mr-2" />인쇄하기</Button>
-                  </div>
-              </div>
-          </CardHeader>
-          <CardContent className="px-6">
-              <div className="print-only mb-4 hidden">
-                  <h2 className="text-2xl font-bold">{tournament.name}</h2>
-                   <h3 className="text-xl">{selectedTeam?.name} 팀 기록지 - {printView === 'final' ? '최종 합계' : `${printView}세트`}</h3>
-              </div>
-              <div className="overflow-x-auto print-table-container">
-                  <Table className="table-fixed">
-                      <TableHeader>
-                          <TableRow>
-                              <TableHead className="w-[50px] print-hidden"></TableHead>
-                              <TableHead className="w-[120px] whitespace-nowrap">선수</TableHead>
-                              {statCategories.map(cat => (
-                                  <TableHead key={cat.key} colSpan={3} className="text-center border-l">{cat.name}</TableHead>
-                              ))}
-                          </TableRow>
-                          <TableRow>
-                              <TableHead className="print-hidden"></TableHead>
-                              <TableHead className="w-[120px] whitespace-nowrap"></TableHead>
-                              {statCategories.map(cat => (
-                                  <React.Fragment key={`${cat.key}-sub`}>
-                                      <TableHead className="text-center border-l w-[60px] break-keep">시도</TableHead>
-                                      <TableHead className="text-center w-[60px] break-keep">성공</TableHead>
-                                      <TableHead className="text-center w-[70px] break-keep">성공률</TableHead>
-                                  </React.Fragment>
-                              ))}
-                          </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                          {currentRoster.map(player => {
-                              const playerStats = (matchStats[selectedSet] || {})[player.id];
-                              const displayPlayerStats = displayedStats[player.id] || {
-                                  spike: { attempt: 0, success: 0 }, receive: { attempt: 0, success: 0 }, toss: { attempt: 0, success: 0 }, serve: { attempt: 0, success: 0 },
-                              };
-                              
-                              if (!playerStats) return null;
-
-                              return (
-                                  <TableRow 
-                                      key={player.id} 
-                                      draggable 
-                                      onDragStart={(e) => handleDragStart(e, player)}
-                                      onDragOver={handleDragOver}
-                                      onDrop={(e) => handleDrop(e, player)}
-                                      className={draggedItem?.id === player.id ? 'opacity-50' : 'cursor-move'}
-                                  >
-                                      <TableCell className="text-center print-hidden"><GripVertical className="h-5 w-5 text-muted-foreground" /></TableCell>
-                                      <TableCell className="font-semibold w-[120px] whitespace-nowrap">{player.name}</TableCell>
-                                      {statCategories.map(cat => (
-                                          <React.Fragment key={`${player.id}-${cat.key}`}>
-                                              <TableCell className="border-l">
-                                                  <Input type="number" min="0" className="h-8 text-center print-hidden" value={playerStats[cat.key].attempt || ''} onChange={e => handleStatChange(player.id, cat.key, 'attempt', e.target.value)} />
-                                                  <span className="print-only hidden">{displayPlayerStats[cat.key].attempt}</span>
-                                              </TableCell>
-                                              <TableCell>
-                                                  <Input type="number" min="0" className="h-8 text-center print-hidden" value={playerStats[cat.key].success || ''} onChange={e => handleStatChange(player.id, cat.key, 'success', e.target.value)} />
-                                                  <span className="print-only hidden">{displayPlayerStats[cat.key].success}</span>
-                                              </TableCell>
-                                              <TableCell className="text-center font-medium">
-                                                  {calculateSuccessRate(displayPlayerStats[cat.key].attempt, displayPlayerStats[cat.key].success)}
-                                              </TableCell>
-                                          </React.Fragment>
-                                      ))}
-                                  </TableRow>
-                              )
-                          })}
-                          <TableRow className="bg-muted hover:bg-muted font-bold">
-                              <TableCell colSpan={2} className="text-center print-hidden-cell whitespace-nowrap">팀 합계</TableCell>
-                              <TableCell colSpan={1} className="text-center hidden print-table-cell whitespace-nowrap">팀 합계</TableCell>
-
-                              {statCategories.map(cat => (
-                                  <React.Fragment key={`total-${cat.key}`}>
-                                      <TableCell className="text-center border-l">{tableTotals[cat.key].attempt}</TableCell>
-                                      <TableCell className="text-center">{tableTotals[cat.key].success}</TableCell>
-                                      <TableCell className="text-center">
-                                          {calculateSuccessRate(tableTotals[cat.key].attempt, tableTotals[cat.key].success)}
-                                      </TableCell>
-                                  </React.Fragment>
-                              ))}
-                          </TableRow>
-                      </TableBody>
-                  </Table>
-              </div>
-              <div className="flex justify-end mt-6 print-hidden">
-                  <Button onClick={handleSave} disabled={isSubmitting}>
-                      {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      기록 저장
-                  </Button>
-              </div>
-          </CardContent>
+        <Card className="mb-6 print-hidden">
+            <CardHeader>
+                <CardTitle>경기 정보 및 기록</CardTitle>
+                <CardDescription>기록할 팀과 세트를 선택하고, 선수별 성적을 입력하세요. 선수 순서는 드래그하여 변경할 수 있습니다.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="flex flex-wrap items-center gap-4">
+                    <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+                        <SelectTrigger className="w-full sm:w-[200px]">
+                            <SelectValue placeholder="팀 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {teamA && <SelectItem value={teamA.id}>{teamA.name}</SelectItem>}
+                            {teamB && <SelectItem value={teamB.id}>{teamB.name}</SelectItem>}
+                        </SelectContent>
+                    </Select>
+                    <Select value={selectedSet} onValueChange={setSelectedSet}>
+                        <SelectTrigger className="w-full sm:w-[120px]">
+                            <SelectValue placeholder="세트 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="1">1세트</SelectItem>
+                            <SelectItem value="2">2세트</SelectItem>
+                            <SelectItem value="3">3세트</SelectItem>
+                            <SelectItem value="4">4세트</SelectItem>
+                            <SelectItem value="5">5세트</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Button variant="outline" onClick={randomizeRoster}><Shuffle className="w-4 h-4 mr-2" />순서 섞기</Button>
+                    <div className="flex items-center gap-2 sm:ml-auto">
+                        <Select value={printView} onValueChange={setPrintView}>
+                            <SelectTrigger className="w-full sm:w-[150px]">
+                                <SelectValue placeholder="인쇄 보기 선택" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="final">최종 합계</SelectItem>
+                                {Object.keys(matchStats).map(setNum => (
+                                    <SelectItem key={setNum} value={setNum}>{setNum}세트</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Button onClick={handlePrint}><Printer className="w-4 h-4 mr-2" />인쇄하기</Button>
+                    </div>
+                </div>
+            </CardContent>
         </Card>
+        
+        <div id="print-area">
+            <div className="print-only mb-4 hidden">
+                <h2 className="text-2xl font-bold">{tournament.name}</h2>
+                <h3 className="text-xl">{selectedTeam?.name} 팀 기록지 - {printView === 'final' ? '최종 합계' : `${printView}세트`}</h3>
+            </div>
+            <Card>
+                <CardContent className="pt-6">
+                    <div className="overflow-x-auto">
+                        <Table className="table-fixed">
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-[50px] print-hidden"></TableHead>
+                                    <TableHead className="w-[120px] whitespace-nowrap">선수</TableHead>
+                                    {statCategories.map(cat => (
+                                        <TableHead key={cat.key} colSpan={3} className="text-center border-l">{cat.name}</TableHead>
+                                    ))}
+                                </TableRow>
+                                <TableRow>
+                                    <TableHead className="print-hidden"></TableHead>
+                                    <TableHead className="w-[120px] whitespace-nowrap"></TableHead>
+                                    {statCategories.map(cat => (
+                                        <React.Fragment key={`${cat.key}-sub`}>
+                                            <TableHead className="text-center border-l w-[80px] break-keep">시도</TableHead>
+                                            <TableHead className="text-center w-[80px] break-keep">성공</TableHead>
+                                            <TableHead className="text-center w-[90px] break-keep">성공률</TableHead>
+                                        </React.Fragment>
+                                    ))}
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {currentRoster.map(player => {
+                                    const playerStats = (matchStats[selectedSet] || {})[player.id];
+                                    const displayPlayerStats = displayedStats[player.id] || {
+                                        spike: { attempt: 0, success: 0 }, receive: { attempt: 0, success: 0 }, toss: { attempt: 0, success: 0 }, serve: { attempt: 0, success: 0 },
+                                    };
+                                    
+                                    if (!playerStats) return null;
+
+                                    return (
+                                        <TableRow 
+                                            key={player.id} 
+                                            draggable 
+                                            onDragStart={(e) => handleDragStart(e, player)}
+                                            onDragOver={handleDragOver}
+                                            onDrop={(e) => handleDrop(e, player)}
+                                            className={draggedItem?.id === player.id ? 'opacity-50' : 'cursor-move'}
+                                        >
+                                            <TableCell className="text-center print-hidden"><GripVertical className="h-5 w-5 text-muted-foreground" /></TableCell>
+                                            <TableCell className="font-semibold">{player.name}</TableCell>
+                                            {statCategories.map(cat => (
+                                                <React.Fragment key={`${player.id}-${cat.key}`}>
+                                                    <TableCell className="border-l">
+                                                        <Input type="number" min="0" className="h-8 text-center print-hidden" value={playerStats[cat.key].attempt || ''} onChange={e => handleStatChange(player.id, cat.key, 'attempt', e.target.value)} />
+                                                        <span className="print-only hidden">{displayPlayerStats[cat.key].attempt}</span>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Input type="number" min="0" className="h-8 text-center print-hidden" value={playerStats[cat.key].success || ''} onChange={e => handleStatChange(player.id, cat.key, 'success', e.target.value)} />
+                                                        <span className="print-only hidden">{displayPlayerStats[cat.key].success}</span>
+                                                    </TableCell>
+                                                    <TableCell className="text-center font-medium">
+                                                        {calculateSuccessRate(displayPlayerStats[cat.key].attempt, displayPlayerStats[cat.key].success)}
+                                                    </TableCell>
+                                                </React.Fragment>
+                                            ))}
+                                        </TableRow>
+                                    )
+                                })}
+                                <TableRow className="bg-muted hover:bg-muted font-bold">
+                                    <TableCell colSpan={2} className="text-center whitespace-nowrap">팀 합계</TableCell>
+
+                                    {statCategories.map(cat => (
+                                        <React.Fragment key={`total-${cat.key}`}>
+                                            <TableCell className="text-center border-l">{tableTotals[cat.key].attempt}</TableCell>
+                                            <TableCell className="text-center">{tableTotals[cat.key].success}</TableCell>
+                                            <TableCell className="text-center">
+                                                {calculateSuccessRate(tableTotals[cat.key].attempt, tableTotals[cat.key].success)}
+                                            </TableCell>
+                                        </React.Fragment>
+                                    ))}
+                                </TableRow>
+                            </TableBody>
+                        </Table>
+                    </div>
+                    <div className="flex justify-end mt-6 print-hidden">
+                        <Button onClick={handleSave} disabled={isSubmitting}>
+                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            기록 저장
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
       </div>
     </>
   );
