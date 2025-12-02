@@ -381,7 +381,7 @@ export default function VolleyballMatchPage() {
         </CardHeader>
         <CardContent>
             <div className="print-only mb-4 hidden">
-                <h2 className="text-2xl font-bold">{tournament.name} - {teamA?.name} vs {teamB?.name}</h2>
+                <h2 className="text-2xl font-bold">{teamA?.name} vs {teamB?.name}</h2>
                 <h3 className="text-xl">{rosters[selectedTeamId]?.[0]?.name} 팀 기록지 - {printView === 'final' ? '최종 합계' : `${printView}세트`}</h3>
             </div>
             <div className="overflow-x-auto">
@@ -389,19 +389,19 @@ export default function VolleyballMatchPage() {
                     <TableHeader>
                         <TableRow>
                             <TableHead className="w-[50px] print-hidden"></TableHead>
-                            <TableHead className="w-[120px]">선수</TableHead>
+                            <TableHead className="w-[120px] whitespace-nowrap">선수</TableHead>
                             {statCategories.map(cat => (
                                 <TableHead key={cat.key} colSpan={3} className="text-center border-l">{cat.name}</TableHead>
                             ))}
                         </TableRow>
                         <TableRow>
                             <TableHead className="print-hidden"></TableHead>
-                            <TableHead className="w-[120px]"></TableHead>
+                            <TableHead className="w-[120px] whitespace-nowrap"></TableHead>
                             {statCategories.map(cat => (
                                 <React.Fragment key={`${cat.key}-sub`}>
-                                    <TableHead className="text-center border-l w-[80px]">시도</TableHead>
-                                    <TableHead className="text-center w-[80px]">성공</TableHead>
-                                    <TableHead className="text-center w-[90px]">성공률</TableHead>
+                                    <TableHead className="text-center border-l w-[60px]">시도</TableHead>
+                                    <TableHead className="text-center w-[60px]">성공</TableHead>
+                                    <TableHead className="text-center w-[70px]">성공률</TableHead>
                                 </React.Fragment>
                             ))}
                         </TableRow>
@@ -445,8 +445,8 @@ export default function VolleyballMatchPage() {
                             )
                         })}
                         <TableRow className="bg-muted hover:bg-muted font-bold">
-                            <TableCell colSpan={2} className="text-center print-hidden-cell">팀 합계</TableCell>
-                            <TableCell colSpan={1} className="text-center hidden print-table-cell">팀 합계</TableCell>
+                            <TableCell colSpan={2} className="text-center print-hidden-cell whitespace-nowrap">팀 합계</TableCell>
+                            <TableCell colSpan={1} className="text-center hidden print-table-cell whitespace-nowrap">팀 합계</TableCell>
 
                             {statCategories.map(cat => (
                                 <React.Fragment key={`total-${cat.key}`}>
