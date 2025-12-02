@@ -328,7 +328,7 @@ export default function VolleyballMatchPage() {
   ];
 
   return (
-    <div className="container mx-auto p-4 md:p-6 lg:p-8" id="print-area">
+    <div className="container mx-auto p-4 md:p-6 lg:p-8 max-w-7xl" id="print-area">
       <div className="flex items-center gap-4 mb-6 print-hidden">
         <Button variant="outline" size="icon" onClick={() => router.back()}>
           <ArrowLeft className="h-4 w-4" />
@@ -399,7 +399,7 @@ export default function VolleyballMatchPage() {
                         </TableRow>
                         <TableRow>
                             <TableHead className="print-hidden"></TableHead>
-                            <TableHead></TableHead>
+                            <TableHead className="w-[120px]"></TableHead>
                             {statCategories.map(cat => (
                                 <React.Fragment key={`${cat.key}-sub`}>
                                     <TableHead className="text-center border-l w-[80px]">시도</TableHead>
@@ -428,7 +428,7 @@ export default function VolleyballMatchPage() {
                                     className={draggedItem?.id === player.id ? 'opacity-50' : 'cursor-move'}
                                 >
                                     <TableCell className="text-center print-hidden"><GripVertical className="h-5 w-5 text-muted-foreground" /></TableCell>
-                                    <TableCell className="font-semibold">{player.name}</TableCell>
+                                    <TableCell className="font-semibold w-[120px]">{player.name}</TableCell>
                                     {statCategories.map(cat => (
                                         <React.Fragment key={`${player.id}-${cat.key}`}>
                                             <TableCell className="border-l">
