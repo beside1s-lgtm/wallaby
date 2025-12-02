@@ -104,6 +104,7 @@ export default function VolleyballMatchPage() {
   
   const currentRoster = useMemo(() => rosters[selectedTeamId] || [], [rosters, selectedTeamId]);
   const selectedTeam = useMemo(() => {
+      if (!selectedTeamId) return null;
       if (selectedTeamId === teamA?.id) return teamA;
       if (selectedTeamId === teamB?.id) return teamB;
       return null;
@@ -349,8 +350,6 @@ export default function VolleyballMatchPage() {
               left: 0;
               top: 0;
               width: 100%;
-              transform: scale(0.75);
-              transform-origin: top left;
             }
           }
         `}
@@ -364,7 +363,7 @@ export default function VolleyballMatchPage() {
         </div>
         
         <Card>
-          <CardHeader className="print-hidden px-6">
+          <CardHeader className="px-6 print-hidden">
               <CardTitle>경기 정보 및 기록</CardTitle>
               <CardDescription>기록할 팀과 세트를 선택하고, 선수별 성적을 입력하세요. 선수 순서는 드래그하여 변경할 수 있습니다.</CardDescription>
               <div className="flex flex-wrap items-center gap-4 pt-4">
@@ -406,7 +405,7 @@ export default function VolleyballMatchPage() {
                   </div>
               </div>
           </CardHeader>
-          <CardContent className="px-6 overflow-x-auto print:overflow-visible">
+          <CardContent className="px-6">
               <div className="print-only mb-4 hidden">
                   <h2 className="text-2xl font-bold">{tournament.name}</h2>
                   <h3 className="text-xl">{selectedTeam?.name} 팀 기록지 - {printView === 'final' ? '최종 합계' : `${printView}세트`}</h3>
