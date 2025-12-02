@@ -340,24 +340,35 @@ export default function VolleyballMatchPage() {
       <style>
         {`
           @media print {
-            body * {
-              visibility: hidden;
-            }
-            #print-area, #print-area * {
-              visibility: visible;
+            body, html {
+              width: 100%;
+              height: auto;
+              margin: 0 !important;
+              padding: 0 !important;
             }
             #print-area {
-              position: absolute;
-              left: 0;
-              top: 0;
+              margin: 0;
+              padding: 1cm;
+              width: 100%;
+              height: auto;
+              position: static;
+            }
+            .print-hidden {
+              display: none !important;
+            }
+            .print-only {
+              display: block !important;
+            }
+            .print-table-container {
+              overflow: visible !important;
               width: 100%;
             }
-             #print-area .print-table-container {
-                width: 100%;
-                overflow: visible;
+            #print-area table {
+              width: 100%;
             }
-            #print-area .print-table-container table {
-                width: 100%;
+            @page {
+              size: A4 landscape;
+              margin: 1cm;
             }
           }
         `}
