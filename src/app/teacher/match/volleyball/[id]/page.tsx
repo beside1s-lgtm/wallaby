@@ -340,7 +340,7 @@ export default function VolleyballMatchPage() {
         <CardHeader className="print-hidden">
             <CardTitle>경기 정보 및 기록</CardTitle>
             <CardDescription>기록할 팀과 세트를 선택하고, 선수별 성적을 입력하세요. 선수 순서는 드래그하여 변경할 수 있습니다.</CardDescription>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-4 pt-4">
+            <div className="flex flex-wrap items-center gap-4 pt-4">
                 <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
                     <SelectTrigger className="w-full sm:w-[200px]">
                         <SelectValue placeholder="팀 선택" />
@@ -425,7 +425,7 @@ export default function VolleyballMatchPage() {
                                     className={draggedItem?.id === player.id ? 'opacity-50' : 'cursor-move'}
                                 >
                                     <TableCell className="text-center print-hidden"><GripVertical className="h-5 w-5 text-muted-foreground" /></TableCell>
-                                    <TableCell className="font-semibold w-[120px]">{player.name}</TableCell>
+                                    <TableCell className="font-semibold w-[120px] whitespace-nowrap">{player.name}</TableCell>
                                     {statCategories.map(cat => (
                                         <React.Fragment key={`${player.id}-${cat.key}`}>
                                             <TableCell className="border-l">
