@@ -335,7 +335,7 @@ export default function VolleyballMatchPage() {
         </Button>
         <h1 className="text-3xl font-bold">배구 경기 기록 페이지</h1>
       </div>
-
+      
       <Card>
         <CardHeader className="print-hidden px-6">
             <CardTitle>경기 정보 및 기록</CardTitle>
@@ -381,7 +381,7 @@ export default function VolleyballMatchPage() {
         </CardHeader>
         <CardContent className="px-6">
             <div className="print-only mb-4 hidden">
-                <h2 className="text-2xl font-bold">{teamA?.name} vs {teamB?.name}</h2>
+                <h2 className="text-2xl font-bold">{tournament.name}</h2>
                 <h3 className="text-xl">{rosters[selectedTeamId]?.[0]?.name} 팀 기록지 - {printView === 'final' ? '최종 합계' : `${printView}세트`}</h3>
             </div>
             <div className="overflow-x-auto">
