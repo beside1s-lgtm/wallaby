@@ -352,74 +352,74 @@ export default function VolleyballMatchPage() {
             .print-only {
               display: block !important;
             }
-            #print-area {
-              zoom: 0.75;
+             #print-area {
+              zoom: 0.61;
             }
           }
         `}
       </style>
       <div className="container mx-auto p-4 md:p-6 lg:p-8 max-w-7xl">
-        <div className="flex items-center gap-4 mb-6 print-hidden">
+        <div className="flex items-center gap-4 mb-4 print-hidden">
           <Button variant="outline" size="icon" onClick={() => router.back()}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <h1 className="text-3xl font-bold">배구 경기 기록 페이지</h1>
+          <div>
+            <h1 className="text-3xl font-bold">배구 경기 기록 페이지</h1>
+            <p className="text-muted-foreground">기록할 팀과 세트를 선택하고, 선수별 성적을 입력하세요. 선수 순서는 드래그하여 변경할 수 있습니다.</p>
+          </div>
         </div>
         
-        <Card className="mb-6 print-hidden">
-            <CardHeader>
-                <CardDescription>기록할 팀과 세트를 선택하고, 선수별 성적을 입력하세요. 선수 순서는 드래그하여 변경할 수 있습니다.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="flex flex-wrap items-center gap-4">
-                    <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
-                        <SelectTrigger className="w-full sm:w-[200px]">
-                            <SelectValue placeholder="팀 선택" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {teamA && <SelectItem value={teamA.id}>{teamA.name}</SelectItem>}
-                            {teamB && <SelectItem value={teamB.id}>{teamB.name}</SelectItem>}
-                        </SelectContent>
-                    </Select>
-                    <Select value={selectedSet} onValueChange={setSelectedSet}>
-                        <SelectTrigger className="w-full sm:w-[120px]">
-                            <SelectValue placeholder="세트 선택" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="1">1세트</SelectItem>
-                            <SelectItem value="2">2세트</SelectItem>
-                            <SelectItem value="3">3세트</SelectItem>
-                            <SelectItem value="4">4세트</SelectItem>
-                            <SelectItem value="5">5세트</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    <Button variant="outline" onClick={randomizeRoster}><Shuffle className="w-4 h-4 mr-2" />순서 섞기</Button>
-                    <div className="flex items-center gap-2 sm:ml-auto">
-                        <Select value={printView} onValueChange={setPrintView}>
-                            <SelectTrigger className="w-full sm:w-[150px]">
-                                <SelectValue placeholder="인쇄 보기 선택" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="final">최종 합계</SelectItem>
-                                {Object.keys(matchStats).map(setNum => (
-                                    <SelectItem key={setNum} value={setNum}>{setNum}세트</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        <Button onClick={handlePrint}><Printer className="w-4 h-4 mr-2" />인쇄하기</Button>
-                    </div>
-                </div>
-            </CardContent>
+        <Card className="mb-6 print-hidden shadow-none border-none">
+          <CardContent className="p-0">
+            <div className="flex flex-wrap items-center gap-4">
+              <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+                <SelectTrigger className="w-full sm:w-[200px]">
+                  <SelectValue placeholder="팀 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {teamA && <SelectItem value={teamA.id}>{teamA.name}</SelectItem>}
+                  {teamB && <SelectItem value={teamB.id}>{teamB.name}</SelectItem>}
+                </SelectContent>
+              </Select>
+              <Select value={selectedSet} onValueChange={setSelectedSet}>
+                <SelectTrigger className="w-full sm:w-[120px]">
+                  <SelectValue placeholder="세트 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1세트</SelectItem>
+                  <SelectItem value="2">2세트</SelectItem>
+                  <SelectItem value="3">3세트</SelectItem>
+                  <SelectItem value="4">4세트</SelectItem>
+                  <SelectItem value="5">5세트</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" onClick={randomizeRoster}><Shuffle className="w-4 h-4 mr-2" />순서 섞기</Button>
+              <div className="flex items-center gap-2 sm:ml-auto">
+                <Select value={printView} onValueChange={setPrintView}>
+                  <SelectTrigger className="w-full sm:w-[150px]">
+                    <SelectValue placeholder="인쇄 보기 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="final">최종 합계</SelectItem>
+                    {Object.keys(matchStats).map(setNum => (
+                        <SelectItem key={setNum} value={setNum}>{setNum}세트</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button onClick={handlePrint}><Printer className="w-4 h-4 mr-2" />인쇄하기</Button>
+              </div>
+            </div>
+          </CardContent>
         </Card>
         
         <div id="print-area">
             <div className="print-only mb-4 hidden">
                 <h2 className="text-2xl font-bold">{tournament.name}</h2>
-                <h3 className="text-xl">{(selectedTeamId === teamA?.id ? teamA?.name : teamB?.name)} 팀 기록지 - {printView === 'final' ? '최종 합계' : `${printView}세트`}</h3>
+                <h3 className="text-xl">{(teamForPrint?.name)} 팀 기록지 - {printView === 'final' ? '최종 합계' : `${printView}세트`}</h3>
             </div>
             <Card>
-                <CardContent className="pt-6">
-                    <div className="overflow-x-auto">
+                <CardContent className="overflow-x-auto pt-6">
+                    <div>
                         <Table className="table-fixed">
                             <TableHeader>
                                 <TableRow>
