@@ -318,6 +318,7 @@ export default function VolleyballMatchPage() {
     window.print();
   };
 
+  const teamForPrint = selectedTeamId === teamA?.id ? teamA : teamB;
 
   if (isLoading) {
     return <div className="flex justify-center items-center h-screen"><Loader2 className="w-12 h-12 animate-spin" /></div>;
@@ -350,6 +351,7 @@ export default function VolleyballMatchPage() {
               left: 0;
               top: 0;
               width: 100%;
+              zoom: 0.61;
             }
           }
         `}
@@ -408,7 +410,7 @@ export default function VolleyballMatchPage() {
           <CardContent className="px-6">
               <div className="print-only mb-4 hidden">
                   <h2 className="text-2xl font-bold">{tournament.name}</h2>
-                  <h3 className="text-xl">{selectedTeam?.name} 팀 기록지 - {printView === 'final' ? '최종 합계' : `${printView}세트`}</h3>
+                   <h3 className="text-xl">{teamForPrint?.name} 팀 기록지 - {printView === 'final' ? '최종 합계' : `${printView}세트`}</h3>
               </div>
               <div className="overflow-x-auto">
                   <Table>
