@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, GripVertical, Save, Shuffle } from 'lucide-react';
+import { ArrowLeft, GripVertical, Save, Shuffle, Printer } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { getTournaments, getStudents, addOrUpdateRecords } from '@/lib/store';
@@ -19,6 +19,8 @@ type StatCategory = 'spike' | 'receive' | 'toss' | 'serve';
 type PlayerStats = {
   [key in StatCategory]: { attempt: number, success: number }
 };
+type SetStats = Record<string, PlayerStats>; // Key: playerId
+type MatchStats = Record<string, SetStats>; // Key: setNumber ('1', '2', etc.)
 
 export default function VolleyballMatchPage() {
   const params = useParams();
@@ -37,11 +39,15 @@ export default function VolleyballMatchPage() {
 
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
   const [selectedSet, setSelectedSet] = useState('1');
-  const [roster, setRoster] = useState<Student[]>([]);
-  const [stats, setStats] = useState<Record<string, PlayerStats>>({});
+  
+  const [rosters, setRosters] = useState<Record<string, Student[]>>({}); // Key: teamId
+  const [matchStats, setMatchStats] = useState<MatchStats>({});
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
-
   const [draggedItem, setDraggedItem] = useState<Student | null>(null);
+
+  const [printView, setPrintView] = useState('final'); // 'final', '1', '2', etc.
+
 
   useEffect(() => {
     async function fetchData() {
@@ -74,14 +80,17 @@ export default function VolleyballMatchPage() {
             
             const allStudents = await getStudents(school);
             const studentMap = new Map(allStudents.map(s => [s.id, s]));
-
+            
+            const newRosters: Record<string, Student[]> = {};
             if (teamAData?.memberIds) {
-              setTeamAMembers(teamAData.memberIds.map(id => studentMap.get(id)).filter((s): s is Student => !!s));
+                const members = teamAData.memberIds.map(id => studentMap.get(id)).filter((s): s is Student => !!s);
+                newRosters[teamAData.id] = members;
             }
             if (teamBData?.memberIds) {
-              setTeamBMembers(teamBData.memberIds.map(id => studentMap.get(id)).filter((s): s is Student => !!s));
+                const members = teamBData.memberIds.map(id => studentMap.get(id)).filter((s): s is Student => !!s);
+                 newRosters[teamBData.id] = members;
             }
-
+            setRosters(newRosters);
         }
       } catch (error) {
         console.error("Failed to fetch match data", error);
@@ -92,38 +101,59 @@ export default function VolleyballMatchPage() {
     }
     fetchData();
   }, [school, matchId, toast]);
+  
+  const currentRoster = useMemo(() => rosters[selectedTeamId] || [], [rosters, selectedTeamId]);
 
   useEffect(() => {
-    const selectedTeam = [teamA, teamB].find(t => t?.id === selectedTeamId);
-    const members = selectedTeamId === teamA?.id ? teamAMembers : teamBMembers;
-    setRoster(members);
+    setMatchStats(prevStats => {
+        const newStats = { ...prevStats };
+        const currentSetStats = newStats[selectedSet] || {};
+        let changed = false;
 
-    const initialStats: Record<string, PlayerStats> = {};
-    members.forEach(player => {
-        initialStats[player.id] = {
-            spike: { attempt: 0, success: 0 },
-            receive: { attempt: 0, success: 0 },
-            toss: { attempt: 0, success: 0 },
-            serve: { attempt: 0, success: 0 },
+        currentRoster.forEach(player => {
+            if (!currentSetStats[player.id]) {
+                currentSetStats[player.id] = {
+                    spike: { attempt: 0, success: 0 },
+                    receive: { attempt: 0, success: 0 },
+                    toss: { attempt: 0, success: 0 },
+                    serve: { attempt: 0, success: 0 },
+                };
+                changed = true;
+            }
+        });
+
+        if (changed) {
+            newStats[selectedSet] = currentSetStats;
+            return newStats;
         }
+        return prevStats;
     });
-    setStats(initialStats);
-  }, [selectedTeamId, teamA, teamB, teamAMembers, teamBMembers]);
+  }, [selectedSet, currentRoster]);
+
 
   const handleStatChange = (playerId: string, category: StatCategory, type: 'attempt' | 'success', value: string) => {
     const numValue = parseInt(value, 10);
     if (isNaN(numValue) && value !== '') return;
 
-    setStats(prev => ({
-        ...prev,
-        [playerId]: {
-            ...prev[playerId],
-            [category]: {
-                ...prev[playerId][category],
-                [type]: isNaN(numValue) ? 0 : numValue
-            }
-        }
-    }));
+    setMatchStats(prev => {
+        const newMatchStats = { ...prev };
+        const newSetStats = { ...(newMatchStats[selectedSet] || {}) };
+        const newPlayerStats = { ...(newSetStats[playerId] || {
+            spike: { attempt: 0, success: 0 },
+            receive: { attempt: 0, success: 0 },
+            toss: { attempt: 0, success: 0 },
+            serve: { attempt: 0, success: 0 },
+        }) };
+
+        newPlayerStats[category] = {
+            ...newPlayerStats[category],
+            [type]: isNaN(numValue) ? 0 : numValue
+        };
+        
+        newSetStats[playerId] = newPlayerStats;
+        newMatchStats[selectedSet] = newSetStats;
+        return newMatchStats;
+    });
   };
   
   const calculateSuccessRate = (attempt: number, success: number) => {
@@ -131,15 +161,45 @@ export default function VolleyballMatchPage() {
     return `${((success / attempt) * 100).toFixed(1)}%`;
   }
 
+  const displayedStats = useMemo(() => {
+    if (printView === 'final') {
+        const finalStats: Record<string, PlayerStats> = {};
+        currentRoster.forEach(player => {
+            finalStats[player.id] = {
+                spike: { attempt: 0, success: 0 },
+                receive: { attempt: 0, success: 0 },
+                toss: { attempt: 0, success: 0 },
+                serve: { attempt: 0, success: 0 },
+            };
+        });
+
+        Object.values(matchStats).forEach(setStats => {
+            currentRoster.forEach(player => {
+                const playerSetStats = setStats[player.id];
+                if (playerSetStats) {
+                    (Object.keys(finalStats[player.id]) as StatCategory[]).forEach(cat => {
+                        finalStats[player.id][cat].attempt += playerSetStats[cat].attempt;
+                        finalStats[player.id][cat].success += playerSetStats[cat].success;
+                    });
+                }
+            });
+        });
+        return finalStats;
+    }
+    return matchStats[printView] || {};
+  }, [printView, matchStats, currentRoster]);
+
   const tableTotals = useMemo(() => {
+    const statsToTotal = printView === 'final' ? displayedStats : (matchStats[selectedSet] || {});
+    
     const totals: { [key in StatCategory]: { attempt: number, success: number } } = {
       spike: { attempt: 0, success: 0 },
       receive: { attempt: 0, success: 0 },
       toss: { attempt: 0, success: 0 },
       serve: { attempt: 0, success: 0 },
     };
-    roster.forEach(player => {
-      const playerStats = stats[player.id];
+    currentRoster.forEach(player => {
+      const playerStats = statsToTotal[player.id];
       if (playerStats) {
         (Object.keys(totals) as StatCategory[]).forEach(cat => {
           totals[cat].attempt += playerStats[cat].attempt;
@@ -148,7 +208,8 @@ export default function VolleyballMatchPage() {
       }
     });
     return totals;
-  }, [stats, roster]);
+  }, [selectedSet, matchStats, currentRoster, printView, displayedStats]);
+
 
   const handleSave = async () => {
     if (!school || !tournament) {
@@ -166,8 +227,15 @@ export default function VolleyballMatchPage() {
         serve: '서브',
     };
 
-    roster.forEach(player => {
-      const playerStats = stats[player.id];
+    const currentSetPlayerStats = matchStats[selectedSet];
+    if (!currentSetPlayerStats) {
+        toast({ title: '저장할 기록 없음', description: '현재 세트에 입력된 기록이 없습니다.' });
+        setIsSubmitting(false);
+        return;
+    }
+
+    currentRoster.forEach(player => {
+      const playerStats = currentSetPlayerStats[player.id];
       if (playerStats) {
         (Object.keys(playerStats) as StatCategory[]).forEach(cat => {
             const { attempt, success } = playerStats[cat];
@@ -189,7 +257,7 @@ export default function VolleyballMatchPage() {
     
     try {
         if(recordsToSave.length > 0) {
-             await addOrUpdateRecords(school, roster, recordsToSave.map(r => ({...r, ...roster.find(s=>s.id === r.studentId)})));
+             await addOrUpdateRecords(school, currentRoster, recordsToSave.map(r => ({...r, ...currentRoster.find(s=>s.id === r.studentId)})));
         }
         toast({ title: '기록 저장 완료', description: `${selectedSet}세트 기록이 학생들의 개별 데이터에 반영되었습니다.`});
 
@@ -217,19 +285,30 @@ export default function VolleyballMatchPage() {
       return;
     }
 
-    const currentIndex = roster.findIndex(item => item.id === draggedItem.id);
-    const targetIndex = roster.findIndex(item => item.id === targetItem.id);
+    const rosterToUpdate = rosters[selectedTeamId] || [];
+    const currentIndex = rosterToUpdate.findIndex(item => item.id === draggedItem.id);
+    const targetIndex = rosterToUpdate.findIndex(item => item.id === targetItem.id);
     
-    let newRoster = [...roster];
+    let newRoster = [...rosterToUpdate];
     newRoster.splice(currentIndex, 1);
     newRoster.splice(targetIndex, 0, draggedItem);
     
-    setRoster(newRoster);
+    setRosters(prev => ({...prev, [selectedTeamId]: newRoster }));
     setDraggedItem(null);
   };
   
   const randomizeRoster = () => {
-    setRoster(prev => [...prev].sort(() => Math.random() - 0.5));
+    setRosters(prev => {
+        const rosterToUpdate = prev[selectedTeamId] || [];
+        return {
+            ...prev,
+            [selectedTeamId]: [...rosterToUpdate].sort(() => Math.random() - 0.5)
+        }
+    });
+  };
+
+  const handlePrint = () => {
+    window.print();
   };
 
 
@@ -249,8 +328,8 @@ export default function VolleyballMatchPage() {
   ];
 
   return (
-    <div className="container mx-auto p-4 md:p-6 lg:p-8">
-      <div className="flex items-center gap-4 mb-6">
+    <div className="container mx-auto p-4 md:p-6 lg:p-8" id="print-area">
+      <div className="flex items-center gap-4 mb-6 print-hidden">
         <Button variant="outline" size="icon" onClick={() => router.back()}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -261,12 +340,12 @@ export default function VolleyballMatchPage() {
       </div>
 
       <Card>
-        <CardHeader>
+        <CardHeader className="print-hidden">
             <CardTitle>경기 정보 및 기록</CardTitle>
             <CardDescription>기록할 팀과 세트를 선택하고, 선수별 성적을 입력하세요. 선수 순서는 드래그하여 변경할 수 있습니다.</CardDescription>
-            <div className="flex flex-wrap items-center gap-4 pt-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 pt-4">
                 <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
-                    <SelectTrigger className="w-[200px]">
+                    <SelectTrigger className="w-full sm:w-[200px]">
                         <SelectValue placeholder="팀 선택" />
                     </SelectTrigger>
                     <SelectContent>
@@ -275,7 +354,7 @@ export default function VolleyballMatchPage() {
                     </SelectContent>
                 </Select>
                  <Select value={selectedSet} onValueChange={setSelectedSet}>
-                    <SelectTrigger className="w-[120px]">
+                    <SelectTrigger className="w-full sm:w-[120px]">
                         <SelectValue placeholder="세트 선택" />
                     </SelectTrigger>
                     <SelectContent>
@@ -287,21 +366,39 @@ export default function VolleyballMatchPage() {
                     </SelectContent>
                 </Select>
                  <Button variant="outline" onClick={randomizeRoster}><Shuffle className="w-4 h-4 mr-2" />순서 섞기</Button>
+                <div className="flex items-center gap-2 sm:ml-auto">
+                    <Select value={printView} onValueChange={setPrintView}>
+                        <SelectTrigger className="w-full sm:w-[150px]">
+                            <SelectValue placeholder="인쇄 보기 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="final">최종 합계</SelectItem>
+                            {Object.keys(matchStats).map(setNum => (
+                                <SelectItem key={setNum} value={setNum}>{setNum}세트</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <Button onClick={handlePrint}><Printer className="w-4 h-4 mr-2" />인쇄하기</Button>
+                </div>
             </div>
         </CardHeader>
         <CardContent>
+            <div className="print-only mb-4 hidden">
+                <h2 className="text-2xl font-bold">{tournament.name} - {teamA?.name} vs {teamB?.name}</h2>
+                <h3 className="text-xl">{rosters[selectedTeamId]?.[0]?.name} 팀 기록지 - {printView === 'final' ? '최종 합계' : `${printView}세트`}</h3>
+            </div>
             <div className="overflow-x-auto">
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="w-[50px]"></TableHead>
+                            <TableHead className="w-[50px] print-hidden"></TableHead>
                             <TableHead className="w-[120px]">선수</TableHead>
                             {statCategories.map(cat => (
                                 <TableHead key={cat.key} colSpan={3} className="text-center border-l">{cat.name}</TableHead>
                             ))}
                         </TableRow>
                         <TableRow>
-                            <TableHead></TableHead>
+                            <TableHead className="print-hidden"></TableHead>
                             <TableHead></TableHead>
                             {statCategories.map(cat => (
                                 <React.Fragment key={`${cat.key}-sub`}>
@@ -313,8 +410,12 @@ export default function VolleyballMatchPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {roster.map(player => {
-                            const playerStats = stats[player.id];
+                        {currentRoster.map(player => {
+                            const playerStats = (matchStats[selectedSet] || {})[player.id];
+                            const displayPlayerStats = displayedStats[player.id] || {
+                                spike: { attempt: 0, success: 0 }, receive: { attempt: 0, success: 0 }, toss: { attempt: 0, success: 0 }, serve: { attempt: 0, success: 0 },
+                            };
+                            
                             if (!playerStats) return null;
 
                             return (
@@ -326,18 +427,20 @@ export default function VolleyballMatchPage() {
                                     onDrop={(e) => handleDrop(e, player)}
                                     className={draggedItem?.id === player.id ? 'opacity-50' : 'cursor-move'}
                                 >
-                                    <TableCell className="text-center"><GripVertical className="h-5 w-5 text-muted-foreground" /></TableCell>
+                                    <TableCell className="text-center print-hidden"><GripVertical className="h-5 w-5 text-muted-foreground" /></TableCell>
                                     <TableCell className="font-semibold">{player.name}</TableCell>
                                     {statCategories.map(cat => (
                                         <React.Fragment key={`${player.id}-${cat.key}`}>
                                             <TableCell className="border-l">
-                                                <Input type="number" min="0" className="h-8 text-center" value={playerStats[cat.key].attempt || ''} onChange={e => handleStatChange(player.id, cat.key, 'attempt', e.target.value)} />
+                                                <Input type="number" min="0" className="h-8 text-center print-hidden" value={playerStats[cat.key].attempt || ''} onChange={e => handleStatChange(player.id, cat.key, 'attempt', e.target.value)} />
+                                                <span className="print-only hidden">{displayPlayerStats[cat.key].attempt}</span>
                                             </TableCell>
                                             <TableCell>
-                                                <Input type="number" min="0" className="h-8 text-center" value={playerStats[cat.key].success || ''} onChange={e => handleStatChange(player.id, cat.key, 'success', e.target.value)} />
+                                                <Input type="number" min="0" className="h-8 text-center print-hidden" value={playerStats[cat.key].success || ''} onChange={e => handleStatChange(player.id, cat.key, 'success', e.target.value)} />
+                                                 <span className="print-only hidden">{displayPlayerStats[cat.key].success}</span>
                                             </TableCell>
                                             <TableCell className="text-center font-medium">
-                                                {calculateSuccessRate(playerStats[cat.key].attempt, playerStats[cat.key].success)}
+                                                {calculateSuccessRate(displayPlayerStats[cat.key].attempt, displayPlayerStats[cat.key].success)}
                                             </TableCell>
                                         </React.Fragment>
                                     ))}
@@ -345,7 +448,9 @@ export default function VolleyballMatchPage() {
                             )
                         })}
                         <TableRow className="bg-muted hover:bg-muted font-bold">
-                            <TableCell colSpan={2} className="text-center">팀 합계</TableCell>
+                            <TableCell colSpan={2} className="text-center print-hidden-cell">팀 합계</TableCell>
+                            <TableCell colSpan={1} className="text-center hidden print-table-cell">팀 합계</TableCell>
+
                             {statCategories.map(cat => (
                                 <React.Fragment key={`total-${cat.key}`}>
                                     <TableCell className="text-center border-l">{tableTotals[cat.key].attempt}</TableCell>
@@ -359,7 +464,7 @@ export default function VolleyballMatchPage() {
                     </TableBody>
                 </Table>
             </div>
-             <div className="flex justify-end mt-6">
+             <div className="flex justify-end mt-6 print-hidden">
                 <Button onClick={handleSave} disabled={isSubmitting}>
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     기록 저장

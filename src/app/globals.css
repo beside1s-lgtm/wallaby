@@ -67,3 +67,41 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  .print-hidden {
+    display: initial;
+  }
+  .print-only {
+    display: none;
+  }
+  .print-table-cell {
+    display: none;
+  }
+
+  @media print {
+    body {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .print-hidden {
+      display: none;
+    }
+    .print-hidden-cell {
+        display: none;
+    }
+    .print-only {
+      display: block;
+    }
+    .print-table-cell {
+        display: table-cell;
+    }
+    #print-area {
+      background-color: white !important;
+    }
+    @page {
+        size: A4;
+        margin: 1in;
+    }
+  }
+}
