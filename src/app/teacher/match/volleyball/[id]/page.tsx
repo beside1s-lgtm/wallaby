@@ -103,6 +103,12 @@ export default function VolleyballMatchPage() {
   }, [school, matchId, toast]);
   
   const currentRoster = useMemo(() => rosters[selectedTeamId] || [], [rosters, selectedTeamId]);
+  const selectedTeam = useMemo(() => {
+      if (selectedTeamId === teamA?.id) return teamA;
+      if (selectedTeamId === teamB?.id) return teamB;
+      return null;
+  }, [selectedTeamId, teamA, teamB]);
+
 
   useEffect(() => {
     setMatchStats(prevStats => {
@@ -379,10 +385,10 @@ export default function VolleyballMatchPage() {
                 </div>
             </div>
         </CardHeader>
-        <CardContent className="px-6">
+        <CardContent className="px-6 overflow-x-auto print:overflow-visible">
             <div className="print-only mb-4 hidden">
                 <h2 className="text-2xl font-bold">{tournament.name}</h2>
-                <h3 className="text-xl">{rosters[selectedTeamId]?.[0]?.name} 팀 기록지 - {printView === 'final' ? '최종 합계' : `${printView}세트`}</h3>
+                <h3 className="text-xl">{selectedTeam?.name} 팀 기록지 - {printView === 'final' ? '최종 합계' : `${printView}세트`}</h3>
             </div>
             <div className="overflow-x-auto">
                 <Table>
