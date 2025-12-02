@@ -353,8 +353,8 @@ export default function VolleyballMatchPage() {
               display: block !important;
             }
              #print-area {
-              zoom: 0.61;
-            }
+                zoom: 0.61;
+             }
           }
         `}
       </style>
@@ -370,7 +370,7 @@ export default function VolleyballMatchPage() {
         </div>
         
         <Card className="mb-6 print-hidden shadow-none border-none">
-          <CardContent className="p-0">
+          <CardContent className="p-4">
             <div className="flex flex-wrap items-center gap-4">
               <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
                 <SelectTrigger className="w-full sm:w-[200px]">
@@ -419,7 +419,7 @@ export default function VolleyballMatchPage() {
             </div>
             <Card>
                 <CardContent className="overflow-x-auto pt-6">
-                    <div>
+                    <div className="overflow-x-auto">
                         <Table className="table-fixed">
                             <TableHeader>
                                 <TableRow>
