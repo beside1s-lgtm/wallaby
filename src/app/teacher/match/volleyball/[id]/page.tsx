@@ -352,10 +352,12 @@ export default function VolleyballMatchPage() {
               top: 0;
               width: 100%;
             }
-            #print-area .print-table-container,
-            #print-area .print-table-container table {
+             #print-area .print-table-container {
                 width: 100%;
                 overflow: visible;
+            }
+            #print-area .print-table-container table {
+                width: 100%;
             }
           }
         `}
