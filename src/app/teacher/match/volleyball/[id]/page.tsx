@@ -399,9 +399,9 @@ export default function VolleyballMatchPage() {
                             <TableHead className="w-[120px] whitespace-nowrap"></TableHead>
                             {statCategories.map(cat => (
                                 <React.Fragment key={`${cat.key}-sub`}>
-                                    <TableHead className="text-center border-l w-[60px]">시도</TableHead>
-                                    <TableHead className="text-center w-[60px]">성공</TableHead>
-                                    <TableHead className="text-center w-[70px]">성공률</TableHead>
+                                    <TableHead className="text-center border-l w-[60px] break-keep">시도</TableHead>
+                                    <TableHead className="text-center w-[60px] break-keep">성공</TableHead>
+                                    <TableHead className="text-center w-[70px] break-keep">성공률</TableHead>
                                 </React.Fragment>
                             ))}
                         </TableRow>
