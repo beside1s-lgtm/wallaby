@@ -594,46 +594,65 @@ export const deleteRecordsByDateAndItem = async (school: string, date: string, i
     return snapshot.size;
 };
 
-export const addOrUpdateRecords = async (school: string, students: Student[], parsedRecords: any[]): Promise<MeasurementRecord[]> => {
-  await signIn();
-  const recordsToSave: MeasurementRecord[] = [];
-  const studentMap = new Map(students.map(s => [`${s.grade}-${s.classNum}-${s.studentNum}-${s.name}`, s]));
-
-  for (const rec of parsedRecords) {
-    const studentKey = `${rec.grade}-${rec.classNum}-${rec.studentNum}-${rec.name}`;
-    const student = studentMap.get(studentKey);
-    if (student && rec.item && rec.value && rec.date) {
-      recordsToSave.push({
-        id: uuidv4(),
-        school,
-        studentId: student.id,
-        item: rec.item,
-        value: parseFloat(rec.value),
-        date: rec.date,
+export const addOrUpdateRecords = async (school: string, students: Student[], parsedRecords: (Omit<MeasurementRecord, 'id'> & { student?: Student })[]): Promise<MeasurementRecord[]> => {
+    await signIn();
+    const recordsToSave: Omit<MeasurementRecord, 'id'>[] = [];
+    const studentMap = new Map(students.map(s => [`${s.grade}-${s.classNum}-${s.studentNum}-${s.name}`, s]));
+  
+    for (const rec of parsedRecords) {
+      let student = rec.student;
+      if (!student) {
+          const studentKey = `${rec.grade}-${rec.classNum}-${rec.studentNum}-${rec.name}`;
+          student = studentMap.get(studentKey);
+      }
+      
+      if (student && rec.item && rec.value !== undefined && rec.date) {
+        recordsToSave.push({
+          school,
+          studentId: student.id,
+          item: rec.item,
+          value: parseFloat(rec.value as any),
+          date: rec.date,
+        });
+      }
+    }
+  
+    const updatedRecords: MeasurementRecord[] = [];
+    if (recordsToSave.length > 0) {
+      const batch = writeBatch(db);
+      for (const record of recordsToSave) {
+          const q = query(
+              collection(db, 'schools', school, 'records'),
+              where('studentId', '==', record.studentId),
+              where('item', '==', record.item),
+              where('date', '==', record.date),
+              limit(1)
+          );
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+              const docRef = querySnapshot.docs[0].ref;
+              batch.update(docRef, { value: record.value });
+              updatedRecords.push({ ...querySnapshot.docs[0].data(), id: docRef.id, value: record.value } as MeasurementRecord);
+          } else {
+              const docRef = doc(collection(db, 'schools', school, 'records'));
+              batch.set(docRef, { ...record, id: docRef.id });
+              updatedRecords.push({ ...record, id: docRef.id } as MeasurementRecord);
+          }
+      }
+      await batch.commit().catch(e => {
+          if (e.code === 'permission-denied') {
+              errorEmitter.emit('permission-error', new FirestorePermissionError({
+                  path: `schools/${school}/records`,
+                  operation: 'write',
+                  requestResourceData: { message: `Batch uploading ${recordsToSave.length} records.` }
+              }));
+          }
+          throw e;
       });
     }
-  }
-
-  if (recordsToSave.length > 0) {
-    const batch = writeBatch(db);
-    recordsToSave.forEach(record => {
-      const docRef = doc(collection(db, 'schools', school, 'records'));
-      batch.set(docRef, { ...record, id: docRef.id });
-    });
-    await batch.commit().catch(e => {
-        if (e.code === 'permission-denied') {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: `schools/${school}/records`,
-                operation: 'write',
-                requestResourceData: { message: `Batch uploading ${recordsToSave.length} records.` }
-            }));
-        }
-        throw e;
-    });
-  }
-
-  return recordsToSave;
-};
+  
+    return updatedRecords;
+  };
 
 
 export const getRecordsByStudent = async (school: string, studentId: string): Promise<MeasurementRecord[]> => {

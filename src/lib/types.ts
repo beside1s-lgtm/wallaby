@@ -69,14 +69,14 @@ export type TeamGroup = {
   analysisScope: 'all' | 'grade' | 'class';
   grade?: string;
   classNum?: string;
-  gender?: 'all' | '남' | '여';
+  gender?: 'all' | '남' | '여' | 'separate';
   divideBy?: 'teams' | 'members' | 'single';
   numTeams?: number;
   membersPerTeam?: number;
 };
 
 export type TeamGroupInput = Omit<TeamGroup, 'id' | 'createdAt' | 'teams'> & {
-  teams: Omit<Team, 'id' | 'name'>[];
+  teams: (Omit<Team, 'id' | 'name'> & { id?: string })[];
 };
 
 
