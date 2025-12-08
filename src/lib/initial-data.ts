@@ -23,6 +23,10 @@ export const initialItems: MeasurementItem[] = [
     { id: 'v-receive', name: '리시브', unit: '점', recordType: 'count', isPaps: false, goal: 10, category: '배구' },
     { id: 'v-toss', name: '토스', unit: '점', recordType: 'count', isPaps: false, goal: 10, category: '배구' },
     { id: 'v-serve', name: '서브', unit: '점', recordType: 'count', isPaps: false, goal: 10, category: '배구' },
+    { id: 'bs-batting', name: '타격', unit: '점', recordType: 'count', isPaps: false, goal: 10, category: '야구' },
+    { id: 'bs-baserunning', name: '주루', unit: '점', recordType: 'count', isPaps: false, goal: 10, category: '야구' },
+    { id: 'bs-throwing', name: '송구', unit: '점', recordType: 'count', isPaps: false, goal: 10, category: '야구' },
+    { id: 'bs-catching', name: '포구', unit: '점', recordType: 'count', isPaps: false, goal: 10, category: '야구' },
 ];
 
 export const initialRecords: MeasurementRecord[] = [
