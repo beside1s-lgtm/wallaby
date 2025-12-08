@@ -90,6 +90,12 @@ const teamSportMetrics: Record<string, {name: string, unit: string, recordType: 
         { name: '패스', unit: '점', recordType: 'count', goal: 20 },
         { name: '돌파성공', unit: '점', recordType: 'count', goal: 10 },
         { name: '수비성공', unit: '점', recordType: 'count', goal: 15 },
+    ],
+    '피구': [
+        { name: '공격성공', unit: '점', recordType: 'count', goal: 10 },
+        { name: '패스성공', unit: '점', recordType: 'count', goal: 20 },
+        { name: '포구', unit: '점', recordType: 'count', goal: 10 },
+        { name: '회피성공', unit: '점', recordType: 'count', goal: 15 },
     ]
 };
 
