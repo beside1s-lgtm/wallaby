@@ -31,6 +31,10 @@ export const initialItems: MeasurementItem[] = [
     { id: 's-pass', name: '패스', unit: '점', recordType: 'count', isPaps: false, goal: 20, category: '축구' },
     { id: 's-dribble', name: '돌파성공', unit: '점', recordType: 'count', isPaps: false, goal: 10, category: '축구' },
     { id: 's-defense', name: '수비성공', unit: '점', recordType: 'count', isPaps: false, goal: 15, category: '축구' },
+    { id: 'd-attack', name: '공격성공', unit: '점', recordType: 'count', isPaps: false, goal: 10, category: '피구' },
+    { id: 'd-pass', name: '패스성공', unit: '점', recordType: 'count', isPaps: false, goal: 20, category: '피구' },
+    { id: 'd-catch', name: '포구', unit: '점', recordType: 'count', isPaps: false, goal: 10, category: '피구' },
+    { id: 'd-dodge', name: '회피성공', unit: '점', recordType: 'count', isPaps: false, goal: 15, category: '피구' },
 ];
 
 export const initialRecords: MeasurementRecord[] = [
