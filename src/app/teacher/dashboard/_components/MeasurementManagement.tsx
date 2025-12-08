@@ -65,6 +65,34 @@ const recordTypeDisplay: Record<RecordType, string> = {
     compound: "복합"
 };
 
+const teamSportMetrics: Record<string, {name: string, unit: string, recordType: RecordType, goal?: number}> = {
+    '농구': [
+        { name: '슛', unit: '점', recordType: 'count', goal: 10 },
+        { name: '어시스트', unit: '점', recordType: 'count', goal: 10 },
+        { name: '리바운드', unit: '점', recordType: 'count', goal: 10 },
+        { name: '스틸', unit: '점', recordType: 'count', goal: 10 },
+    ],
+    '배구': [
+        { name: '스파이크', unit: '점', recordType: 'count', goal: 10 },
+        { name: '리시브', unit: '점', recordType: 'count', goal: 10 },
+        { name: '토스', unit: '점', recordType: 'count', goal: 10 },
+        { name: '서브', unit: '점', recordType: 'count', goal: 10 },
+    ],
+    '야구': [
+        { name: '타격', unit: '점', recordType: 'count', goal: 10 },
+        { name: '주루', unit: '점', recordType: 'count', goal: 10 },
+        { name: '송구', unit: '점', recordType: 'count', goal: 10 },
+        { name: '포구', unit: '점', recordType: 'count', goal: 10 },
+    ],
+    '축구': [
+        { name: '득점', unit: '점', recordType: 'count', goal: 5 },
+        { name: '패스', unit: '점', recordType: 'count', goal: 20 },
+        { name: '돌파성공', unit: '점', recordType: 'count', goal: 10 },
+        { name: '수비성공', unit: '점', recordType: 'count', goal: 15 },
+    ]
+};
+
+
 export default function MeasurementManagement({ items, onItemsUpdate }: MeasurementManagementProps) {
   const { school } = useAuth();
   const { toast } = useToast();
@@ -112,10 +140,17 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
       groups[category].push(item);
     });
 
-    // Move PAPS to the front
-    const orderedGroups: Record<string, MeasurementItem[]> = { PAPS: groups['PAPS'] };
+    // Move PAPS to the front, then team sports, then others
+    const orderedGroups: Record<string, MeasurementItem[]> = { };
+    const teamSportCategories = Object.keys(teamSportMetrics);
+    
+    if (groups['PAPS']?.length > 0) orderedGroups['PAPS'] = groups['PAPS'];
+    teamSportCategories.forEach(cat => {
+      if (groups[cat]?.length > 0) orderedGroups[cat] = groups[cat];
+    });
+
     Object.keys(groups).forEach(key => {
-        if (key !== 'PAPS') {
+        if (key !== 'PAPS' && !teamSportCategories.includes(key)) {
             orderedGroups[key] = groups[key];
         }
     });
@@ -130,11 +165,19 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
     <Card>
       <CardHeader>
         <CardTitle>종목 관리</CardTitle>
-        <CardDescription>측정할 종목을 추가하거나 삭제합니다. PAPS 종목 또는 직접 생성한 기타 종목을 관리할 수 있습니다.</CardDescription>
+        <CardDescription>측정할 종목을 추가하거나 삭제합니다. PAPS, 팀 스포츠 또는 직접 생성한 기타 종목을 관리할 수 있습니다.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex w-full items-center space-x-2">
+        <div className="flex w-full flex-wrap items-center gap-2">
             <AddPapsItemDialog onAddItem={handleAddItem} currentItems={items} />
+            {Object.keys(teamSportMetrics).map(sport => (
+                <AddTeamSportItemDialog 
+                    key={sport}
+                    sport={sport}
+                    onAddItem={handleAddItem}
+                    currentItems={items}
+                />
+            ))}
             <AddCustomItemDialog onAddItem={handleAddItem} />
         </div>
         <div className="border rounded-md p-4 space-y-2">
@@ -222,7 +265,7 @@ function AddPapsItemDialog({ onAddItem, currentItems }: { onAddItem: (item: Omit
     return (
         <Dialog>
             <DialogTrigger asChild>
-                <Button variant="outline"><Plus className="mr-2 h-4 w-4" /> PAPS 종목 추가</Button>
+                <Button variant="outline"><Plus className="mr-2 h-4 w-4" /> PAPS</Button>
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
@@ -250,6 +293,82 @@ function AddPapsItemDialog({ onAddItem, currentItems }: { onAddItem: (item: Omit
                         <Button id="add-paps-item-dialog-close" variant="outline">취소</Button>
                     </DialogClose>
                     <Button onClick={handleSubmit} disabled={availablePapsItems.length === 0 || isSubmitting}>
+                       {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                       추가
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function AddTeamSportItemDialog({ sport, onAddItem, currentItems }: { sport: string, onAddItem: (item: Omit<MeasurementItem, 'id'>) => Promise<void>, currentItems: MeasurementItem[] }) {
+    const [selectedItemName, setSelectedItemName] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const { toast } = useToast();
+
+    const metrics = teamSportMetrics[sport] || [];
+    const availableItems = metrics.filter(
+        metric => !currentItems.some(item => item.name === metric.name && item.category === sport)
+    );
+
+    const handleSubmit = async () => {
+        if (!selectedItemName) {
+            toast({ variant: 'destructive', title: '선택 오류', description: `추가할 ${sport} 종목을 선택해주세요.` });
+            return;
+        }
+        setIsSubmitting(true);
+        const metric = metrics.find(m => m.name === selectedItemName);
+        if (!metric) {
+            setIsSubmitting(false);
+            return;
+        }
+
+        const newItem: Omit<MeasurementItem, 'id'> = {
+            name: metric.name,
+            unit: metric.unit,
+            recordType: metric.recordType,
+            goal: metric.goal,
+            isPaps: false,
+            category: sport,
+        };
+        await onAddItem(newItem);
+        setSelectedItemName('');
+        setIsSubmitting(false);
+        document.getElementById(`add-${sport}-item-dialog-close`)?.click();
+    };
+
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button variant="outline"><Plus className="mr-2 h-4 w-4" /> {sport}</Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{sport} 종목 추가</DialogTitle>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <Label htmlFor={`${sport}-item`}>추가할 종목</Label>
+                    <Select onValueChange={setSelectedItemName} value={selectedItemName}>
+                        <SelectTrigger id={`${sport}-item`}>
+                            <SelectValue placeholder={`${sport} 종목 선택`} />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {availableItems.length > 0 ? (
+                                availableItems.map(item => (
+                                    <SelectItem key={item.name} value={item.name}>{item.name}</SelectItem>
+                                ))
+                            ) : (
+                                <SelectItem value="none" disabled>모든 {sport} 종목이 추가되었습니다.</SelectItem>
+                            )}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild>
+                        <Button id={`add-${sport}-item-dialog-close`} variant="outline">취소</Button>
+                    </DialogClose>
+                    <Button onClick={handleSubmit} disabled={availableItems.length === 0 || isSubmitting}>
                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                        추가
                     </Button>
@@ -292,25 +411,25 @@ function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measurement
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button><Plus className="mr-2 h-4 w-4" /> 기타 종목 추가</Button>
+        <Button><Plus className="mr-2 h-4 w-4" /> 기타</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>기타 종목 추가</DialogTitle>
-           <DialogDescription>PAPS에 해당하지 않는 새로운 측정 종목을 만듭니다.</DialogDescription>
+           <DialogDescription>기록지가 없는 새로운 측정 종목을 만듭니다. (예: 줄넘기, 턱걸이 등)</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="category" className="text-right">카테고리</Label>
-            <Input id="category" value={category} onChange={(e) => setCategory(e.target.value)} className="col-span-3" placeholder="예: 농구, 배구, 야구" />
+            <Input id="category" value={category} onChange={(e) => setCategory(e.target.value)} className="col-span-3" placeholder="예: 구기, 육상" />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="name" className="text-right">종목명</Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" placeholder="예: 자유투" />
+            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" placeholder="예: 줄넘기" />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="unit" className="text-right">단위</Label>
-            <Input id="unit" value={unit} onChange={(e) => setUnit(e.target.value)} className="col-span-3" placeholder="예: 성공, 개, 점수" />
+            <Input id="unit" value={unit} onChange={(e) => setUnit(e.target.value)} className="col-span-3" placeholder="예: 회, 초" />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="recordType" className="text-right">기록 유형</Label>
