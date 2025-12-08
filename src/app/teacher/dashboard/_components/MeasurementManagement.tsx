@@ -50,6 +50,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface MeasurementManagementProps {
   items: MeasurementItem[];
@@ -65,7 +66,7 @@ const recordTypeDisplay: Record<RecordType, string> = {
     compound: "복합"
 };
 
-const teamSportMetrics: Record<string, {name: string, unit: string, recordType: RecordType, goal?: number}> = {
+const teamSportMetrics: Record<string, {name: string, unit: string, recordType: RecordType, goal?: number}[]> = {
     '농구': [
         { name: '슛', unit: '점', recordType: 'count', goal: 10 },
         { name: '어시스트', unit: '점', recordType: 'count', goal: 10 },
@@ -170,14 +171,14 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
       <CardContent className="space-y-4">
         <div className="flex w-full flex-wrap items-center gap-2">
             <AddPapsItemDialog onAddItem={handleAddItem} currentItems={items} />
-            {Object.keys(teamSportMetrics).map(sport => (
-                <AddTeamSportItemDialog 
-                    key={sport}
-                    sport={sport}
-                    onAddItem={handleAddItem}
-                    currentItems={items}
-                />
-            ))}
+            <AddTeamSportItemsDialog onAddItems={async (newItems) => {
+                if (!school) return;
+                for (const item of newItems) {
+                    await addItemToDb(school, item);
+                }
+                onItemsUpdate();
+                toast({ title: '추가 완료', description: `${newItems.length}개의 팀 스포츠 종목이 추가되었습니다.` });
+            }} currentItems={items} />
             <AddCustomItemDialog onAddItem={handleAddItem} />
         </div>
         <div className="border rounded-md p-4 space-y-2">
@@ -302,82 +303,105 @@ function AddPapsItemDialog({ onAddItem, currentItems }: { onAddItem: (item: Omit
     );
 }
 
-function AddTeamSportItemDialog({ sport, onAddItem, currentItems }: { sport: string, onAddItem: (item: Omit<MeasurementItem, 'id'>) => Promise<void>, currentItems: MeasurementItem[] }) {
-    const [selectedItemName, setSelectedItemName] = useState('');
+function AddTeamSportItemsDialog({ onAddItems, currentItems }: { onAddItems: (items: Omit<MeasurementItem, 'id'>[]) => Promise<void>, currentItems: MeasurementItem[] }) {
+    const [selectedSport, setSelectedSport] = useState('');
+    const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const { toast } = useToast();
 
-    const metrics = teamSportMetrics[sport] || [];
-    const availableItems = metrics.filter(
-        metric => !currentItems.some(item => item.name === metric.name && item.category === sport)
-    );
+    const availableMetrics = useMemo(() => {
+        if (!selectedSport) return [];
+        return (teamSportMetrics[selectedSport] || []).filter(
+            metric => !currentItems.some(item => item.name === metric.name && item.category === selectedSport)
+        );
+    }, [selectedSport, currentItems]);
+
+    const handleSportChange = (sport: string) => {
+        setSelectedSport(sport);
+        setCheckedItems({});
+    };
+
+    const handleCheckChange = (itemName: string, isChecked: boolean) => {
+        setCheckedItems(prev => ({ ...prev, [itemName]: isChecked }));
+    };
 
     const handleSubmit = async () => {
-        if (!selectedItemName) {
-            toast({ variant: 'destructive', title: '선택 오류', description: `추가할 ${sport} 종목을 선택해주세요.` });
-            return;
-        }
-        setIsSubmitting(true);
-        const metric = metrics.find(m => m.name === selectedItemName);
-        if (!metric) {
-            setIsSubmitting(false);
+        const itemsToAdd = availableMetrics
+            .filter(metric => checkedItems[metric.name])
+            .map(metric => ({
+                name: metric.name,
+                unit: metric.unit,
+                recordType: metric.recordType,
+                goal: metric.goal,
+                isPaps: false,
+                category: selectedSport,
+            }));
+
+        if (itemsToAdd.length === 0) {
             return;
         }
 
-        const newItem: Omit<MeasurementItem, 'id'> = {
-            name: metric.name,
-            unit: metric.unit,
-            recordType: metric.recordType,
-            goal: metric.goal,
-            isPaps: false,
-            category: sport,
-        };
-        await onAddItem(newItem);
-        setSelectedItemName('');
+        setIsSubmitting(true);
+        await onAddItems(itemsToAdd);
         setIsSubmitting(false);
-        document.getElementById(`add-${sport}-item-dialog-close`)?.click();
+        setSelectedSport('');
+        setCheckedItems({});
+        document.getElementById('add-team-sport-dialog-close')?.click();
     };
 
     return (
-        <Dialog>
+        <Dialog onOpenChange={(open) => { if (!open) { setSelectedSport(''); setCheckedItems({}); } }}>
             <DialogTrigger asChild>
-                <Button variant="outline"><Plus className="mr-2 h-4 w-4" /> {sport}</Button>
+                <Button variant="outline"><Plus className="mr-2 h-4 w-4" /> 팀 스포츠</Button>
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>{sport} 종목 추가</DialogTitle>
+                    <DialogTitle>팀 스포츠 종목 추가</DialogTitle>
+                    <DialogDescription>스포츠를 선택하고 추가할 평가지표를 선택하세요.</DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
-                    <Label htmlFor={`${sport}-item`}>추가할 종목</Label>
-                    <Select onValueChange={setSelectedItemName} value={selectedItemName}>
-                        <SelectTrigger id={`${sport}-item`}>
-                            <SelectValue placeholder={`${sport} 종목 선택`} />
+                    <Label htmlFor="sport-select">스포츠 종류</Label>
+                    <Select onValueChange={handleSportChange} value={selectedSport}>
+                        <SelectTrigger id="sport-select">
+                            <SelectValue placeholder="스포츠 선택" />
                         </SelectTrigger>
                         <SelectContent>
-                            {availableItems.length > 0 ? (
-                                availableItems.map(item => (
-                                    <SelectItem key={item.name} value={item.name}>{item.name}</SelectItem>
-                                ))
-                            ) : (
-                                <SelectItem value="none" disabled>모든 {sport} 종목이 추가되었습니다.</SelectItem>
-                            )}
+                            {Object.keys(teamSportMetrics).map(sport => (
+                                <SelectItem key={sport} value={sport}>{sport}</SelectItem>
+                            ))}
                         </SelectContent>
                     </Select>
+
+                    {selectedSport && (
+                        <div className="space-y-2 pt-4">
+                            <Label>평가지표 선택</Label>
+                            <div className="grid grid-cols-2 gap-2 p-4 border rounded-md">
+                                {availableMetrics.length > 0 ? availableMetrics.map(metric => (
+                                    <div key={metric.name} className="flex items-center gap-2">
+                                        <Checkbox
+                                            id={`metric-${metric.name}`}
+                                            checked={checkedItems[metric.name] || false}
+                                            onCheckedChange={(checked) => handleCheckChange(metric.name, !!checked)}
+                                        />
+                                        <Label htmlFor={`metric-${metric.name}`}>{metric.name}</Label>
+                                    </div>
+                                )) : <p className="col-span-2 text-sm text-muted-foreground">모든 {selectedSport} 종목이 추가되었습니다.</p>}
+                            </div>
+                        </div>
+                    )}
                 </div>
                 <DialogFooter>
                     <DialogClose asChild>
-                        <Button id={`add-${sport}-item-dialog-close`} variant="outline">취소</Button>
+                        <Button id="add-team-sport-dialog-close" variant="outline">취소</Button>
                     </DialogClose>
-                    <Button onClick={handleSubmit} disabled={availableItems.length === 0 || isSubmitting}>
-                       {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                       추가
+                    <Button onClick={handleSubmit} disabled={Object.values(checkedItems).every(v => !v) || isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        선택 항목 추가
                     </Button>
                 </DialogFooter>
             </DialogContent>
         </Dialog>
     );
 }
-
 
 function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<MeasurementItem, 'id'>) => Promise<void> }) {
   const [name, setName] = useState('');
