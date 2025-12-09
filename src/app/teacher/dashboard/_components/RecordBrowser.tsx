@@ -143,7 +143,7 @@ export default function RecordBrowser({
             });
 
             if (recordsForItem.length > 0) {
-              const currentLatest = recordsForItem.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+              const currentLatest = recordsForItem.sort((a,b) => new Date(b.date).getTime() - new Date(a).getTime())[0];
               if (!latestRecord || new Date(currentLatest.date) > new Date(latestRecord.date)) {
                   latestRecord = currentLatest;
                   latestItem = item;
@@ -240,14 +240,14 @@ export default function RecordBrowser({
       }
     }
 
-    const allRanks = calculateRanks(school, allItems, allRecords, allStudents, itemGradeFilter !== 'all' ? itemGradeFilter : undefined);
+    const allRanks = calculateRanks(school, allItems, allRecords, allStudents, itemGradeFilter === 'all' ? undefined : itemGradeFilter);
     const itemRanks = allRanks[selectedItem] || [];
 
     return filteredStudents.map(student => {
       const records = allRecords.filter(r => r.studentId === student.id && r.item === selectedItem);
       if (records.length === 0) return null;
 
-      const latestRecord = records.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+      const latestRecord = records.sort((a,b) => new Date(b.date).getTime() - new Date(a).getTime())[0];
       const rankInfo = itemRanks.find(r => r.studentId === student.id && r.value === latestRecord.value);
       
       let grade: number | null = null;
