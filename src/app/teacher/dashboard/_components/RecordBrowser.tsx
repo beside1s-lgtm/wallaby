@@ -143,7 +143,7 @@ export default function RecordBrowser({
             });
 
             if (recordsForItem.length > 0) {
-              const currentLatest = recordsForItem.sort((a,b) => new Date(b.date).getTime() - new Date(a).getTime())[0];
+              const currentLatest = recordsForItem.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
               if (!latestRecord || new Date(currentLatest.date) > new Date(latestRecord.date)) {
                   latestRecord = currentLatest;
                   latestItem = item;
@@ -232,7 +232,7 @@ export default function RecordBrowser({
     const itemInfo = allItems.find(i => i.name === selectedItem);
     if (!itemInfo) return [];
 
-    let filteredStudents = [...allStudents];
+    let filteredStudents = allStudents;
     if (itemGradeFilter !== 'all') {
       filteredStudents = filteredStudents.filter(s => s.grade === itemGradeFilter);
       if (itemClassNumFilter !== 'all') {
@@ -243,7 +243,7 @@ export default function RecordBrowser({
     const allRanks = calculateRanks(school, allItems, allRecords, allStudents, itemGradeFilter === 'all' ? undefined : itemGradeFilter);
     const itemRanks = allRanks[selectedItem] || [];
 
-    const dataWithRecords = filteredStudents.map(student => {
+    const data = filteredStudents.map(student => {
       const records = allRecords.filter(r => r.studentId === student.id && r.item === selectedItem);
       const latestRecord = records.length > 0
         ? records.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
@@ -261,7 +261,7 @@ export default function RecordBrowser({
       }
 
       return {
-        ...student,
+        student,
         latestDate: latestRecord?.date || null,
         value: latestRecord?.value,
         grade,
@@ -270,12 +270,12 @@ export default function RecordBrowser({
       };
     });
     
-    return dataWithRecords.sort((a,b) => {
-        const gradeDiff = parseInt(a.grade) - parseInt(b.grade);
+    return data.sort((a, b) => {
+        const gradeDiff = parseInt(a.student.grade) - parseInt(b.student.grade);
         if (gradeDiff !== 0) return gradeDiff;
-        const classDiff = parseInt(a.classNum) - parseInt(b.classNum);
+        const classDiff = parseInt(a.student.classNum) - parseInt(b.student.classNum);
         if (classDiff !== 0) return classDiff;
-        return parseInt(a.studentNum) - parseInt(b.studentNum);
+        return parseInt(a.student.studentNum) - parseInt(b.student.studentNum);
     });
 
   }, [school, selectedItem, itemGradeFilter, itemClassNumFilter, allStudents, allRecords, allItems]);
@@ -292,10 +292,10 @@ export default function RecordBrowser({
     }
     const itemInfo = allItems.find(i => i.name === selectedItem);
     const dataToExport = studentItemTableData.map(s => ({
-        '학년': s.grade,
-        '반': s.classNum,
-        '번호': s.studentNum,
-        '이름': s.name,
+        '학년': s.student.grade,
+        '반': s.student.classNum,
+        '번호': s.student.studentNum,
+        '이름': s.student.name,
         '최근 측정일': s.latestDate || '-',
         '기록': s.value !== undefined ? `${s.value}${itemInfo?.unit || ''}` : '-',
         '등급': s.grade ? `${s.grade}등급` : '-',
@@ -309,6 +309,10 @@ export default function RecordBrowser({
     });
   };
 
+  useEffect(() => {
+    setClassNumFilter('all');
+  }, [gradeFilter]);
+  
   useEffect(() => {
     setItemClassNumFilter('all');
   }, [itemGradeFilter]);
@@ -501,16 +505,16 @@ export default function RecordBrowser({
                             </TableHeader>
                             <TableBody>
                                 {studentItemTableData.length > 0 ? (
-                                    studentItemTableData.map(student => (
-                                        <TableRow key={student.id}>
-                                            <TableCell>{student.grade}</TableCell>
-                                            <TableCell>{student.classNum}</TableCell>
-                                            <TableCell>{student.studentNum}</TableCell>
-                                            <TableCell>{student.name}</TableCell>
-                                            <TableCell>{student.latestDate || '-'}</TableCell>
-                                            <TableCell>{student.value !== undefined ? `${student.value}${allItems.find(i => i.name === selectedItem)?.unit || ''}`: '-'}</TableCell>
-                                            <TableCell>{student.grade ? `${student.grade}등급` : '-'}</TableCell>
-                                            <TableCell>{student.rank ? `${student.rank} / ${student.totalRanked}` : '-'}</TableCell>
+                                    studentItemTableData.map(s => (
+                                        <TableRow key={s.student.id}>
+                                            <TableCell>{s.student.grade}</TableCell>
+                                            <TableCell>{s.student.classNum}</TableCell>
+                                            <TableCell>{s.student.studentNum}</TableCell>
+                                            <TableCell>{s.student.name}</TableCell>
+                                            <TableCell>{s.latestDate || '-'}</TableCell>
+                                            <TableCell>{s.value !== undefined ? `${s.value}${allItems.find(i => i.name === selectedItem)?.unit || ''}`: '-'}</TableCell>
+                                            <TableCell>{s.grade ? `${s.grade}등급` : '-'}</TableCell>
+                                            <TableCell>{s.rank ? `${s.rank} / ${s.totalRanked}` : '-'}</TableCell>
                                         </TableRow>
                                     ))
                                 ) : (
