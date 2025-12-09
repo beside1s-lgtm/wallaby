@@ -3,7 +3,8 @@ import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { exportToCsv } from '@/lib/store';
 import type { Student, MeasurementItem, MeasurementRecord } from '@/lib/types';
-import { getPapsGrade, calculatePapsScore } from '@/lib/paps';
+import { getPapsGrade, calculatePapsScore, getCustomItemGrade } from '@/lib/paps';
+import { calculateRanks } from '@/lib/store';
 import {
   Card,
   CardContent,
@@ -33,6 +34,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 
 interface RecordBrowserProps {
@@ -65,11 +67,16 @@ export default function RecordBrowser({
   allRecords,
 }: RecordBrowserProps) {
   const { toast } = useToast();
+  const { school } = useAuth();
 
   const [gradeFilter, setGradeFilter] = useState('all');
   const [classNumFilter, setClassNumFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState<Date | 'latest' | undefined>('latest');
   const [viewType, setViewType] = useState<ViewType>('grade');
+
+  // For "종목별 기록" tab
+  const [selectedItem, setSelectedItem] = useState('');
+  const [itemGradeFilter, setItemGradeFilter] = useState('all');
 
   const { grades, classNumsByGrade, availableDates } = useMemo(() => {
     const grades = [...new Set(allStudents.map((s) => s.grade))].sort((a,b) => parseInt(a) - parseInt(b));
@@ -86,7 +93,7 @@ export default function RecordBrowser({
   }, [allStudents, allRecords]);
   
 
-  const studentTableData = useMemo(() => {
+  const studentPapsTableData = useMemo(() => {
      let filteredStudents = allStudents;
     if (gradeFilter !== 'all') {
       filteredStudents = filteredStudents.filter(s => s.grade === gradeFilter);
@@ -154,7 +161,7 @@ export default function RecordBrowser({
                 studentData[factor] = `${latestRecord.value}${latestItem.unit}`;
             }
 
-            if (score !== null) {
+            if (score !== null && factor !== '체질량지수(BMI)') {
                 totalPapsScore += score;
                 scoredFactorCount++;
             }
@@ -189,8 +196,8 @@ export default function RecordBrowser({
   }, [allStudents, allRecords, allItems, gradeFilter, classNumFilter, dateFilter, viewType]);
   
 
-  const handleDownloadCsv = () => {
-    if (studentTableData.length === 0) {
+  const handlePapsDownloadCsv = () => {
+    if (studentPapsTableData.length === 0) {
       toast({
         variant: 'destructive',
         title: '다운로드 실패',
@@ -199,11 +206,11 @@ export default function RecordBrowser({
       return;
     }
     
-    const fileName = `종합_체력_현황_${viewType}_${new Date().toISOString().split('T')[0]}.csv`;
-    exportToCsv(fileName, studentTableData);
+    const fileName = `PAPS_종합_현황_${viewType}_${new Date().toISOString().split('T')[0]}.csv`;
+    exportToCsv(fileName, studentPapsTableData);
     toast({
       title: '다운로드 시작',
-      description: '종합 체력 현황을 CSV 파일로 다운로드합니다.',
+      description: 'PAPS 종합 체력 현황을 CSV 파일로 다운로드합니다.',
     });
   };
 
@@ -217,127 +224,275 @@ export default function RecordBrowser({
   }, [viewType]);
 
 
+  const studentItemTableData = useMemo(() => {
+    if (!selectedItem || !school) return [];
+
+    const itemInfo = allItems.find(i => i.name === selectedItem);
+    if (!itemInfo) return [];
+
+    let filteredStudents = allStudents;
+    if (itemGradeFilter !== 'all') {
+      filteredStudents = filteredStudents.filter(s => s.grade === itemGradeFilter);
+    }
+
+    const allRanks = calculateRanks(school, allItems, allRecords, allStudents, itemGradeFilter !== 'all' ? itemGradeFilter : undefined);
+    const itemRanks = allRanks[selectedItem] || [];
+
+    return filteredStudents.map(student => {
+      const records = allRecords.filter(r => r.studentId === student.id && r.item === selectedItem);
+      if (records.length === 0) return null;
+
+      const latestRecord = records.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+      const rankInfo = itemRanks.find(r => r.studentId === student.id && r.value === latestRecord.value);
+      
+      let grade: number | null = null;
+      if (itemInfo.isPaps) {
+        grade = getPapsGrade(itemInfo.name, student, latestRecord.value);
+      } else {
+        grade = getCustomItemGrade(itemInfo, latestRecord.value);
+      }
+
+      return {
+        ...student,
+        latestDate: latestRecord.date,
+        value: latestRecord.value,
+        grade,
+        rank: rankInfo ? rankInfo.rank : null,
+        totalRanked: itemRanks.length,
+      };
+    }).filter((s): s is NonNullable<typeof s> => s !== null)
+    .sort((a,b) => {
+        if(itemInfo.recordType === 'time') return a.value - b.value;
+        return b.value - a.value;
+    });
+
+  }, [school, selectedItem, itemGradeFilter, allStudents, allRecords, allItems]);
+
+
+  const handleItemDownloadCsv = () => {
+    if(studentItemTableData.length === 0) {
+       toast({
+        variant: 'destructive',
+        title: '다운로드 실패',
+        description: '다운로드할 데이터가 없습니다.',
+      });
+      return;
+    }
+    const itemInfo = allItems.find(i => i.name === selectedItem);
+    const dataToExport = studentItemTableData.map(s => ({
+        '학년': s.grade,
+        '반': s.classNum,
+        '번호': s.studentNum,
+        '이름': s.name,
+        '최근 측정일': s.latestDate,
+        '기록': `${s.value}${itemInfo?.unit || ''}`,
+        '등급': s.grade ? `${s.grade}등급` : '-',
+        '순위': s.rank ? `${s.rank}등` : '-',
+    }));
+     const fileName = `${selectedItem}_기록 현황_${new Date().toISOString().split('T')[0]}.csv`;
+    exportToCsv(fileName, dataToExport);
+    toast({
+      title: '다운로드 시작',
+      description: `${selectedItem} 기록을 CSV 파일로 다운로드합니다.`,
+    });
+  };
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>종합 체력 현황</CardTitle>
-        <CardDescription>
-          학생들의 PAPS 종목별 최신 기록을 바탕으로 종합적인 체력 현황을 확인하고 다운로드할 수 있습니다.
-        </CardDescription>
-        <div className="flex flex-wrap items-center gap-2 pt-4">
-          <Select
-            value={gradeFilter}
-            onValueChange={(value) => {
-              setGradeFilter(value);
-              setClassNumFilter('all');
-            }}
-          >
-            <SelectTrigger className="w-full sm:w-[120px]">
-              <SelectValue placeholder="학년 선택" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">전체 학년</SelectItem>
-              {grades.map((grade) => (
-                <SelectItem key={grade} value={grade}>
-                  {grade}학년
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <CardHeader>
+            <CardTitle>기록 조회</CardTitle>
+            <CardDescription>
+                PAPS 종합 현황 또는 종목별 학생 기록을 조회하고 다운로드할 수 있습니다.
+            </CardDescription>
+        </CardHeader>
+        <CardContent>
+            <Tabs defaultValue="paps">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="paps">PAPS 종합</TabsTrigger>
+                    <TabsTrigger value="item">종목별 기록</TabsTrigger>
+                </TabsList>
+                <TabsContent value="paps" className="space-y-4">
+                     <div className="flex flex-wrap items-center gap-2 pt-4">
+                        <Select
+                            value={gradeFilter}
+                            onValueChange={(value) => {
+                            setGradeFilter(value);
+                            setClassNumFilter('all');
+                            }}
+                        >
+                            <SelectTrigger className="w-full sm:w-[120px]">
+                            <SelectValue placeholder="학년 선택" />
+                            </SelectTrigger>
+                            <SelectContent>
+                            <SelectItem value="all">전체 학년</SelectItem>
+                            {grades.map((grade) => (
+                                <SelectItem key={grade} value={grade}>
+                                {grade}학년
+                                </SelectItem>
+                            ))}
+                            </SelectContent>
+                        </Select>
 
-          <Select
-            value={classNumFilter}
-            onValueChange={setClassNumFilter}
-            disabled={gradeFilter === 'all'}
-          >
-            <SelectTrigger className="w-full sm:w-[120px]">
-              <SelectValue placeholder="반 선택" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">전체 반</SelectItem>
-              {classNumsByGrade[gradeFilter]?.map((classNum) => (
-                <SelectItem key={classNum} value={classNum}>
-                  {classNum}반
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          <Popover>
-            <PopoverTrigger asChild>
-                <Button variant={"outline"} className={cn("w-full sm:w-[200px] justify-start text-left font-normal", !dateFilter && "text-muted-foreground")}>
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateFilter === 'latest' ? '최근 측정일 기준' : dateFilter ? format(dateFilter, "PPP") : <span>날짜 선택</span>}
-                </Button>
-            </PopoverTrigger>
-            <PopoverContent className="flex w-auto flex-col space-y-2 p-2">
-                 <Select onValueChange={(value) => value === 'latest' ? setDateFilter('latest') : setDateFilter(new Date(value))}>
-                    <SelectTrigger>
-                        <SelectValue placeholder="측정일 선택" />
-                    </SelectTrigger>
-                    <SelectContent position="popper">
-                        <SelectItem value="latest">최근 측정일 기준</SelectItem>
-                        {availableDates.map(date => (
-                            <SelectItem key={date} value={date}>{date}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                <div className="rounded-md border">
-                    <Calendar mode="single" selected={dateFilter === 'latest' ? undefined : dateFilter} onSelect={(d) => setDateFilter(d)} />
-                </div>
-            </PopoverContent>
-          </Popover>
+                        <Select
+                            value={classNumFilter}
+                            onValueChange={setClassNumFilter}
+                            disabled={gradeFilter === 'all'}
+                        >
+                            <SelectTrigger className="w-full sm:w-[120px]">
+                            <SelectValue placeholder="반 선택" />
+                            </SelectTrigger>
+                            <SelectContent>
+                            <SelectItem value="all">전체 반</SelectItem>
+                            {classNumsByGrade[gradeFilter]?.map((classNum) => (
+                                <SelectItem key={classNum} value={classNum}>
+                                {classNum}반
+                                </SelectItem>
+                            ))}
+                            </SelectContent>
+                        </Select>
+                        
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant={"outline"} className={cn("w-full sm:w-[200px] justify-start text-left font-normal", !dateFilter && "text-muted-foreground")}>
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {dateFilter === 'latest' ? '최근 측정일 기준' : dateFilter ? format(dateFilter, "PPP") : <span>날짜 선택</span>}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="flex w-auto flex-col space-y-2 p-2">
+                                <Select onValueChange={(value) => value === 'latest' ? setDateFilter('latest') : setDateFilter(new Date(value))}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="측정일 선택" />
+                                    </SelectTrigger>
+                                    <SelectContent position="popper">
+                                        <SelectItem value="latest">최근 측정일 기준</SelectItem>
+                                        {availableDates.map(date => (
+                                            <SelectItem key={date} value={date}>{date}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <div className="rounded-md border">
+                                    <Calendar mode="single" selected={dateFilter === 'latest' ? undefined : dateFilter} onSelect={(d) => setDateFilter(d)} />
+                                </div>
+                            </PopoverContent>
+                        </Popover>
 
-          <Select value={viewType} onValueChange={(v) => setViewType(v as ViewType)}>
-            <SelectTrigger className="w-full sm:w-[150px]">
-                <SelectValue placeholder="표시 형식" />
-            </SelectTrigger>
-            <SelectContent>
-                <SelectItem value="grade">등급</SelectItem>
-                <SelectItem value="score">점수</SelectItem>
-                <SelectItem value="record">실제 기록</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Button onClick={handleDownloadCsv} variant="outline" className="ml-auto">
-            <FileDown className="mr-2 h-4 w-4" />
-            결과 다운로드
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="border rounded-md overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                {finalFactorOrder.map(key => (
-                  <TableHead key={key}>{key}</TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {studentTableData.length > 0 ? (
-                studentTableData.map((row, index) => (
-                  <TableRow key={index}>
-                    {finalFactorOrder.map((key, cellIndex) => {
-                      const displayKey = key === '종합점수' || key === '종합등급' ? '종합' : key;
-                      return (
-                        <TableCell key={cellIndex}>{row[displayKey]}</TableCell>
-                      )
-                    })}
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={finalFactorOrder.length} className="h-24 text-center">
-                    선택된 조건에 해당하는 기록이 없습니다.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
+                        <Select value={viewType} onValueChange={(v) => setViewType(v as ViewType)}>
+                            <SelectTrigger className="w-full sm:w-[150px]">
+                                <SelectValue placeholder="표시 형식" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="grade">등급</SelectItem>
+                                <SelectItem value="score">점수</SelectItem>
+                                <SelectItem value="record">실제 기록</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        
+                        <Button onClick={handlePapsDownloadCsv} variant="outline" className="ml-auto">
+                            <FileDown className="mr-2 h-4 w-4" />
+                            결과 다운로드
+                        </Button>
+                    </div>
+                     <div className="border rounded-md overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                            <TableRow>
+                                {finalFactorOrder.map(key => (
+                                <TableHead key={key}>{key}</TableHead>
+                                ))}
+                            </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                            {studentPapsTableData.length > 0 ? (
+                                studentPapsTableData.map((row, index) => (
+                                <TableRow key={index}>
+                                    {finalFactorOrder.map((key, cellIndex) => {
+                                    const displayKey = key === '종합점수' || key === '종합등급' ? '종합' : key;
+                                    return (
+                                        <TableCell key={cellIndex}>{row[displayKey]}</TableCell>
+                                    )
+                                    })}
+                                </TableRow>
+                                ))
+                            ) : (
+                                <TableRow>
+                                <TableCell colSpan={finalFactorOrder.length} className="h-24 text-center">
+                                    선택된 조건에 해당하는 기록이 없습니다.
+                                </TableCell>
+                                </TableRow>
+                            )}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </TabsContent>
+                <TabsContent value="item" className="space-y-4">
+                    <div className="flex flex-wrap items-center gap-2 pt-4">
+                       <Select value={selectedItem} onValueChange={setSelectedItem}>
+                          <SelectTrigger className="w-full sm:w-[200px]">
+                            <SelectValue placeholder="종목 선택" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {allItems.map((item) => (
+                              <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                       </Select>
+                       <Select value={itemGradeFilter} onValueChange={setItemGradeFilter}>
+                          <SelectTrigger className="w-full sm:w-[120px]">
+                            <SelectValue placeholder="학년 선택" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">전체 학년</SelectItem>
+                            {grades.map((grade) => (
+                              <SelectItem key={grade} value={grade}>{grade}학년</SelectItem>
+                            ))}
+                          </SelectContent>
+                       </Select>
+                        <Button onClick={handleItemDownloadCsv} variant="outline" className="ml-auto" disabled={!selectedItem}>
+                            <FileDown className="mr-2 h-4 w-4" />
+                            결과 다운로드
+                        </Button>
+                    </div>
+                    <div className="border rounded-md overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>학년</TableHead>
+                                    <TableHead>반</TableHead>
+                                    <TableHead>번호</TableHead>
+                                    <TableHead>이름</TableHead>
+                                    <TableHead>최근 측정일</TableHead>
+                                    <TableHead>기록</TableHead>
+                                    <TableHead>등급</TableHead>
+                                    <TableHead>순위</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {studentItemTableData.length > 0 ? (
+                                    studentItemTableData.map(student => (
+                                        <TableRow key={student.id}>
+                                            <TableCell>{student.grade}</TableCell>
+                                            <TableCell>{student.classNum}</TableCell>
+                                            <TableCell>{student.studentNum}</TableCell>
+                                            <TableCell>{student.name}</TableCell>
+                                            <TableCell>{student.latestDate}</TableCell>
+                                            <TableCell>{student.value}{allItems.find(i => i.name === selectedItem)?.unit}</TableCell>
+                                            <TableCell>{student.grade ? `${student.grade}등급` : '-'}</TableCell>
+                                            <TableCell>{student.rank ? `${student.rank} / ${student.totalRanked}` : '-'}</TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : (
+                                    <TableRow>
+                                        <TableCell colSpan={8} className="h-24 text-center">
+                                            조회할 종목을 선택해주세요.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </TabsContent>
+            </Tabs>
+        </CardContent>
     </Card>
   );
 }

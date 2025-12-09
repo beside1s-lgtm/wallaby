@@ -165,9 +165,10 @@ export default function TeacherDashboardPage() {
 
           <TabsContent value="measurement">
             <Tabs defaultValue="record-input">
-              <TabsList className="grid w-full grid-cols-3 mb-6">
+              <TabsList className="grid w-full grid-cols-4 mb-6">
                 <TabsTrigger value="record-input"><Edit className="mr-2 h-4 w-4" />기록 입력</TabsTrigger>
-                <TabsTrigger value="record-analysis"><BarChart3 className="mr-2 h-4 w-4" />기록 분석</TabsTrigger>
+                <TabsTrigger value="record-analysis"><Users className="mr-2 h-4 w-4" />학생별 분석</TabsTrigger>
+                <TabsTrigger value="record-browser"><Search className="mr-2 h-4 w-4" />기록 조회</TabsTrigger>
                 <TabsTrigger value="ranking"><Trophy className="mr-2 h-4 w-4" />종목별 순위</TabsTrigger>
               </TabsList>
               <TabsContent value="record-input">
@@ -179,27 +180,19 @@ export default function TeacherDashboardPage() {
                 />
               </TabsContent>
               <TabsContent value="record-analysis">
-                 <Tabs defaultValue="student-analytics">
-                    <TabsList className="grid w-full grid-cols-2 mb-6">
-                      <TabsTrigger value="student-analytics"><Users className="mr-2 h-4 w-4" />학생별 분석</TabsTrigger>
-                      <TabsTrigger value="record-browser"><Search className="mr-2 h-4 w-4" />기록 조회</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="student-analytics">
-                      <ClassAnalytics
-                        allStudents={students}
-                        allItems={items}
-                        allRecords={records}
-                        onRecordUpdate={updateLocalRecords}
-                      />
-                    </TabsContent>
-                    <TabsContent value="record-browser">
-                       <RecordBrowser 
-                        allStudents={students}
-                        allItems={items}
-                        allRecords={records}
-                       />
-                    </TabsContent>
-                 </Tabs>
+                <ClassAnalytics
+                    allStudents={students}
+                    allItems={items}
+                    allRecords={records}
+                    onRecordUpdate={updateLocalRecords}
+                />
+              </TabsContent>
+              <TabsContent value="record-browser">
+                <RecordBrowser 
+                  allStudents={students}
+                  allItems={items}
+                  allRecords={records}
+                />
               </TabsContent>
               <TabsContent value="ranking">
                 <Ranking
