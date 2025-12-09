@@ -77,6 +77,8 @@ export default function RecordBrowser({
   // For "종목별 기록" tab
   const [selectedItem, setSelectedItem] = useState('');
   const [itemGradeFilter, setItemGradeFilter] = useState('all');
+  const [itemClassNumFilter, setItemClassNumFilter] = useState('all');
+
 
   const { grades, classNumsByGrade, availableDates } = useMemo(() => {
     const grades = [...new Set(allStudents.map((s) => s.grade))].sort((a,b) => parseInt(a) - parseInt(b));
@@ -233,6 +235,9 @@ export default function RecordBrowser({
     let filteredStudents = allStudents;
     if (itemGradeFilter !== 'all') {
       filteredStudents = filteredStudents.filter(s => s.grade === itemGradeFilter);
+      if (itemClassNumFilter !== 'all') {
+        filteredStudents = filteredStudents.filter(s => s.classNum === itemClassNumFilter);
+      }
     }
 
     const allRanks = calculateRanks(school, allItems, allRecords, allStudents, itemGradeFilter !== 'all' ? itemGradeFilter : undefined);
@@ -262,11 +267,14 @@ export default function RecordBrowser({
       };
     }).filter((s): s is NonNullable<typeof s> => s !== null)
     .sort((a,b) => {
-        if(itemInfo.recordType === 'time') return a.value - b.value;
-        return b.value - a.value;
+        const gradeDiff = parseInt(a.grade) - parseInt(b.grade);
+        if (gradeDiff !== 0) return gradeDiff;
+        const classDiff = parseInt(a.classNum) - parseInt(b.classNum);
+        if (classDiff !== 0) return classDiff;
+        return parseInt(a.studentNum) - parseInt(b.studentNum);
     });
 
-  }, [school, selectedItem, itemGradeFilter, allStudents, allRecords, allItems]);
+  }, [school, selectedItem, itemGradeFilter, itemClassNumFilter, allStudents, allRecords, allItems]);
 
 
   const handleItemDownloadCsv = () => {
@@ -296,6 +304,10 @@ export default function RecordBrowser({
       description: `${selectedItem} 기록을 CSV 파일로 다운로드합니다.`,
     });
   };
+
+  useEffect(() => {
+    setItemClassNumFilter('all');
+  }, [itemGradeFilter]);
 
   return (
     <Card>
@@ -436,17 +448,34 @@ export default function RecordBrowser({
                             ))}
                           </SelectContent>
                        </Select>
-                       <Select value={itemGradeFilter} onValueChange={setItemGradeFilter}>
-                          <SelectTrigger className="w-full sm:w-[120px]">
-                            <SelectValue placeholder="학년 선택" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">전체 학년</SelectItem>
-                            {grades.map((grade) => (
-                              <SelectItem key={grade} value={grade}>{grade}학년</SelectItem>
+                        <Select value={itemGradeFilter} onValueChange={setItemGradeFilter}>
+                            <SelectTrigger className="w-full sm:w-[120px]">
+                                <SelectValue placeholder="학년 선택" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">전체 학년</SelectItem>
+                                {grades.map((grade) => (
+                                <SelectItem key={grade} value={grade}>{grade}학년</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Select
+                            value={itemClassNumFilter}
+                            onValueChange={setItemClassNumFilter}
+                            disabled={itemGradeFilter === 'all'}
+                        >
+                            <SelectTrigger className="w-full sm:w-[120px]">
+                            <SelectValue placeholder="반 선택" />
+                            </SelectTrigger>
+                            <SelectContent>
+                            <SelectItem value="all">전체 반</SelectItem>
+                            {classNumsByGrade[itemGradeFilter]?.map((classNum) => (
+                                <SelectItem key={classNum} value={classNum}>
+                                {classNum}반
+                                </SelectItem>
                             ))}
-                          </SelectContent>
-                       </Select>
+                            </SelectContent>
+                        </Select>
                         <Button onClick={handleItemDownloadCsv} variant="outline" className="ml-auto" disabled={!selectedItem}>
                             <FileDown className="mr-2 h-4 w-4" />
                             결과 다운로드
