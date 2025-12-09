@@ -243,11 +243,11 @@ export default function RecordBrowser({
     const allRanks = calculateRanks(school, allItems, allRecords, allStudents, itemGradeFilter === 'all' ? undefined : itemGradeFilter);
     const itemRanks = allRanks[selectedItem] || [];
 
-    return filteredStudents.map(student => {
+    const dataWithRecords = filteredStudents.map(student => {
       const records = allRecords.filter(r => r.studentId === student.id && r.item === selectedItem);
       if (records.length === 0) return null;
 
-      const latestRecord = records.sort((a,b) => new Date(b.date).getTime() - new Date(a).getTime())[0];
+      const latestRecord = records.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
       const rankInfo = itemRanks.find(r => r.studentId === student.id && r.value === latestRecord.value);
       
       let grade: number | null = null;
@@ -265,8 +265,9 @@ export default function RecordBrowser({
         rank: rankInfo ? rankInfo.rank : null,
         totalRanked: itemRanks.length,
       };
-    }).filter((s): s is NonNullable<typeof s> => s !== null)
-    .sort((a,b) => {
+    }).filter((s): s is NonNullable<typeof s> => s !== null);
+    
+    return dataWithRecords.sort((a,b) => {
         const gradeDiff = parseInt(a.grade) - parseInt(b.grade);
         if (gradeDiff !== 0) return gradeDiff;
         const classDiff = parseInt(a.classNum) - parseInt(b.classNum);
