@@ -241,6 +241,10 @@ export default function RecordBrowser({
       }
     }
 
+    if (filteredStudents.length === 0) {
+        return [];
+    }
+
     const allRanks = calculateRanks(school, allItems, allRecords, allStudents, itemGradeFilter === 'all' ? undefined : itemGradeFilter);
     const itemRanks = allRanks[selectedItem] || [];
 
@@ -464,7 +468,7 @@ export default function RecordBrowser({
                             ))}
                           </SelectContent>
                        </Select>
-                        <Select value={itemGradeFilter} onValueChange={setItemGradeFilter}>
+                        <Select value={itemGradeFilter} onValueChange={(value) => {setItemGradeFilter(value); setItemClassNumFilter('all');}}>
                             <SelectTrigger className="w-full sm:w-[120px]">
                                 <SelectValue placeholder="학년 선택" />
                             </SelectTrigger>
