@@ -105,6 +105,7 @@ export default function RecordBrowser({
     }
 
     const sortedStudents = [...filteredStudents].sort((a,b) => {
+        if (!a || !b) return 0;
         const gradeDiff = parseInt(a.grade) - parseInt(b.grade);
         if (gradeDiff !== 0) return gradeDiff;
         const classDiff = parseInt(a.classNum) - parseInt(b.classNum);
@@ -271,11 +272,18 @@ export default function RecordBrowser({
     });
     
     return data.sort((a, b) => {
-        const gradeDiff = parseInt(a.student.grade) - parseInt(b.student.grade);
+        const studentA = a.student;
+        const studentB = b.student;
+        
+        if (!studentA || !studentB) return 0;
+
+        const gradeDiff = parseInt(studentA.grade) - parseInt(studentB.grade);
         if (gradeDiff !== 0) return gradeDiff;
-        const classDiff = parseInt(a.student.classNum) - parseInt(b.student.classNum);
+        
+        const classDiff = parseInt(studentA.classNum) - parseInt(studentB.classNum);
         if (classDiff !== 0) return classDiff;
-        return parseInt(a.student.studentNum) - parseInt(b.student.studentNum);
+        
+        return parseInt(studentA.studentNum) - parseInt(studentB.studentNum);
     });
 
   }, [school, selectedItem, itemGradeFilter, itemClassNumFilter, allStudents, allRecords, allItems]);
