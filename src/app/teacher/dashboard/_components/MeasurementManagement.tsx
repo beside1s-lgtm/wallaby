@@ -1,7 +1,7 @@
 'use client';
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { addItem as addItemToDb, deleteItemAndAssociatedRecords } from '@/lib/store';
+import { addItem as addItemToDb, deleteItemAndAssociatedRecords, deleteCategoryAndAssociatedRecords } from '@/lib/store';
 import {
   Card,
   CardContent,
@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { X, Plus, Loader2 } from 'lucide-react';
+import { X, Plus, Loader2, Trash2 } from 'lucide-react';
 import type { MeasurementItem, RecordType } from '@/lib/types';
 import {
   Dialog,
@@ -134,6 +134,26 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
     });
   };
 
+  const handleDeleteCategory = async (category: string) => {
+    if (!school) return;
+    try {
+        await deleteCategoryAndAssociatedRecords(school, category, items);
+        onItemsUpdate();
+        toast({
+            variant: 'destructive',
+            title: '카테고리 삭제 완료',
+            description: `"${category}" 카테고리와 관련된 모든 종목 및 기록이 삭제되었습니다.`
+        });
+    } catch (error) {
+        console.error("Failed to delete category:", error);
+        toast({
+            variant: 'destructive',
+            title: '삭제 실패',
+            description: '카테고리 삭제 중 오류가 발생했습니다.'
+        });
+    }
+  };
+
   const groupedItems = useMemo(() => {
     const groups: Record<string, MeasurementItem[]> = {
       PAPS: [],
@@ -194,7 +214,30 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
                     {Object.entries(groupedItems).map(([category, categoryItems]) => (
                         categoryItems.length > 0 && (
                             <AccordionItem value={category} key={category}>
-                                <AccordionTrigger className="font-semibold">{category} ({categoryItems.length})</AccordionTrigger>
+                                <div className="flex items-center w-full">
+                                    <AccordionTrigger className="font-semibold flex-1">
+                                        {category} ({categoryItems.length})
+                                    </AccordionTrigger>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-9 w-9 ml-2" onClick={e => e.stopPropagation()}>
+                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>정말로 '{category}' 카테고리를 삭제하시겠습니까?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    이 작업은 되돌릴 수 없습니다. '{category}' 카테고리에 속한 모든 종목과 관련 학생 기록이 영구적으로 삭제됩니다.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>취소</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleDeleteCategory(category)}>삭제</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </div>
                                 <AccordionContent>
                                     <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pl-2">
                                         {categoryItems.map((item) => (

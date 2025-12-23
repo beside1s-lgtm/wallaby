@@ -458,6 +458,42 @@ export const deleteItemAndAssociatedRecords = async (school: string, itemToDelet
   });
 };
 
+export const deleteCategoryAndAssociatedRecords = async (school: string, category: string, items: MeasurementItem[]) => {
+  await signIn();
+  const batch = writeBatch(db);
+  const itemsToDelete = items.filter(item => (item.category || (item.isPaps ? 'PAPS' : '기타')) === category);
+  const itemNamesToDelete = itemsToDelete.map(item => item.name);
+
+  if (itemNamesToDelete.length === 0) {
+    return;
+  }
+
+  // Delete records associated with the items
+  const recordsRef = collection(db, 'schools', school, 'records');
+  const recordsQuery = query(recordsRef, where('item', 'in', itemNamesToDelete));
+  const recordsSnapshot = await getDocs(recordsQuery);
+  recordsSnapshot.forEach(doc => {
+    batch.delete(doc.ref);
+  });
+
+  // Delete the items themselves
+  itemsToDelete.forEach(item => {
+    const itemDocRef = doc(db, 'schools', school, 'items', item.id);
+    batch.delete(itemDocRef);
+  });
+
+  await batch.commit().catch(e => {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: `schools/${school}`,
+        operation: 'write',
+        requestResourceData: { message: `Deleting category ${category} and all associated items/records.` }
+      }));
+    }
+    throw e;
+  });
+};
+
 
 // Records
 export const getRecords = async (school: string): Promise<MeasurementRecord[]> => {
@@ -595,65 +631,62 @@ export const deleteRecordsByDateAndItem = async (school: string, date: string, i
 };
 
 export const addOrUpdateRecords = async (school: string, students: Student[], rawRecords: any[]): Promise<MeasurementRecord[]> => {
-    await signIn();
-    const recordsToSave: Omit<MeasurementRecord, 'id'>[] = [];
-    const studentMap = new Map(students.map(s => [`${s.grade}-${s.classNum}-${s.studentNum}-${s.name}`, s]));
-  
-    for (const rec of rawRecords) {
-      let student = rec.student;
-      // Handle CSV-parsed records that don't have the student object directly
-      if (!student) {
-          const studentKey = `${rec.grade}-${rec.classNum}-${rec.studentNum}-${rec.name}`;
-          student = studentMap.get(studentKey);
-      }
-      
-      if (student && rec.item && rec.value !== undefined && rec.date) {
-        recordsToSave.push({
-          school,
-          studentId: student.id,
-          item: rec.item,
-          value: parseFloat(rec.value as any),
-          date: rec.date,
-        });
-      }
-    }
-  
-    const updatedRecords: MeasurementRecord[] = [];
-    if (recordsToSave.length > 0) {
-      const batch = writeBatch(db);
-      for (const record of recordsToSave) {
-          const q = query(
-              collection(db, 'schools', school, 'records'),
-              where('studentId', '==', record.studentId),
-              where('item', '==', record.item),
-              where('date', '==', record.date),
-              limit(1)
-          );
-          const querySnapshot = await getDocs(q);
-          if (!querySnapshot.empty) {
-              const docRef = querySnapshot.docs[0].ref;
-              batch.update(docRef, { value: record.value });
-              updatedRecords.push({ ...querySnapshot.docs[0].data(), id: docRef.id, value: record.value } as MeasurementRecord);
-          } else {
-              const docRef = doc(collection(db, 'schools', school, 'records'));
-              batch.set(docRef, { ...record, id: docRef.id });
-              updatedRecords.push({ ...record, id: docRef.id } as MeasurementRecord);
-          }
-      }
-      await batch.commit().catch(e => {
-          if (e.code === 'permission-denied') {
-              errorEmitter.emit('permission-error', new FirestorePermissionError({
-                  path: `schools/${school}/records`,
-                  operation: 'write',
-                  requestResourceData: { message: `Batch uploading ${recordsToSave.length} records.` }
-              }));
-          }
-          throw e;
+  await signIn();
+  const recordsToSave: Omit<MeasurementRecord, 'id'>[] = [];
+  const studentMap = new Map(students.map(s => [`${s.grade}-${s.classNum}-${s.studentNum}-${s.name}`, s]));
+
+  for (const rec of rawRecords) {
+    // If the student object is passed directly (from RecordInput), use it.
+    // Otherwise, parse it from CSV-like structure.
+    const student = rec.student || studentMap.get(`${rec.grade}-${rec.classNum}-${rec.studentNum}-${rec.name}`);
+    
+    if (student && rec.item && rec.value !== undefined && rec.date) {
+      recordsToSave.push({
+        school,
+        studentId: student.id,
+        item: rec.item,
+        value: parseFloat(rec.value as any),
+        date: rec.date,
       });
     }
-  
-    return updatedRecords;
-  };
+  }
+
+  const updatedRecords: MeasurementRecord[] = [];
+  if (recordsToSave.length > 0) {
+    const batch = writeBatch(db);
+    for (const record of recordsToSave) {
+        const q = query(
+            collection(db, 'schools', school, 'records'),
+            where('studentId', '==', record.studentId),
+            where('item', '==', record.item),
+            where('date', '==', record.date),
+            limit(1)
+        );
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+            const docRef = querySnapshot.docs[0].ref;
+            batch.update(docRef, { value: record.value });
+            updatedRecords.push({ ...querySnapshot.docs[0].data(), id: docRef.id, value: record.value } as MeasurementRecord);
+        } else {
+            const docRef = doc(collection(db, 'schools', school, 'records'));
+            batch.set(docRef, { ...record, id: docRef.id });
+            updatedRecords.push({ ...record, id: docRef.id } as MeasurementRecord);
+        }
+    }
+    await batch.commit().catch(e => {
+        if (e.code === 'permission-denied') {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: `schools/${school}/records`,
+                operation: 'write',
+                requestResourceData: { message: `Batch uploading ${recordsToSave.length} records.` }
+            }));
+        }
+        throw e;
+    });
+  }
+
+  return updatedRecords;
+};
 
 
 export const getRecordsByStudent = async (school: string, studentId: string): Promise<MeasurementRecord[]> => {
