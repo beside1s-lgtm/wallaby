@@ -594,13 +594,14 @@ export const deleteRecordsByDateAndItem = async (school: string, date: string, i
     return snapshot.size;
 };
 
-export const addOrUpdateRecords = async (school: string, students: Student[], parsedRecords: (Omit<MeasurementRecord, 'id'> & { student?: Student })[]): Promise<MeasurementRecord[]> => {
+export const addOrUpdateRecords = async (school: string, students: Student[], rawRecords: any[]): Promise<MeasurementRecord[]> => {
     await signIn();
     const recordsToSave: Omit<MeasurementRecord, 'id'>[] = [];
     const studentMap = new Map(students.map(s => [`${s.grade}-${s.classNum}-${s.studentNum}-${s.name}`, s]));
   
-    for (const rec of parsedRecords) {
+    for (const rec of rawRecords) {
       let student = rec.student;
+      // Handle CSV-parsed records that don't have the student object directly
       if (!student) {
           const studentKey = `${rec.grade}-${rec.classNum}-${rec.studentNum}-${rec.name}`;
           student = studentMap.get(studentKey);

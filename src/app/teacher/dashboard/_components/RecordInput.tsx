@@ -315,6 +315,9 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
         for (const studentId of Object.keys(batchRecords)) {
             const values = batchRecords[studentId];
             if (!values) continue;
+            
+            const hasValue = (selectedItemForBatchAdd?.isCompound && (values.height || values.weight)) || (!selectedItemForBatchAdd?.isCompound && values.value);
+            if (!hasValue) continue;
 
             const student = studentsForBatch.find(s => s.id === studentId);
             if (!student) continue;
@@ -350,7 +353,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
         }
         
         if (recordsToProcess.length > 0) {
-            const updatedRecords = await addOrUpdateRecords(school, recordsToProcess);
+            const updatedRecords = await addOrUpdateRecords(school, studentsForBatch, recordsToProcess);
             onRecordUpdate(updatedRecords, 'update');
             toast({ title: '저장 완료', description: `${batchRecordItem}에 대한 ${recordsToProcess.length}개의 기록이 저장/업데이트되었습니다.` });
             setBatchRecords({}); // Clear inputs after saving
