@@ -302,64 +302,69 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
     }));
   };
 
-    const handleSaveBatchRecords = async () => {
-        if (!school || !batchRecordItem || !batchRecordDate || Object.keys(batchRecords).length === 0) {
-            toast({ variant: 'destructive', title: '입력 오류', description: '날짜, 종목을 선택하고 하나 이상의 기록을 입력해주세요.' });
-            return;
-        }
+  const handleSaveBatchRecords = async () => {
+    if (!school || !batchRecordItem || !batchRecordDate || Object.keys(batchRecords).length === 0) {
+        toast({ variant: 'destructive', title: '입력 오류', description: '날짜, 종목을 선택하고 하나 이상의 기록을 입력해주세요.' });
+        return;
+    }
 
-        setIsBatchSubmitting(true);
-        try {
-            const recordsToProcess: (Omit<MeasurementRecord, 'id'> & { student: Student })[] = [];
+    setIsBatchSubmitting(true);
+    try {
+        const recordsToProcess: (Omit<MeasurementRecord, 'id'> & { student: Student })[] = [];
+        
+        for (const studentId of Object.keys(batchRecords)) {
+            const values = batchRecords[studentId];
+            if (!values) continue;
+
+            const student = studentsForBatch.find(s => s.id === studentId);
+            if (!student) continue;
+
+            let valueToSave: number | null = null;
             
-            for (const studentId of Object.keys(batchRecords)) {
-                const values = batchRecords[studentId];
-                const student = studentsForBatch.find(s => s.id === studentId);
-                if (!student) continue;
-
-                let valueToSave: number | null = null;
-                
-                if (selectedItemForBatchAdd?.isCompound) {
-                    const h = parseFloat(values.height || '');
-                    const w = parseFloat(values.weight || '');
-                    if (!isNaN(h) && !isNaN(w) && h > 0 && w > 0) {
-                        const heightInMeters = h / 100;
-                        valueToSave = parseFloat((w / (heightInMeters * heightInMeters)).toFixed(2));
-                    }
-                } else {
-                    const numericValue = parseFloat(values.value || '');
+            if (selectedItemForBatchAdd?.isCompound) {
+                const h = parseFloat(values.height || '');
+                const w = parseFloat(values.weight || '');
+                if (!isNaN(h) && !isNaN(w) && h > 0 && w > 0) {
+                    const heightInMeters = h / 100;
+                    valueToSave = parseFloat((w / (heightInMeters * heightInMeters)).toFixed(2));
+                }
+            } else {
+                if (values.value) {
+                    const numericValue = parseFloat(values.value);
                     if (!isNaN(numericValue)) {
                         valueToSave = numericValue;
                     }
                 }
+            }
 
-                if (valueToSave !== null) {
-                    recordsToProcess.push({
-                        student,
-                        studentId: student.id,
-                        school,
-                        item: batchRecordItem,
-                        value: valueToSave,
-                        date: format(batchRecordDate, 'yyyy-MM-dd'),
-                    });
-                }
+            if (valueToSave !== null) {
+                recordsToProcess.push({
+                    student,
+                    studentId: student.id,
+                    school,
+                    item: batchRecordItem,
+                    value: valueToSave,
+                    date: format(batchRecordDate, 'yyyy-MM-dd'),
+                });
             }
-            
-            if (recordsToProcess.length > 0) {
-                const updatedRecords = await addOrUpdateRecords(school, recordsToProcess);
-                onRecordUpdate(updatedRecords, 'update');
-                toast({ title: '저장 완료', description: `${batchRecordItem}에 대한 ${recordsToProcess.length}개의 기록이 저장/업데이트되었습니다.` });
-                setBatchRecords({}); // Clear inputs after saving
-            } else {
-                toast({ variant: 'destructive', title: '저장할 기록 없음', description: '유효한 기록을 입력해주세요.' });
-            }
-        } catch (error) {
-            console.error('Failed to save batch records:', error);
-            toast({ variant: 'destructive', title: '일괄 저장 실패', description: '기록 저장 중 오류가 발생했습니다.' });
-        } finally {
-            setIsBatchSubmitting(false);
         }
-    };
+        
+        if (recordsToProcess.length > 0) {
+            const updatedRecords = await addOrUpdateRecords(school, recordsToProcess);
+            onRecordUpdate(updatedRecords, 'update');
+            toast({ title: '저장 완료', description: `${batchRecordItem}에 대한 ${recordsToProcess.length}개의 기록이 저장/업데이트되었습니다.` });
+            setBatchRecords({}); // Clear inputs after saving
+        } else {
+            toast({ variant: 'destructive', title: '저장할 기록 없음', description: '유효한 기록을 입력해주세요.' });
+        }
+    } catch (error) {
+        console.error('Failed to save batch records:', error);
+        toast({ variant: 'destructive', title: '일괄 저장 실패', description: '기록 저장 중 오류가 발생했습니다.' });
+    } finally {
+        setIsBatchSubmitting(false);
+    }
+};
+
   
     const calculateBmi = (heightCm?: string, weightKg?: string): string => {
         const h = parseFloat(heightCm || '');
