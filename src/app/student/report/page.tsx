@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -293,9 +294,27 @@ export default function ReportCardPage() {
             </section>
 
             <style jsx global>{`
+                .report-body {
+                    background-color: hsl(var(--muted));
+                }
+                .dark .report-container {
+                    background-color: hsl(var(--card));
+                    color: hsl(var(--card-foreground));
+                }
+                .dark .report-table th {
+                    background-color: hsl(var(--secondary));
+                }
                 @media print {
                     .print-buttons {
                         display: none;
+                    }
+                    .report-body {
+                        background-color: white !important;
+                    }
+                    .report-container {
+                        box-shadow: none;
+                        border-radius: 0;
+                        border: none;
                     }
                     @page {
                         size: A4;
@@ -305,9 +324,6 @@ export default function ReportCardPage() {
                         -webkit-print-color-adjust: exact;
                         print-color-adjust: exact;
                     }
-                }
-                .report-body {
-                    background-color: #f0f2f5;
                 }
                 .report-container {
                     box-shadow: 0 0 20px rgba(0,0,0,0.1);
