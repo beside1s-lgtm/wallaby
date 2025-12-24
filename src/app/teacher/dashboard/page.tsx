@@ -78,6 +78,10 @@ export default function TeacherDashboardPage() {
     await loadData();
   }, [loadData]);
   
+  const handleItemsUpdate = useCallback((updatedItems: MeasurementItem[]) => {
+      setItems(updatedItems);
+  }, []);
+
   const updateLocalRecords = useCallback((updatedOrDeleted: MeasurementRecord[] | string, action: 'update' | 'delete') => {
     if (action === 'delete' && typeof updatedOrDeleted === 'string') {
       setRecords(prev => prev.filter(r => r.id !== updatedOrDeleted));
@@ -244,7 +248,7 @@ export default function TeacherDashboardPage() {
                     />
                 </TabsContent>
                  <TabsContent value="item-management">
-                    <MeasurementManagement items={items} onItemsUpdate={handleDataUpdate} />
+                    <MeasurementManagement items={items} onItemsUpdate={handleItemsUpdate} />
                 </TabsContent>
                 <TabsContent value="database-management">
                     <DatabaseManagement

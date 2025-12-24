@@ -1,7 +1,7 @@
 'use client';
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { addItem as addItemToDb, archiveItem, archiveCategory } from '@/lib/store';
+import { addItem as addItemToDb, archiveItem, archiveCategory, getItems } from '@/lib/store';
 import {
   Card,
   CardContent,
@@ -54,7 +54,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 interface MeasurementManagementProps {
   items: MeasurementItem[];
-  onItemsUpdate: () => void;
+  onItemsUpdate: (items: MeasurementItem[]) => void;
 }
 
 const recordTypeDisplay: Record<RecordType, string> = {
@@ -104,6 +104,12 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
   const { school } = useAuth();
   const { toast } = useToast();
 
+  const refreshItems = async () => {
+      if (!school) return;
+      const updatedItems = await getItems(school);
+      onItemsUpdate(updatedItems);
+  }
+
   const handleAddItem = async (newItem: Omit<MeasurementItem, 'id'>) => {
     if (newItem.name.trim() === '' || !school) {
       toast({
@@ -114,7 +120,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
       return;
     }
     await addItemToDb(school, newItem);
-    onItemsUpdate(); // Refresh data in parent
+    await refreshItems();
     toast({
       title: '추가 완료',
       description: `"${newItem.name}" 종목이 추가되었습니다.`,
@@ -125,8 +131,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
     if (!school) return;
     
     await archiveItem(school, itemToToggle.id, !itemToToggle.isArchived);
-    
-    onItemsUpdate(); // Refresh data in parent
+    await refreshItems();
     toast({
       title: '상태 변경 완료',
       description: `"${itemToToggle.name}" 종목이 ${itemToToggle.isArchived ? '복원되었습니다.' : '숨김 처리되었습니다.'}`,
@@ -137,7 +142,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
     if (!school) return;
     try {
         await archiveCategory(school, category, items, shouldArchive);
-        onItemsUpdate();
+        await refreshItems();
         toast({
             title: '카테고리 상태 변경 완료',
             description: `"${category}" 카테고리가 ${shouldArchive ? '숨김 처리되었습니다.' : '복원되었습니다.'}`
@@ -203,7 +208,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
                 for (const item of newItems) {
                     await addItemToDb(school, item);
                 }
-                onItemsUpdate();
+                await refreshItems();
                 toast({ title: '추가 완료', description: `${newItems.length}개의 팀 스포츠 종목이 추가되었습니다.` });
             }} currentItems={items} />
             <AddCustomItemDialog onAddItem={handleAddItem} />
