@@ -434,60 +434,39 @@ export const addItem = async (school: string, item: Omit<MeasurementItem, 'id' |
   return existing.docs[0].data() as MeasurementItem;
 };
 
-export const deleteItemAndAssociatedRecords = async (school: string, itemToDelete: MeasurementItem) => {
+export const archiveItem = async (school: string, itemId: string, archive: boolean): Promise<void> => {
   await signIn();
-  const batch = writeBatch(db);
-  const recordsRef = collection(db, 'schools', school, 'records');
-  const q = query(recordsRef, where('item', '==', itemToDelete.name));
-  const recordsSnapshot = await getDocs(q);
-
-  recordsSnapshot.forEach(doc => batch.delete(doc.ref));
-
-  const itemDocRef = doc(db, 'schools', school, 'items', itemToDelete.id);
-  batch.delete(itemDocRef);
-
-  await batch.commit().catch(e => {
+  const itemDocRef = doc(db, 'schools', school, 'items', itemId);
+  await updateDoc(itemDocRef, { isArchived: archive }).catch(e => {
     if (e.code === 'permission-denied') {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: `schools/${school}`,
-            operation: 'write',
-            requestResourceData: { message: `Deleting item ${itemToDelete.name} and its records.` }
+            path: itemDocRef.path,
+            operation: 'update',
+            requestResourceData: { isArchived: archive }
         }));
     }
     throw e;
   });
 };
 
-export const deleteCategoryAndAssociatedRecords = async (school: string, category: string, items: MeasurementItem[]) => {
+export const archiveCategory = async (school: string, category: string, items: MeasurementItem[], archive: boolean): Promise<void> => {
   await signIn();
   const batch = writeBatch(db);
-  const itemsToDelete = items.filter(item => (item.category || (item.isPaps ? 'PAPS' : '기타')) === category);
-  const itemNamesToDelete = itemsToDelete.map(item => item.name);
+  const itemsToUpdate = items.filter(item => (item.category || (item.isPaps ? 'PAPS' : '기타')) === category);
 
-  if (itemNamesToDelete.length === 0) {
-    return;
-  }
+  if (itemsToUpdate.length === 0) return;
 
-  // Delete records associated with the items
-  const recordsRef = collection(db, 'schools', school, 'records');
-  const recordsQuery = query(recordsRef, where('item', 'in', itemNamesToDelete));
-  const recordsSnapshot = await getDocs(recordsQuery);
-  recordsSnapshot.forEach(doc => {
-    batch.delete(doc.ref);
-  });
-
-  // Delete the items themselves
-  itemsToDelete.forEach(item => {
+  itemsToUpdate.forEach(item => {
     const itemDocRef = doc(db, 'schools', school, 'items', item.id);
-    batch.delete(itemDocRef);
+    batch.update(itemDocRef, { isArchived: archive });
   });
 
   await batch.commit().catch(e => {
     if (e.code === 'permission-denied') {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: `schools/${school}`,
+        path: `schools/${school}/items`,
         operation: 'write',
-        requestResourceData: { message: `Deleting category ${category} and all associated items/records.` }
+        requestResourceData: { message: `Archiving/Restoring category ${category}.` }
       }));
     }
     throw e;
@@ -633,13 +612,9 @@ export const deleteRecordsByDateAndItem = async (school: string, date: string, i
 export const addOrUpdateRecords = async (school: string, students: Student[], rawRecords: any[]): Promise<MeasurementRecord[]> => {
   await signIn();
   const recordsToSave: Omit<MeasurementRecord, 'id'>[] = [];
-  const studentMap = new Map(students.map(s => [`${s.grade}-${s.classNum}-${s.studentNum}-${s.name}`, s]));
-
+  
   for (const rec of rawRecords) {
-    // If the student object is passed directly (from RecordInput), use it.
-    // Otherwise, parse it from CSV-like structure.
-    const student = rec.student || studentMap.get(`${rec.grade}-${rec.classNum}-${rec.studentNum}-${rec.name}`);
-    
+    const student = rec.student;
     if (student && rec.item && rec.value !== undefined && rec.date) {
       recordsToSave.push({
         school,

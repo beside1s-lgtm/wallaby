@@ -24,6 +24,7 @@ export type MeasurementItem = {
   isPaps: boolean;
   isCompound?: boolean; // For items like BMI that require multiple inputs
   category?: string; // Optional category for custom items
+  isArchived?: boolean; // To hide from UI without deleting records
 };
 
 export type MeasurementRecord = {

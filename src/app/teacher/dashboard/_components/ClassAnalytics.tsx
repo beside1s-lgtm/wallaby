@@ -200,6 +200,9 @@ export default function ClassAnalytics({
   );
 
   const studentDetailRef = useRef<HTMLDivElement>(null);
+  
+  const activeItems = useMemo(() => allItems.filter(item => !item.isArchived), [allItems]);
+
 
   const { grades, classNumsByGrade } = useMemo(() => {
     const grades = [...new Set(allStudents.map((s) => s.grade))].sort();
@@ -232,19 +235,19 @@ export default function ClassAnalytics({
   }, [selectedGrade, selectedClassNum]);
 
   useEffect(() => {
-    if (allItems.length > 0) {
-      const papsItems = allItems.filter((i) => i.isPaps);
+    if (activeItems.length > 0) {
+      const papsItems = activeItems.filter((i) => i.isPaps);
       if (papsItems.length > 0) {
         const firstPapsItem = papsItems[0].name;
         setProgressChartItem(firstPapsItem);
         setSortItem(firstPapsItem);
-      } else if (allItems.length > 0) {
-        const firstItem = allItems[0].name;
+      } else if (activeItems.length > 0) {
+        const firstItem = activeItems[0].name;
         setProgressChartItem(firstItem);
         setSortItem(firstItem);
       }
     }
-  }, [allItems]);
+  }, [activeItems]);
 
   useEffect(() => {
     // Reset student search when class filter changes
@@ -1152,7 +1155,7 @@ export default function ClassAnalytics({
                                 <EditRecordDialog 
                                   record={record}
                                   student={selectedStudent}
-                                  allItems={allItems}
+                                  allItems={activeItems}
                                   onRecordUpdate={onRecordUpdate}
                                 />
                                 <AlertDialog>
@@ -1292,7 +1295,7 @@ export default function ClassAnalytics({
                           <SelectValue placeholder="정렬 종목 선택" />
                         </SelectTrigger>
                         <SelectContent>
-                          {allItems.map((item) => (
+                          {activeItems.map((item) => (
                             <SelectItem key={item.id} value={item.name}>
                               {item.name}
                             </SelectItem>

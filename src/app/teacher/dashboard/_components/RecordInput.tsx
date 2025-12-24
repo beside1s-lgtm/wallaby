@@ -81,6 +81,9 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
 
   const [foundStudents, setFoundStudents] = useState<Student[]>([]);
   const [isSelectionDialogOpen, setIsSelectionDialogOpen] = useState(false);
+  
+  const activeItems = useMemo(() => allItems.filter(item => !item.isArchived), [allItems]);
+
 
   const { grades, classNumsByGrade } = useMemo(() => {
     const grades = [...new Set(allStudents.map(s => s.grade))].sort();
@@ -160,32 +163,32 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
 
 
   useEffect(() => {
-    if (allItems.length > 0) {
-        const bmiItem = allItems.find(i => i.isCompound);
+    if (activeItems.length > 0) {
+        const bmiItem = activeItems.find(i => i.isCompound);
         if (bmiItem) {
             setBatchRecordItem(bmiItem.name);
             setSelectedItemName(bmiItem.name);
         } else {
-            const firstPapsItem = allItems.find(i => i.isPaps);
+            const firstPapsItem = activeItems.find(i => i.isPaps);
             if (firstPapsItem) {
                 setBatchRecordItem(firstPapsItem.name);
                 setSelectedItemName(firstPapsItem.name);
-            } else if (allItems.length > 0) {
-                const firstItem = allItems[0].name;
+            } else if (activeItems.length > 0) {
+                const firstItem = activeItems[0].name;
                 setSelectedItemName(firstItem);
                 setBatchRecordItem(firstItem);
             }
         }
     }
-  }, [allItems]);
+  }, [activeItems]);
 
   const selectedItemForSingleAdd = useMemo(() => {
-      return allItems.find(item => item.name === selectedItemName);
-  }, [selectedItemName, allItems]);
+      return activeItems.find(item => item.name === selectedItemName);
+  }, [selectedItemName, activeItems]);
   
   const selectedItemForBatchAdd = useMemo(() => {
-    return allItems.find(item => item.name === batchRecordItem);
-  }, [batchRecordItem, allItems]);
+    return activeItems.find(item => item.name === batchRecordItem);
+  }, [batchRecordItem, activeItems]);
 
   const inputPlaceholder = useMemo(() => {
     if (!selectedItemForSingleAdd) return "측정 결과 (숫자만 입력)";
@@ -550,7 +553,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                                 <SelectValue placeholder="측정 종목 선택" />
                             </SelectTrigger>
                             <SelectContent>
-                                {allItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
+                                {activeItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
                             </SelectContent>
                         </Select>
                         <Button onClick={handleSaveBatchRecords} disabled={isBatchSubmitting || studentsForBatch.length === 0} className="ml-auto">
@@ -722,7 +725,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                                     <SelectValue placeholder="측정 종목 선택" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {allItems.map(item => (
+                                    {activeItems.map(item => (
                                     <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
                                     ))}
                                 </SelectContent>

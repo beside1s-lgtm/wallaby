@@ -57,6 +57,9 @@ export default function Ranking({
     () => [...new Set(allStudents.map((s) => s.grade))].sort(),
     [allStudents]
   );
+  
+  const activeItems = useMemo(() => allItems.filter(item => !item.isArchived), [allItems]);
+
 
   useEffect(() => {
     if (school && selectedGrade && selectedItem) {
@@ -138,7 +141,7 @@ export default function Ranking({
                 <SelectValue placeholder="종목 선택" />
               </SelectTrigger>
               <SelectContent>
-                {allItems.map((item) => (
+                {activeItems.map((item) => (
                   <SelectItem key={item.id} value={item.name}>
                     {item.name}
                   </SelectItem>
