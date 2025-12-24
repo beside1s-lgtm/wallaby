@@ -78,7 +78,13 @@ export default function ReportCardPage() {
                         if (itemRanks && itemRanks.length > 0) {
                             const rankInfo = itemRanks.find(r => r.studentId === studentData.id);
                             if (rankInfo) {
-                                score = Math.round((1 - (rankInfo - 1) / itemRanks.length) * 100);
+                                // Prevent division by zero if there's only one student in the rank list
+                                const totalRanked = itemRanks.length;
+                                if (totalRanked > 1) {
+                                    score = Math.round((1 - (rankInfo.rank - 1) / (totalRanked - 1)) * 100);
+                                } else {
+                                    score = 100; // If only one student, they are 1st place.
+                                }
                             }
                         }
                         return { item: item.name, score };
@@ -250,7 +256,7 @@ export default function ReportCardPage() {
             Object.entries(ranks).forEach(([item, itemRanks]) => {
                 const rankInfo = itemRanks.find(r => r.studentId === fullStudent.id);
                 if (rankInfo && abilityScores.some(s => s.item === item)) {
-                    studentRanks[item] = `${itemRanks.length}명 중 ${rankInfo}등`;
+                    studentRanks[item] = `${itemRanks.length}명 중 ${rankInfo.rank}등`;
                 }
             });
 
@@ -535,5 +541,7 @@ export default function ReportCardPage() {
         </div>
     );
 }
+
+    
 
     
