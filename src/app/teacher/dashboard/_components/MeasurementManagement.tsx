@@ -1,7 +1,7 @@
 'use client';
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { addItem as addItemToDb, deleteItemAndAssociatedRecords, deleteCategoryAndAssociatedRecords } from '@/lib/store';
+import { addItem as addItemToDb, archiveItem, archiveCategory } from '@/lib/store';
 import {
   Card,
   CardContent,
@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { X, Plus, Loader2, Trash2 } from 'lucide-react';
+import { X, Plus, Loader2, Archive, ArchiveRestore } from 'lucide-react';
 import type { MeasurementItem, RecordType } from '@/lib/types';
 import {
   Dialog,
@@ -120,69 +120,70 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
       description: `"${newItem.name}" 종목이 추가되었습니다.`,
     });
   };
-
-  const handleDeleteItem = async (itemToDelete: MeasurementItem) => {
+  
+  const handleArchiveToggle = async (itemToToggle: MeasurementItem) => {
     if (!school) return;
     
-    await deleteItemAndAssociatedRecords(school, itemToDelete);
+    await archiveItem(school, itemToToggle.id, !itemToToggle.isArchived);
     
     onItemsUpdate(); // Refresh data in parent
     toast({
-      variant: 'destructive',
-      title: '삭제 완료',
-      description: `"${itemToDelete.name}" 종목과 관련 기록이 모두 삭제되었습니다.`,
+      title: '상태 변경 완료',
+      description: `"${itemToToggle.name}" 종목이 ${itemToToggle.isArchived ? '복원되었습니다.' : '숨김 처리되었습니다.'}`,
     });
   };
 
-  const handleDeleteCategory = async (category: string) => {
+  const handleArchiveCategory = async (category: string, shouldArchive: boolean) => {
     if (!school) return;
     try {
-        await deleteCategoryAndAssociatedRecords(school, category, items);
+        await archiveCategory(school, category, items, shouldArchive);
         onItemsUpdate();
         toast({
-            variant: 'destructive',
-            title: '카테고리 삭제 완료',
-            description: `"${category}" 카테고리와 관련된 모든 종목 및 기록이 삭제되었습니다.`
+            title: '카테고리 상태 변경 완료',
+            description: `"${category}" 카테고리가 ${shouldArchive ? '숨김 처리되었습니다.' : '복원되었습니다.'}`
         });
     } catch (error) {
-        console.error("Failed to delete category:", error);
+        console.error("Failed to archive/restore category:", error);
         toast({
             variant: 'destructive',
-            title: '삭제 실패',
-            description: '카테고리 삭제 중 오류가 발생했습니다.'
+            title: '변경 실패',
+            description: '카테고리 상태 변경 중 오류가 발생했습니다.'
         });
     }
   };
 
-  const groupedItems = useMemo(() => {
-    const groups: Record<string, MeasurementItem[]> = {
-      PAPS: [],
-    };
+
+  const { groupedItems, archivedItems } = useMemo(() => {
+    const active: Record<string, MeasurementItem[]> = { PAPS: [] };
+    const archived: MeasurementItem[] = [];
 
     items.forEach(item => {
-      const category = item.category || (item.isPaps ? 'PAPS' : '기타');
-      if (!groups[category]) {
-        groups[category] = [];
+      if (item.isArchived) {
+        archived.push(item);
+        return;
       }
-      groups[category].push(item);
+      const category = item.category || (item.isPaps ? 'PAPS' : '기타');
+      if (!active[category]) {
+        active[category] = [];
+      }
+      active[category].push(item);
     });
 
-    // Move PAPS to the front, then team sports, then others
-    const orderedGroups: Record<string, MeasurementItem[]> = { };
+    const orderedGroups: Record<string, MeasurementItem[]> = {};
     const teamSportCategories = Object.keys(teamSportMetrics);
     
-    if (groups['PAPS']?.length > 0) orderedGroups['PAPS'] = groups['PAPS'];
+    if (active['PAPS']?.length > 0) orderedGroups['PAPS'] = active['PAPS'];
     teamSportCategories.forEach(cat => {
-      if (groups[cat]?.length > 0) orderedGroups[cat] = groups[cat];
+      if (active[cat]?.length > 0) orderedGroups[cat] = active[cat];
     });
 
-    Object.keys(groups).forEach(key => {
+    Object.keys(active).forEach(key => {
         if (key !== 'PAPS' && !teamSportCategories.includes(key)) {
-            orderedGroups[key] = groups[key];
+            orderedGroups[key] = active[key];
         }
     });
 
-    return orderedGroups;
+    return { groupedItems: orderedGroups, archivedItems: archived };
   }, [items]);
 
 
@@ -192,7 +193,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
     <Card>
       <CardHeader>
         <CardTitle>종목 관리</CardTitle>
-        <CardDescription>측정할 종목을 추가하거나 삭제합니다. PAPS, 팀 스포츠 또는 직접 생성한 기타 종목을 관리할 수 있습니다.</CardDescription>
+        <CardDescription>측정할 종목을 추가하거나, 목록에서 숨길 수 있습니다. 기록은 삭제되지 않고 보존됩니다.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex w-full flex-wrap items-center gap-2">
@@ -208,8 +209,8 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
             <AddCustomItemDialog onAddItem={handleAddItem} />
         </div>
         <div className="border rounded-md p-4 space-y-2">
-            <h3 className="font-semibold">현재 종목 목록</h3>
-            {items.length > 0 ? (
+            <h3 className="font-semibold">활성 종목 목록</h3>
+            {Object.values(groupedItems).some(arr => arr.length > 0) ? (
                 <Accordion type="multiple" defaultValue={Object.keys(groupedItems)} className="w-full">
                     {Object.entries(groupedItems).map(([category, categoryItems]) => (
                         categoryItems.length > 0 && (
@@ -221,19 +222,19 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>
                                             <Button variant="ghost" size="icon" className="h-9 w-9 ml-2" onClick={e => e.stopPropagation()}>
-                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                                <Archive className="h-4 w-4 text-muted-foreground" />
                                             </Button>
                                         </AlertDialogTrigger>
                                         <AlertDialogContent>
                                             <AlertDialogHeader>
-                                                <AlertDialogTitle>정말로 '{category}' 카테고리를 삭제하시겠습니까?</AlertDialogTitle>
+                                                <AlertDialogTitle>정말로 '{category}' 카테고리를 숨기시겠습니까?</AlertDialogTitle>
                                                 <AlertDialogDescription>
-                                                    이 작업은 되돌릴 수 없습니다. '{category}' 카테고리에 속한 모든 종목과 관련 학생 기록이 영구적으로 삭제됩니다.
+                                                    이 작업은 되돌릴 수 있습니다. '{category}' 카테고리에 속한 모든 종목이 기록 입력 목록에서 숨겨집니다. 기록은 삭제되지 않습니다.
                                                 </AlertDialogDescription>
                                             </AlertDialogHeader>
                                             <AlertDialogFooter>
                                                 <AlertDialogCancel>취소</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleDeleteCategory(category)}>삭제</AlertDialogAction>
+                                                <AlertDialogAction onClick={() => handleArchiveCategory(category, true)}>숨기기</AlertDialogAction>
                                             </AlertDialogFooter>
                                         </AlertDialogContent>
                                     </AlertDialog>
@@ -249,19 +250,19 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
                                               <AlertDialog>
                                                 <AlertDialogTrigger asChild>
                                                     <Button variant="ghost" size="icon" className="h-7 w-7">
-                                                        <X className="h-4 w-4 text-destructive" />
+                                                        <Archive className="h-4 w-4 text-muted-foreground" />
                                                     </Button>
                                                 </AlertDialogTrigger>
                                                 <AlertDialogContent>
                                                     <AlertDialogHeader>
-                                                    <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
+                                                    <AlertDialogTitle>정말로 이 종목을 숨기시겠습니까?</AlertDialogTitle>
                                                     <AlertDialogDescription>
-                                                        "{item.name}" 종목과 관련된 모든 학생 기록이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                                                        "{item.name}" 종목이 기록 입력 목록에서 숨겨집니다. 기록은 삭제되지 않으며, 나중에 복원할 수 있습니다.
                                                     </AlertDialogDescription>
                                                     </AlertDialogHeader>
                                                     <AlertDialogFooter>
                                                     <AlertDialogCancel>취소</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={() => handleDeleteItem(item)}>삭제</AlertDialogAction>
+                                                    <AlertDialogAction onClick={() => handleArchiveToggle(item)}>숨기기</AlertDialogAction>
                                                     </AlertDialogFooter>
                                                 </AlertDialogContent>
                                                 </AlertDialog>
@@ -274,7 +275,31 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
                     ))}
                 </Accordion>
             ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">등록된 종목이 없습니다.</p>
+                <p className="text-sm text-muted-foreground text-center py-4">활성화된 종목이 없습니다.</p>
+            )}
+
+            {archivedItems.length > 0 && (
+                <Accordion type="single" collapsible className="w-full mt-4">
+                    <AccordionItem value="archived">
+                        <AccordionTrigger className="font-semibold text-muted-foreground">
+                            숨겨진 종목 ({archivedItems.length})
+                        </AccordionTrigger>
+                        <AccordionContent>
+                             <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pl-2">
+                                {archivedItems.map((item) => (
+                                    <li key={item.id} className="flex items-center justify-between p-2 bg-secondary/50 rounded-md text-sm">
+                                        <div>
+                                            <span className="font-semibold">{item.name}</span>
+                                        </div>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleArchiveToggle(item)}>
+                                            <ArchiveRestore className="h-4 w-4 text-primary" />
+                                        </Button>
+                                    </li>
+                                ))}
+                            </ul>
+                        </AccordionContent>
+                    </AccordionItem>
+                </Accordion>
             )}
         </div>
       </CardContent>
@@ -282,6 +307,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
   );
 }
 
+// Dialog components (AddPapsItemDialog, AddTeamSportItemsDialog, AddCustomItemDialog) remain unchanged.
 function AddPapsItemDialog({ onAddItem, currentItems }: { onAddItem: (item: Omit<MeasurementItem, 'id'>) => Promise<void>, currentItems: MeasurementItem[] }) {
     const [selectedItemName, setSelectedItemName] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);

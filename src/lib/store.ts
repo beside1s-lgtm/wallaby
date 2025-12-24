@@ -609,27 +609,13 @@ export const deleteRecordsByDateAndItem = async (school: string, date: string, i
     return snapshot.size;
 };
 
-export const addOrUpdateRecords = async (school: string, students: Student[], rawRecords: any[]): Promise<MeasurementRecord[]> => {
+export const addOrUpdateRecords = async (school: string, students: Student[], recordsToProcess: (Omit<MeasurementRecord, 'id'> & { student: Student })[]): Promise<MeasurementRecord[]> => {
   await signIn();
-  const recordsToSave: Omit<MeasurementRecord, 'id'>[] = [];
   
-  for (const rec of rawRecords) {
-    const student = rec.student;
-    if (student && rec.item && rec.value !== undefined && rec.date) {
-      recordsToSave.push({
-        school,
-        studentId: student.id,
-        item: rec.item,
-        value: parseFloat(rec.value as any),
-        date: rec.date,
-      });
-    }
-  }
-
   const updatedRecords: MeasurementRecord[] = [];
-  if (recordsToSave.length > 0) {
+  if (recordsToProcess.length > 0) {
     const batch = writeBatch(db);
-    for (const record of recordsToSave) {
+    for (const record of recordsToProcess) {
         const q = query(
             collection(db, 'schools', school, 'records'),
             where('studentId', '==', record.studentId),
@@ -653,7 +639,7 @@ export const addOrUpdateRecords = async (school: string, students: Student[], ra
             errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: `schools/${school}/records`,
                 operation: 'write',
-                requestResourceData: { message: `Batch uploading ${recordsToSave.length} records.` }
+                requestResourceData: { message: `Batch uploading ${recordsToProcess.length} records.` }
             }));
         }
         throw e;
@@ -1025,6 +1011,72 @@ export const deleteTournament = async (school: string, tournamentId: string): Pr
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: tournamentRef.path,
         operation: 'delete'
+      }));
+    }
+    throw e;
+  });
+};
+
+export const deleteItemAndAssociatedRecords = async (school: string, itemToDelete: MeasurementItem) => {
+  await signIn();
+  const batch = writeBatch(db);
+
+  // Delete all records associated with the item
+  const recordsRef = collection(db, 'schools', school, 'records');
+  const q = query(recordsRef, where('item', '==', itemToDelete.name));
+  const recordsSnapshot = await getDocs(q);
+  recordsSnapshot.forEach(doc => batch.delete(doc.ref));
+
+  // Delete the item itself
+  const itemDocRef = doc(db, 'schools', school, 'items', itemToDelete.id);
+  batch.delete(itemDocRef);
+
+  await batch.commit().catch(e => {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: `schools/${school}`,
+        operation: 'write',
+        requestResourceData: { message: `Deleting item ${itemToDelete.name} and its records.` }
+      }));
+    }
+    throw e;
+  });
+};
+
+export const deleteCategoryAndAssociatedRecords = async (school: string, category: string, allItems: MeasurementItem[]): Promise<void> => {
+  await signIn();
+  const batch = writeBatch(db);
+  
+  const itemsToDelete = allItems.filter(item => (item.category || (item.isPaps ? 'PAPS' : '기타')) === category);
+  const itemNamesToDelete = itemsToDelete.map(item => item.name);
+
+  if (itemNamesToDelete.length === 0) return;
+
+  // Delete all records for all items in the category
+  const recordsRef = collection(db, 'schools', school, 'records');
+  // Firestore's 'in' operator is limited to 30 values, so we might need multiple queries if there are many items.
+  const chunks = [];
+  for (let i = 0; i < itemNamesToDelete.length; i += 30) {
+      chunks.push(itemNamesToDelete.slice(i, i + 30));
+  }
+  for (const chunk of chunks) {
+      const q = query(recordsRef, where('item', 'in', chunk));
+      const recordsSnapshot = await getDocs(q);
+      recordsSnapshot.forEach(doc => batch.delete(doc.ref));
+  }
+
+  // Delete the items themselves
+  itemsToDelete.forEach(item => {
+    const itemDocRef = doc(db, 'schools', school, 'items', item.id);
+    batch.delete(itemDocRef);
+  });
+
+  await batch.commit().catch(e => {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: `schools/${school}`,
+        operation: 'write',
+        requestResourceData: { message: `Deleting category ${category} and all associated items/records.` }
       }));
     }
     throw e;
