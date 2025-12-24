@@ -609,7 +609,7 @@ export const deleteRecordsByDateAndItem = async (school: string, date: string, i
     return snapshot.size;
 };
 
-export const addOrUpdateRecords = async (school: string, students: Student[], recordsToProcess: (Omit<MeasurementRecord, 'id'> & { student: Student })[]): Promise<MeasurementRecord[]> => {
+export const addOrUpdateRecords = async (school: string, students: Student[], recordsToProcess: any[]): Promise<MeasurementRecord[]> => {
   await signIn();
   
   const updatedRecords: MeasurementRecord[] = [];

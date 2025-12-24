@@ -1,7 +1,14 @@
 'use client';
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { addItem as addItemToDb, archiveItem, archiveCategory, getItems } from '@/lib/store';
+import { 
+    addItem as addItemToDb, 
+    archiveItem, 
+    archiveCategory, 
+    getItems,
+    deleteItemAndAssociatedRecords,
+    deleteCategoryAndAssociatedRecords
+} from '@/lib/store';
 import {
   Card,
   CardContent,
@@ -12,7 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { X, Plus, Loader2, Archive, ArchiveRestore } from 'lucide-react';
+import { Plus, Loader2, Trash2, Pencil } from 'lucide-react';
 import type { MeasurementItem, RecordType } from '@/lib/types';
 import {
   Dialog,
@@ -51,6 +58,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { Checkbox } from '@/components/ui/checkbox';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 interface MeasurementManagementProps {
   items: MeasurementItem[];
@@ -103,6 +111,10 @@ const teamSportMetrics: Record<string, {name: string, unit: string, recordType: 
 export default function MeasurementManagement({ items, onItemsUpdate }: MeasurementManagementProps) {
   const { school } = useAuth();
   const { toast } = useToast();
+  
+  const [editMode, setEditMode] = useState<'none' | 'archive' | 'delete'>('none');
+  const [selection, setSelection] = useState<Record<string, boolean>>({});
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const refreshItems = async () => {
       if (!school) return;
@@ -126,34 +138,49 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
       description: `"${newItem.name}" 종목이 추가되었습니다.`,
     });
   };
-  
-  const handleArchiveToggle = async (itemToToggle: MeasurementItem) => {
-    if (!school) return;
-    
-    await archiveItem(school, itemToToggle.id, !itemToToggle.isArchived);
-    await refreshItems();
-    toast({
-      title: '상태 변경 완료',
-      description: `"${itemToToggle.name}" 종목이 ${itemToToggle.isArchived ? '복원되었습니다.' : '숨김 처리되었습니다.'}`,
-    });
-  };
 
-  const handleArchiveCategory = async (category: string, shouldArchive: boolean) => {
+  const cancelEditMode = () => {
+    setEditMode('none');
+    setSelection({});
+  }
+
+  const handleBulkAction = async () => {
     if (!school) return;
+
+    const selectedItems = items.filter(item => selection[item.id]);
+    const selectedCategories = Object.keys(selection).filter(key => !items.some(item => item.id === key) && selection[key]);
+    
+    if (selectedItems.length === 0 && selectedCategories.length === 0) {
+      toast({ variant: 'destructive', title: '선택 오류', description: '처리할 항목을 선택해주세요.' });
+      return;
+    }
+
+    setIsProcessing(true);
     try {
-        await archiveCategory(school, category, items, shouldArchive);
+        if (editMode === 'archive') {
+            for (const category of selectedCategories) {
+                await archiveCategory(school, category, items, true);
+            }
+            for (const item of selectedItems) {
+                await archiveItem(school, item.id, true);
+            }
+            toast({ title: '숨김 처리 완료', description: '선택한 항목들이 숨김 처리되었습니다.' });
+        } else if (editMode === 'delete') {
+            for (const category of selectedCategories) {
+                await deleteCategoryAndAssociatedRecords(school, category, items);
+            }
+            for (const item of selectedItems) {
+                await deleteItemAndAssociatedRecords(school, item);
+            }
+            toast({ title: '영구 삭제 완료', description: '선택한 항목과 관련 기록이 모두 삭제되었습니다.' });
+        }
         await refreshItems();
-        toast({
-            title: '카테고리 상태 변경 완료',
-            description: `"${category}" 카테고리가 ${shouldArchive ? '숨김 처리되었습니다.' : '복원되었습니다.'}`
-        });
+        cancelEditMode();
     } catch (error) {
-        console.error("Failed to archive/restore category:", error);
-        toast({
-            variant: 'destructive',
-            title: '변경 실패',
-            description: '카테고리 상태 변경 중 오류가 발생했습니다.'
-        });
+        console.error("Failed to perform bulk action", error);
+        toast({ variant: 'destructive', title: '작업 실패' });
+    } finally {
+        setIsProcessing(false);
     }
   };
 
@@ -198,7 +225,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
     <Card>
       <CardHeader>
         <CardTitle>종목 관리</CardTitle>
-        <CardDescription>측정할 종목을 추가하거나, 목록에서 숨길 수 있습니다. 기록은 삭제되지 않고 보존됩니다.</CardDescription>
+        <CardDescription>측정할 종목을 추가하고, 숨기거나 영구 삭제하여 목록을 관리합니다.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex w-full flex-wrap items-center gap-2">
@@ -212,6 +239,21 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
                 toast({ title: '추가 완료', description: `${newItems.length}개의 팀 스포츠 종목이 추가되었습니다.` });
             }} currentItems={items} />
             <AddCustomItemDialog onAddItem={handleAddItem} />
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline"><Pencil className="mr-2 h-4 w-4" /> 종목 편집</Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onSelect={() => { setEditMode('archive'); setSelection({}); }}>
+                  선택 숨김
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => { setEditMode('delete'); setSelection({}); }} className="text-destructive">
+                  선택 영구 삭제
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
         </div>
         <div className="border rounded-md p-4 space-y-2">
             <h3 className="font-semibold">활성 종목 목록</h3>
@@ -221,56 +263,34 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
                         categoryItems.length > 0 && (
                             <AccordionItem value={category} key={category}>
                                 <div className="flex items-center w-full">
+                                    {editMode !== 'none' && (
+                                        <Checkbox
+                                            id={`category-${category}`}
+                                            checked={selection[category] || false}
+                                            onCheckedChange={(checked) => setSelection(prev => ({...prev, [category]: !!checked}))}
+                                            className="mr-4"
+                                        />
+                                    )}
                                     <AccordionTrigger className="font-semibold flex-1">
                                         {category} ({categoryItems.length})
                                     </AccordionTrigger>
-                                    <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-9 w-9 ml-2" onClick={e => e.stopPropagation()}>
-                                                <Archive className="h-4 w-4 text-muted-foreground" />
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>정말로 '{category}' 카테고리를 숨기시겠습니까?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    이 작업은 되돌릴 수 있습니다. '{category}' 카테고리에 속한 모든 종목이 기록 입력 목록에서 숨겨집니다. 기록은 삭제되지 않습니다.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>취소</AlertDialogCancel>
-                                                <AlertDialogAction onClick={() => handleArchiveCategory(category, true)}>숨기기</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
                                 </div>
                                 <AccordionContent>
                                     <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pl-2">
                                         {categoryItems.map((item) => (
-                                          <li key={item.id} className="flex items-center justify-between p-2 bg-secondary rounded-md text-sm">
-                                              <div>
+                                          <li key={item.id} className="flex items-center p-2 bg-secondary rounded-md text-sm">
+                                               {editMode !== 'none' && (
+                                                    <Checkbox
+                                                        id={`item-${item.id}`}
+                                                        checked={selection[item.id] || false}
+                                                        onCheckedChange={(checked) => setSelection(prev => ({...prev, [item.id]: !!checked}))}
+                                                        className="mr-4"
+                                                    />
+                                                )}
+                                              <div className="flex-1">
                                                   <span className="font-semibold">{item.name}</span>
                                                   <span className="text-muted-foreground ml-2">({item.unit}, {recordTypeDisplay[item.recordType]}{item.goal ? `, 목표:${item.goal}`: ''})</span>
                                               </div>
-                                              <AlertDialog>
-                                                <AlertDialogTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-7 w-7">
-                                                        <Archive className="h-4 w-4 text-muted-foreground" />
-                                                    </Button>
-                                                </AlertDialogTrigger>
-                                                <AlertDialogContent>
-                                                    <AlertDialogHeader>
-                                                    <AlertDialogTitle>정말로 이 종목을 숨기시겠습니까?</AlertDialogTitle>
-                                                    <AlertDialogDescription>
-                                                        "{item.name}" 종목이 기록 입력 목록에서 숨겨집니다. 기록은 삭제되지 않으며, 나중에 복원할 수 있습니다.
-                                                    </AlertDialogDescription>
-                                                    </AlertDialogHeader>
-                                                    <AlertDialogFooter>
-                                                    <AlertDialogCancel>취소</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={() => handleArchiveToggle(item)}>숨기기</AlertDialogAction>
-                                                    </AlertDialogFooter>
-                                                </AlertDialogContent>
-                                                </AlertDialog>
                                           </li>
                                         ))}
                                     </ul>
@@ -296,9 +316,12 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
                                         <div>
                                             <span className="font-semibold">{item.name}</span>
                                         </div>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleArchiveToggle(item)}>
-                                            <ArchiveRestore className="h-4 w-4 text-primary" />
-                                        </Button>
+                                        <Button variant="ghost" size="sm" onClick={async () => {
+                                            if(!school) return;
+                                            await archiveItem(school, item.id, false);
+                                            refreshItems();
+                                            toast({ title: '복원 완료', description: `${item.name} 종목이 복원되었습니다.`});
+                                        }}>복원</Button>
                                     </li>
                                 ))}
                             </ul>
@@ -307,6 +330,42 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
                 </Accordion>
             )}
         </div>
+        {editMode !== 'none' && (
+            <div className="flex justify-end items-center gap-2 p-4 border-t sticky bottom-0 bg-background">
+                <p className="text-sm text-muted-foreground">
+                    {Object.values(selection).filter(Boolean).length}개 항목 선택됨
+                </p>
+                <Button variant="outline" onClick={cancelEditMode}>취소</Button>
+                 <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button
+                            variant={editMode === 'delete' ? 'destructive' : 'default'}
+                            disabled={isProcessing || Object.values(selection).filter(Boolean).length === 0}
+                        >
+                            {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            {editMode === 'archive' ? '선택 항목 숨기기' : '선택 항목 영구 삭제'}
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>정말로 {editMode === 'archive' ? '숨기시겠습니까?' : '삭제하시겠습니까?'}</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {editMode === 'archive' 
+                                    ? '선택한 항목들이 목록에서 숨겨집니다. 기록은 삭제되지 않으며 나중에 복원할 수 있습니다.'
+                                    : '이 작업은 되돌릴 수 없습니다. 선택한 항목과 관련된 모든 학생 기록이 영구적으로 삭제됩니다.'
+                                }
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>취소</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleBulkAction} className={editMode === 'delete' ? 'bg-destructive' : ''}>
+                                {editMode === 'archive' ? '숨김 처리' : '영구 삭제'}
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </div>
+        )}
       </CardContent>
     </Card>
   );
