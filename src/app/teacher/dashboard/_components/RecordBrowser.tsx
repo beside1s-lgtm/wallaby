@@ -78,14 +78,14 @@ export default function RecordBrowser({
   const [classNumFilter, setClassNumFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState<Date | 'latest' | undefined>('latest');
   const [viewType, setViewType] = useState<ViewType>('grade');
-  const [papsSort, setPapsSort] = useState<SortDescriptor | null>({ column: '번호', direction: 'ascending'});
+  const [papsSort, setPapsSort] = useState<SortDescriptor[]>([{ column: '번호', direction: 'ascending'}]);
 
 
   // For "종목별 기록" tab
   const [selectedItem, setSelectedItem] = useState('');
   const [itemGradeFilter, setItemGradeFilter] = useState('all');
   const [itemClassNumFilter, setItemClassNumFilter] = useState('all');
-  const [itemSort, setItemSort] = useState<SortDescriptor | null>({ column: '이름', direction: 'ascending' });
+  const [itemSort, setItemSort] = useState<SortDescriptor[]>([{ column: '이름', direction: 'ascending' }]);
 
 
   const { grades, classNumsByGrade, availableDates } = useMemo(() => {
@@ -198,25 +198,29 @@ export default function RecordBrowser({
   }, [allStudents, allRecords, allItems, gradeFilter, classNumFilter, dateFilter, viewType]);
 
   const sortedPapsData = useMemo(() => {
-    if (!papsSort) return studentPapsTableData;
+    if (!papsSort.length) return studentPapsTableData;
     
     return [...studentPapsTableData].sort((a, b) => {
-        const { column, direction } = papsSort;
-        const valA = a[column];
-        const valB = b[column];
+        for (const sort of papsSort) {
+            const { column, direction } = sort;
+            const valA = a[column];
+            const valB = b[column];
+            const isAsc = direction === 'ascending';
+            
+            const numA = parseFloat(String(valA));
+            const numB = parseFloat(String(valB));
 
-        const isAsc = direction === 'ascending';
-        
-        // Handle numeric/string sorting based on content
-        const numA = parseFloat(String(valA));
-        const numB = parseFloat(String(valB));
-
-        if (!isNaN(numA) && !isNaN(numB)) {
-            return isAsc ? numA - numB : numB - numA;
+            let comparison = 0;
+            if (!isNaN(numA) && !isNaN(numB)) {
+                comparison = numA - numB;
+            } else {
+                comparison = String(valA).localeCompare(String(valB));
+            }
+            
+            if (comparison !== 0) {
+                return isAsc ? comparison : -comparison;
+            }
         }
-
-        if (String(valA) > String(valB)) return isAsc ? 1 : -1;
-        if (String(valA) < String(valB)) return isAsc ? -1 : 1;
         return 0;
     });
   }, [studentPapsTableData, papsSort]);
@@ -301,35 +305,42 @@ export default function RecordBrowser({
   }, [school, selectedItem, itemGradeFilter, itemClassNumFilter, allStudents, allRecords, allItems]);
 
   const sortedItemData = useMemo(() => {
-      if (!itemSort) return studentItemTableData;
+      if (!itemSort.length) return studentItemTableData;
       
       return [...studentItemTableData].sort((a,b) => {
-          const { column, direction } = itemSort;
-          const isAsc = direction === 'ascending';
-          
-          let valA: any = a[column as keyof typeof a];
-          let valB: any = b[column as keyof typeof b];
+        for (const sort of itemSort) {
+            const { column, direction } = sort;
+            const isAsc = direction === 'ascending';
+            
+            let valA: any = a[column as keyof typeof a];
+            let valB: any = b[column as keyof typeof b];
 
-          // Handle nulls and undefined
-          if (valA == null) return 1;
-          if (valB == null) return -1;
-
-          if (column === 'value' || column === 'grade' || column === 'rank') {
-              valA = valA ?? (isAsc ? Infinity : -Infinity);
-              valB = valB ?? (isAsc ? Infinity : -Infinity);
-              return isAsc ? valA - valB : valB - valA;
-          }
-
-          if (column === 'latestDate') {
-              const dateA = new Date(valA).getTime();
-              const dateB = new Date(valB).getTime();
-              return isAsc ? dateA - dateB : dateB - dateA;
-          }
-
-          // String comparison
-          return isAsc ? String(valA).localeCompare(String(valB)) : String(valB).localeCompare(String(valA));
+            // Handle nulls and undefined to sort them at the end
+            if (valA == null) return 1;
+            if (valB == null) return -1;
+            
+            let comparison = 0;
+            if (column === 'value' || column === 'grade' || column === 'rank') {
+                comparison = (valA ?? (isAsc ? Infinity : -Infinity)) - (valB ?? (isAsc ? Infinity : -Infinity));
+                 if (itemSort.some(s => s.column === 'value') && allItems.find(i => i.name === selectedItem)?.recordType === 'time') {
+                    // For time records, lower is better. Reverse the comparison.
+                    comparison = -comparison;
+                }
+            } else if (column === 'latestDate') {
+                const dateA = new Date(valA).getTime();
+                const dateB = new Date(valB).getTime();
+                comparison = dateA - dateB;
+            } else {
+                comparison = String(valA).localeCompare(String(valB));
+            }
+            
+            if (comparison !== 0) {
+                return isAsc ? comparison : -comparison;
+            }
+        }
+        return 0;
       });
-  }, [studentItemTableData, itemSort]);
+  }, [studentItemTableData, itemSort, selectedItem, allItems]);
 
 
   const handleItemDownloadCsv = () => {
@@ -368,15 +379,41 @@ export default function RecordBrowser({
     setItemClassNumFilter('all');
   }, [itemGradeFilter]);
   
-  const createSortHandler = (column: string, sortState: SortDescriptor | null, setSortState: (descriptor: SortDescriptor | null) => void) => () => {
-    if (!sortState || sortState.column !== column) {
-      setSortState({ column, direction: 'ascending' });
-    } else if (sortState.direction === 'ascending') {
-      setSortState({ column, direction: 'descending' });
+  const createSortHandler = (column: string, sortState: SortDescriptor[], setSortState: (descriptor: SortDescriptor[]) => void) => (event: React.MouseEvent) => {
+    const isShiftKey = event.shiftKey;
+    const existingSortIndex = sortState.findIndex(s => s.column === column);
+
+    if (existingSortIndex > -1) {
+        const newSortState = [...sortState];
+        const currentSort = newSortState[existingSortIndex];
+        if (currentSort.direction === 'ascending') {
+            currentSort.direction = 'descending';
+        } else {
+            newSortState.splice(existingSortIndex, 1);
+        }
+        setSortState(newSortState);
     } else {
-      setSortState(null); // Optional: third click clears sort
+        const newSort = { column, direction: 'ascending' as const };
+        if (isShiftKey) {
+            setSortState([...sortState, newSort]);
+        } else {
+            setSortState([newSort]);
+        }
     }
   };
+  
+  const getSortIndicator = (column: string, sortState: SortDescriptor[]) => {
+    const sortIndex = sortState.findIndex(s => s.column === column);
+    if (sortIndex === -1) return null;
+    
+    const sort = sortState[sortIndex];
+    return (
+        <span className="ml-1 text-xs font-normal">
+            {sortIndex > 0 && <span className="text-muted-foreground mr-1">{sortIndex + 1}</span>}
+            {sort.direction === 'ascending' ? '▲' : '▼'}
+        </span>
+    );
+};
 
 
   return (
@@ -384,7 +421,7 @@ export default function RecordBrowser({
         <CardHeader>
             <CardTitle>기록 조회</CardTitle>
             <CardDescription>
-                PAPS 종합 현황 또는 종목별 학생 기록을 조회하고 다운로드할 수 있습니다.
+                PAPS 종합 현황 또는 종목별 학생 기록을 조회하고 다운로드할 수 있습니다. Shift키를 누른 채로 헤더를 클릭하여 다중 정렬을 할 수 있습니다.
             </CardDescription>
         </CardHeader>
         <CardContent>
@@ -478,11 +515,15 @@ export default function RecordBrowser({
                         <Table>
                             <TableHeader>
                             <TableRow>
-                                {finalFactorOrder.map(key => (
-                                <TableHead key={key} onClick={createSortHandler(key.replace(/점수|등급/g, ''), papsSort, setPapsSort)} className="cursor-pointer hover:bg-muted">
-                                    {key}
-                                </TableHead>
-                                ))}
+                                {finalFactorOrder.map(key => {
+                                    const columnKey = key.replace(/점수|등급/g, '');
+                                    return (
+                                        <TableHead key={key} onClick={createSortHandler(columnKey, papsSort, setPapsSort)} className="cursor-pointer hover:bg-muted whitespace-nowrap">
+                                            {key}
+                                            {getSortIndicator(columnKey, papsSort)}
+                                        </TableHead>
+                                    )
+                                })}
                             </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -492,7 +533,7 @@ export default function RecordBrowser({
                                     {finalFactorOrder.map((key, cellIndex) => {
                                     const displayKey = key.replace(/점수|등급/g, '');
                                     return (
-                                        <TableCell key={cellIndex}>{row[displayKey]}</TableCell>
+                                        <TableCell key={cellIndex} className="whitespace-nowrap">{row[displayKey]}</TableCell>
                                     )
                                     })}
                                 </TableRow>
@@ -567,8 +608,9 @@ export default function RecordBrowser({
                                       { key: 'grade', label: '등급' },
                                       { key: 'rank', label: '순위' },
                                     ].map(header => (
-                                       <TableHead key={header.key} onClick={createSortHandler(header.key, itemSort, setItemSort)} className="cursor-pointer hover:bg-muted">
+                                       <TableHead key={header.key} onClick={createSortHandler(header.key, itemSort, setItemSort)} className="cursor-pointer hover:bg-muted whitespace-nowrap">
                                           {header.label}
+                                          {getSortIndicator(header.key, itemSort)}
                                        </TableHead>
                                     ))}
                                 </TableRow>
@@ -603,3 +645,4 @@ export default function RecordBrowser({
     </Card>
   );
 }
+
