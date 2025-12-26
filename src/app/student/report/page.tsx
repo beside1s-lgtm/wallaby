@@ -47,17 +47,6 @@ export default function ReportCardPage() {
     const [isReportLoading, setIsReportLoading] = useState(false);
 
     useEffect(() => {
-        if (typeof window !== 'undefined') {
-            document.body.classList.add('report-body');
-        }
-        return () => {
-            if (typeof window !== 'undefined') {
-                document.body.classList.remove('report-body');
-            }
-        };
-    }, []);
-
-    useEffect(() => {
         async function loadData() {
             if (!student?.id || !school) return;
             setIsLoading(true);
@@ -81,9 +70,9 @@ export default function ReportCardPage() {
                      const itemNames = teamData.itemNamesForBalancing;
 
                      const scores = itemNames.map(itemName => {
-                         const itemRanks = allRanks[itemName];
+                         const itemRanks = allRanks[itemName] || [];
                          let score = 0;
-                         if (itemRanks && itemRanks.length > 0) {
+                         if (itemRanks.length > 0) {
                              const rankInfo = itemRanks.find(r => r.studentId === studentData.id);
                              if (rankInfo) {
                                  score = Math.round((1 - (rankInfo.rank - 1) / itemRanks.length) * 100);
@@ -442,7 +431,7 @@ export default function ReportCardPage() {
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="text-center p-4 border-2 border-dashed rounded-md print-hidden h-full flex flex-col justify-center print:h-auto">
+                                    <div className="text-center p-4 border-2 border-dashed rounded-md print-hidden h-full flex flex-col justify-center">
                                         <p className="text-muted-foreground mb-4">나의 능력치 기반 AI 스카우팅 리포트를 받아보세요.</p>
                                         <Button onClick={handleGetScoutingReport} disabled={isReportLoading}>
                                             <Wand2 className="mr-2 h-4 w-4" />
@@ -485,68 +474,11 @@ export default function ReportCardPage() {
             </div>
 
             <style jsx global>{`
-                .report-body {
-                    background-color: hsl(var(--muted));
-                }
-                .dark .report-container {
-                    background-color: hsl(var(--card));
-                    color: hsl(var(--card-foreground));
-                }
-                .dark .report-table th {
-                    background-color: hsl(var(--secondary));
-                }
                 .report-page {
                     page-break-after: always;
                 }
                  .report-page:last-child {
                     page-break-after: avoid;
-                }
-                @media print {
-                    @page {
-                        size: A4;
-                        margin: 20mm;
-                    }
-                    .print-hidden {
-                        display: none !important;
-                    }
-                    .report-body {
-                        background-color: white !important;
-                    }
-                    .report-container {
-                        box-shadow: none;
-                        border-radius: 0;
-                        border: none;
-                        margin: 0;
-                        padding: 0;
-                        max-width: 100%;
-                    }
-                    body {
-                        -webkit-print-color-adjust: exact;
-                        print-color-adjust: exact;
-                    }
-                }
-                .report-container {
-                    box-shadow: 0 0 20px rgba(0,0,0,0.1);
-                    border-radius: 8px;
-                }
-                .report-section-title {
-                    font-size: 1.5rem;
-                    font-weight: 700;
-                    padding-bottom: 0.5rem;
-                    border-bottom: 2px solid hsl(var(--primary));
-                    color: hsl(var(--primary));
-                }
-                .report-table th, .report-table td {
-                    border: 1px solid hsl(var(--border));
-                    padding: 0.75rem;
-                }
-                .report-table th {
-                    background-color: hsl(var(--muted));
-                }
-                .report-table-wrapper {
-                    border-radius: 8px;
-                    overflow: hidden;
-                    border: 1px solid hsl(var(--border));
                 }
             `}</style>
         </div>
