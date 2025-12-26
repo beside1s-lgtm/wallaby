@@ -4,7 +4,7 @@ export default function ReportLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-background min-h-screen">
+    <div className="light bg-background min-h-screen">
       <main>{children}</main>
     </div>
   );
