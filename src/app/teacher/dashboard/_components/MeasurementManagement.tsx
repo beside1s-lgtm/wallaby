@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { 
     addItem as addItemToDb, 
@@ -139,6 +139,17 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
       description: `"${newItem.name}" 종목이 추가되었습니다.`,
     });
   };
+  
+  const handleUpdateItem = async (itemId: string, data: Partial<Omit<MeasurementItem, 'id'>>) => {
+    if (!school) return;
+    try {
+        await updateItem(school, itemId, data);
+        await refreshItems();
+        toast({ title: '수정 완료', description: '종목 정보가 업데이트되었습니다.'});
+    } catch (e) {
+        toast({ variant: 'destructive', title: '수정 실패', description: '종목 정보 업데이트 중 오류가 발생했습니다.'});
+    }
+  }
 
   const handleToggleMeasurementWeek = async (item: MeasurementItem, checked: boolean) => {
     if (!school) return;
@@ -233,7 +244,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
         }
     });
 
-    return { groupedItems: orderedGroups, archivedItems: archived };
+    return { groupedItems: orderedGroups, archivedItems: archivedItems };
   }, [items]);
 
 
@@ -316,6 +327,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
                                                   <span className="font-semibold">{item.name}</span>
                                                   <span className="text-muted-foreground ml-2">({item.unit}, {recordTypeDisplay[item.recordType]}{item.goal ? `, 목표:${item.goal}`: ''})</span>
                                               </div>
+                                              <EditItemDialog item={item} onUpdate={handleUpdateItem} />
                                           </li>
                                         ))}
                                     </ul>
@@ -394,6 +406,110 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
       </CardContent>
     </Card>
   );
+}
+
+function EditItemDialog({ item, onUpdate }: { item: MeasurementItem, onUpdate: (itemId: string, data: Partial<Omit<MeasurementItem, 'id'>>) => Promise<void> }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [goal, setGoal] = useState(item.goal?.toString() || '');
+    const [category, setCategory] = useState(item.category || '');
+    const { toast } = useToast();
+    
+    useEffect(() => {
+        if(isOpen) {
+            setGoal(item.goal?.toString() || '');
+            setCategory(item.category || (item.isPaps ? 'PAPS' : '기타'));
+        }
+    }, [isOpen, item]);
+
+    const handleSubmit = async () => {
+        if (item.isPaps) {
+            toast({ variant: 'destructive', title: '수정 불가', description: 'PAPS 종목은 수정할 수 없습니다.' });
+            return;
+        }
+
+        const dataToUpdate: Partial<Omit<MeasurementItem, 'id'>> = {};
+        
+        if (category.trim() !== (item.category || (item.isPaps ? 'PAPS' : '기타'))) {
+            dataToUpdate.category = category.trim();
+        }
+        
+        if (item.recordType !== 'time' && item.recordType !== 'level') {
+            const newGoal = goal ? parseFloat(goal) : undefined;
+            if (newGoal !== item.goal) {
+                dataToUpdate.goal = newGoal;
+            }
+        }
+        
+        if (Object.keys(dataToUpdate).length === 0) {
+            toast({ title: '변경 사항 없음' });
+            setIsOpen(false);
+            return;
+        }
+
+        setIsSubmitting(true);
+        await onUpdate(item.id, dataToUpdate);
+        setIsSubmitting(false);
+        setIsOpen(false);
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto" disabled={item.isPaps}>
+                    <Pencil className="h-4 w-4" />
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>{item.name} 종목 수정</DialogTitle>
+                    <DialogDescription>
+                        {item.isPaps ? 'PAPS 종목은 수정할 수 없습니다.' : '종목의 카테고리 또는 목표값을 수정합니다.'}
+                    </DialogDescription>
+                </DialogHeader>
+                {!item.isPaps && (
+                    <>
+                        <div className="grid gap-4 py-4">
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="edit-category" className="text-right">
+                                    카테고리
+                                </Label>
+                                <Input
+                                    id="edit-category"
+                                    value={category}
+                                    onChange={(e) => setCategory(e.target.value)}
+                                    className="col-span-3"
+                                    placeholder="예: 구기, 육상"
+                                />
+                            </div>
+                            {(item.recordType !== 'time' && item.recordType !== 'level' && item.recordType !== 'compound') && (
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="edit-goal" className="text-right">
+                                        목표값
+                                    </Label>
+                                    <Input
+                                        id="edit-goal"
+                                        type="number"
+                                        value={goal}
+                                        onChange={(e) => setGoal(e.target.value)}
+                                        className="col-span-3"
+                                        placeholder="예: 10 (달성률 계산에 사용)"
+                                    />
+                                </div>
+                            )}
+                        </div>
+                        <DialogFooter>
+                            <DialogClose asChild><Button variant="outline">취소</Button></DialogClose>
+                            <Button onClick={handleSubmit} disabled={isSubmitting}>
+                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                저장
+                            </Button>
+                        </DialogFooter>
+                    </>
+                )}
+            </DialogContent>
+        </Dialog>
+    );
 }
 
 // Dialog components (AddPapsItemDialog, AddTeamSportItemsDialog, AddCustomItemDialog) remain unchanged.
