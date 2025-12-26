@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { getStudentById, getItems, getRecordsByStudent, calculateRanks } from '@/lib/store';
+import { getStudentById, getItems, getRecordsByStudent, calculateRanks, getStudents, getRecords, getLatestTeamGroupForStudent } from '@/lib/store';
 import type { Student, MeasurementItem, MeasurementRecord } from '@/lib/types';
 import type { ScoutingReportOutput } from '@/ai/flows/scouting-report-flow';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -34,6 +34,8 @@ export default function ReportCardPage() {
 
     const [fullStudent, setFullStudent] = useState<Student | null>(null);
     const [allItems, setAllItems] = useState<MeasurementItem[]>([]);
+    const [studentRecords, setStudentRecords] = useState<MeasurementRecord[]>([]);
+    const [allStudents, setAllStudents] = useState<Student[]>([]);
     const [allRecords, setAllRecords] = useState<MeasurementRecord[]>([]);
 
     const [aiBriefing, setAiBriefing] = useState('');
@@ -60,35 +62,35 @@ export default function ReportCardPage() {
             if (!student?.id || !school) return;
             setIsLoading(true);
             try {
-                const [studentData, itemData, recordData] = await Promise.all([
+                const [studentData, itemData, studRecords, allStuds, allRecs, teamData] = await Promise.all([
                     getStudentById(school, student.id),
                     getItems(school),
                     getRecordsByStudent(school, student.id),
+                    getStudents(school),
+                    getRecords(school),
+                    getLatestTeamGroupForStudent(school, student.id)
                 ]);
                 setFullStudent(studentData || null);
                 setAllItems(itemData || []);
-                setAllRecords(recordData || []);
+                setStudentRecords(studRecords || []);
+                setAllStudents(allStuds || []);
+                setAllRecords(allRecs || []);
+                
+                if (studentData && teamData && teamData.itemNamesForBalancing && teamData.itemNamesForBalancing.length > 0) {
+                     const allRanks = calculateRanks(school, itemData, allRecs, allStuds, studentData.grade);
+                     const itemNames = teamData.itemNamesForBalancing;
 
-                // Calculate ability scores for scouting report
-                if (studentData && itemData.length > 0 && recordData.length > 0) {
-                     const ranksByGrade = calculateRanks(school, itemData, recordData, [studentData], studentData.grade);
-                     const scores = itemData.filter(i => i.isPaps).map(item => {
-                        const itemRanks = ranksByGrade[item.name];
-                        let score = 0;
-                        if (itemRanks && itemRanks.length > 0) {
-                            const rankInfo = itemRanks.find(r => r.studentId === studentData.id);
-                            if (rankInfo) {
-                                // Prevent division by zero if there's only one student in the rank list
-                                const totalRanked = itemRanks.length;
-                                if (totalRanked > 1) {
-                                    score = Math.round((1 - (rankInfo.rank - 1) / (totalRanked - 1)) * 100);
-                                } else {
-                                    score = 100; // If only one student, they are 1st place.
-                                }
-                            }
-                        }
-                        return { item: item.name, score };
-                    });
+                     const scores = itemNames.map(itemName => {
+                         const itemRanks = allRanks[itemName];
+                         let score = 0;
+                         if (itemRanks && itemRanks.length > 0) {
+                             const rankInfo = itemRanks.find(r => r.studentId === studentData.id);
+                             if (rankInfo) {
+                                 score = Math.round((1 - (rankInfo.rank - 1) / itemRanks.length) * 100);
+                             }
+                         }
+                         return { item: itemName, score };
+                     });
                     setAbilityScores(scores);
                 }
 
@@ -102,14 +104,14 @@ export default function ReportCardPage() {
     }, [student?.id, school]);
 
     const { papsSummary, papsRadarChartData, overallGrade, overallScore, papsGrowthData } = useMemo(() => {
-        if (!fullStudent || allItems.length === 0 || allRecords.length === 0) {
+        if (!fullStudent || allItems.length === 0 || studentRecords.length === 0) {
             return { papsSummary: [], papsRadarChartData: [], overallGrade: '-', overallScore: 0, papsGrowthData: [] };
         }
 
         const summary: { factor: string; itemName: string; value: number; unit: string; grade: number | null; score: number | null; }[] = [];
         const latestRecords: Record<string, MeasurementRecord> = {};
 
-        allRecords.forEach(record => {
+        studentRecords.forEach(record => {
             if (!latestRecords[record.item] || new Date(record.date) > new Date(latestRecords[record.item].date)) {
                 latestRecords[record.item] = record;
             }
@@ -173,7 +175,7 @@ export default function ReportCardPage() {
         const papsGrowth = allItems
             .filter(item => item.isPaps)
             .map(item => {
-                const recordsForItem = allRecords
+                const recordsForItem = studentRecords
                     .filter(r => r.item === item.name)
                     .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
                     .map(record => {
@@ -185,17 +187,17 @@ export default function ReportCardPage() {
             .filter(data => data.records.length > 0);
         
         return { papsSummary: summary, papsRadarChartData: papsRadarData, overallGrade: finalGrade, overallScore: Math.round(finalScore), papsGrowthData: papsGrowth };
-    }, [fullStudent, allItems, allRecords]);
+    }, [fullStudent, allItems, studentRecords]);
 
 
      const { customGrowthData } = useMemo(() => {
-        if (!fullStudent || allItems.length === 0 || allRecords.length === 0) {
+        if (!fullStudent || allItems.length === 0 || studentRecords.length === 0) {
             return { customGrowthData: [] };
         }
         const customGrowth = allItems
             .filter(item => !item.isPaps && item.goal)
             .map(item => {
-                const recordsForItem = allRecords
+                const recordsForItem = studentRecords
                     .filter(r => r.item === item.name)
                     .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())
                     .map(record => ({
@@ -209,7 +211,7 @@ export default function ReportCardPage() {
             .filter(data => data.records.length > 0);
         
         return { customGrowthData: customGrowth };
-    }, [fullStudent, allItems, allRecords]);
+    }, [fullStudent, allItems, studentRecords]);
 
     const handleGetBriefing = async () => {
         if (!fullStudent || papsSummary.length === 0) {
@@ -251,7 +253,7 @@ export default function ReportCardPage() {
         }
         setIsReportLoading(true);
         try {
-            const ranks = calculateRanks(school, allItems, allRecords, [fullStudent], fullStudent.grade);
+            const ranks = calculateRanks(school, allItems, allRecords, allStudents, fullStudent.grade);
             const studentRanks: Record<string, string> = {};
             Object.entries(ranks).forEach(([item, itemRanks]) => {
                 const rankInfo = itemRanks.find(r => r.studentId === fullStudent.id);
@@ -262,9 +264,15 @@ export default function ReportCardPage() {
 
             const result = await getScoutingReport({
                 studentName: fullStudent.name,
-                abilityScores,
+                abilityScores: abilityScores.map(s => {
+                    const itemInfo = allItems.find(i => i.name === s.item);
+                    return {
+                        ...s,
+                        category: itemInfo?.category || (itemInfo?.isPaps ? 'PAPS' : '기타'),
+                    }
+                }),
                 ranks: studentRanks,
-                allItems
+                allItems: allItems
             });
             setScoutingReport(result);
         } catch (error) {
@@ -435,7 +443,7 @@ export default function ReportCardPage() {
                                     </div>
                                 ) : (
                                     <div className="text-center p-4 border-2 border-dashed rounded-md print-hidden h-full flex flex-col justify-center">
-                                        <p className="text-muted-foreground mb-4">나의 PAPS 기록을 기반으로 AI 스카우팅 리포트를 받아보세요.</p>
+                                        <p className="text-muted-foreground mb-4">나의 능력치 기반 AI 스카우팅 리포트를 받아보세요.</p>
                                         <Button onClick={handleGetScoutingReport} disabled={isReportLoading}>
                                             <Wand2 className="mr-2 h-4 w-4" />
                                             AI 스카우팅 리포트 생성
