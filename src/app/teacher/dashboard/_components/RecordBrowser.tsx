@@ -479,11 +479,8 @@ export default function RecordBrowser({
                             <TableHeader>
                             <TableRow>
                                 {finalFactorOrder.map(key => (
-                                <TableHead key={key}>
-                                    <Button variant="ghost" onClick={createSortHandler(key.replace(/점수|등급/g, ''), papsSort, setPapsSort)}>
-                                        {key}
-                                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                                    </Button>
+                                <TableHead key={key} onClick={createSortHandler(key.replace(/점수|등급/g, ''), papsSort, setPapsSort)} className="cursor-pointer hover:bg-muted">
+                                    {key}
                                 </TableHead>
                                 ))}
                             </TableRow>
@@ -570,11 +567,8 @@ export default function RecordBrowser({
                                       { key: 'grade', label: '등급' },
                                       { key: 'rank', label: '순위' },
                                     ].map(header => (
-                                       <TableHead key={header.key}>
-                                          <Button variant="ghost" onClick={createSortHandler(header.key, itemSort, setItemSort)}>
-                                              {header.label}
-                                              <ArrowUpDown className="ml-2 h-4 w-4" />
-                                          </Button>
+                                       <TableHead key={header.key} onClick={createSortHandler(header.key, itemSort, setItemSort)} className="cursor-pointer hover:bg-muted">
+                                          {header.label}
                                        </TableHead>
                                     ))}
                                 </TableRow>
