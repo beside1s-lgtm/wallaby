@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { FileDown, Calendar as CalendarIcon } from 'lucide-react';
+import { FileDown, Calendar as CalendarIcon, ArrowUpDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -44,6 +44,11 @@ interface RecordBrowserProps {
 }
 
 type ViewType = 'grade' | 'score' | 'record';
+type SortDescriptor = {
+  column: string;
+  direction: 'ascending' | 'descending';
+};
+
 
 const papsFactors: Record<string, string> = {
     '왕복오래달리기': '심폐지구력',
@@ -73,11 +78,14 @@ export default function RecordBrowser({
   const [classNumFilter, setClassNumFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState<Date | 'latest' | undefined>('latest');
   const [viewType, setViewType] = useState<ViewType>('grade');
+  const [papsSort, setPapsSort] = useState<SortDescriptor | null>({ column: '번호', direction: 'ascending'});
+
 
   // For "종목별 기록" tab
   const [selectedItem, setSelectedItem] = useState('');
   const [itemGradeFilter, setItemGradeFilter] = useState('all');
   const [itemClassNumFilter, setItemClassNumFilter] = useState('all');
+  const [itemSort, setItemSort] = useState<SortDescriptor | null>({ column: '이름', direction: 'ascending' });
 
 
   const { grades, classNumsByGrade, availableDates } = useMemo(() => {
@@ -103,17 +111,8 @@ export default function RecordBrowser({
         filteredStudents = filteredStudents.filter(s => s.classNum === classNumFilter);
       }
     }
-
-    const sortedStudents = [...filteredStudents].sort((a,b) => {
-        if (!a || !b) return 0;
-        const gradeDiff = parseInt(a.grade) - parseInt(b.grade);
-        if (gradeDiff !== 0) return gradeDiff;
-        const classDiff = parseInt(a.classNum) - parseInt(b.classNum);
-        if (classDiff !== 0) return classDiff;
-        return parseInt(a.studentNum) - parseInt(b.studentNum);
-    });
     
-    return sortedStudents.map(student => {
+    return filteredStudents.map(student => {
       const studentData: Record<string, any> = {
         '학년': student.grade,
         '반': student.classNum,
@@ -144,7 +143,7 @@ export default function RecordBrowser({
             });
 
             if (recordsForItem.length > 0) {
-              const currentLatest = recordsForItem.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+              const currentLatest = recordsForItem.sort((a,b) => new Date(b.date).getTime() - new Date(a).getTime())[0];
               if (!latestRecord || new Date(currentLatest.date) > new Date(latestRecord.date)) {
                   latestRecord = currentLatest;
                   latestItem = item;
@@ -197,10 +196,34 @@ export default function RecordBrowser({
       return studentData;
     });
   }, [allStudents, allRecords, allItems, gradeFilter, classNumFilter, dateFilter, viewType]);
+
+  const sortedPapsData = useMemo(() => {
+    if (!papsSort) return studentPapsTableData;
+    
+    return [...studentPapsTableData].sort((a, b) => {
+        const { column, direction } = papsSort;
+        const valA = a[column];
+        const valB = b[column];
+
+        const isAsc = direction === 'ascending';
+        
+        // Handle numeric/string sorting based on content
+        const numA = parseFloat(String(valA));
+        const numB = parseFloat(String(valB));
+
+        if (!isNaN(numA) && !isNaN(numB)) {
+            return isAsc ? numA - numB : numB - numA;
+        }
+
+        if (String(valA) > String(valB)) return isAsc ? 1 : -1;
+        if (String(valA) < String(valB)) return isAsc ? -1 : 1;
+        return 0;
+    });
+  }, [studentPapsTableData, papsSort]);
   
 
   const handlePapsDownloadCsv = () => {
-    if (studentPapsTableData.length === 0) {
+    if (sortedPapsData.length === 0) {
       toast({
         variant: 'destructive',
         title: '다운로드 실패',
@@ -210,7 +233,7 @@ export default function RecordBrowser({
     }
     
     const fileName = `PAPS_종합_현황_${viewType}_${new Date().toISOString().split('T')[0]}.csv`;
-    exportToCsv(fileName, studentPapsTableData);
+    exportToCsv(fileName, sortedPapsData);
     toast({
       title: '다운로드 시작',
       description: 'PAPS 종합 체력 현황을 CSV 파일로 다운로드합니다.',
@@ -248,10 +271,10 @@ export default function RecordBrowser({
     const allRanks = calculateRanks(school, allItems, allRecords, allStudents, itemGradeFilter === 'all' ? undefined : itemGradeFilter);
     const itemRanks = allRanks[selectedItem] || [];
 
-    const data = filteredStudents.map(student => {
+    return filteredStudents.map(student => {
       const records = allRecords.filter(r => r.studentId === student.id && r.item === selectedItem);
       const latestRecord = records.length > 0
-        ? records.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
+        ? records.sort((a,b) => new Date(b.date).getTime() - new Date(a).getTime())[0]
         : null;
       
       const rankInfo = latestRecord ? itemRanks.find(r => r.studentId === student.id && r.value === latestRecord.value) : null;
@@ -266,7 +289,7 @@ export default function RecordBrowser({
       }
 
       return {
-        student,
+        ...student,
         latestDate: latestRecord?.date || null,
         value: latestRecord?.value,
         grade,
@@ -274,27 +297,43 @@ export default function RecordBrowser({
         totalRanked: itemRanks.length,
       };
     });
-    
-    return data.sort((a, b) => {
-        const studentA = a.student;
-        const studentB = b.student;
-        
-        if (!studentA || !studentB) return 0;
-
-        const gradeDiff = parseInt(studentA.grade) - parseInt(studentB.grade);
-        if (gradeDiff !== 0) return gradeDiff;
-        
-        const classDiff = parseInt(studentA.classNum) - parseInt(studentB.classNum);
-        if (classDiff !== 0) return classDiff;
-        
-        return parseInt(studentA.studentNum) - parseInt(studentB.studentNum);
-    });
 
   }, [school, selectedItem, itemGradeFilter, itemClassNumFilter, allStudents, allRecords, allItems]);
 
+  const sortedItemData = useMemo(() => {
+      if (!itemSort) return studentItemTableData;
+      
+      return [...studentItemTableData].sort((a,b) => {
+          const { column, direction } = itemSort;
+          const isAsc = direction === 'ascending';
+          
+          let valA: any = a[column as keyof typeof a];
+          let valB: any = b[column as keyof typeof b];
+
+          // Handle nulls and undefined
+          if (valA == null) return 1;
+          if (valB == null) return -1;
+
+          if (column === 'value' || column === 'grade' || column === 'rank') {
+              valA = valA ?? (isAsc ? Infinity : -Infinity);
+              valB = valB ?? (isAsc ? Infinity : -Infinity);
+              return isAsc ? valA - valB : valB - valA;
+          }
+
+          if (column === 'latestDate') {
+              const dateA = new Date(valA).getTime();
+              const dateB = new Date(valB).getTime();
+              return isAsc ? dateA - dateB : dateB - dateA;
+          }
+
+          // String comparison
+          return isAsc ? String(valA).localeCompare(String(valB)) : String(valB).localeCompare(String(valA));
+      });
+  }, [studentItemTableData, itemSort]);
+
 
   const handleItemDownloadCsv = () => {
-    if(studentItemTableData.length === 0) {
+    if(sortedItemData.length === 0) {
        toast({
         variant: 'destructive',
         title: '다운로드 실패',
@@ -303,11 +342,11 @@ export default function RecordBrowser({
       return;
     }
     const itemInfo = allItems.find(i => i.name === selectedItem);
-    const dataToExport = studentItemTableData.map(s => ({
-        '학년': s.student.grade,
-        '반': s.student.classNum,
-        '번호': s.student.studentNum,
-        '이름': s.student.name,
+    const dataToExport = sortedItemData.map(s => ({
+        '학년': s.grade,
+        '반': s.classNum,
+        '번호': s.studentNum,
+        '이름': s.name,
         '최근 측정일': s.latestDate || '-',
         '기록': s.value !== undefined ? `${s.value}${itemInfo?.unit || ''}` : '-',
         '등급': s.grade ? `${s.grade}등급` : '-',
@@ -328,6 +367,17 @@ export default function RecordBrowser({
   useEffect(() => {
     setItemClassNumFilter('all');
   }, [itemGradeFilter]);
+  
+  const createSortHandler = (column: string, sortState: SortDescriptor | null, setSortState: (descriptor: SortDescriptor | null) => void) => () => {
+    if (!sortState || sortState.column !== column) {
+      setSortState({ column, direction: 'ascending' });
+    } else if (sortState.direction === 'ascending') {
+      setSortState({ column, direction: 'descending' });
+    } else {
+      setSortState(null); // Optional: third click clears sort
+    }
+  };
+
 
   return (
     <Card>
@@ -429,16 +479,21 @@ export default function RecordBrowser({
                             <TableHeader>
                             <TableRow>
                                 {finalFactorOrder.map(key => (
-                                <TableHead key={key}>{key}</TableHead>
+                                <TableHead key={key}>
+                                    <Button variant="ghost" onClick={createSortHandler(key.replace(/점수|등급/g, ''), papsSort, setPapsSort)}>
+                                        {key}
+                                        <ArrowUpDown className="ml-2 h-4 w-4" />
+                                    </Button>
+                                </TableHead>
                                 ))}
                             </TableRow>
                             </TableHeader>
                             <TableBody>
-                            {studentPapsTableData.length > 0 ? (
-                                studentPapsTableData.map((row, index) => (
+                            {sortedPapsData.length > 0 ? (
+                                sortedPapsData.map((row, index) => (
                                 <TableRow key={index}>
                                     {finalFactorOrder.map((key, cellIndex) => {
-                                    const displayKey = key === '종합점수' || key === '종합등급' ? '종합' : key;
+                                    const displayKey = key.replace(/점수|등급/g, '');
                                     return (
                                         <TableCell key={cellIndex}>{row[displayKey]}</TableCell>
                                     )
@@ -505,24 +560,33 @@ export default function RecordBrowser({
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>학년</TableHead>
-                                    <TableHead>반</TableHead>
-                                    <TableHead>번호</TableHead>
-                                    <TableHead>이름</TableHead>
-                                    <TableHead>최근 측정일</TableHead>
-                                    <TableHead>기록</TableHead>
-                                    <TableHead>등급</TableHead>
-                                    <TableHead>순위</TableHead>
+                                    {[
+                                      { key: 'grade', label: '학년' },
+                                      { key: 'classNum', label: '반' },
+                                      { key: 'studentNum', label: '번호' },
+                                      { key: 'name', label: '이름' },
+                                      { key: 'latestDate', label: '최근 측정일' },
+                                      { key: 'value', label: '기록' },
+                                      { key: 'grade', label: '등급' },
+                                      { key: 'rank', label: '순위' },
+                                    ].map(header => (
+                                       <TableHead key={header.key}>
+                                          <Button variant="ghost" onClick={createSortHandler(header.key, itemSort, setItemSort)}>
+                                              {header.label}
+                                              <ArrowUpDown className="ml-2 h-4 w-4" />
+                                          </Button>
+                                       </TableHead>
+                                    ))}
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {studentItemTableData.length > 0 ? (
-                                    studentItemTableData.map(s => (
-                                        <TableRow key={s.student.id}>
-                                            <TableCell>{s.student.grade}</TableCell>
-                                            <TableCell>{s.student.classNum}</TableCell>
-                                            <TableCell>{s.student.studentNum}</TableCell>
-                                            <TableCell>{s.student.name}</TableCell>
+                                {sortedItemData.length > 0 ? (
+                                    sortedItemData.map(s => (
+                                        <TableRow key={s.id}>
+                                            <TableCell>{s.grade}</TableCell>
+                                            <TableCell>{s.classNum}</TableCell>
+                                            <TableCell>{s.studentNum}</TableCell>
+                                            <TableCell>{s.name}</TableCell>
                                             <TableCell>{s.latestDate || '-'}</TableCell>
                                             <TableCell>{s.value !== undefined ? `${s.value}${allItems.find(i => i.name === selectedItem)?.unit || ''}`: '-'}</TableCell>
                                             <TableCell>{s.grade ? `${s.grade}등급` : '-'}</TableCell>
