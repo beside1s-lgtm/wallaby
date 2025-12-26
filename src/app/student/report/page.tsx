@@ -4,7 +4,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { getStudentById, getItems, getRecordsByStudent, calculateRanks, getStudents, getRecords, getLatestTeamGroupForStudent } from '@/lib/store';
-import type { Student, MeasurementItem, MeasurementRecord } from '@/lib/types';
+import type { Student, MeasurementItem, MeasurementRecord, TeamGroup } from '@/lib/types';
 import type { ScoutingReportOutput } from '@/ai/flows/scouting-report-flow';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -499,6 +499,10 @@ export default function ReportCardPage() {
                     page-break-after: always;
                 }
                 @media print {
+                    @page {
+                        size: A4;
+                        margin: 20mm;
+                    }
                     .print-hidden {
                         display: none !important;
                     }
@@ -512,10 +516,6 @@ export default function ReportCardPage() {
                         margin: 0;
                         padding: 0;
                         max-width: 100%;
-                    }
-                    @page {
-                        size: A4;
-                        margin: 20mm;
                     }
                     body {
                         -webkit-print-color-adjust: exact;
@@ -549,7 +549,3 @@ export default function ReportCardPage() {
         </div>
     );
 }
-
-    
-
-    
