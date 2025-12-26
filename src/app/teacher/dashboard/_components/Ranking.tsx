@@ -25,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Crown, Medal, Trophy } from "lucide-react";
 
 type RankedStudent = {
   rank: number;
@@ -40,6 +41,88 @@ interface RankingProps {
   allStudents: Student[];
   allItems: MeasurementItem[];
   allRecords: MeasurementRecord[];
+}
+
+function HallOfFame({ allItems, allRecords, allStudents }: RankingProps) {
+  const { school } = useAuth();
+  
+  const hallOfFameData = useMemo(() => {
+    if (!school) return [];
+    
+    const measurementWeekItems = allItems.filter(item => item.isMeasurementWeek && !item.isArchived);
+    if (measurementWeekItems.length === 0) return [];
+    
+    const allRanks = calculateRanks(school, allItems, allRecords, allStudents);
+    const studentMap = new Map(allStudents.map(s => [s.id, s]));
+
+    return measurementWeekItems.map(item => {
+      const itemRanks = allRanks[item.name] || [];
+      const top3 = itemRanks.slice(0, 3).map(rankInfo => {
+        const student = studentMap.get(rankInfo.studentId);
+        return {
+          rank: rankInfo.rank,
+          name: student?.name || '알 수 없음',
+          value: `${rankInfo.value}${item.unit}`
+        };
+      });
+      return { itemName: item.name, topStudents: top3 };
+    });
+
+  }, [allItems, allRecords, allStudents, school]);
+
+  if (hallOfFameData.length === 0) {
+    return (
+      <Card className="bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
+            <Trophy />
+            명예의 전당
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-center text-muted-foreground">
+            '종목 관리' 탭에서 측정 주간으로 설정된 종목이 없습니다.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800">
+       <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
+            <Trophy />
+            명예의 전당
+          </CardTitle>
+          <CardDescription>현재 측정 주간으로 설정된 종목의 전체 학년 1-3위 학생입니다.</CardDescription>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {hallOfFameData.map(({ itemName, topStudents }) => (
+                <div key={itemName} className="p-4 rounded-lg bg-background">
+                    <h3 className="font-bold text-lg text-center mb-3">{itemName}</h3>
+                    {topStudents.length > 0 ? (
+                        <ul className="space-y-2">
+                            {topStudents.map((student, index) => (
+                                <li key={index} className="flex items-center justify-between text-sm">
+                                    <span className="flex items-center font-semibold">
+                                        {index === 0 && <Crown className="w-5 h-5 text-yellow-500 mr-1"/>}
+                                        {index === 1 && <Medal className="w-5 h-5 text-gray-400 mr-1"/>}
+                                        {index === 2 && <Trophy className="w-5 h-5 text-orange-400 mr-1"/>}
+                                        {student.rank}위: {student.name}
+                                    </span>
+                                    <span className="text-muted-foreground">{student.value}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                       <p className="text-sm text-center text-muted-foreground py-4">기록이 없습니다.</p>
+                    )}
+                </div>
+            ))}
+        </CardContent>
+    </Card>
+  )
 }
 
 export default function Ranking({
@@ -111,6 +194,7 @@ export default function Ranking({
 
   return (
     <div className="space-y-6">
+      <HallOfFame allItems={allItems} allRecords={allRecords} allStudents={allStudents} />
       <Card>
         <CardHeader>
           <CardTitle>종목별 순위 조회</CardTitle>

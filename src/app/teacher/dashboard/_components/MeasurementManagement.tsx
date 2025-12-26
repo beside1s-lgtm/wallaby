@@ -7,7 +7,8 @@ import {
     archiveCategory, 
     getItems,
     deleteItemAndAssociatedRecords,
-    deleteCategoryAndAssociatedRecords
+    deleteCategoryAndAssociatedRecords,
+    updateItem,
 } from '@/lib/store';
 import {
   Card,
@@ -139,6 +140,23 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
     });
   };
 
+  const handleToggleMeasurementWeek = async (item: MeasurementItem, checked: boolean) => {
+    if (!school) return;
+    try {
+      await updateItem(school, item.id, { isMeasurementWeek: checked });
+      await refreshItems();
+       toast({
+        title: '설정 변경',
+        description: `${item.name}이(가) 측정 주간으로 ${checked ? '설정' : '해제'}되었습니다.`,
+      });
+    } catch(error) {
+       toast({
+        variant: 'destructive',
+        title: '업데이트 실패',
+      });
+    }
+  };
+
   const cancelEditMode = () => {
     setEditMode('none');
     setSelection({});
@@ -225,7 +243,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
     <Card>
       <CardHeader>
         <CardTitle>종목 관리</CardTitle>
-        <CardDescription>측정할 종목을 추가하고, 숨기거나 영구 삭제하여 목록을 관리합니다.</CardDescription>
+        <CardDescription>측정할 종목을 추가하고, 숨기거나 영구 삭제하여 목록을 관리합니다. '측정 주간'으로 설정하여 명예의 전당에 표시할 수 있습니다.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex w-full flex-wrap items-center gap-2">
@@ -279,11 +297,18 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
                                     <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pl-2">
                                         {categoryItems.map((item) => (
                                           <li key={item.id} className="flex items-center p-2 bg-secondary rounded-md text-sm">
-                                               {editMode !== 'none' && (
+                                               {editMode !== 'none' ? (
                                                     <Checkbox
                                                         id={`item-${item.id}`}
                                                         checked={selection[item.id] || false}
                                                         onCheckedChange={(checked) => setSelection(prev => ({...prev, [item.id]: !!checked}))}
+                                                        className="mr-4"
+                                                    />
+                                                ) : (
+                                                    <Checkbox
+                                                        id={`measurement-week-${item.id}`}
+                                                        checked={item.isMeasurementWeek || false}
+                                                        onCheckedChange={(checked) => handleToggleMeasurementWeek(item, !!checked)}
                                                         className="mr-4"
                                                     />
                                                 )}

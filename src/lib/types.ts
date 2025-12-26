@@ -25,6 +25,7 @@ export type MeasurementItem = {
   isCompound?: boolean; // For items like BMI that require multiple inputs
   category?: string; // Optional category for custom items
   isArchived?: boolean; // To hide from UI without deleting records
+  isMeasurementWeek?: boolean; // 명예의 전당 표시를 위한 측정 주간 설정
 };
 
 export type MeasurementRecord = {

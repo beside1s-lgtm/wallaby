@@ -434,6 +434,21 @@ export const addItem = async (school: string, item: Omit<MeasurementItem, 'id' |
   return existing.docs[0].data() as MeasurementItem;
 };
 
+export const updateItem = async (school: string, itemId: string, data: Partial<Omit<MeasurementItem, 'id'>>) => {
+    await signIn();
+    const itemRef = doc(db, 'schools', school, 'items', itemId);
+    await updateDoc(itemRef, data).catch(e => {
+        if (e.code === 'permission-denied') {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: itemRef.path,
+                operation: 'update',
+                requestResourceData: data,
+            }));
+        }
+        throw e;
+    });
+};
+
 export const archiveItem = async (school: string, itemId: string, archive: boolean): Promise<void> => {
   await signIn();
   const itemDocRef = doc(db, 'schools', school, 'items', itemId);
