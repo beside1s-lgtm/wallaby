@@ -378,7 +378,7 @@ export default function ReportCardPage() {
                                 <CardHeader>
                                     <CardTitle className="text-lg">{item.name} 변화</CardTitle>
                                 </CardHeader>
-                                <CardContent className="h-[250px]">
+                                <CardContent className="h-[200px]">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <BarChart data={records}>
                                             <CartesianGrid strokeDasharray="3 3" />
@@ -463,7 +463,7 @@ export default function ReportCardPage() {
                                     <CardHeader>
                                         <CardTitle className="text-lg">{item.name} 변화</CardTitle>
                                     </CardHeader>
-                                    <CardContent className="h-[250px]">
+                                    <CardContent className="h-[200px]">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <BarChart data={records}>
                                                 <CartesianGrid strokeDasharray="3 3" />
