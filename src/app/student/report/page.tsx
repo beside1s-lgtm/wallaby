@@ -281,7 +281,7 @@ export default function ReportCardPage() {
     }
 
     return (
-        <div id="print-area" className="report-container mx-auto max-w-4xl bg-white p-8">
+        <div id="print-area" className="report-container mx-auto max-w-4xl p-8">
             {/* --- PAGE 1 --- */}
             <div className="report-page">
                 <header className="report-header mb-8 flex items-center justify-between">
@@ -474,11 +474,17 @@ export default function ReportCardPage() {
             </div>
 
             <style jsx global>{`
-                .report-page {
-                    page-break-after: always;
-                }
-                 .report-page:last-child {
-                    page-break-after: avoid;
+                @media print {
+                    @page {
+                        size: A4;
+                        margin: 20mm;
+                    }
+                    .report-page {
+                        page-break-after: always;
+                    }
+                    .report-page:last-child {
+                        page-break-after: avoid;
+                    }
                 }
             `}</style>
         </div>
