@@ -33,7 +33,9 @@ export default function StudentLayout({
 
   return (
     <div className="flex min-h-screen w-full flex-col">
-      <DashboardHeader />
+      <div className="print-hidden">
+        <DashboardHeader />
+      </div>
       <main className="flex-1 bg-background">{children}</main>
     </div>
   );

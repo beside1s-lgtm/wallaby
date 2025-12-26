@@ -297,7 +297,7 @@ export default function ReportCardPage() {
             <div className="report-page">
                 <header className="report-header mb-8 flex items-center justify-between">
                     <h1 className="text-4xl font-bold">개인 성장 리포트</h1>
-                    <div className="print-buttons flex gap-2">
+                    <div className="print-hidden flex gap-2">
                         <Button variant="outline" onClick={() => window.print()}><Printer className="mr-2 h-4 w-4" /> 인쇄</Button>
                     </div>
                 </header>
@@ -497,6 +497,9 @@ export default function ReportCardPage() {
                 }
                 .report-page {
                     page-break-after: always;
+                }
+                 .report-page:last-child {
+                    page-break-after: avoid;
                 }
                 @media print {
                     @page {
