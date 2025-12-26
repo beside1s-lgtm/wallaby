@@ -244,7 +244,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
         }
     });
 
-    return { groupedItems: orderedGroups, archivedItems: archivedItems };
+    return { groupedItems: orderedGroups, archivedItems: archived };
   }, [items]);
 
 
@@ -434,7 +434,7 @@ function EditItemDialog({ item, onUpdate }: { item: MeasurementItem, onUpdate: (
             dataToUpdate.category = category.trim();
         }
         
-        if (item.recordType !== 'time' && item.recordType !== 'level') {
+        if (item.recordType !== 'time' && item.recordType !== 'level' && item.recordType !== 'compound') {
             const newGoal = goal ? parseFloat(goal) : undefined;
             if (newGoal !== item.goal) {
                 dataToUpdate.goal = newGoal;
