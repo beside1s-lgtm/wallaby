@@ -278,17 +278,17 @@ export default function RecordBrowser({
     return filteredStudents.map(student => {
       const records = allRecords.filter(r => r.studentId === student.id && r.item === selectedItem);
       const latestRecord = records.length > 0
-        ? records.sort((a,b) => new Date(b.date).getTime() - new Date(a).getTime())[0]
+        ? records.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
         : null;
       
       const rankInfo = latestRecord ? itemRanks.find(r => r.studentId === student.id && r.value === latestRecord.value) : null;
       
-      let grade: number | null = null;
+      let recordGrade: number | null = null;
       if (latestRecord) {
         if (itemInfo.isPaps) {
-          grade = getPapsGrade(itemInfo.name, student, latestRecord.value);
+          recordGrade = getPapsGrade(itemInfo.name, student, latestRecord.value);
         } else {
-          grade = getCustomItemGrade(itemInfo, latestRecord.value);
+          recordGrade = getCustomItemGrade(itemInfo, latestRecord.value);
         }
       }
 
@@ -296,7 +296,7 @@ export default function RecordBrowser({
         ...student,
         latestDate: latestRecord?.date || null,
         value: latestRecord?.value,
-        grade,
+        recordGrade, // Changed from 'grade' to 'recordGrade' to avoid conflict
         rank: rankInfo ? rankInfo.rank : null,
         totalRanked: itemRanks.length,
       };
@@ -311,18 +311,27 @@ export default function RecordBrowser({
         for (const sort of itemSort) {
             const { column, direction } = sort;
             const isAsc = direction === 'ascending';
-            
-            let valA: any = a[column as keyof typeof a];
-            let valB: any = b[column as keyof typeof b];
+
+            let valA: any, valB: any;
+
+            if(column === 'recordGrade'){
+              valA = a.recordGrade;
+              valB = b.recordGrade;
+            } else {
+              valA = a[column as keyof typeof a];
+              valB = b[column as keyof typeof b];
+            }
+
 
             // Handle nulls and undefined to sort them at the end
             if (valA == null) return 1;
             if (valB == null) return -1;
             
             let comparison = 0;
-            if (column === 'value' || column === 'grade' || column === 'rank') {
+            if (column === 'value' || column === 'recordGrade' || column === 'rank') {
+                const itemInfo = allItems.find(i => i.name === selectedItem);
                 comparison = (valA ?? (isAsc ? Infinity : -Infinity)) - (valB ?? (isAsc ? Infinity : -Infinity));
-                 if (itemSort.some(s => s.column === 'value') && allItems.find(i => i.name === selectedItem)?.recordType === 'time') {
+                 if (itemInfo?.recordType === 'time') {
                     // For time records, lower is better. Reverse the comparison.
                     comparison = -comparison;
                 }
@@ -360,7 +369,7 @@ export default function RecordBrowser({
         '이름': s.name,
         '최근 측정일': s.latestDate || '-',
         '기록': s.value !== undefined ? `${s.value}${itemInfo?.unit || ''}` : '-',
-        '등급': s.grade ? `${s.grade}등급` : '-',
+        '등급': s.recordGrade ? `${s.recordGrade}등급` : '-',
         '순위': s.rank ? `${s.rank}등` : '-',
     }));
      const fileName = `${selectedItem}_기록 현황_${new Date().toISOString().split('T')[0]}.csv`;
@@ -605,10 +614,10 @@ export default function RecordBrowser({
                                       { key: 'name', label: '이름' },
                                       { key: 'latestDate', label: '최근 측정일' },
                                       { key: 'value', label: '기록' },
-                                      { key: 'grade', label: '등급' },
+                                      { key: 'recordGrade', label: '등급' },
                                       { key: 'rank', label: '순위' },
-                                    ].map((header, index) => (
-                                       <TableHead key={`${header.key}-${index}`} onClick={createSortHandler(header.key, itemSort, setItemSort)} className="cursor-pointer hover:bg-muted whitespace-nowrap">
+                                    ].map((header) => (
+                                       <TableHead key={header.key} onClick={createSortHandler(header.key, itemSort, setItemSort)} className="cursor-pointer hover:bg-muted whitespace-nowrap">
                                           {header.label}
                                           {getSortIndicator(header.key, itemSort)}
                                        </TableHead>
@@ -624,8 +633,8 @@ export default function RecordBrowser({
                                             <TableCell>{s.studentNum}</TableCell>
                                             <TableCell>{s.name}</TableCell>
                                             <TableCell>{s.latestDate || '-'}</TableCell>
-                                            <TableCell>{s.value !== undefined ? `${s.value}${allItems.find(i => i.name === selectedItem)?.unit || ''}`: '-'}</TableCell>
-                                            <TableCell>{s.grade ? `${s.grade}등급` : '-'}</TableCell>
+                                            <TableCell>{s.value !== undefined && s.value !== null ? `${s.value}${allItems.find(i => i.name === selectedItem)?.unit || ''}`: '-'}</TableCell>
+                                            <TableCell>{s.recordGrade ? `${s.recordGrade}등급` : '-'}</TableCell>
                                             <TableCell>{s.rank ? `${s.rank} / ${s.totalRanked}` : '-'}</TableCell>
                                         </TableRow>
                                     ))
