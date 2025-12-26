@@ -51,7 +51,7 @@ import { getScoutingReport } from '@/ai/flows/scouting-report-flow';
 import { getTeamAnalysis } from '@/ai/flows/team-analysis-flow';
 import type { ScoutingReportOutput } from '@/ai/flows/scouting-report-flow';
 import type { TeamAnalysisOutput } from '@/ai/flows/team-analysis-flow';
-import { Loader2, Wand2, Trash2, Users, User as UserIcon, Swords, Bot, Printer } from 'lucide-react';
+import { Loader2, Wand2, Trash2, Users, User as UserIcon, Swords, Bot, Printer, Crown, Medal, Trophy } from 'lucide-react';
 import type { Student, MeasurementRecord, MeasurementItem, TeamGroup, Tournament, Match } from '@/lib/types';
 import { getPapsGrade, getCustomItemGrade, normalizePapsRecord, normalizeCustomRecord } from '@/lib/paps';
 import { getRecords } from '@/lib/store';
@@ -522,7 +522,7 @@ export default function StudentDashboardPage() {
         };
     })
     .filter((d): d is NonNullable<typeof d> => d !== null)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    .sort((a, b) => new Date(a.date).getTime() - new Date(a.date).getTime());
     
     const itemsWithGrade = itemsToShow.filter(item => {
         const tempStudent = { ...fullStudent, gender: '남' as const };
@@ -532,6 +532,35 @@ export default function StudentDashboardPage() {
     
     return { chartData: data, availableItems: itemsWithGrade };
   }, [records, chartFilter, chartItemFilter, measurementItems, fullStudent, school, allRecords, allStudents, isAuthLoading]);
+
+  const hallOfFameData = useMemo(() => {
+    if (!school || !fullStudent) return [];
+    
+    const measurementWeekItems = measurementItems.filter(item => item.isMeasurementWeek && !item.isArchived);
+    if (measurementWeekItems.length === 0) return [];
+    
+    const allRanks = calculateRanks(school, measurementItems, allRecords, allStudents);
+    const studentMap = new Map(allStudents.map(s => [s.id, s]));
+
+    return measurementWeekItems.map(item => {
+      const itemRanks = allRanks[item.name] || [];
+      const top3 = itemRanks.slice(0, 3).map(rankInfo => {
+        const student = studentMap.get(rankInfo.studentId);
+        return {
+          rank: rankInfo.rank,
+          name: student?.name || '알 수 없음',
+          value: `${rankInfo.value}${item.unit}`
+        };
+      });
+      const myRankInfo = itemRanks.find(r => r.studentId === fullStudent.id);
+      return { 
+        itemName: item.name, 
+        topStudents: top3,
+        myRank: myRankInfo ? `${itemRanks.length}명 중 ${myRankInfo.rank}등` : '기록 없음'
+      };
+    });
+
+  }, [measurementItems, allRecords, allStudents, school, fullStudent]);
 
   const sortedRecords = useMemo(() => {
     return [...records].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -644,6 +673,43 @@ export default function StudentDashboardPage() {
                     )}
                     </CardContent>
                 </Card>
+                {hallOfFameData.length > 0 && (
+                    <Card className="bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
+                                <Trophy /> 명예의 전당
+                            </CardTitle>
+                            <CardDescription>현재 측정 주간으로 설정된 종목의 전체 학년 1-3위 학생입니다.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {hallOfFameData.map(({ itemName, topStudents, myRank }) => (
+                                <div key={itemName} className="p-4 rounded-lg bg-background shadow">
+                                    <h3 className="font-bold text-lg text-center mb-3">{itemName}</h3>
+                                    {topStudents.length > 0 ? (
+                                        <ul className="space-y-2">
+                                            {topStudents.map((s, index) => (
+                                                <li key={index} className="flex items-center justify-between text-sm">
+                                                    <span className="flex items-center font-semibold">
+                                                        {index === 0 && <Crown className="w-5 h-5 text-yellow-500 mr-1"/>}
+                                                        {index === 1 && <Medal className="w-5 h-5 text-gray-400 mr-1"/>}
+                                                        {index === 2 && <Trophy className="w-5 h-5 text-orange-400 mr-1"/>}
+                                                        {s.rank}위: {s.name}
+                                                    </span>
+                                                    <span className="text-muted-foreground">{s.value}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    ) : (
+                                    <p className="text-sm text-center text-muted-foreground py-4">기록이 없습니다.</p>
+                                    )}
+                                    <div className="border-t mt-3 pt-2 text-sm font-semibold text-center text-primary">
+                                        나의 순위: {myRank}
+                                    </div>
+                                </div>
+                            ))}
+                        </CardContent>
+                    </Card>
+                )}
                  <Card className="flex flex-col">
                     <CardHeader>
                         <CardTitle>AI 피드백</CardTitle>
