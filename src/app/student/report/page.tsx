@@ -442,7 +442,7 @@ export default function ReportCardPage() {
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="text-center p-4 border-2 border-dashed rounded-md print-hidden h-full flex flex-col justify-center">
+                                    <div className="text-center p-4 border-2 border-dashed rounded-md print-hidden h-full flex flex-col justify-center print:h-auto">
                                         <p className="text-muted-foreground mb-4">나의 능력치 기반 AI 스카우팅 리포트를 받아보세요.</p>
                                         <Button onClick={handleGetScoutingReport} disabled={isReportLoading}>
                                             <Wand2 className="mr-2 h-4 w-4" />
