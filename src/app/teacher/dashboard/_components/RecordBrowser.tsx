@@ -78,14 +78,14 @@ export default function RecordBrowser({
   const [classNumFilter, setClassNumFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState<Date | 'latest' | undefined>('latest');
   const [viewType, setViewType] = useState<ViewType>('grade');
-  const [papsSort, setPapsSort] = useState<SortDescriptor[]>([{ column: '번호', direction: 'ascending'}]);
+  const [papsSort, setPapsSort] = useState<SortDescriptor[]>([{ column: '반', direction: 'ascending'}, { column: '번호', direction: 'ascending'}]);
 
 
   // For "종목별 기록" tab
   const [selectedItem, setSelectedItem] = useState('');
   const [itemGradeFilter, setItemGradeFilter] = useState('all');
   const [itemClassNumFilter, setItemClassNumFilter] = useState('all');
-  const [itemSort, setItemSort] = useState<SortDescriptor[]>([{ column: '이름', direction: 'ascending' }]);
+  const [itemSort, setItemSort] = useState<SortDescriptor[]>([{ column: 'name', direction: 'ascending' }]);
 
 
   const { grades, classNumsByGrade, availableDates } = useMemo(() => {
@@ -313,14 +313,16 @@ export default function RecordBrowser({
             const isAsc = direction === 'ascending';
 
             let valA: any, valB: any;
-
-            if(column === 'recordGrade'){
-              valA = a.recordGrade;
-              valB = b.recordGrade;
-            } else {
-              valA = a[column as keyof typeof a];
-              valB = b[column as keyof typeof b];
-            }
+            
+            if(column === 'name') { valA = a.name; valB = b.name }
+            else if(column === 'grade') { valA = a.grade; valB = b.grade }
+            else if(column === 'classNum') { valA = a.classNum; valB = b.classNum }
+            else if(column === 'studentNum') { valA = a.studentNum; valB = b.studentNum }
+            else if(column === 'latestDate'){ valA = a.latestDate; valB = b.latestDate }
+            else if(column === 'value'){ valA = a.value; valB = b.value }
+            else if(column === 'recordGrade'){ valA = a.recordGrade; valB = b.recordGrade }
+            else if(column === 'rank'){ valA = a.rank; valB = b.rank }
+            else { valA = a[column as keyof typeof a]; valB = b[column as keyof typeof b]; }
 
 
             // Handle nulls and undefined to sort them at the end
@@ -328,9 +330,14 @@ export default function RecordBrowser({
             if (valB == null) return -1;
             
             let comparison = 0;
-            if (column === 'value' || column === 'recordGrade' || column === 'rank') {
+            if (column === 'value' || column === 'recordGrade' || column === 'rank' || column === 'grade' || column === 'classNum' || column === 'studentNum') {
                 const itemInfo = allItems.find(i => i.name === selectedItem);
-                comparison = (valA ?? (isAsc ? Infinity : -Infinity)) - (valB ?? (isAsc ? Infinity : -Infinity));
+                
+                const numA = parseFloat(valA);
+                const numB = parseFloat(valB);
+
+                comparison = numA - numB;
+
                  if (itemInfo?.recordType === 'time') {
                     // For time records, lower is better. Reverse the comparison.
                     comparison = -comparison;
@@ -388,8 +395,7 @@ export default function RecordBrowser({
     setItemClassNumFilter('all');
   }, [itemGradeFilter]);
   
-  const createSortHandler = (column: string, sortState: SortDescriptor[], setSortState: (descriptor: SortDescriptor[]) => void) => (event: React.MouseEvent) => {
-    const isShiftKey = event.shiftKey;
+  const createSortHandler = (column: string, sortState: SortDescriptor[], setSortState: (descriptor: SortDescriptor[]) => void) => () => {
     const existingSortIndex = sortState.findIndex(s => s.column === column);
 
     if (existingSortIndex > -1) {
@@ -397,17 +403,14 @@ export default function RecordBrowser({
         const currentSort = newSortState[existingSortIndex];
         if (currentSort.direction === 'ascending') {
             currentSort.direction = 'descending';
+            setSortState(newSortState);
         } else {
             newSortState.splice(existingSortIndex, 1);
+            setSortState(newSortState);
         }
-        setSortState(newSortState);
     } else {
         const newSort = { column, direction: 'ascending' as const };
-        if (isShiftKey) {
-            setSortState([...sortState, newSort]);
-        } else {
-            setSortState([newSort]);
-        }
+        setSortState([...sortState, newSort]);
     }
   };
   
@@ -418,7 +421,7 @@ export default function RecordBrowser({
     const sort = sortState[sortIndex];
     return (
         <span className="ml-1 text-xs font-normal">
-            {sortIndex > 0 && <span className="text-muted-foreground mr-1">{sortIndex + 1}</span>}
+            {sortState.length > 1 && <span className="text-muted-foreground mr-1">{sortIndex + 1}</span>}
             {sort.direction === 'ascending' ? '▲' : '▼'}
         </span>
     );
@@ -430,7 +433,7 @@ export default function RecordBrowser({
         <CardHeader>
             <CardTitle>기록 조회</CardTitle>
             <CardDescription>
-                PAPS 종합 현황 또는 종목별 학생 기록을 조회하고 다운로드할 수 있습니다. Shift키를 누른 채로 헤더를 클릭하여 다중 정렬을 할 수 있습니다.
+                PAPS 종합 현황 또는 종목별 학생 기록을 조회하고 다운로드할 수 있습니다. 헤더를 클릭하여 다중 정렬을 할 수 있습니다.
             </CardDescription>
         </CardHeader>
         <CardContent>
