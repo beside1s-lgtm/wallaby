@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { FileDown, Calendar as CalendarIcon, ArrowUpDown } from 'lucide-react';
+import { FileDown, Calendar as CalendarIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -607,8 +607,8 @@ export default function RecordBrowser({
                                       { key: 'value', label: '기록' },
                                       { key: 'grade', label: '등급' },
                                       { key: 'rank', label: '순위' },
-                                    ].map(header => (
-                                       <TableHead key={header.key} onClick={createSortHandler(header.key, itemSort, setItemSort)} className="cursor-pointer hover:bg-muted whitespace-nowrap">
+                                    ].map((header, index) => (
+                                       <TableHead key={`${header.key}-${index}`} onClick={createSortHandler(header.key, itemSort, setItemSort)} className="cursor-pointer hover:bg-muted whitespace-nowrap">
                                           {header.label}
                                           {getSortIndicator(header.key, itemSort)}
                                        </TableHead>
@@ -645,4 +645,3 @@ export default function RecordBrowser({
     </Card>
   );
 }
-
