@@ -799,8 +799,12 @@ export const saveTeamGroup = async (teamGroupData: TeamGroupInput): Promise<Team
         teams: teamsWithIds.map((t, i) => ({ ...t, name: `팀 ${i+1}`})), // Default name, can be edited later
         id: newTeamGroupRef.id,
     };
+    
+    const finalData = { ...dataToSave, createdAt: serverTimestamp() };
+    if (finalData.numTeams === undefined) delete finalData.numTeams;
+    if (finalData.membersPerTeam === undefined) delete finalData.membersPerTeam;
 
-    await setDoc(newTeamGroupRef, {...dataToSave, createdAt: serverTimestamp()}).catch(e => {
+    await setDoc(newTeamGroupRef, finalData).catch(e => {
         if (e.code === 'permission-denied') {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: newTeamGroupRef.path,
