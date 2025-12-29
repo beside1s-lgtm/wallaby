@@ -800,7 +800,7 @@ export const saveTeamGroup = async (teamGroupData: TeamGroupInput): Promise<Team
         id: newTeamGroupRef.id,
     };
     
-    const finalData = { ...dataToSave, createdAt: serverTimestamp() };
+    const finalData: { [key: string]: any } = { ...dataToSave, createdAt: serverTimestamp() };
     if (finalData.numTeams === undefined) delete finalData.numTeams;
     if (finalData.membersPerTeam === undefined) delete finalData.membersPerTeam;
 
