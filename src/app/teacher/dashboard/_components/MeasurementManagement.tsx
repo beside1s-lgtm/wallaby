@@ -189,7 +189,6 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
             archived.push(item);
             return;
         }
-        // '기타' 카테고리가 비어있으면 'PAPS'가 아닌 항목에 기본값으로 사용
         const category = item.category || (item.isPaps ? 'PAPS' : '기타');
         if (!active[category]) {
             active[category] = [];
@@ -199,12 +198,10 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
 
     const orderedGroups: Record<string, MeasurementItem[]> = {};
     
-    // PAPS를 가장 먼저 추가
     if (active['PAPS']) {
         orderedGroups['PAPS'] = active['PAPS'];
     }
     
-    // 그 다음 알파벳 순으로 카테고리 정렬 (PAPS와 기타 제외)
     const sortedCategories = Object.keys(active)
       .filter(key => key !== 'PAPS' && key !== '기타')
       .sort((a,b) => a.localeCompare(b));
@@ -213,7 +210,6 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
         orderedGroups[key] = active[key];
     });
 
-    // 마지막으로 '기타' 카테고리 추가
     if (active['기타']) {
         orderedGroups['기타'] = active['기타'];
     }
@@ -233,7 +229,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
       <CardContent className="space-y-4">
         <div className="flex w-full flex-wrap items-center gap-2">
             <AddPapsItemDialog onAddItem={handleAddItem} currentItems={items} />
-            <AddSportItemDialog onAddItem={handleAddItem} />
+            <AddCustomItemDialog onAddItem={handleAddItem} />
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -548,7 +544,7 @@ function AddPapsItemDialog({ onAddItem, currentItems }: { onAddItem: (item: Omit
     );
 }
 
-function AddSportItemDialog({ onAddItem }: { onAddItem: (item: Omit<MeasurementItem, 'id'>) => Promise<void> }) {
+function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<MeasurementItem, 'id'>) => Promise<void> }) {
   const [name, setName] = useState('');
   const [unit, setUnit] = useState('');
   const [recordType, setRecordType] = useState<RecordType | ''>('');
@@ -574,13 +570,13 @@ function AddSportItemDialog({ onAddItem }: { onAddItem: (item: Omit<MeasurementI
     setGoal('');
     setCategory('');
     setIsSubmitting(false);
-    document.getElementById('add-sport-item-dialog-close')?.click();
+    document.getElementById('add-custom-item-dialog-close')?.click();
   };
 
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button><Swords className="mr-2 h-4 w-4" /> 스포츠 종목 추가</Button>
+        <Button><Swords className="mr-2 h-4 w-4" /> 스포츠/기타 종목 추가</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -631,7 +627,7 @@ function AddSportItemDialog({ onAddItem }: { onAddItem: (item: Omit<MeasurementI
         </div>
         <DialogFooter>
           <DialogClose asChild>
-            <Button id="add-sport-item-dialog-close" variant="outline">취소</Button>
+            <Button id="add-custom-item-dialog-close" variant="outline">취소</Button>
           </DialogClose>
           <Button onClick={handleSubmit} disabled={isSubmitting}>
              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
