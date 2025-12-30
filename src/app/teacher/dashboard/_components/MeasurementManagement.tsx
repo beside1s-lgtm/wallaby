@@ -20,7 +20,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Loader2, Trash2, Pencil, Swords } from 'lucide-react';
+import { Plus, Loader2, Trash2, Pencil, Swords, Target } from 'lucide-react';
 import type { MeasurementItem, RecordType } from '@/lib/types';
 import {
   Dialog,
@@ -229,6 +229,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
       <CardContent className="space-y-4">
         <div className="flex w-full flex-wrap items-center gap-2">
             <AddPapsItemDialog onAddItem={handleAddItem} currentItems={items} />
+            <AddSportItemDialog onAddItem={handleAddItem} />
             <AddCustomItemDialog onAddItem={handleAddItem} />
 
             <DropdownMenu>
@@ -544,7 +545,7 @@ function AddPapsItemDialog({ onAddItem, currentItems }: { onAddItem: (item: Omit
     );
 }
 
-function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<MeasurementItem, 'id'>) => Promise<void> }) {
+function AddSportItemDialog({ onAddItem }: { onAddItem: (item: Omit<MeasurementItem, 'id'>) => Promise<void> }) {
   const [name, setName] = useState('');
   const [unit, setUnit] = useState('');
   const [recordType, setRecordType] = useState<RecordType | ''>('');
@@ -555,7 +556,7 @@ function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measurement
 
   const handleSubmit = async () => {
     if (!name || !unit || !recordType || !category) {
-      toast({ variant: 'destructive', title: '입력 오류', description: '종목명, 단위, 기록 유형, 카테고리(스포츠명)는 필수입니다.' });
+      toast({ variant: 'destructive', title: '입력 오류', description: '스포츠명(카테고리), 평가지표명, 단위, 기록 유형은 필수입니다.' });
       return;
     }
     setIsSubmitting(true);
@@ -570,13 +571,13 @@ function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measurement
     setGoal('');
     setCategory('');
     setIsSubmitting(false);
-    document.getElementById('add-custom-item-dialog-close')?.click();
+    document.getElementById('add-sport-item-dialog-close')?.click();
   };
 
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button><Swords className="mr-2 h-4 w-4" /> 스포츠/기타 종목 추가</Button>
+        <Button><Swords className="mr-2 h-4 w-4" /> 스포츠 종목 추가</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
@@ -585,19 +586,19 @@ function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measurement
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="category" className="text-right">스포츠명(카테고리)</Label>
-            <Input id="category" value={category} onChange={(e) => setCategory(e.target.value)} className="col-span-3" placeholder="예: 농구, 축구, 럭비" />
+            <Label htmlFor="sport-category" className="text-right">스포츠명(카테고리)</Label>
+            <Input id="sport-category" value={category} onChange={(e) => setCategory(e.target.value)} className="col-span-3" placeholder="예: 농구, 축구, 럭비" />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="name" className="text-right">평가지표명</Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" placeholder="예: 자유투, 헤딩, 태클 성공" />
+            <Label htmlFor="sport-name" className="text-right">평가지표명</Label>
+            <Input id="sport-name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" placeholder="예: 자유투, 헤딩, 태클 성공" />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="unit" className="text-right">단위</Label>
-            <Input id="unit" value={unit} onChange={(e) => setUnit(e.target.value)} className="col-span-3" placeholder="예: 회, 점, 개" />
+            <Label htmlFor="sport-unit" className="text-right">단위</Label>
+            <Input id="sport-unit" value={unit} onChange={(e) => setUnit(e.target.value)} className="col-span-3" placeholder="예: 회, 점, 개" />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="recordType" className="text-right">기록 유형</Label>
+            <Label htmlFor="sport-recordType" className="text-right">기록 유형</Label>
             <Select onValueChange={(value) => setRecordType(value as RecordType)} value={recordType}>
                 <SelectTrigger className="col-span-3">
                     <SelectValue placeholder="기록 유형 선택" />
@@ -613,9 +614,98 @@ function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measurement
           </div>
            {recordType && recordType !== 'time' && recordType !== 'level' && (
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="goal" className="text-right">목표값(선택)</Label>
+              <Label htmlFor="sport-goal" className="text-right">목표값(선택)</Label>
               <Input
-                id="goal"
+                id="sport-goal"
+                type="number"
+                value={goal}
+                onChange={(e) => setGoal(e.target.value)}
+                className="col-span-3"
+                placeholder="예: 10 (달성률 계산에 사용)"
+              />
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button id="add-sport-item-dialog-close" variant="outline">취소</Button>
+          </DialogClose>
+          <Button onClick={handleSubmit} disabled={isSubmitting}>
+             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+             추가
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<MeasurementItem, 'id'>) => Promise<void> }) {
+  const [name, setName] = useState('');
+  const [unit, setUnit] = useState('');
+  const [recordType, setRecordType] = useState<RecordType | ''>('');
+  const [goal, setGoal] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
+
+  const handleSubmit = async () => {
+    if (!name || !unit || !recordType) {
+      toast({ variant: 'destructive', title: '입력 오류', description: '종목명, 단위, 기록 유형은 필수입니다.' });
+      return;
+    }
+    setIsSubmitting(true);
+    const newItem: Omit<MeasurementItem, 'id'> = { name, unit, recordType, isPaps: false, category: '기타' };
+    if (goal) {
+        newItem.goal = parseFloat(goal);
+    }
+    await onAddItem(newItem);
+    setName('');
+    setUnit('');
+    setRecordType('');
+    setGoal('');
+    setIsSubmitting(false);
+    document.getElementById('add-custom-item-dialog-close')?.click();
+  };
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline"><Target className="mr-2 h-4 w-4" /> 기타 종목 추가</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>기타 종목 추가</DialogTitle>
+           <DialogDescription>스포츠가 아닌 새로운 활동 종목을 추가합니다.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="custom-name" className="text-right">종목명</Label>
+            <Input id="custom-name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" placeholder="예: 턱걸이, 플랭크" />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="custom-unit" className="text-right">단위</Label>
+            <Input id="custom-unit" value={unit} onChange={(e) => setUnit(e.target.value)} className="col-span-3" placeholder="예: 회, 초" />
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="custom-recordType" className="text-right">기록 유형</Label>
+            <Select onValueChange={(value) => setRecordType(value as RecordType)} value={recordType}>
+                <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="기록 유형 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="time">시간 (낮을수록 좋음)</SelectItem>
+                    <SelectItem value="count">횟수 (높을수록 좋음)</SelectItem>
+                    <SelectItem value="distance">거리 (높을수록 좋음)</SelectItem>
+                    <SelectItem value="weight">무게 (높을수록 좋음)</SelectItem>
+                    <SelectItem value="level">상-중-하</SelectItem>
+                </SelectContent>
+            </Select>
+          </div>
+           {recordType && recordType !== 'time' && recordType !== 'level' && (
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="custom-goal" className="text-right">목표값(선택)</Label>
+              <Input
+                id="custom-goal"
                 type="number"
                 value={goal}
                 onChange={(e) => setGoal(e.target.value)}
