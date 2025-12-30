@@ -181,7 +181,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
 
 
   const { groupedItems, archivedItems } = useMemo(() => {
-    const active: Record<string, MeasurementItem[]> = { PAPS: [] };
+    const active: Record<string, MeasurementItem[]> = {};
     const archived: MeasurementItem[] = [];
 
     items.forEach(item => {
@@ -189,7 +189,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
         archived.push(item);
         return;
       }
-      const category = item.category || (item.isPaps ? 'PAPS' : '기타');
+      const category = item.category || '기타';
       if (!active[category]) {
         active[category] = [];
       }
@@ -198,8 +198,9 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
 
     const orderedGroups: Record<string, MeasurementItem[]> = {};
     
-    const teamSportCategories: string[] = []; // Not used anymore but kept for structure
-    if (active['PAPS']?.length > 0) orderedGroups['PAPS'] = active['PAPS'];
+    if (active['PAPS']) {
+      orderedGroups['PAPS'] = active['PAPS'];
+    }
     
     const sortedCategories = Object.keys(active)
       .filter(key => key !== 'PAPS')
@@ -375,7 +376,7 @@ function EditItemDialog({ item, onUpdate }: { item: MeasurementItem, onUpdate: (
     useEffect(() => {
         if(isOpen) {
             setGoal(item.goal?.toString() || '');
-            setCategory(item.category || (item.isPaps ? 'PAPS' : '기타'));
+            setCategory(item.category || (item.isPaps ? 'PAPS' : ''));
         }
     }, [isOpen, item]);
 
@@ -387,7 +388,7 @@ function EditItemDialog({ item, onUpdate }: { item: MeasurementItem, onUpdate: (
 
         const dataToUpdate: Partial<Omit<MeasurementItem, 'id'>> = {};
         
-        if (category.trim() !== (item.category || (item.isPaps ? 'PAPS' : '기타'))) {
+        if (category.trim() !== (item.category || '')) {
             dataToUpdate.category = category.trim();
         }
         
