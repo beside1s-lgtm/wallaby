@@ -20,7 +20,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Loader2, Trash2, Pencil } from 'lucide-react';
+import { Plus, Loader2, Trash2, Pencil, Swords } from 'lucide-react';
 import type { MeasurementItem, RecordType } from '@/lib/types';
 import {
   Dialog,
@@ -185,30 +185,38 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
     const archived: MeasurementItem[] = [];
 
     items.forEach(item => {
-      if (item.isArchived) {
-        archived.push(item);
-        return;
-      }
-      const category = item.category || '기타';
-      if (!active[category]) {
-        active[category] = [];
-      }
-      active[category].push(item);
+        if (item.isArchived) {
+            archived.push(item);
+            return;
+        }
+        // '기타' 카테고리가 비어있으면 'PAPS'가 아닌 항목에 기본값으로 사용
+        const category = item.category || (item.isPaps ? 'PAPS' : '기타');
+        if (!active[category]) {
+            active[category] = [];
+        }
+        active[category].push(item);
     });
 
     const orderedGroups: Record<string, MeasurementItem[]> = {};
     
+    // PAPS를 가장 먼저 추가
     if (active['PAPS']) {
-      orderedGroups['PAPS'] = active['PAPS'];
+        orderedGroups['PAPS'] = active['PAPS'];
     }
     
+    // 그 다음 알파벳 순으로 카테고리 정렬 (PAPS와 기타 제외)
     const sortedCategories = Object.keys(active)
-      .filter(key => key !== 'PAPS')
+      .filter(key => key !== 'PAPS' && key !== '기타')
       .sort((a,b) => a.localeCompare(b));
 
     sortedCategories.forEach(key => {
         orderedGroups[key] = active[key];
     });
+
+    // 마지막으로 '기타' 카테고리 추가
+    if (active['기타']) {
+        orderedGroups['기타'] = active['기타'];
+    }
 
     return { groupedItems: orderedGroups, archivedItems: archived };
   }, [items]);
@@ -225,7 +233,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
       <CardContent className="space-y-4">
         <div className="flex w-full flex-wrap items-center gap-2">
             <AddPapsItemDialog onAddItem={handleAddItem} currentItems={items} />
-            <AddCustomItemDialog onAddItem={handleAddItem} />
+            <AddSportItemDialog onAddItem={handleAddItem} />
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -540,7 +548,7 @@ function AddPapsItemDialog({ onAddItem, currentItems }: { onAddItem: (item: Omit
     );
 }
 
-function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<MeasurementItem, 'id'>) => Promise<void> }) {
+function AddSportItemDialog({ onAddItem }: { onAddItem: (item: Omit<MeasurementItem, 'id'>) => Promise<void> }) {
   const [name, setName] = useState('');
   const [unit, setUnit] = useState('');
   const [recordType, setRecordType] = useState<RecordType | ''>('');
@@ -551,7 +559,7 @@ function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measurement
 
   const handleSubmit = async () => {
     if (!name || !unit || !recordType || !category) {
-      toast({ variant: 'destructive', title: '입력 오류', description: '종목명, 단위, 기록 유형, 카테고리는 필수입니다.' });
+      toast({ variant: 'destructive', title: '입력 오류', description: '종목명, 단위, 기록 유형, 카테고리(스포츠명)는 필수입니다.' });
       return;
     }
     setIsSubmitting(true);
@@ -566,31 +574,31 @@ function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measurement
     setGoal('');
     setCategory('');
     setIsSubmitting(false);
-    document.getElementById('add-custom-item-dialog-close')?.click();
+    document.getElementById('add-sport-item-dialog-close')?.click();
   };
 
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button><Plus className="mr-2 h-4 w-4" /> 기타 종목 추가</Button>
+        <Button><Swords className="mr-2 h-4 w-4" /> 스포츠 종목 추가</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>기타 종목 추가</DialogTitle>
-           <DialogDescription>새로운 측정 종목을 만듭니다. 스포츠 종목의 평가지표도 여기에서 추가할 수 있습니다. (예: 카테고리: 농구, 종목명: 자유투)</DialogDescription>
+          <DialogTitle>스포츠 평가지표 추가</DialogTitle>
+           <DialogDescription>새로운 스포츠와 평가지표를 만듭니다. (예: 카테고리: 럭비, 종목명: 태클 성공)</DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="category" className="text-right">카테고리</Label>
-            <Input id="category" value={category} onChange={(e) => setCategory(e.target.value)} className="col-span-3" placeholder="예: 구기, 육상, 농구" />
+            <Label htmlFor="category" className="text-right">스포츠명(카테고리)</Label>
+            <Input id="category" value={category} onChange={(e) => setCategory(e.target.value)} className="col-span-3" placeholder="예: 농구, 축구, 럭비" />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="name" className="text-right">종목명</Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" placeholder="예: 줄넘기, 자유투" />
+            <Label htmlFor="name" className="text-right">평가지표명</Label>
+            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" placeholder="예: 자유투, 헤딩, 태클 성공" />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="unit" className="text-right">단위</Label>
-            <Input id="unit" value={unit} onChange={(e) => setUnit(e.target.value)} className="col-span-3" placeholder="예: 회, 초, 점" />
+            <Input id="unit" value={unit} onChange={(e) => setUnit(e.target.value)} className="col-span-3" placeholder="예: 회, 점, 개" />
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="recordType" className="text-right">기록 유형</Label>
@@ -623,7 +631,7 @@ function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measurement
         </div>
         <DialogFooter>
           <DialogClose asChild>
-            <Button id="add-custom-item-dialog-close" variant="outline">취소</Button>
+            <Button id="add-sport-item-dialog-close" variant="outline">취소</Button>
           </DialogClose>
           <Button onClick={handleSubmit} disabled={isSubmitting}>
              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
