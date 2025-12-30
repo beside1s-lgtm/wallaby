@@ -75,40 +75,6 @@ const recordTypeDisplay: Record<RecordType, string> = {
     compound: "복합"
 };
 
-const teamSportMetrics: Record<string, {name: string, unit: string, recordType: RecordType, goal?: number}[]> = {
-    '농구': [
-        { name: '슛', unit: '점', recordType: 'count', goal: 10 },
-        { name: '어시스트', unit: '점', recordType: 'count', goal: 10 },
-        { name: '리바운드', unit: '점', recordType: 'count', goal: 10 },
-        { name: '스틸', unit: '점', recordType: 'count', goal: 10 },
-    ],
-    '배구': [
-        { name: '스파이크', unit: '점', recordType: 'count', goal: 10 },
-        { name: '리시브', unit: '점', recordType: 'count', goal: 10 },
-        { name: '토스', unit: '점', recordType: 'count', goal: 10 },
-        { name: '서브', unit: '점', recordType: 'count', goal: 10 },
-    ],
-    '야구': [
-        { name: '타격', unit: '점', recordType: 'count', goal: 10 },
-        { name: '주루', unit: '점', recordType: 'count', goal: 10 },
-        { name: '송구', unit: '점', recordType: 'count', goal: 10 },
-        { name: '포구', unit: '점', recordType: 'count', goal: 10 },
-    ],
-    '축구': [
-        { name: '득점', unit: '점', recordType: 'count', goal: 5 },
-        { name: '패스', unit: '점', recordType: 'count', goal: 20 },
-        { name: '돌파성공', unit: '점', recordType: 'count', goal: 10 },
-        { name: '수비성공', unit: '점', recordType: 'count', goal: 15 },
-    ],
-    '피구': [
-        { name: '공격성공', unit: '점', recordType: 'count', goal: 10 },
-        { name: '패스성공', unit: '점', recordType: 'count', goal: 20 },
-        { name: '포구', unit: '점', recordType: 'count', goal: 10 },
-        { name: '회피성공', unit: '점', recordType: 'count', goal: 15 },
-    ]
-};
-
-
 export default function MeasurementManagement({ items, onItemsUpdate }: MeasurementManagementProps) {
   const { school } = useAuth();
   const { toast } = useToast();
@@ -231,20 +197,19 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
     });
 
     const orderedGroups: Record<string, MeasurementItem[]> = {};
-    const teamSportCategories = Object.keys(teamSportMetrics);
     
+    const teamSportCategories: string[] = []; // Not used anymore but kept for structure
     if (active['PAPS']?.length > 0) orderedGroups['PAPS'] = active['PAPS'];
-    teamSportCategories.forEach(cat => {
-      if (active[cat]?.length > 0) orderedGroups[cat] = active[cat];
+    
+    const sortedCategories = Object.keys(active)
+      .filter(key => key !== 'PAPS')
+      .sort((a,b) => a.localeCompare(b));
+
+    sortedCategories.forEach(key => {
+        orderedGroups[key] = active[key];
     });
 
-    Object.keys(active).forEach(key => {
-        if (key !== 'PAPS' && !teamSportCategories.includes(key)) {
-            orderedGroups[key] = active[key];
-        }
-    });
-
-    return { groupedItems: orderedGroups, archivedItems };
+    return { groupedItems: orderedGroups, archivedItems: archived };
   }, [items]);
 
 
@@ -504,7 +469,6 @@ function EditItemDialog({ item, onUpdate }: { item: MeasurementItem, onUpdate: (
     );
 }
 
-// Dialog components (AddPapsItemDialog, AddTeamSportItemsDialog, AddCustomItemDialog) remain unchanged.
 function AddPapsItemDialog({ onAddItem, currentItems }: { onAddItem: (item: Omit<MeasurementItem, 'id'>) => Promise<void>, currentItems: MeasurementItem[] }) {
     const [selectedItemName, setSelectedItemName] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
