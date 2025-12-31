@@ -1,15 +1,18 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import {
-  saveTournament,
+  calculateRanks,
+  exportToCsv,
+  saveTeamGroup,
+  deleteTeamGroup,
+  updateTeamGroup,
   getTournaments,
   deleteTournament,
   updateTournament,
-  getStudents,
 } from '@/lib/store';
-import { Tournament, Match, Team, TeamGroup, Student, IndividualLeagueParticipant } from '@/lib/types';
+import { Tournament, Match, Team, TeamGroup, Student, IndividualLeagueParticipant, TeamGroupInput } from '@/lib/types';
 import {
   Card,
   CardContent,
@@ -36,7 +39,11 @@ import {
   UserPlus,
   Crown,
   Medal,
-  Trophy as TrophyIcon
+  Trophy as TrophyIcon,
+  FileDown,
+  Move,
+  Search,
+  ArrowLeft,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -85,6 +92,21 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Student as StudentType, MeasurementItem, MeasurementRecord } from '@/lib/types';
+import {
+  ResponsiveContainer,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
+  Tooltip,
+} from "recharts";
+import { getScoutingReport } from "@/ai/flows/scouting-report-flow";
+import type { ScoutingReportOutput } from "@/ai/flows/scouting-report-flow";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import TeamBalancer from "./TeamBalancer";
 
 /* -------------------------------------------------------
  * Utils
@@ -1198,6 +1220,8 @@ export default function TournamentManagement({
             setCurrentTournament(updated);
             setTournaments(prev => prev.map(t => t.id === updated.id ? updated : t));
           }}
+          onUpdateMatchResult={handleMatchResultChange}
+          matchResults={matchResults}
         />
       )}
 
@@ -1864,7 +1888,12 @@ const IndividualLeagueSetup = ({ allStudents, participantIds, onParticipantToggl
     );
 };
 
-const IndividualLeagueInterface = ({ tournament, onUpdateTournament }: { tournament: Tournament, onUpdateTournament: (t: Tournament) => void }) => {
+const IndividualLeagueInterface = ({ tournament, onUpdateTournament, onUpdateMatchResult, matchResults }: { 
+    tournament: Tournament, 
+    onUpdateTournament: (t: Tournament) => void,
+    onUpdateMatchResult: (matchId: string, team: 'A' | 'B', score: string) => void,
+    matchResults: Record<string, { scoreA: string, scoreB: string }>
+}) => {
     const { school } = useAuth();
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
@@ -1881,6 +1910,7 @@ const IndividualLeagueInterface = ({ tournament, onUpdateTournament }: { tournam
                 return;
             }
 
+            // Simple shuffle for now. A more complex algorithm could avoid repeat pairings.
             participantsToPlay = [...participantsToPlay].sort(() => Math.random() - 0.5);
             
             const teams: Team[] = [];
@@ -1901,12 +1931,13 @@ const IndividualLeagueInterface = ({ tournament, onUpdateTournament }: { tournam
             const updatedTournament: Tournament = {
                 ...tournament,
                 teams: [...(tournament.teams || []), ...teams],
-                matches: [...(tournament.matches || []), ...matches],
+                matches: [...(tournament.matches || []), ...matches.map(m => ({ ...m, round: (tournament.currentRound || 0) + 1 }))],
                 currentRound: (tournament.currentRound || 0) + 1,
             };
 
             await updateTournament(school, tournament.id, updatedTournament);
             onUpdateTournament(updatedTournament);
+            toast({ title: "다음 라운드 생성", description: `${updatedTournament.currentRound} 라운드의 경기가 생성되었습니다.` });
 
         } catch (error) {
             console.error(error);
@@ -1932,6 +1963,56 @@ const IndividualLeagueInterface = ({ tournament, onUpdateTournament }: { tournam
         }
     };
 
+    const handleUpdateLeagueMatch = async (matchId: string) => {
+        if (!school || !tournament.participants || !tournament.pointsPerWin) return;
+        
+        const match = tournament.matches.find(m => m.id === matchId);
+        const results = matchResults[matchId];
+        if (!match || !results || results.scoreA === '' || results.scoreB === '') {
+            toast({ variant: "destructive", title: "점수 입력 오류", description: "점수를 입력해주세요." });
+            return;
+        }
+
+        const scoreA = parseInt(results.scoreA, 10);
+        const scoreB = parseInt(results.scoreB, 10);
+
+        setIsLoading(true);
+        try {
+            const tournamentToUpdate = JSON.parse(JSON.stringify(tournament)) as Tournament;
+            const matchToUpdate = tournamentToUpdate.matches.find(m => m.id === matchId);
+            if (!matchToUpdate) return;
+            
+            matchToUpdate.scoreA = scoreA;
+            matchToUpdate.scoreB = scoreB;
+            matchToUpdate.status = 'completed';
+            
+            let winnerId = null;
+            if (scoreA > scoreB) winnerId = matchToUpdate.teamAId;
+            else if (scoreB > scoreA) winnerId = matchToUpdate.teamBId;
+            matchToUpdate.winnerId = winnerId;
+            
+            const winnerTeam = tournamentToUpdate.teams.find(t => t.id === winnerId);
+            if (winnerTeam) {
+                winnerTeam.memberIds.forEach(memberId => {
+                    const participant = tournamentToUpdate.participants?.find(p => p.id === memberId);
+                    if (participant) {
+                        participant.totalPoints += (tournament.pointsPerWin || 3);
+                    }
+                });
+            }
+
+            await updateTournament(school, tournament.id, tournamentToUpdate);
+            onUpdateTournament(tournamentToUpdate);
+            toast({ title: "경기 결과 저장 완료" });
+
+        } catch (e) {
+            console.error(e);
+            toast({ variant: "destructive", title: "결과 저장 실패" });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const sortedParticipants = useMemo(() => {
         return [...(tournament.participants || [])].sort((a, b) => {
             if (b.totalPoints !== a.totalPoints) {
@@ -1940,6 +2021,14 @@ const IndividualLeagueInterface = ({ tournament, onUpdateTournament }: { tournam
             return a.initialRank - b.initialRank;
         });
     }, [tournament.participants]);
+
+    const currentRoundMatches = useMemo(() => {
+        return tournament.matches.filter(m => m.round === tournament.currentRound);
+    }, [tournament.matches, tournament.currentRound]);
+
+    const teamNameMap = useMemo(() => {
+        return new Map(tournament.teams.map((team) => [team.id, team.name]));
+    }, [tournament.teams]);
 
 
     return (
@@ -1956,7 +2045,21 @@ const IndividualLeagueInterface = ({ tournament, onUpdateTournament }: { tournam
                     <div>
                         <h3 className="font-semibold text-lg mb-2 text-center">경기 목록 (라운드 {tournament.currentRound || 0})</h3>
                         <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-                          {/* We can re-use LeagueMatchNode here if we adapt it or create a new one */}
+                           {currentRoundMatches.length > 0 ? currentRoundMatches.map(match => (
+                                <LeagueMatchNode
+                                    key={match.id}
+                                    match={match}
+                                    tournament={tournament}
+                                    teamNameMap={teamNameMap}
+                                    matchResults={matchResults}
+                                    onResultChange={onUpdateMatchResult}
+                                    onUpdateMatch={handleUpdateLeagueMatch}
+                                    onResetMatch={() => { /* Not implemented for league */ }}
+                                    onUpdateTeamName={() => { /* Not implemented for league */ }}
+                                />
+                           )) : (
+                               <div className='text-center text-muted-foreground p-4'>생성된 경기가 없습니다. '다음 라운드 생성' 버튼을 눌러주세요.</div>
+                           )}
                         </div>
                     </div>
                      <div>
