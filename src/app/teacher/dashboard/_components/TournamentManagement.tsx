@@ -1950,6 +1950,24 @@ const IndividualLeagueSetup = ({ allStudents, participantIds, onParticipantToggl
     );
 };
 
+// Helper function to get all possible combinations
+const getCombinations = <T>(array: T[], size: number): T[][] => {
+    const result: T[][] = [];
+    const f = (prefix: T[], array: T[]) => {
+        for (let i = 0; i < array.length; i++) {
+            const newPrefix = [...prefix, array[i]];
+            if (newPrefix.length === size) {
+                result.push(newPrefix);
+            } else {
+                f(newPrefix, array.slice(i + 1));
+            }
+        }
+    };
+    f([], array);
+    return result;
+};
+
+
 const IndividualLeagueInterface = ({ tournament, onUpdateTournament, onUpdateMatchResult, matchResults }: { 
     tournament: Tournament, 
     onUpdateTournament: (t: Tournament) => void,
@@ -1972,21 +1990,48 @@ const IndividualLeagueInterface = ({ tournament, onUpdateTournament, onUpdateMat
                 return;
             }
 
-            // Simple shuffle for now. A more complex algorithm could avoid repeat pairings.
-            participantsToPlay = [...participantsToPlay].sort(() => Math.random() - 0.5);
+            const pastTeamMemberIds = (tournament.teams || []).map(team => new Set(team.memberIds));
             
-            const teams: Team[] = [];
-            const numTeams = Math.floor(participantsToPlay.length / tournament.membersPerTeam);
+            let allPossibleTeams = getCombinations(participantsToPlay, tournament.membersPerTeam);
+            
+            // 이전에 함께했던 팀 조합에 패널티를 부여
+            allPossibleTeams.sort((teamA, teamB) => {
+                const teamASet = new Set(teamA.map(p => p.id));
+                const teamBSet = new Set(teamB.map(p => p.id));
 
-            for (let i = 0; i < numTeams; i++) {
-                const members = participantsToPlay.slice(i * tournament.membersPerTeam, (i + 1) * tournament.membersPerTeam);
+                let penaltyA = 0;
+                let penaltyB = 0;
+                
+                pastTeamMemberIds.forEach(pastSet => {
+                   if ([...teamASet].every(memberId => pastSet.has(memberId))) {
+                       penaltyA++;
+                   }
+                   if ([...teamBSet].every(memberId => pastSet.has(memberId))) {
+                       penaltyB++;
+                   }
+                });
+                
+                return penaltyA - penaltyB;
+            });
+            
+            const selectedPlayers = new Set<string>();
+            const teams: Team[] = [];
+            
+            for (const pTeam of allPossibleTeams) {
+                const playerIds = pTeam.map(p => p.id);
+                if (playerIds.some(id => selectedPlayers.has(id))) {
+                    continue;
+                }
+
+                playerIds.forEach(id => selectedPlayers.add(id));
                 teams.push({
                     id: uuidv4(),
-                    name: members.map(m => m.name).join(' & '),
-                    memberIds: members.map(m => m.id),
-                    teamIndex: i
+                    name: pTeam.map(p => p.name).join(' & '),
+                    memberIds: playerIds,
+                    teamIndex: teams.length,
                 });
             }
+
 
             const { matches } = generateLeagueMatches(teams, 1);
             
