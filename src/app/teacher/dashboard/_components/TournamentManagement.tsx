@@ -9,7 +9,7 @@ import {
   updateTournament,
   getStudents,
 } from '@/lib/store';
-import { Tournament, Match, Team, TeamGroup, Student } from '@/lib/types';
+import { Tournament, Match, Team, TeamGroup, Student, IndividualLeagueParticipant } from '@/lib/types';
 import {
   Card,
   CardContent,
@@ -34,6 +34,9 @@ import {
   Send,
   Calendar,
   UserPlus,
+  Crown,
+  Medal,
+  Trophy as TrophyIcon
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -311,6 +314,12 @@ export default function TournamentManagement({
   const [matchResults, setMatchResults] = useState<
     Record<string, { scoreA: string; scoreB: string }>
   >({});
+  
+  // For Individual League
+  const [pointsPerWin, setPointsPerWin] = useState(3);
+  const [eliminationType, setEliminationType] = useState<'none' | 'round'>('none');
+  const [eliminationsPerRound, setEliminationsPerRound] = useState(1);
+
 
   useEffect(() => {
     async function loadTournaments() {
@@ -414,19 +423,23 @@ export default function TournamentManagement({
         }
       } else {
         let teamsForBracket: Team[] = [];
+        let participantsForLeague: IndividualLeagueParticipant[] = [];
+
         if (tournamentType === 'individual-league') {
             if (participantIds.size < 2) {
                 toast({ variant: 'destructive', title: '참가자 부족', description: '개인 리그를 생성하려면 최소 2명의 참가자가 필요합니다.' });
                 setIsLoading(false);
                 return;
             }
-            teamsForBracket = Array.from(participantIds).map((id, index) => {
+            const shuffledParticipants = Array.from(participantIds).sort(() => Math.random() - 0.5);
+            participantsForLeague = shuffledParticipants.map((id, index) => {
                 const student = allStudents.find(s => s.id === id);
                 return {
                     id: student?.id || uuidv4(),
                     name: student?.name || '참가자',
-                    teamIndex: index,
-                    memberIds: [id],
+                    totalPoints: 0,
+                    status: 'active',
+                    initialRank: index + 1
                 }
             });
         } else if (teamSource === 'group' && selectedTeamGroupId) {
@@ -474,11 +487,11 @@ export default function TournamentManagement({
           teamsForBracket = teamList;
         }
 
-        if (teamsForBracket.length < 2) {
+        if (tournamentType !== 'individual-league' && teamsForBracket.length < 2) {
           toast({
             variant: 'destructive',
-            title: '팀/참가자 부족',
-            description: '대진표를 생성하려면 최소 2개의 팀 또는 참가자가 필요합니다.',
+            title: '팀 부족',
+            description: '대진표를 생성하려면 최소 2개의 팀이 필요합니다.',
           });
           setIsLoading(false);
           return;
@@ -494,16 +507,27 @@ export default function TournamentManagement({
           name: tournamentName,
           type: tournamentType,
           teams: teamsForBracket,
-          matches,
+          matches: tournamentType === 'individual-league' ? [] : matches, // 개인 리그는 라운드마다 경기 생성
           date: tournamentDate
             ? format(tournamentDate, 'yyyy-MM-dd')
             : undefined,
         };
-
-        if (teamSource === 'group' && selectedTeamGroupId) {
+        
+        if (tournamentType === 'individual-league') {
+            tournamentData = {
+                ...tournamentData,
+                participants: participantsForLeague,
+                teams: [], // 팀은 동적으로 생성됨
+                pointsPerWin,
+                eliminationType,
+                eliminationsPerRound: eliminationType === 'round' ? eliminationsPerRound : 0,
+                currentRound: 0,
+                isFinished: false,
+            }
+        } else if (teamSource === 'group' && selectedTeamGroupId) {
           tournamentData = { ...tournamentData, teamGroupId: selectedTeamGroupId };
         }
-        if (tournamentType === 'league' || tournamentType === 'individual-league') {
+        if (tournamentType === 'league') {
           tournamentData = {
             ...tournamentData,
             meetingsPerTeam: meetingsPerTeam,
@@ -577,7 +601,10 @@ export default function TournamentManagement({
         tournament.date ? new Date(tournament.date) : new Date()
       );
       if (tournament.type === 'individual-league') {
-        setParticipantIds(new Set(tournament.teams.flatMap(t => t.memberIds)));
+        setParticipantIds(new Set(tournament.participants?.map(p => p.id)));
+        setPointsPerWin(tournament.pointsPerWin || 3);
+        setEliminationType(tournament.eliminationType || 'none');
+        setEliminationsPerRound(tournament.eliminationsPerRound || 1);
       } else {
         setTeamList(tournament.teams);
         setTeamSource(tournament.teamGroupId ? 'group' : 'manual');
@@ -822,24 +849,19 @@ export default function TournamentManagement({
       return acc;
     }, {} as Record<number, Match[]>);
   }, [currentTournament]);
-
-  const finalMatch = useMemo(() => {
-    if (
-      !currentTournament?.matches ||
-      currentTournament.matches.length === 0 ||
-      currentTournament.type !== 'tournament'
-    )
-      return null;
-    const maxRound = Math.max(
-      ...currentTournament.matches.map((m) => m.round || 0)
-    );
-    return currentTournament.matches.find((m) => m.round === maxRound) ?? null;
-  }, [currentTournament]);
-
-  const fmRound = finalMatch?.round ?? Number.POSITIVE_INFINITY;
-
+  
   const leagueStandings = useMemo(() => {
     if (!currentTournament || (currentTournament.type !== 'league' && currentTournament.type !== 'individual-league')) return [];
+    
+    if (currentTournament.type === 'individual-league') {
+        const sortedParticipants = [...(currentTournament.participants || [])].sort((a, b) => {
+            if (b.totalPoints !== a.totalPoints) {
+                return b.totalPoints - a.totalPoints;
+            }
+            return a.initialRank - b.initialRank;
+        });
+        return sortedParticipants;
+    }
 
     const stats: Record<
       string,
@@ -1020,9 +1042,9 @@ export default function TournamentManagement({
                   </SelectContent>
                 </Select>
               </div>
-              {(tournamentType === 'league' || tournamentType === 'individual-league') && !currentTournament && (
+              {tournamentType === 'league' && !currentTournament && (
                 <div className="space-y-2">
-                  <Label htmlFor="meetings-per-team">팀/개인당 경기 수</Label>
+                  <Label htmlFor="meetings-per-team">팀당 경기 수</Label>
                   <Input
                     id="meetings-per-team"
                     type="number"
@@ -1120,35 +1142,17 @@ export default function TournamentManagement({
                         )}
                     </>
                     ) : (
-                        <div className="p-2 border rounded-md max-h-60 overflow-y-auto">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className='w-10'>선택</TableHead>
-                                        <TableHead>학년</TableHead>
-                                        <TableHead>반</TableHead>
-                                        <TableHead>번호</TableHead>
-                                        <TableHead>이름</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {allStudents.map(student => (
-                                        <TableRow key={student.id}>
-                                            <TableCell>
-                                                <Checkbox
-                                                    checked={participantIds.has(student.id)}
-                                                    onCheckedChange={() => handleParticipantToggle(student.id)}
-                                                />
-                                            </TableCell>
-                                            <TableCell>{student.grade}</TableCell>
-                                            <TableCell>{student.classNum}</TableCell>
-                                            <TableCell>{student.studentNum}</TableCell>
-                                            <TableCell>{student.name}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </div>
+                       <IndividualLeagueSetup 
+                          allStudents={allStudents}
+                          participantIds={participantIds}
+                          onParticipantToggle={handleParticipantToggle}
+                          pointsPerWin={pointsPerWin}
+                          setPointsPerWin={setPointsPerWin}
+                          eliminationType={eliminationType}
+                          setEliminationType={setEliminationType}
+                          eliminationsPerRound={eliminationsPerRound}
+                          setEliminationsPerRound={setEliminationsPerRound}
+                       />
                     )}
               </div>
             )}
@@ -1180,6 +1184,16 @@ export default function TournamentManagement({
           </div>
         </CardContent>
       </Card>
+
+      {currentTournament && currentTournament.type === 'individual-league' && (
+        <IndividualLeagueInterface
+          tournament={currentTournament}
+          onUpdateTournament={(updated) => {
+            setCurrentTournament(updated);
+            setTournaments(prev => prev.map(t => t.id === updated.id ? updated : t));
+          }}
+        />
+      )}
 
       {currentTournament &&
         currentTournament.type === 'tournament' &&
@@ -1236,7 +1250,7 @@ export default function TournamentManagement({
             </CardContent>
           </Card>
         )}
-      {currentTournament && (currentTournament.type === 'league' || currentTournament.type === 'individual-league') && (
+      {currentTournament && currentTournament.type === 'league' && (
         <Card>
           <CardHeader className="text-center">
             <CardTitle>{currentTournament.name} 경기 정보</CardTitle>
@@ -1268,7 +1282,7 @@ export default function TournamentManagement({
                 <TableHeader>
                   <TableRow>
                     <TableHead>순위</TableHead>
-                    <TableHead>{currentTournament.type === 'individual-league' ? '참가자' : '팀'}</TableHead>
+                    <TableHead>팀</TableHead>
                     <TableHead>경기</TableHead>
                     <TableHead>승</TableHead>
                     <TableHead>무</TableHead>
@@ -1277,7 +1291,7 @@ export default function TournamentManagement({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {leagueStandings.map((team, index) => (
+                  {(leagueStandings as Team[]).map((team, index) => (
                     <TableRow key={team.id}>
                       <TableCell className="font-bold">{index + 1}</TableCell>
                       <TableCell>{team.name}</TableCell>
@@ -1777,3 +1791,201 @@ function SendTournamentDialog({
     </Dialog>
   );
 }
+
+const IndividualLeagueSetup = ({ allStudents, participantIds, onParticipantToggle, pointsPerWin, setPointsPerWin, eliminationType, setEliminationType, eliminationsPerRound, setEliminationsPerRound }: {
+  allStudents: Student[];
+  participantIds: Set<string>;
+  onParticipantToggle: (studentId: string) => void;
+  pointsPerWin: number;
+  setPointsPerWin: (value: number) => void;
+  eliminationType: 'none' | 'round';
+  setEliminationType: (value: 'none' | 'round') => void;
+  eliminationsPerRound: number;
+  setEliminationsPerRound: (value: number) => void;
+}) => {
+    return (
+        <div className="space-y-4">
+            <div className='space-y-2'>
+              <Label>리그 설정</Label>
+              <div className='grid grid-cols-2 gap-4'>
+                <Input type="number" value={pointsPerWin} onChange={(e) => setPointsPerWin(Number(e.target.value))} placeholder="승리 시 승점" />
+                <Select value={eliminationType} onValueChange={(v) => setEliminationType(v as any)}>
+                    <SelectTrigger><SelectValue/></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="none">탈락 없음</SelectItem>
+                        <SelectItem value="round">라운드별 탈락</SelectItem>
+                    </SelectContent>
+                </Select>
+                {eliminationType === 'round' && (
+                    <Input type="number" value={eliminationsPerRound} onChange={(e) => setEliminationsPerRound(Number(e.target.value))} placeholder="라운드당 탈락 인원" />
+                )}
+              </div>
+            </div>
+            <div className="p-2 border rounded-md max-h-60 overflow-y-auto">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead className='w-10'>선택</TableHead>
+                            <TableHead>학년</TableHead>
+                            <TableHead>반</TableHead>
+                            <TableHead>번호</TableHead>
+                            <TableHead>이름</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {allStudents.map(student => (
+                            <TableRow key={student.id}>
+                                <TableCell>
+                                    <Checkbox
+                                        checked={participantIds.has(student.id)}
+                                        onCheckedChange={() => onParticipantToggle(student.id)}
+                                    />
+                                </TableCell>
+                                <TableCell>{student.grade}</TableCell>
+                                <TableCell>{student.classNum}</TableCell>
+                                <TableCell>{student.studentNum}</TableCell>
+                                <TableCell>{student.name}</TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
+        </div>
+    );
+};
+
+const IndividualLeagueInterface = ({ tournament, onUpdateTournament }: { tournament: Tournament, onUpdateTournament: (t: Tournament) => void }) => {
+    const { school } = useAuth();
+    const { toast } = useToast();
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleNextRound = async () => {
+        if (!school || tournament.isFinished) return;
+        setIsLoading(true);
+
+        try {
+            let participantsToPlay = tournament.participants?.filter(p => p.status === 'active') || [];
+            if (participantsToPlay.length < 4) {
+                toast({ variant: 'destructive', title: '참가자 부족', description: '다음 라운드를 진행하기에 인원이 부족하여 리그를 종료합니다.' });
+                await handleEndLeague();
+                return;
+            }
+
+            participantsToPlay = [...participantsToPlay].sort(() => Math.random() - 0.5);
+            
+            // 2명씩 팀 생성
+            const teams: Team[] = [];
+            for (let i = 0; i < Math.floor(participantsToPlay.length / 2); i++) {
+                const member1 = participantsToPlay[i * 2];
+                const member2 = participantsToPlay[i * 2 + 1];
+                teams.push({
+                    id: uuidv4(),
+                    name: `${member1.name} & ${member2.name}`,
+                    memberIds: [member1.id, member2.id],
+                    teamIndex: i
+                });
+            }
+
+            // 남은 1명은 부전승 처리 (다음 라운드 진출)
+            if (participantsToPlay.length % 2 !== 0) {
+              // For simplicity, we just leave them out of this round's matches
+            }
+
+            // 팀들 간의 경기 생성
+            const { matches } = generateLeagueMatches(teams, 1);
+            
+            const updatedTournament: Tournament = {
+                ...tournament,
+                teams: [...tournament.teams, ...teams],
+                matches: [...tournament.matches, ...matches],
+                currentRound: (tournament.currentRound || 0) + 1,
+            };
+
+            await updateTournament(school, tournament.id, updatedTournament);
+            onUpdateTournament(updatedTournament);
+
+        } catch (error) {
+            console.error(error);
+            toast({ variant: 'destructive', title: '다음 라운드 생성 실패' });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+    
+    const handleEndLeague = async () => {
+        if (!school || tournament.isFinished) return;
+        setIsLoading(true);
+        try {
+            const updatedTournament = { ...tournament, isFinished: true };
+            await updateTournament(school, tournament.id, updatedTournament);
+            onUpdateTournament(updatedTournament);
+            toast({ title: "리그 종료됨" });
+        } catch (error) {
+            console.error(error);
+            toast({ variant: 'destructive', title: '리그 종료 실패' });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const sortedParticipants = useMemo(() => {
+        return [...(tournament.participants || [])].sort((a, b) => {
+            if (b.totalPoints !== a.totalPoints) {
+                return b.totalPoints - a.totalPoints;
+            }
+            return a.initialRank - b.initialRank;
+        });
+    }, [tournament.participants]);
+
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>{tournament.name} 진행</CardTitle>
+                <div className='flex gap-2'>
+                    <Button onClick={handleNextRound} disabled={isLoading || tournament.isFinished}>다음 라운드 생성</Button>
+                    <Button onClick={handleEndLeague} disabled={isLoading || tournament.isFinished} variant="destructive">리그 종료</Button>
+                </div>
+            </CardHeader>
+            <CardContent>
+                <div className="grid md:grid-cols-2 gap-6">
+                    <div>
+                        <h3 className="font-semibold text-lg mb-2 text-center">경기 목록 (라운드 {tournament.currentRound || 0})</h3>
+                        <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
+                          {/* We can re-use LeagueMatchNode here if we adapt it or create a new one */}
+                        </div>
+                    </div>
+                     <div>
+                        <h3 className="font-semibold text-lg mb-2 text-center">개인 순위</h3>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>순위</TableHead>
+                                    <TableHead>이름</TableHead>
+                                    <TableHead>총 승점</TableHead>
+                                    <TableHead>상태</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {sortedParticipants.map((p, index) => (
+                                    <TableRow key={p.id}>
+                                        <TableCell className="font-bold flex items-center">
+                                            {index + 1}
+                                            {tournament.isFinished && index === 0 && <Crown className="w-5 h-5 text-yellow-500 ml-2"/>}
+                                            {tournament.isFinished && index === 1 && <Medal className="w-5 h-5 text-gray-400 ml-2"/>}
+                                            {tournament.isFinished && index === 2 && <TrophyIcon className="w-5 h-5 text-orange-400 ml-2"/>}
+                                        </TableCell>
+                                        <TableCell>{p.name}</TableCell>
+                                        <TableCell>{p.totalPoints}</TableCell>
+                                        <TableCell>{p.status === 'active' ? '진행중' : '탈락'}</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+```

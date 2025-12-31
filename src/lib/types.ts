@@ -97,6 +97,15 @@ export type Match = {
   nextMatchSlot: 'A' | 'B' | null;
 };
 
+export type IndividualLeagueParticipant = {
+  id: string;
+  name: string;
+  totalPoints: number;
+  status: 'active' | 'eliminated';
+  initialRank: number; // For tie-breaking
+};
+
+
 export type Tournament = {
   id: string;
   school: string;
@@ -111,4 +120,13 @@ export type Tournament = {
   // For manual audience targeting
   grade?: string;
   gender?: 'all' | '남' | '여';
+
+  // For individual points league
+  participants?: IndividualLeagueParticipant[];
+  pointsPerWin?: number;
+  eliminationType?: 'none' | 'round';
+  eliminationsPerRound?: number;
+  currentRound?: number;
+  isFinished?: boolean;
 };
+```
