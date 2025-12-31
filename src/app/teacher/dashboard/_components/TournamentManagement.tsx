@@ -33,6 +33,7 @@ import {
   Plus,
   Send,
   Calendar,
+  UserPlus,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -80,6 +81,7 @@ import {
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { Checkbox } from '@/components/ui/checkbox';
 
 /* -------------------------------------------------------
  * Utils
@@ -289,7 +291,7 @@ export default function TournamentManagement({
   const [selectedTournamentId, setSelectedTournamentId] = useState('');
   const [tournamentName, setTournamentName] = useState('');
   const [tournamentType, setTournamentType] = useState<
-    'tournament' | 'league'
+    'tournament' | 'league' | 'individual-league'
   >('tournament');
   const [meetingsPerTeam, setMeetingsPerTeam] = useState(1);
   const [tournamentDate, setTournamentDate] = useState<Date | undefined>(
@@ -301,6 +303,7 @@ export default function TournamentManagement({
 
   const [teamList, setTeamList] = useState<Team[]>([]);
   const [newTeamName, setNewTeamName] = useState('');
+  const [participantIds, setParticipantIds] = useState<Set<string>>(new Set());
 
   const [currentTournament, setCurrentTournament] = useState<Tournament | null>(
     null
@@ -354,6 +357,19 @@ export default function TournamentManagement({
     setTeamList((prev) => prev.filter((team) => team.id !== teamId));
     setCurrentTournament(null); // Reset bracket if teams change
   };
+   const handleParticipantToggle = (studentId: string) => {
+    setParticipantIds(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(studentId)) {
+            newSet.delete(studentId);
+        } else {
+            newSet.add(studentId);
+        }
+        return newSet;
+    });
+    setCurrentTournament(null);
+  };
+
 
   const handleCreateOrUpdateTournament = async () => {
     if (!school || !tournamentName) {
@@ -398,7 +414,22 @@ export default function TournamentManagement({
         }
       } else {
         let teamsForBracket: Team[] = [];
-        if (teamSource === 'group' && selectedTeamGroupId) {
+        if (tournamentType === 'individual-league') {
+            if (participantIds.size < 2) {
+                toast({ variant: 'destructive', title: '참가자 부족', description: '개인 리그를 생성하려면 최소 2명의 참가자가 필요합니다.' });
+                setIsLoading(false);
+                return;
+            }
+            teamsForBracket = Array.from(participantIds).map((id, index) => {
+                const student = allStudents.find(s => s.id === id);
+                return {
+                    id: student?.id || uuidv4(),
+                    name: student?.name || '참가자',
+                    teamIndex: index,
+                    memberIds: [id],
+                }
+            });
+        } else if (teamSource === 'group' && selectedTeamGroupId) {
           const group = allTeamGroups.find((g) => g.id === selectedTeamGroupId);
           if (group) {
             const studentMap = new Map(allStudents.map((s) => [s.id, s]));
@@ -446,8 +477,8 @@ export default function TournamentManagement({
         if (teamsForBracket.length < 2) {
           toast({
             variant: 'destructive',
-            title: '팀 부족',
-            description: '대진표를 생성하려면 최소 2팀이 필요합니다.',
+            title: '팀/참가자 부족',
+            description: '대진표를 생성하려면 최소 2개의 팀 또는 참가자가 필요합니다.',
           });
           setIsLoading(false);
           return;
@@ -472,7 +503,7 @@ export default function TournamentManagement({
         if (teamSource === 'group' && selectedTeamGroupId) {
           tournamentData = { ...tournamentData, teamGroupId: selectedTeamGroupId };
         }
-        if (tournamentType === 'league') {
+        if (tournamentType === 'league' || tournamentType === 'individual-league') {
           tournamentData = {
             ...tournamentData,
             meetingsPerTeam: meetingsPerTeam,
@@ -531,6 +562,7 @@ export default function TournamentManagement({
     setTeamSource('manual');
     setSelectedTeamGroupId('');
     setMeetingsPerTeam(1);
+    setParticipantIds(new Set());
   };
 
   const handleLoadTournament = (id: string, tournamentData?: Tournament) => {
@@ -544,9 +576,14 @@ export default function TournamentManagement({
       setTournamentDate(
         tournament.date ? new Date(tournament.date) : new Date()
       );
-      setTeamList(tournament.teams);
-      setTeamSource(tournament.teamGroupId ? 'group' : 'manual');
-      setSelectedTeamGroupId(tournament.teamGroupId || '');
+      if (tournament.type === 'individual-league') {
+        setParticipantIds(new Set(tournament.teams.flatMap(t => t.memberIds)));
+      } else {
+        setTeamList(tournament.teams);
+        setTeamSource(tournament.teamGroupId ? 'group' : 'manual');
+        setSelectedTeamGroupId(tournament.teamGroupId || '');
+      }
+
 
       const initialResults: Record<
         string,
@@ -802,7 +839,7 @@ export default function TournamentManagement({
   const fmRound = finalMatch?.round ?? Number.POSITIVE_INFINITY;
 
   const leagueStandings = useMemo(() => {
-    if (!currentTournament || currentTournament.type !== 'league') return [];
+    if (!currentTournament || (currentTournament.type !== 'league' && currentTournament.type !== 'individual-league')) return [];
 
     const stats: Record<
       string,
@@ -968,7 +1005,7 @@ export default function TournamentManagement({
                 <Label htmlFor="tournament-type">대회 종류</Label>
                 <Select
                   onValueChange={(v) =>
-                    setTournamentType(v as 'tournament' | 'league')
+                    setTournamentType(v as 'tournament' | 'league' | 'individual-league')
                   }
                   value={tournamentType}
                   disabled={!!currentTournament}
@@ -978,13 +1015,14 @@ export default function TournamentManagement({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="tournament">토너먼트</SelectItem>
-                    <SelectItem value="league">리그</SelectItem>
+                    <SelectItem value="league">팀 리그</SelectItem>
+                    <SelectItem value="individual-league">개인 승점 리그</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              {tournamentType === 'league' && !currentTournament && (
+              {(tournamentType === 'league' || tournamentType === 'individual-league') && !currentTournament && (
                 <div className="space-y-2">
-                  <Label htmlFor="meetings-per-team">팀당 경기 수</Label>
+                  <Label htmlFor="meetings-per-team">팀/개인당 경기 수</Label>
                   <Input
                     id="meetings-per-team"
                     type="number"
@@ -1000,84 +1038,118 @@ export default function TournamentManagement({
 
             {!currentTournament && (
               <div className="space-y-4 pt-4 border-t">
-                <Label>참가팀 설정</Label>
-                <Select
-                  value={teamSource}
-                  onValueChange={(v) => setTeamSource(v as 'manual' | 'group')}
-                  disabled={!!currentTournament}
-                >
-                  <SelectTrigger className="w-[280px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="manual">팀 이름 직접 추가</SelectItem>
-                    <SelectItem value="group">
-                      저장된 팀 편성 그룹에서 가져오기
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-
-                {teamSource === 'manual' ? (
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="팀 이름을 입력하세요"
-                        value={newTeamName}
-                        onChange={(e) => setNewTeamName(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleAddTeam()}
-                      />
-                      <Button onClick={handleAddTeam}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        추가
-                      </Button>
-                    </div>
-                    {teamList.length > 0 && (
-                      <div className="p-2 border rounded-md max-h-48 overflow-y-auto">
-                        <ul className="space-y-1">
-                          {teamList.map((team) => (
-                            <li
-                              key={team.id}
-                              className="flex justify-between items-center text-sm p-1 bg-background rounded"
-                            >
-                              <span>{team.name}</span>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6"
-                                onClick={() => handleRemoveTeam(team.id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <Select
-                    value={selectedTeamGroupId}
-                    onValueChange={setSelectedTeamGroupId}
-                    disabled={!!currentTournament}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="팀 편성 그룹 선택" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {allTeamGroups.length > 0 ? (
-                        allTeamGroups.map((group) => (
-                          <SelectItem key={group.id} value={group.id}>
-                            {group.description}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="none" disabled>
-                          저장된 팀 편성 그룹이 없습니다.
+                <Label>참가팀/참가자 설정</Label>
+                 {tournamentType !== 'individual-league' ? (
+                 <>
+                    <Select
+                        value={teamSource}
+                        onValueChange={(v) => setTeamSource(v as 'manual' | 'group')}
+                        disabled={!!currentTournament}
+                    >
+                        <SelectTrigger className="w-[280px]">
+                        <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                        <SelectItem value="manual">팀 이름 직접 추가</SelectItem>
+                        <SelectItem value="group">
+                            저장된 팀 편성 그룹에서 가져오기
                         </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                )}
+                        </SelectContent>
+                    </Select>
+
+                    {teamSource === 'manual' ? (
+                        <div className="space-y-2">
+                            <div className="flex gap-2">
+                            <Input
+                                placeholder="팀 이름을 입력하세요"
+                                value={newTeamName}
+                                onChange={(e) => setNewTeamName(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleAddTeam()}
+                            />
+                            <Button onClick={handleAddTeam}>
+                                <Plus className="h-4 w-4 mr-2" />
+                                추가
+                            </Button>
+                            </div>
+                            {teamList.length > 0 && (
+                            <div className="p-2 border rounded-md max-h-48 overflow-y-auto">
+                                <ul className="space-y-1">
+                                {teamList.map((team) => (
+                                    <li
+                                    key={team.id}
+                                    className="flex justify-between items-center text-sm p-1 bg-background rounded"
+                                    >
+                                    <span>{team.name}</span>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6"
+                                        onClick={() => handleRemoveTeam(team.id)}
+                                    >
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                    </li>
+                                ))}
+                                </ul>
+                            </div>
+                            )}
+                        </div>
+                        ) : (
+                        <Select
+                            value={selectedTeamGroupId}
+                            onValueChange={setSelectedTeamGroupId}
+                            disabled={!!currentTournament}
+                        >
+                            <SelectTrigger className="w-full">
+                            <SelectValue placeholder="팀 편성 그룹 선택" />
+                            </SelectTrigger>
+                            <SelectContent>
+                            {allTeamGroups.length > 0 ? (
+                                allTeamGroups.map((group) => (
+                                <SelectItem key={group.id} value={group.id}>
+                                    {group.description}
+                                </SelectItem>
+                                ))
+                            ) : (
+                                <SelectItem value="none" disabled>
+                                저장된 팀 편성 그룹이 없습니다.
+                                </SelectItem>
+                            )}
+                            </SelectContent>
+                        </Select>
+                        )}
+                    </>
+                    ) : (
+                        <div className="p-2 border rounded-md max-h-60 overflow-y-auto">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className='w-10'>선택</TableHead>
+                                        <TableHead>학년</TableHead>
+                                        <TableHead>반</TableHead>
+                                        <TableHead>번호</TableHead>
+                                        <TableHead>이름</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {allStudents.map(student => (
+                                        <TableRow key={student.id}>
+                                            <TableCell>
+                                                <Checkbox
+                                                    checked={participantIds.has(student.id)}
+                                                    onCheckedChange={() => handleParticipantToggle(student.id)}
+                                                />
+                                            </TableCell>
+                                            <TableCell>{student.grade}</TableCell>
+                                            <TableCell>{student.classNum}</TableCell>
+                                            <TableCell>{student.studentNum}</TableCell>
+                                            <TableCell>{student.name}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )}
               </div>
             )}
 
@@ -1164,7 +1236,7 @@ export default function TournamentManagement({
             </CardContent>
           </Card>
         )}
-      {currentTournament && currentTournament.type === 'league' && (
+      {currentTournament && (currentTournament.type === 'league' || currentTournament.type === 'individual-league') && (
         <Card>
           <CardHeader className="text-center">
             <CardTitle>{currentTournament.name} 경기 정보</CardTitle>
@@ -1196,7 +1268,7 @@ export default function TournamentManagement({
                 <TableHeader>
                   <TableRow>
                     <TableHead>순위</TableHead>
-                    <TableHead>팀</TableHead>
+                    <TableHead>{currentTournament.type === 'individual-league' ? '참가자' : '팀'}</TableHead>
                     <TableHead>경기</TableHead>
                     <TableHead>승</TableHead>
                     <TableHead>무</TableHead>
@@ -1607,7 +1679,7 @@ function SendTournamentDialog({
           description: '팀 편성 그룹에 속한 학생들에게 대진표가 전달되었습니다.',
         });
       } else {
-        if (!targetGrade) {
+        if (!targetGrade && tournament.type !== 'individual-league') {
           toast({
             variant: 'destructive',
             title: '전달 실패',
@@ -1653,7 +1725,7 @@ function SendTournamentDialog({
               : '이 대회는 수동으로 생성되었습니다. 대진표를 전달할 학년과 성별을 지정해주세요.'}
           </DialogDescription>
         </DialogHeader>
-        {!tournament?.teamGroupId && (
+        {!tournament?.teamGroupId && tournament?.type !== 'individual-league' && (
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="grade" className="text-right">

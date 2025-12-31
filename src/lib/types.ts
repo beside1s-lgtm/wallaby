@@ -101,7 +101,7 @@ export type Tournament = {
   id: string;
   school: string;
   name: string;
-  type: 'tournament' | 'league';
+  type: 'tournament' | 'league' | 'individual-league';
   teamGroupId?: string;
   teams: Team[]; // 직접 팀 정보를 저장
   matches: Match[];
