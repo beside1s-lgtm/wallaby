@@ -1295,11 +1295,11 @@ export default function TournamentManagement({
                     <TableRow key={team.id}>
                       <TableCell className="font-bold">{index + 1}</TableCell>
                       <TableCell>{team.name}</TableCell>
-                      <TableCell>{team.matchesPlayed}</TableCell>
-                      <TableCell>{team.wins}</TableCell>
-                      <TableCell>{team.draws}</TableCell>
-                      <TableCell>{team.losses}</TableCell>
-                      <TableCell className="font-bold">{team.points}</TableCell>
+                      <TableCell>{(team as any).matchesPlayed}</TableCell>
+                      <TableCell>{(team as any).wins}</TableCell>
+                      <TableCell>{(team as any).draws}</TableCell>
+                      <TableCell>{(team as any).losses}</TableCell>
+                      <TableCell className="font-bold">{(team as any).points}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -1988,4 +1988,3 @@ const IndividualLeagueInterface = ({ tournament, onUpdateTournament }: { tournam
         </Card>
     );
 };
-```
