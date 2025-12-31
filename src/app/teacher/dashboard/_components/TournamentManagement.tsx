@@ -366,16 +366,26 @@ export default function TournamentManagement({
     setTeamList((prev) => prev.filter((team) => team.id !== teamId));
     setCurrentTournament(null); // Reset bracket if teams change
   };
-   const handleParticipantToggle = (studentId: string) => {
+   const handleParticipantToggle = (studentId: string, checked: boolean) => {
     setParticipantIds(prev => {
         const newSet = new Set(prev);
-        if (newSet.has(studentId)) {
-            newSet.delete(studentId);
-        } else {
+        if (checked) {
             newSet.add(studentId);
+        } else {
+            newSet.delete(studentId);
         }
         return newSet;
     });
+    setCurrentTournament(null);
+  };
+  
+  const handleSelectAllParticipants = (checked: boolean) => {
+    if (checked) {
+      const allIds = new Set(allStudents.map(s => s.id));
+      setParticipantIds(allIds);
+    } else {
+      setParticipantIds(new Set());
+    }
     setCurrentTournament(null);
   };
 
@@ -1146,6 +1156,7 @@ export default function TournamentManagement({
                           allStudents={allStudents}
                           participantIds={participantIds}
                           onParticipantToggle={handleParticipantToggle}
+                          onSelectAll={handleSelectAllParticipants}
                           pointsPerWin={pointsPerWin}
                           setPointsPerWin={setPointsPerWin}
                           eliminationType={eliminationType}
@@ -1792,10 +1803,11 @@ function SendTournamentDialog({
   );
 }
 
-const IndividualLeagueSetup = ({ allStudents, participantIds, onParticipantToggle, pointsPerWin, setPointsPerWin, eliminationType, setEliminationType, eliminationsPerRound, setEliminationsPerRound }: {
+const IndividualLeagueSetup = ({ allStudents, participantIds, onParticipantToggle, onSelectAll, pointsPerWin, setPointsPerWin, eliminationType, setEliminationType, eliminationsPerRound, setEliminationsPerRound }: {
   allStudents: Student[];
   participantIds: Set<string>;
-  onParticipantToggle: (studentId: string) => void;
+  onParticipantToggle: (studentId: string, checked: boolean) => void;
+  onSelectAll: (checked: boolean) => void;
   pointsPerWin: number;
   setPointsPerWin: (value: number) => void;
   eliminationType: 'none' | 'round';
@@ -1806,49 +1818,66 @@ const IndividualLeagueSetup = ({ allStudents, participantIds, onParticipantToggl
     return (
         <div className="space-y-4">
             <div className='space-y-2'>
-              <Label>리그 설정</Label>
-              <div className='grid grid-cols-2 gap-4'>
-                <Input type="number" value={pointsPerWin} onChange={(e) => setPointsPerWin(Number(e.target.value))} placeholder="승리 시 승점" />
-                <Select value={eliminationType} onValueChange={(v) => setEliminationType(v as any)}>
-                    <SelectTrigger><SelectValue/></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="none">탈락 없음</SelectItem>
-                        <SelectItem value="round">라운드별 탈락</SelectItem>
-                    </SelectContent>
-                </Select>
+              <h4 className="font-medium">리그 설정</h4>
+              <div className='grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 border rounded-md'>
+                <div className='space-y-1'>
+                  <Label htmlFor='pointsPerWin'>승리 시 승점</Label>
+                  <Input id="pointsPerWin" type="number" value={pointsPerWin} onChange={(e) => setPointsPerWin(Number(e.target.value))} placeholder="승리 시 승점" />
+                </div>
+                <div className='space-y-1'>
+                  <Label>탈락 유형</Label>
+                  <Select value={eliminationType} onValueChange={(v) => setEliminationType(v as any)}>
+                      <SelectTrigger><SelectValue/></SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="none">탈락 없음</SelectItem>
+                          <SelectItem value="round">라운드별 탈락</SelectItem>
+                      </SelectContent>
+                  </Select>
+                </div>
                 {eliminationType === 'round' && (
-                    <Input type="number" value={eliminationsPerRound} onChange={(e) => setEliminationsPerRound(Number(e.target.value))} placeholder="라운드당 탈락 인원" />
+                    <div className='space-y-1'>
+                      <Label htmlFor='eliminationsPerRound'>라운드당 탈락 인원</Label>
+                      <Input id="eliminationsPerRound" type="number" value={eliminationsPerRound} onChange={(e) => setEliminationsPerRound(Number(e.target.value))} placeholder="라운드당 탈락 인원" />
+                    </div>
                 )}
               </div>
             </div>
-            <div className="p-2 border rounded-md max-h-60 overflow-y-auto">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead className='w-10'>선택</TableHead>
-                            <TableHead>학년</TableHead>
-                            <TableHead>반</TableHead>
-                            <TableHead>번호</TableHead>
-                            <TableHead>이름</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {allStudents.map(student => (
-                            <TableRow key={student.id}>
-                                <TableCell>
-                                    <Checkbox
-                                        checked={participantIds.has(student.id)}
-                                        onCheckedChange={() => onParticipantToggle(student.id)}
-                                    />
-                                </TableCell>
-                                <TableCell>{student.grade}</TableCell>
-                                <TableCell>{student.classNum}</TableCell>
-                                <TableCell>{student.studentNum}</TableCell>
-                                <TableCell>{student.name}</TableCell>
+            <div className="space-y-2">
+                <h4 className="font-medium">참가자 선택</h4>
+                <div className="p-2 border rounded-md max-h-60 overflow-y-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className='w-10'>
+                                  <Checkbox
+                                      checked={participantIds.size === allStudents.length && allStudents.length > 0}
+                                      onCheckedChange={(checked) => onSelectAll(!!checked)}
+                                  />
+                                </TableHead>
+                                <TableHead>학년</TableHead>
+                                <TableHead>반</TableHead>
+                                <TableHead>번호</TableHead>
+                                <TableHead>이름</TableHead>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
+                        </TableHeader>
+                        <TableBody>
+                            {allStudents.map(student => (
+                                <TableRow key={student.id}>
+                                    <TableCell>
+                                        <Checkbox
+                                            checked={participantIds.has(student.id)}
+                                            onCheckedChange={(checked) => onParticipantToggle(student.id, !!checked)}
+                                        />
+                                    </TableCell>
+                                    <TableCell>{student.grade}</TableCell>
+                                    <TableCell>{student.classNum}</TableCell>
+                                    <TableCell>{student.studentNum}</TableCell>
+                                    <TableCell>{student.name}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
             </div>
         </div>
     );
