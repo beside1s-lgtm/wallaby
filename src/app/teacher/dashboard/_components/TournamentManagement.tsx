@@ -1169,7 +1169,7 @@ export default function TournamentManagement({
                 disabled={isLoading}
               >
                 <Save className="mr-2 h-4 w-4" />
-                {currentTournament ? '정보 변경 저장' : '대진표 생성'}
+                {currentTournament ? '정보 변경 저장' : '대회 생성'}
               </Button>
               {currentTournament && currentTournament.type === 'tournament' && (
                 <Button
