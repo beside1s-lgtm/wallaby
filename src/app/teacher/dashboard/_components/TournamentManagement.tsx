@@ -317,8 +317,7 @@ export default function TournamentManagement({
   
   // For Individual League
   const [pointsPerWin, setPointsPerWin] = useState(3);
-  const [eliminationType, setEliminationType] = useState<'none' | 'round'>('none');
-  const [eliminationsPerRound, setEliminationsPerRound] = useState(1);
+  const [membersPerTeam, setMembersPerTeam] = useState(2);
 
 
   useEffect(() => {
@@ -529,8 +528,7 @@ export default function TournamentManagement({
                 participants: participantsForLeague,
                 teams: [], // 팀은 동적으로 생성됨
                 pointsPerWin,
-                eliminationType,
-                eliminationsPerRound: eliminationType === 'round' ? eliminationsPerRound : 0,
+                membersPerTeam,
                 currentRound: 0,
                 isFinished: false,
             }
@@ -597,6 +595,7 @@ export default function TournamentManagement({
     setSelectedTeamGroupId('');
     setMeetingsPerTeam(1);
     setParticipantIds(new Set());
+    setMembersPerTeam(2);
   };
 
   const handleLoadTournament = (id: string, tournamentData?: Tournament) => {
@@ -613,8 +612,7 @@ export default function TournamentManagement({
       if (tournament.type === 'individual-league') {
         setParticipantIds(new Set(tournament.participants?.map(p => p.id)));
         setPointsPerWin(tournament.pointsPerWin || 3);
-        setEliminationType(tournament.eliminationType || 'none');
-        setEliminationsPerRound(tournament.eliminationsPerRound || 1);
+        setMembersPerTeam(tournament.membersPerTeam || 2);
       } else {
         setTeamList(tournament.teams);
         setTeamSource(tournament.teamGroupId ? 'group' : 'manual');
@@ -915,7 +913,6 @@ export default function TournamentManagement({
           teamA.draws++;
           teamB.draws++;
           teamA.points += 1;
-          teamB.points += 1;
         }
       }
     });
@@ -1159,10 +1156,8 @@ export default function TournamentManagement({
                           onSelectAll={handleSelectAllParticipants}
                           pointsPerWin={pointsPerWin}
                           setPointsPerWin={setPointsPerWin}
-                          eliminationType={eliminationType}
-                          setEliminationType={setEliminationType}
-                          eliminationsPerRound={eliminationsPerRound}
-                          setEliminationsPerRound={setEliminationsPerRound}
+                          membersPerTeam={membersPerTeam}
+                          setMembersPerTeam={setMembersPerTeam}
                        />
                     )}
               </div>
@@ -1803,43 +1798,29 @@ function SendTournamentDialog({
   );
 }
 
-const IndividualLeagueSetup = ({ allStudents, participantIds, onParticipantToggle, onSelectAll, pointsPerWin, setPointsPerWin, eliminationType, setEliminationType, eliminationsPerRound, setEliminationsPerRound }: {
+const IndividualLeagueSetup = ({ allStudents, participantIds, onParticipantToggle, onSelectAll, pointsPerWin, setPointsPerWin, membersPerTeam, setMembersPerTeam }: {
   allStudents: Student[];
   participantIds: Set<string>;
   onParticipantToggle: (studentId: string, checked: boolean) => void;
   onSelectAll: (checked: boolean) => void;
   pointsPerWin: number;
   setPointsPerWin: (value: number) => void;
-  eliminationType: 'none' | 'round';
-  setEliminationType: (value: 'none' | 'round') => void;
-  eliminationsPerRound: number;
-  setEliminationsPerRound: (value: number) => void;
+  membersPerTeam: number;
+  setMembersPerTeam: (value: number) => void;
 }) => {
     return (
         <div className="space-y-4">
             <div className='space-y-2'>
               <h4 className="font-medium">리그 설정</h4>
-              <div className='grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 border rounded-md'>
+              <div className='grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 border rounded-md'>
                 <div className='space-y-1'>
                   <Label htmlFor='pointsPerWin'>승리 시 승점</Label>
                   <Input id="pointsPerWin" type="number" value={pointsPerWin} onChange={(e) => setPointsPerWin(Number(e.target.value))} placeholder="승리 시 승점" />
                 </div>
                 <div className='space-y-1'>
-                  <Label>탈락 유형</Label>
-                  <Select value={eliminationType} onValueChange={(v) => setEliminationType(v as any)}>
-                      <SelectTrigger><SelectValue/></SelectTrigger>
-                      <SelectContent>
-                          <SelectItem value="none">탈락 없음</SelectItem>
-                          <SelectItem value="round">라운드별 탈락</SelectItem>
-                      </SelectContent>
-                  </Select>
+                    <Label htmlFor='membersPerTeam'>팀원 수</Label>
+                    <Input id="membersPerTeam" type="number" value={membersPerTeam} onChange={(e) => setMembersPerTeam(Number(e.target.value))} placeholder="한 팀의 인원 수" />
                 </div>
-                {eliminationType === 'round' && (
-                    <div className='space-y-1'>
-                      <Label htmlFor='eliminationsPerRound'>라운드당 탈락 인원</Label>
-                      <Input id="eliminationsPerRound" type="number" value={eliminationsPerRound} onChange={(e) => setEliminationsPerRound(Number(e.target.value))} placeholder="라운드당 탈락 인원" />
-                    </div>
-                )}
               </div>
             </div>
             <div className="space-y-2">
@@ -1889,12 +1870,12 @@ const IndividualLeagueInterface = ({ tournament, onUpdateTournament }: { tournam
     const [isLoading, setIsLoading] = useState(false);
 
     const handleNextRound = async () => {
-        if (!school || tournament.isFinished) return;
+        if (!school || tournament.isFinished || !tournament.membersPerTeam) return;
         setIsLoading(true);
 
         try {
             let participantsToPlay = tournament.participants?.filter(p => p.status === 'active') || [];
-            if (participantsToPlay.length < 4) {
+            if (participantsToPlay.length < (tournament.membersPerTeam || 2)) {
                 toast({ variant: 'destructive', title: '참가자 부족', description: '다음 라운드를 진행하기에 인원이 부족하여 리그를 종료합니다.' });
                 await handleEndLeague();
                 return;
@@ -1902,31 +1883,25 @@ const IndividualLeagueInterface = ({ tournament, onUpdateTournament }: { tournam
 
             participantsToPlay = [...participantsToPlay].sort(() => Math.random() - 0.5);
             
-            // 2명씩 팀 생성
             const teams: Team[] = [];
-            for (let i = 0; i < Math.floor(participantsToPlay.length / 2); i++) {
-                const member1 = participantsToPlay[i * 2];
-                const member2 = participantsToPlay[i * 2 + 1];
+            const numTeams = Math.floor(participantsToPlay.length / tournament.membersPerTeam);
+
+            for (let i = 0; i < numTeams; i++) {
+                const members = participantsToPlay.slice(i * tournament.membersPerTeam, (i + 1) * tournament.membersPerTeam);
                 teams.push({
                     id: uuidv4(),
-                    name: `${member1.name} & ${member2.name}`,
-                    memberIds: [member1.id, member2.id],
+                    name: members.map(m => m.name).join(' & '),
+                    memberIds: members.map(m => m.id),
                     teamIndex: i
                 });
             }
 
-            // 남은 1명은 부전승 처리 (다음 라운드 진출)
-            if (participantsToPlay.length % 2 !== 0) {
-              // For simplicity, we just leave them out of this round's matches
-            }
-
-            // 팀들 간의 경기 생성
             const { matches } = generateLeagueMatches(teams, 1);
             
             const updatedTournament: Tournament = {
                 ...tournament,
-                teams: [...tournament.teams, ...teams],
-                matches: [...tournament.matches, ...matches],
+                teams: [...(tournament.teams || []), ...teams],
+                matches: [...(tournament.matches || []), ...matches],
                 currentRound: (tournament.currentRound || 0) + 1,
             };
 

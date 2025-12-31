@@ -124,9 +124,7 @@ export type Tournament = {
   // For individual points league
   participants?: IndividualLeagueParticipant[];
   pointsPerWin?: number;
-  eliminationType?: 'none' | 'round';
-  eliminationsPerRound?: number;
+  membersPerTeam?: number;
   currentRound?: number;
   isFinished?: boolean;
 };
-```
