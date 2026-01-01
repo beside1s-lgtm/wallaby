@@ -826,7 +826,7 @@ export default function TournamentManagement({
         let winsB = 0;
         for (let i = 0; i < Math.max(scoresA.length, scoresB.length); i++) {
             if ((scoresA[i] || 0) > (scoresB[i] || 0)) winsA++;
-            else if ((scoresB[i] || 0) > (scoresA[i] || 0)) teamB.points += 1;
+            else if ((scoresB[i] || 0) > (scoresA[i] || 0)) winsB++;
         }
 
         const requiredWins = Math.ceil((currentTournament.bestOf || 1) / 2);
@@ -1017,14 +1017,12 @@ export default function TournamentManagement({
             if((scoresA[i] || 0) > (scoresB[i] || 0)) teamAWins++;
             else if((scoresB[i] || 0) > (scoresA[i] || 0)) teamBWins++;
         }
-
-        const requiredWins = Math.ceil((currentTournament.bestOf || 1) / 2);
         
-        if (teamAWins >= requiredWins) {
+        if (teamAWins > teamBWins) {
           teamA.wins++;
           teamB.losses++;
           teamA.points += 3;
-        } else if (teamBWins >= requiredWins) {
+        } else if (teamBWins > teamAWins) {
           teamB.wins++;
           teamA.losses++;
           teamB.points += 3;
@@ -1544,18 +1542,18 @@ const MatchNode = ({
         />
       </div>
 
-      <div className="flex flex-col gap-1 mt-2 border-t pt-2">
+       <div className="flex flex-col gap-1 mt-2">
         {Array.from({ length: tournament.bestOf || 1 }).map((_, i) => (
-          <MatchResultInput
-            key={i}
-            gameIndex={i}
-            match={match}
-            tournament={tournament}
-            onResultChange={onResultChange}
-            isMatchOver={isMatchOver}
-            matchResults={matchResults}
-            teamNameMap={teamNameMap}
-          />
+            <MatchResultInput
+                key={i}
+                gameIndex={i}
+                match={match}
+                tournament={tournament}
+                onResultChange={onResultChange}
+                isMatchOver={isMatchOver}
+                matchResults={matchResults}
+                teamNameMap={teamNameMap}
+            />
         ))}
       </div>
       
@@ -1717,7 +1715,7 @@ const MatchResultInput = ({
 };
 
 
-const MatchPageContent = ({ sport }: { matchId: string, sport: string, gameIndex: number }) => {
+const MatchPageContent = ({ sport, matchId, gameIndex }: { matchId: string, sport: string, gameIndex: number }) => {
     switch (sport) {
         case 'basketball':
             return <BasketballMatchPage />;
