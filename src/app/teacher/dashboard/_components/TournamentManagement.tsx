@@ -9,7 +9,6 @@ import {
   deleteTeamGroup,
   updateTeamGroup,
   getTournaments,
-  deleteTournament,
   updateTournament,
   getStudents,
   saveTournament,
@@ -281,59 +280,66 @@ function generateRoundRobinMatches(teams: Team[], meetingsPerTeam: number): Matc
             matchPairs.push([teams[i], teams[j]]);
         }
     }
-
-    for (let m = 0; m < meetingsPerTeam; m++) {
-        const shuffledPairs = [...matchPairs].sort(() => Math.random() - 0.5);
-
-        shuffledPairs.forEach((pair, index) => {
-            matches.push({
-                id: uuidv4(),
-                round: m + 1,
-                matchNumber: index + 1,
-                teamAId: pair[0].id,
-                teamBId: pair[1].id,
-                scoresA: [],
-                scoresB: [],
-                winnerId: null,
-                status: 'scheduled',
-                nextMatchId: null,
-                nextMatchSlot: null,
-            });
-        });
-    }
     
+    // For a single round-robin, this generates one match for each pair.
+    if (matchPairs.length === 0) return [];
+    
+    const singleRoundMatches = matchPairs.map((pair, index) => ({
+        id: uuidv4(),
+        round: 1, // All in a single logical round for the league
+        matchNumber: index + 1,
+        teamAId: pair[0].id,
+        teamBId: pair[1].id,
+        scoresA: [],
+        scoresB: [],
+        winnerId: null,
+        status: 'scheduled',
+        nextMatchId: null,
+        nextMatchSlot: null,
+    }));
+    
+    let allMeetings: Match[] = [];
+    for (let m = 0; m < meetingsPerTeam; m++) {
+        allMeetings.push(...singleRoundMatches.map(match => ({...match, id: uuidv4(), round: m+1 })));
+    }
+
+
     // Optimize schedule to avoid back-to-back games
-    if (matches.length > 0) {
+    if (allMeetings.length > 0) {
         let finalOrder: Match[] = [];
-        finalOrder.push(matches[0]);
-        let lastMatchTeams = new Set([matches[0].teamAId, matches[0].teamBId]);
-        let remainingMatches = matches.slice(1);
+        let remainingMatches = [...allMeetings];
 
-        while (remainingMatches.length > 0) {
-            let nextMatchIndex = remainingMatches.findIndex(
-                (match) =>
-                !lastMatchTeams.has(match.teamAId) && !lastMatchTeams.has(match.teamBId)
-            );
-
-            if (nextMatchIndex === -1) {
-                nextMatchIndex = remainingMatches.findIndex(
-                (match) =>
-                    !lastMatchTeams.has(match.teamAId) || !lastMatchTeams.has(match.teamBId)
+        if (remainingMatches.length > 0) {
+            finalOrder.push(remainingMatches[0]);
+            let lastMatchTeams = new Set([remainingMatches[0].teamAId, remainingMatches[0].teamBId]);
+            remainingMatches.splice(0, 1);
+    
+            while (remainingMatches.length > 0) {
+                let nextMatchIndex = remainingMatches.findIndex(
+                    (match) =>
+                    !lastMatchTeams.has(match.teamAId) && !lastMatchTeams.has(match.teamBId)
                 );
+    
+                if (nextMatchIndex === -1) {
+                    nextMatchIndex = remainingMatches.findIndex(
+                    (match) =>
+                        !lastMatchTeams.has(match.teamAId) || !lastMatchTeams.has(match.teamBId)
+                    );
+                }
+                if (nextMatchIndex === -1) {
+                    nextMatchIndex = 0;
+                }
+    
+                const nextMatch = remainingMatches[nextMatchIndex];
+                finalOrder.push(nextMatch);
+                lastMatchTeams = new Set([nextMatch.teamAId, nextMatch.teamBId]);
+                remainingMatches.splice(nextMatchIndex, 1);
             }
-            if (nextMatchIndex === -1) {
-                nextMatchIndex = 0;
-            }
-
-            const nextMatch = remainingMatches[nextMatchIndex];
-            finalOrder.push(nextMatch);
-            lastMatchTeams = new Set([nextMatch.teamAId, nextMatch.teamBId]);
-            remainingMatches.splice(nextMatchIndex, 1);
         }
         return finalOrder;
     }
 
-    return matches;
+    return allMeetings;
 }
 
 
@@ -809,8 +815,8 @@ export default function TournamentManagement({
         let winsA = 0;
         let winsB = 0;
         for (let i = 0; i < Math.max(scoresA.length, scoresB.length); i++) {
-            if (scoresA[i] > scoresB[i]) winsA++;
-            else if (scoresB[i] > scoresA[i]) winsB++;
+            if ((scoresA[i] || 0) > (scoresB[i] || 0)) winsA++;
+            else if ((scoresB[i] || 0) > (scoresA[i] || 0)) winsB++;
         }
 
         const requiredWins = Math.ceil((currentTournament.bestOf || 1) / 2);
@@ -995,8 +1001,8 @@ export default function TournamentManagement({
         let teamAWins = 0;
         let teamBWins = 0;
         for(let i=0; i<Math.max((match.scoresA || []).length, (match.scoresB || []).length); i++){
-            if(match.scoresA[i] > match.scoresB[i]) teamAWins++;
-            else if(match.scoresB[i] > match.scoresA[i]) teamBWins++;
+            if((match.scoresA[i] || 0) > (match.scoresB[i] || 0)) teamAWins++;
+            else if((match.scoresB[i] || 0) > (match.scoresA[i] || 0)) teamBWins++;
         }
 
         if (teamAWins > teamBWins) {
@@ -1179,7 +1185,7 @@ export default function TournamentManagement({
                     </div>
                      <div className="space-y-2">
                       <Label>경기 방식</Label>
-                      <Select value={String(bestOf)} onValueChange={v => setBestOf(Number(v) as any)} disabled={!!currentTournament}>
+                      <Select value={String(bestOf)} onValueChange={v => setBestOf(Number(v) as any)}>
                         <SelectTrigger><SelectValue/></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="1">단판</SelectItem>
@@ -1370,8 +1376,6 @@ export default function TournamentManagement({
                               match={match}
                               tournament={currentTournament}
                               teamNameMap={teamNameMap}
-                              matchResults={matchResults}
-                              onResultChange={handleMatchResultChange}
                               onUpdateMatch={handleUpdateMatch}
                               onResetMatch={handleResetMatch}
                               onUpdateTeamName={handleUpdateTeamName}
@@ -1403,8 +1407,6 @@ export default function TournamentManagement({
                     match={match}
                     tournament={currentTournament}
                     teamNameMap={teamNameMap}
-                    matchResults={matchResults}
-                    onResultChange={handleMatchResultChange}
                     onUpdateMatch={handleUpdateMatch}
                     onResetMatch={handleResetMatch}
                     onUpdateTeamName={handleUpdateTeamName}
@@ -1456,8 +1458,6 @@ const LeagueMatchNode = ({
   match,
   tournament,
   teamNameMap,
-  matchResults,
-  onResultChange,
   onUpdateMatch,
   onResetMatch,
   onUpdateTeamName,
@@ -1465,8 +1465,6 @@ const LeagueMatchNode = ({
   match: Match;
   tournament: Tournament;
   teamNameMap: Map<string, string>;
-  matchResults: Record<string, { scoresA: string[]; scoresB: string[] }>;
-  onResultChange: (matchId: string, team: 'A' | 'B', gameIndex: number, score: string) => void;
   onUpdateMatch: (matchId: string) => void;
   onResetMatch: (matchId: string) => void;
   onUpdateTeamName: (teamId: string, newName: string) => void;
@@ -1476,8 +1474,6 @@ const LeagueMatchNode = ({
       match={match}
       tournament={tournament}
       teamNameMap={teamNameMap}
-      matchResults={matchResults}
-      onResultChange={onResultChange}
       onUpdateMatch={onUpdateMatch}
       onResetMatch={onResetMatch}
       onUpdateTeamName={onUpdateTeamName}
@@ -1490,8 +1486,6 @@ const MatchNode = ({
   match,
   tournament,
   teamNameMap,
-  matchResults,
-  onResultChange,
   onUpdateMatch,
   onResetMatch,
   onUpdateTeamName,
@@ -1500,35 +1494,23 @@ const MatchNode = ({
   match: Match;
   tournament: Tournament;
   teamNameMap: Map<string, string>;
-  matchResults: Record<string, { scoresA: string[]; scoresB: string[] }>;
-  onResultChange: (matchId: string, team: 'A' | 'B', gameIndex: number, score: string) => void;
   onUpdateMatch: (matchId: string) => void;
   onResetMatch: (matchId: string) => void;
   onUpdateTeamName: (teamId: string, newName: string) => void;
   isLeague?: boolean;
 }) => {
-  const winnerIsA = !!match.winnerId && match.winnerId === match.teamAId;
-  const winnerIsB = !!match.winnerId && match.winnerId === match.teamBId;
-
-  const scoresA = matchResults[match.id]?.scoresA || [];
-  const scoresB = matchResults[match.id]?.scoresB || [];
-  
-  let winsA = 0;
-  let winsB = 0;
-  for (let i = 0; i < Math.max(scoresA.length, scoresB.length); i++) {
-    const scoreA = parseInt(scoresA[i]);
-    const scoreB = parseInt(scoresB[i]);
-    if (!isNaN(scoreA) && !isNaN(scoreB)) {
-      if (scoreA > scoreB) winsA++;
-      else if (scoreB > scoreA) winsB++;
+    let winsA = 0;
+    let winsB = 0;
+    for (let i = 0; i < Math.max((match.scoresA || []).length, (match.scoresB || []).length); i++) {
+        if ((match.scoresA[i] || 0) > (match.scoresB[i] || 0)) winsA++;
+        else if ((match.scoresB[i] || 0) > (match.scoresA[i] || 0)) winsB++;
     }
-  }
 
-  const requiredWins = Math.ceil((tournament.bestOf || 1) / 2);
-  const isMatchOver = winsA >= requiredWins || winsB >= requiredWins;
-  const finalWinnerId = isMatchOver ? (winsA > winsB ? match.teamAId : match.teamBId) : null;
-  const finalWinnerIsA = finalWinnerId === match.teamAId;
-  const finalWinnerIsB = finalWinnerId === match.teamBId;
+    const requiredWins = Math.ceil((tournament.bestOf || 1) / 2);
+    const isMatchOver = winsA >= requiredWins || winsB >= requiredWins;
+    const finalWinnerId = isMatchOver ? (winsA > winsB ? match.teamAId : match.teamBId) : null;
+    const finalWinnerIsA = finalWinnerId === match.teamAId;
+    const finalWinnerIsB = finalWinnerId === match.teamBId;
   
   const cardClassName = cn(
     "relative flex w-full flex-col justify-center rounded-md border p-2 shadow-sm",
@@ -1562,18 +1544,14 @@ const MatchNode = ({
           key={i}
           gameIndex={i}
           match={match}
-          matchResults={matchResults}
-          onResultChange={onResultChange}
+          tournament={tournament}
+          teamNameMap={teamNameMap}
           isMatchOver={isMatchOver}
+          onUpdateMatch={onUpdateMatch}
         />
       ))}
       
       <div className="flex gap-2 mt-2">
-        {match.status === 'scheduled' && match.teamAId && match.teamBId && (
-          <Button size="sm" className="h-7 flex-1" onClick={(e) => { e.stopPropagation(); onUpdateMatch(match.id); }}>
-            <Save className="mr-2 h-3 w-3" /> 저장
-          </Button>
-        )}
         {match.status === 'completed' && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
@@ -1601,39 +1579,66 @@ const MatchNode = ({
 const MatchResultInput = ({
   gameIndex,
   match,
-  matchResults,
-  onResultChange,
+  tournament,
+  teamNameMap,
   isMatchOver,
+  onUpdateMatch,
 }: {
   gameIndex: number;
   match: Match;
-  matchResults: Record<string, { scoresA: string[]; scoresB: string[] }>;
-  onResultChange: (matchId: string, team: 'A' | 'B', gameIndex: number, score: string) => void;
+  tournament: Tournament;
+  teamNameMap: Map<string, string>;
   isMatchOver: boolean;
+  onUpdateMatch: (matchId: string) => void;
 }) => {
-  const sport = getSportFromTournamentName(match.tournamentName || '');
-  const scoreA = matchResults[match.id]?.scoresA?.[gameIndex] ?? '';
-  const scoreB = matchResults[match.id]?.scoresB?.[gameIndex] ?? '';
-  
+  const sport = getSportFromTournamentName(tournament.name || '');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+  const scoreA = match.scoresA?.[gameIndex] ?? '';
+  const scoreB = match.scoresB?.[gameIndex] ?? '';
   
+  const hasResult = scoreA !== '' && scoreB !== '';
+  
+  const handleOpenDialog = () => {
+    if (isMatchOver && !hasResult) {
+      // Game is over, but this specific set hasn't been played. Don't open.
+      return;
+    }
+    setIsDialogOpen(true);
+  }
+
   return (
     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
       <DialogTrigger asChild>
-        <div className="mt-1 p-2 border-t flex flex-col gap-1 cursor-pointer hover:bg-secondary rounded-b-md" onClick={(e) => e.stopPropagation()}>
+        <div
+          className={cn(
+            "mt-1 p-2 border-t flex flex-col gap-1 rounded-b-md",
+            (isMatchOver && !hasResult) 
+              ? "bg-muted/50 cursor-not-allowed text-muted-foreground" 
+              : "cursor-pointer hover:bg-secondary"
+          )}
+          onClick={(e) => { e.stopPropagation(); handleOpenDialog(); }}
+        >
             <div className="text-xs text-center text-muted-foreground">{gameIndex + 1}경기</div>
             <div className="flex gap-1 justify-between items-center">
-              <div className="flex-1 text-sm truncate">{match.teamAId ? match.teamNameA : '미정'}</div>
-              <div className={cn("w-10 text-center font-bold", scoreA > scoreB ? "text-primary" : "")}>{scoreA || '-'}</div>
+              <div className="flex-1 text-sm truncate">{match.teamAId ? teamNameMap.get(match.teamAId) : '미정'}</div>
+              <div className={cn("w-10 text-center font-bold", Number(scoreA) > Number(scoreB) ? "text-primary" : "")}>{scoreA !== '' ? scoreA : '-'}</div>
             </div>
              <div className="flex gap-1 justify-between items-center">
-              <div className="flex-1 text-sm truncate">{match.teamBId ? match.teamNameB : '미정'}</div>
-              <div className={cn("w-10 text-center font-bold", scoreB > scoreA ? "text-primary" : "")}>{scoreB || '-'}</div>
+              <div className="flex-1 text-sm truncate">{match.teamBId ? teamNameMap.get(match.teamBId) : '미정'}</div>
+              <div className={cn("w-10 text-center font-bold", Number(scoreB) > Number(scoreA) ? "text-primary" : "")}>{scoreB !== '' ? scoreB : '-'}</div>
             </div>
         </div>
       </DialogTrigger>
       <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
-          <MatchPageContent matchId={match.id} sport={sport} gameIndex={gameIndex} />
+          <DialogHeader className="p-6 pb-0">
+            <DialogTitle>경기 기록</DialogTitle>
+          </DialogHeader>
+          <MatchPageContent
+            matchId={match.id}
+            sport={sport}
+            gameIndex={gameIndex}
+          />
       </DialogContent>
     </Dialog>
   );
@@ -2160,8 +2165,6 @@ const IndividualLeagueInterface = ({ tournament, onUpdateTournament, onUpdateMat
                                     match={match}
                                     tournament={tournament}
                                     teamNameMap={teamNameMap}
-                                    matchResults={matchResults}
-                                    onResultChange={onUpdateMatchResult}
                                     onUpdateMatch={handleUpdateLeagueMatch}
                                     onResetMatch={() => { /* Not implemented for league */ }}
                                     onUpdateTeamName={() => { /* Not implemented for league */ }}
