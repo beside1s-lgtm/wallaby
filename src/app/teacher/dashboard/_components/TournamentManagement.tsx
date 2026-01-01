@@ -314,13 +314,13 @@ function generateRoundRobinMatches(teams: Team[]): Match[] {
             while (remainingMatches.length > 0) {
                 let nextMatchIndex = remainingMatches.findIndex(
                     (match) =>
-                    !lastMatchTeams.has(match.teamAId) && !lastMatchTeams.has(match.teamBId)
+                    match.teamAId && match.teamBId && !lastMatchTeams.has(match.teamAId) && !lastMatchTeams.has(match.teamBId)
                 );
     
                 if (nextMatchIndex === -1) {
                     nextMatchIndex = remainingMatches.findIndex(
                     (match) =>
-                        !lastMatchTeams.has(match.teamAId) || !lastMatchTeams.has(match.teamBId)
+                        match.teamAId && match.teamBId && (!lastMatchTeams.has(match.teamAId) || !lastMatchTeams.has(match.teamBId))
                     );
                 }
                 if (nextMatchIndex === -1) {
@@ -790,11 +790,24 @@ export default function TournamentManagement({
 
   const handleUpdateMatch = async (matchId: string) => {
     if (!school || !currentTournament) return;
-    const results = matchResults[matchId];
-    if (!results) return;
+    
+    // Detailed page scores take precedence
+    const detailedMatch = currentTournament.matches.find(m => m.id === matchId);
+    const hasDetailedScores = (detailedMatch?.scoresA?.length || 0) > 0 || (detailedMatch?.scoresB?.length || 0) > 0;
+    
+    let scoresA: number[] = [];
+    let scoresB: number[] = [];
 
-    const scoresA = results.scoresA.map(s => parseInt(s, 10)).filter(s => !isNaN(s));
-    const scoresB = results.scoresB.map(s => parseInt(s, 10)).filter(s => !isNaN(s));
+    if (hasDetailedScores) {
+        scoresA = detailedMatch?.scoresA || [];
+        scoresB = detailedMatch?.scoresB || [];
+    } else {
+        const results = matchResults[matchId];
+        if (!results) return;
+        scoresA = results.scoresA.map(s => parseInt(s, 10)).filter(s => !isNaN(s));
+        scoresB = results.scoresB.map(s => parseInt(s, 10)).filter(s => !isNaN(s));
+    }
+
 
     setIsLoading(true);
     try {
@@ -997,20 +1010,26 @@ export default function TournamentManagement({
         
         let teamAWins = 0;
         let teamBWins = 0;
-        for(let i=0; i<Math.max((match.scoresA || []).length, (match.scoresB || []).length); i++){
-            if((match.scoresA[i] || 0) > (match.scoresB[i] || 0)) teamAWins++;
-            else if((match.scoresB[i] || 0) > (match.scoresA[i] || 0)) teamBWins++;
+        const scoresA = match.scoresA || [];
+        const scoresB = match.scoresB || [];
+
+        for(let i=0; i < Math.max(scoresA.length, scoresB.length); i++){
+            if((scoresA[i] || 0) > (scoresB[i] || 0)) teamAWins++;
+            else if((scoresB[i] || 0) > (scoresA[i] || 0)) teamBWins++;
         }
 
-        if (teamAWins > teamBWins) {
+        const requiredWins = Math.ceil((currentTournament.bestOf || 1) / 2);
+        
+        if (teamAWins >= requiredWins) {
           teamA.wins++;
           teamB.losses++;
           teamA.points += 3;
-        } else if (teamBWins > teamAWins) {
+        } else if (teamBWins >= requiredWins) {
           teamB.wins++;
           teamA.losses++;
           teamB.points += 3;
-        } else if (teamAWins === teamBWins && teamAWins > 0) { // 무승부 처리
+        } else {
+          // This logic might need adjustment based on specific league rules for draws
           teamA.draws++;
           teamB.draws++;
           teamA.points += 1;
@@ -1329,8 +1348,6 @@ export default function TournamentManagement({
             setCurrentTournament(updated);
             setTournaments(prev => prev.map(t => t.id === updated.id ? updated : t));
           }}
-          onUpdateMatchResult={handleMatchResultChange}
-          matchResults={matchResults}
         />
       )}
 
@@ -1377,6 +1394,7 @@ export default function TournamentManagement({
                               onUpdateMatch={handleUpdateMatch}
                               onResetMatch={handleResetMatch}
                               onUpdateTeamName={handleUpdateTeamName}
+                              matchResults={matchResults}
                             />
                           ))}
                         </div>
@@ -1409,6 +1427,7 @@ export default function TournamentManagement({
                     onUpdateMatch={handleUpdateMatch}
                     onResetMatch={handleResetMatch}
                     onUpdateTeamName={handleUpdateTeamName}
+                    matchResults={matchResults}
                   />
                 ))}
               </div>
@@ -1468,6 +1487,7 @@ interface MatchNodeProps {
   onResetMatch: (matchId: string) => void;
   onUpdateTeamName: (teamId: string, newName: string) => void;
   isLeague?: boolean;
+  matchResults: Record<string, { scoresA: string[], scoresB: string[] }>;
 }
 
 const MatchNode = ({
@@ -1479,12 +1499,23 @@ const MatchNode = ({
   onResetMatch,
   onUpdateTeamName,
   isLeague = false,
+  matchResults,
 }: MatchNodeProps) => {
     let winsA = 0;
     let winsB = 0;
-    for (let i = 0; i < Math.max((match.scoresA || []).length, (match.scoresB || []).length); i++) {
-        if ((match.scoresA?.[i] ?? 0) > (match.scoresB?.[i] ?? 0)) winsA++;
-        else if ((match.scoresB?.[i] ?? 0) > (match.scoresA?.[i] ?? 0)) winsB++;
+    
+    const simpleScoresA = matchResults[match.id]?.scoresA || [];
+    const simpleScoresB = matchResults[match.id]?.scoresB || [];
+    const detailedScoresA = match.scoresA || [];
+    const detailedScoresB = match.scoresB || [];
+
+    const hasDetailedScores = detailedScoresA.length > 0 || detailedScoresB.length > 0;
+    const scoresToUseA = hasDetailedScores ? detailedScoresA : simpleScoresA.map(s => parseInt(s, 10)).filter(s => !isNaN(s));
+    const scoresToUseB = hasDetailedScores ? detailedScoresB : simpleScoresB.map(s => parseInt(s, 10)).filter(s => !isNaN(s));
+
+    for (let i = 0; i < Math.max(scoresToUseA.length, scoresToUseB.length); i++) {
+        if ((scoresToUseA[i] || 0) > (scoresToUseB[i] || 0)) winsA++;
+        else if ((scoresToUseB[i] || 0) > (scoresToUseA[i] || 0)) winsB++;
     }
 
     const requiredWins = Math.ceil((tournament.bestOf || 1) / 2);
@@ -1530,6 +1561,7 @@ const MatchNode = ({
             teamNameMap={teamNameMap}
             onResultChange={onResultChange}
             isMatchOver={isMatchOver}
+            matchResults={matchResults}
           />
         ))}
       </div>
@@ -1561,7 +1593,7 @@ const MatchNode = ({
   );
 };
 
-const EditableScore = ({ value, onChange }: { value: string; onChange: (newValue: string) => void }) => {
+const EditableScore = ({ value, onChange, disabled }: { value: string; onChange: (newValue: string) => void, disabled?: boolean }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [currentValue, setCurrentValue] = useState(value);
 
@@ -1573,6 +1605,14 @@ const EditableScore = ({ value, onChange }: { value: string; onChange: (newValue
         setIsEditing(false);
         onChange(currentValue);
     };
+    
+    if (disabled) {
+        return (
+             <div className="w-12 h-8 flex items-center justify-center cursor-not-allowed bg-muted/50 rounded-md">
+                <span className="font-bold">{value || '-'}</span>
+            </div>
+        )
+    }
 
     if (isEditing) {
         return (
@@ -1605,6 +1645,7 @@ const MatchResultInput = ({
   tournament,
   onResultChange,
   isMatchOver,
+  matchResults,
 }: {
   gameIndex: number;
   match: Match;
@@ -1612,86 +1653,77 @@ const MatchResultInput = ({
   teamNameMap: Map<string, string>;
   onResultChange: (matchId: string, team: 'A' | 'B', gameIndex: number, score: string) => void;
   isMatchOver: boolean;
+  matchResults: Record<string, { scoresA: string[], scoresB: string[] }>;
 }) => {
   const sport = getSportFromTournamentName(tournament.name || '');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-
-  const scoreA = match.scoresA?.[gameIndex] ?? '';
-  const scoreB = match.scoresB?.[gameIndex] ?? '';
   
-  const hasResult = scoreA !== '' || scoreB !== '';
+  const simpleScores = matchResults[match.id] || { scoresA: [], scoresB: [] };
+  const scoreA = simpleScores.scoresA[gameIndex] ?? '';
+  const scoreB = simpleScores.scoresB[gameIndex] ?? '';
+
+  const hasDetailedScores = (match.scoresA && match.scoresA.length > gameIndex) || (match.scoresB && match.scoresB.length > gameIndex);
   
   const handleOpenDialog = () => {
     if (isMatchOver && !hasResult) {
-      // Game is over, but this specific set hasn't been played. Don't open.
       return;
     }
     setIsDialogOpen(true);
   }
 
+  const hasResult = scoreA !== '' || scoreB !== '';
+
   return (
-    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-      <div
-          className={cn(
-            "mt-1 p-2 border-t flex flex-col gap-1 rounded-b-md",
-            (isMatchOver && !hasResult) 
-              ? "bg-muted/50 cursor-not-allowed text-muted-foreground" 
-              : "hover:bg-secondary"
-          )}
-        >
-            <div className="text-xs text-center text-muted-foreground">{gameIndex + 1}경기</div>
-            <div className="flex gap-1 justify-between items-center">
-              <div className="flex-1 text-sm truncate">{match.teamAId ? teamNameMap.get(match.teamAId) : '미정'}</div>
-              <EditableScore 
-                value={String(scoreA)} 
-                onChange={(newScore) => onResultChange(match.id, 'A', gameIndex, newScore)} 
-              />
-            </div>
-             <div className="flex gap-1 justify-between items-center">
-              <div className="flex-1 text-sm truncate">{match.teamBId ? teamNameMap.get(match.teamBId) : '미정'}</div>
-               <EditableScore 
-                value={String(scoreB)} 
-                onChange={(newScore) => onResultChange(match.id, 'B', gameIndex, newScore)} 
-              />
-            </div>
-             <DialogTrigger asChild>
-               <Button size="sm" variant="ghost" className="h-6 mt-1 text-xs text-muted-foreground" onClick={(e) => {e.stopPropagation(); handleOpenDialog();}}>
-                  <ClipboardList className="mr-2 h-3 w-3" />상세 기록
-               </Button>
-            </DialogTrigger>
-        </div>
-      <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
-          <DialogHeader className="p-6 pb-0">
-            <DialogTitle>경기 기록</DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto">
-             <MatchPageContent
-              matchId={match.id}
-              sport={sport}
-              gameIndex={gameIndex}
+    <div
+        className={cn(
+        "mt-1 p-2 border-t flex flex-col gap-1 rounded-b-md",
+        (isMatchOver && !hasResult) 
+            ? "bg-muted/50 cursor-not-allowed text-muted-foreground" 
+            : "hover:bg-secondary"
+        )}
+    >
+        <div className="text-xs text-center text-muted-foreground">{gameIndex + 1}경기</div>
+        <div className="flex gap-1 justify-between items-center">
+            <div className="flex-1 text-sm truncate">{match.teamAId ? teamNameMap.get(match.teamAId) : '미정'}</div>
+            <EditableScore 
+              value={String(hasDetailedScores ? (match.scoresA?.[gameIndex] ?? '') : scoreA)}
+              onChange={(newScore) => onResultChange(match.id, 'A', gameIndex, newScore)}
+              disabled={hasDetailedScores}
             />
-          </div>
-      </DialogContent>
-    </Dialog>
+        </div>
+        <div className="flex gap-1 justify-between items-center">
+            <div className="flex-1 text-sm truncate">{match.teamBId ? teamNameMap.get(match.teamBId) : '미정'}</div>
+            <EditableScore 
+              value={String(hasDetailedScores ? (match.scoresB?.[gameIndex] ?? '') : scoreB)}
+              onChange={(newScore) => onResultChange(match.id, 'B', gameIndex, newScore)}
+              disabled={hasDetailedScores}
+            />
+        </div>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+            <Button size="sm" variant="ghost" className="h-6 mt-1 text-xs text-muted-foreground" onClick={(e) => {e.stopPropagation(); handleOpenDialog();}}>
+                <ClipboardList className="mr-2 h-3 w-3" />상세 기록
+            </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
+                <DialogHeader className="p-6 pb-0">
+                  <DialogTitle>경기 기록</DialogTitle>
+                </DialogHeader>
+                <div className="flex-1 overflow-y-auto">
+                    <MatchPageContent
+                        matchId={match.id}
+                        sport={sport}
+                        gameIndex={gameIndex}
+                    />
+                </div>
+            </DialogContent>
+        </Dialog>
+    </div>
   );
 };
 
 
 const MatchPageContent = ({ sport }: { matchId: string, sport: string, gameIndex: number }) => {
-    // This is now a simplified loader.
-    // The actual content is in separate files and imported.
-    const [isLoading, setIsLoading] = useState(true);
-
-    useEffect(() => {
-        // Simulate a small delay for loading, can be removed if not needed.
-        const timer = setTimeout(() => setIsLoading(false), 200);
-        return () => clearTimeout(timer);
-    }, []);
-
-    if(isLoading) {
-       return <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin" /></div>
-    }
-
     switch (sport) {
         case 'basketball':
             return <BasketballMatchPage />;
@@ -2021,15 +2053,26 @@ const getCombinations = <T,>(array: T[], size: number): T[][] => {
 };
 
 
-const IndividualLeagueInterface = ({ tournament, onUpdateTournament, onUpdateMatchResult, matchResults }: { 
+const IndividualLeagueInterface = ({ tournament, onUpdateTournament }: { 
     tournament: Tournament, 
     onUpdateTournament: (t: Tournament) => void,
-    onUpdateMatchResult: (matchId: string, team: 'A' | 'B', gameIndex: number, score: string) => void,
-    matchResults: Record<string, { scoresA: string[], scoresB: string[] }>
 }) => {
     const { school } = useAuth();
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
+    const [matchResults, setMatchResults] = useState<Record<string, { scoresA: string[], scoresB: string[] }>>({});
+
+     useEffect(() => {
+        const initialResults: Record<string, { scoresA: string[], scoresB: string[] }> = {};
+        tournament.matches?.forEach((match) => {
+            initialResults[match.id] = {
+            scoresA: match.scoresA?.map(s => String(s)) || [],
+            scoresB: match.scoresB?.map(s => String(s)) || [],
+            };
+        });
+        setMatchResults(initialResults);
+    }, [tournament.matches]);
+
 
     const handleNextRound = async () => {
         if (!school || tournament.isFinished || !tournament.membersPerTeam) return;
@@ -2145,8 +2188,8 @@ const IndividualLeagueInterface = ({ tournament, onUpdateTournament, onUpdateMat
         let winsA = 0;
         let winsB = 0;
         for (let i = 0; i < Math.max(scoresA.length, scoresB.length); i++) {
-            if (scoresA[i] > scoresB[i]) winsA++;
-            else if (scoresB[i] > scoresA[i]) winsB++;
+            if ((scoresA[i] || 0) > (scoresB[i] || 0)) winsA++;
+            else if ((scoresB[i] || 0) > (scoresA[i] || 0)) winsB++;
         }
 
         setIsLoading(true);
@@ -2184,6 +2227,29 @@ const IndividualLeagueInterface = ({ tournament, onUpdateTournament, onUpdateMat
         } finally {
             setIsLoading(false);
         }
+    };
+    
+    const handleMatchResultChange = (
+        matchId: string,
+        team: 'A' | 'B',
+        gameIndex: number,
+        score: string
+    ) => {
+        setMatchResults((prev) => {
+        const newResults = { ...prev };
+        const currentScores = newResults[matchId] || { scoresA: [], scoresB: [] };
+        const newScoresA = [...currentScores.scoresA];
+        const newScoresB = [...currentScores.scoresB];
+
+        if (team === 'A') {
+            newScoresA[gameIndex] = score;
+        } else {
+            newScoresB[gameIndex] = score;
+        }
+        
+        newResults[matchId] = { scoresA: newScoresA, scoresB: newScoresB };
+        return newResults;
+        });
     };
 
     const sortedParticipants = useMemo(() => {
@@ -2224,10 +2290,11 @@ const IndividualLeagueInterface = ({ tournament, onUpdateTournament, onUpdateMat
                                     match={match}
                                     tournament={tournament}
                                     teamNameMap={teamNameMap}
-                                    onResultChange={onUpdateMatchResult}
+                                    onResultChange={handleMatchResultChange}
                                     onUpdateMatch={handleUpdateLeagueMatch}
                                     onResetMatch={() => { /* Not implemented for league */ }}
                                     onUpdateTeamName={() => { /* Not implemented for league */ }}
+                                    matchResults={matchResults}
                                 />
                            )) : (
                                <div className='text-center text-muted-foreground p-4'>생성된 경기가 없습니다. '다음 라운드 생성' 버튼을 눌러주세요.</div>
