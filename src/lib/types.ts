@@ -111,6 +111,8 @@ export type Tournament = {
   school: string;
   name: string;
   type: 'tournament' | 'league' | 'individual-league';
+  tournamentFormat?: 'single-elimination' | 'double-elimination';
+  bestOf?: 1 | 3 | 5 | 7;
   teamGroupId?: string;
   teams: Team[]; // 직접 팀 정보를 저장
   matches: Match[];

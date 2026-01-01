@@ -1,5 +1,6 @@
 
 
+
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -13,8 +14,8 @@ import {
   getTournaments,
   deleteTournament,
   updateTournament,
-  saveTournament,
   getStudents,
+  saveTournament,
 } from '@/lib/store';
 import { Tournament, Match, Team, TeamGroup, Student, IndividualLeagueParticipant, TeamGroupInput } from '@/lib/types';
 import {
@@ -136,26 +137,23 @@ const getSportFromTournamentName = (name: string): string => {
 /* -------------------------------------------------------
  * Bracket/League Generation
  * ----------------------------------------------------- */
-function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
+function generateTournamentBracket(teams: Team[], format: 'single-elimination' | 'double-elimination' = 'single-elimination'): { matches: Match[] } {
   const shuffledTeams = [...teams].sort(() => Math.random() - 0.5);
   const numTeams = shuffledTeams.length;
   let allMatches: Match[] = [];
 
   if (numTeams < 2) return { matches: [] };
 
+  // --- Single Elimination Logic ---
   const totalSlots = nextPowerOfTwo(numTeams);
   const numByes = totalSlots - numTeams;
   const numRound1Matches = (numTeams - numByes) / 2;
 
   const round1Matches: Match[] = [];
 
-  // Assign Byes - these teams advance directly to round 2
   const byeTeams = shuffledTeams.slice(0, numByes);
-
-  // Teams that play in round 1
   const playingTeams = shuffledTeams.slice(numByes);
 
-  // Create round 1 matches
   for (let i = 0; i < numRound1Matches; i++) {
     const match: Match = {
       id: uuidv4(),
@@ -174,7 +172,6 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
   }
   allMatches.push(...round1Matches);
 
-  // Prepare for round 2
   let round2Entrants: (
     | { type: 'winner'; matchId: string }
     | { type: 'bye'; teamId: string }
@@ -186,7 +183,6 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
     round2Entrants.push({ type: 'bye', teamId: team.id })
   );
 
-  // This logic ensures byes are distributed. A simple sort would cluster them.
   const distributedEntrants = [];
   let byeIndex = 0;
   let winnerIndex = 0;
@@ -243,7 +239,7 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
           prevMatch.nextMatchSlot = 'B';
         }
       }
-      // Handle if a bye team plays another bye team in round 2
+
       if (newMatch.teamAId && newMatch.teamBId) {
         // Normal match
       } else if (
@@ -251,7 +247,6 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
         !newMatch.teamBId &&
         entrantB.type === 'bye'
       ) {
-        // A is bye, B is also bye, this should not happen if totalSlots logic is correct
         newMatch.teamBId = entrantB.teamId;
       }
 
@@ -267,36 +262,41 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
     currentRound++;
   }
 
+  // Double elimination logic would go here, modifying `allMatches`
+  // This is a complex feature and is stubbed for now.
+
   return { matches: allMatches };
 }
 
 function generateRoundRobinMatches(teams: Team[]): { matches: Match[] } {
-  const matches: Omit<Match, 'id' | 'round' | 'matchNumber'>[] = [];
   if (teams.length < 2) return { matches: [] };
-
+  
+  let matchPairs: [Team, Team][] = [];
   for (let i = 0; i < teams.length; i++) {
     for (let j = i + 1; j < teams.length; j++) {
-      matches.push({
-        teamAId: teams[i].id,
-        teamBId: teams[j].id,
+      matchPairs.push([teams[i], teams[j]]);
+    }
+  }
+
+  // Shuffle the pairs
+  for (let i = matchPairs.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [matchPairs[i], matchPairs[j]] = [matchPairs[j], matchPairs[i]];
+  }
+  
+  return {
+    matches: matchPairs.map((pair, index) => ({
+        id: uuidv4(),
+        round: 1,
+        matchNumber: index + 1,
+        teamAId: pair[0].id,
+        teamBId: pair[1].id,
         scoreA: null,
         scoreB: null,
         winnerId: null,
         status: 'scheduled',
         nextMatchId: null,
         nextMatchSlot: null,
-      });
-    }
-  }
-
-  return {
-    matches: matches
-      .sort(() => Math.random() - 0.5)
-      .map((m, index) => ({
-        ...m,
-        id: uuidv4(),
-        round: 1,
-        matchNumber: index + 1,
       })),
   };
 }
@@ -326,6 +326,9 @@ export default function TournamentManagement({
   const [tournamentType, setTournamentType] = useState<
     'tournament' | 'league' | 'individual-league'
   >('tournament');
+  const [tournamentFormat, setTournamentFormat] = useState<'single-elimination' | 'double-elimination'>('single-elimination');
+  const [bestOf, setBestOf] = useState<1 | 3 | 5 | 7>(1);
+
   const [meetingsPerTeam, setMeetingsPerTeam] = useState(1);
   const [tournamentDate, setTournamentDate] = useState<Date | undefined>(
     new Date()
@@ -431,16 +434,24 @@ export default function TournamentManagement({
 
     setIsLoading(true);
     try {
-      const tournamentDataToUpdate = {
+      const tournamentDataToUpdate: Partial<Tournament> = {
         name: tournamentName,
         date: tournamentDate ? format(tournamentDate, 'yyyy-MM-dd') : undefined,
       };
 
       if (currentTournament) {
-        if (
-          currentTournament.name !== tournamentName ||
-          currentTournament.date !== tournamentDataToUpdate.date
-        ) {
+        let changed = false;
+        if(currentTournament.name !== tournamentName) {
+          tournamentDataToUpdate.name = tournamentName;
+          changed = true;
+        }
+        const newDate = tournamentDataToUpdate.date;
+        if (currentTournament.date !== newDate) {
+          tournamentDataToUpdate.date = newDate;
+          changed = true;
+        }
+
+        if (changed) {
           await updateTournament(
             school,
             currentTournament.id,
@@ -538,7 +549,7 @@ export default function TournamentManagement({
 
         const { matches } =
           tournamentType === 'tournament'
-            ? generateTournamentBracket(teamsForBracket)
+            ? generateTournamentBracket(teamsForBracket, tournamentFormat)
             : generateRoundRobinMatches(teamsForBracket);
 
         let tournamentData: Omit<Tournament, 'id' | 'createdAt'> = {
@@ -546,12 +557,17 @@ export default function TournamentManagement({
           name: tournamentName,
           type: tournamentType,
           teams: teamsForBracket,
-          matches: tournamentType === 'individual-league' ? [] : matches, // 개인 리그는 라운드마다 경기 생성
+          matches: tournamentType === 'individual-league' ? [] : matches,
           date: tournamentDate
             ? format(tournamentDate, 'yyyy-MM-dd')
             : undefined,
         };
         
+        if (tournamentType === 'tournament') {
+            tournamentData.tournamentFormat = tournamentFormat;
+            tournamentData.bestOf = bestOf;
+        }
+
         if (tournamentType === 'individual-league') {
             tournamentData = {
                 ...tournamentData,
@@ -591,7 +607,8 @@ export default function TournamentManagement({
     setIsLoading(true);
     try {
       const { matches: newMatches } = generateTournamentBracket(
-        currentTournament.teams
+        currentTournament.teams,
+        currentTournament.tournamentFormat
       );
       await updateTournament(school, currentTournament.id, {
         matches: newMatches,
@@ -616,6 +633,8 @@ export default function TournamentManagement({
     setSelectedTournamentId('');
     setTournamentName('');
     setTournamentType('tournament');
+    setTournamentFormat('single-elimination');
+    setBestOf(1);
     setTournamentDate(new Date());
     setCurrentTournament(null);
     setMatchResults({});
@@ -635,6 +654,8 @@ export default function TournamentManagement({
       setSelectedTournamentId(tournament.id);
       setTournamentName(tournament.name);
       setTournamentType(tournament.type);
+      setTournamentFormat(tournament.tournamentFormat || 'single-elimination');
+      setBestOf(tournament.bestOf || 1);
       setMeetingsPerTeam(tournament.meetingsPerTeam || 1);
       setTournamentDate(
         tournament.date ? new Date(tournament.date) : new Date()
@@ -1097,6 +1118,35 @@ export default function TournamentManagement({
                 </div>
               )}
             </div>
+            
+            {tournamentType === 'tournament' && (
+              <div className="space-y-4 pt-4 border-t">
+                  <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+                     <div className="space-y-2">
+                      <Label>대진 방식</Label>
+                      <Select value={tournamentFormat} onValueChange={v => setTournamentFormat(v as any)} disabled={!!currentTournament}>
+                        <SelectTrigger><SelectValue/></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="single-elimination">싱글 엘리미네이션</SelectItem>
+                          <SelectItem value="double-elimination" disabled>더블 엘리미네이션 (준비중)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                     <div className="space-y-2">
+                      <Label>경기 방식</Label>
+                      <Select value={String(bestOf)} onValueChange={v => setBestOf(Number(v) as any)} disabled={!!currentTournament}>
+                        <SelectTrigger><SelectValue/></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">단판</SelectItem>
+                          <SelectItem value="3">3전 2선승</SelectItem>
+                          <SelectItem value="5">5전 3선승</SelectItem>
+                          <SelectItem value="7">7전 4선승</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+              </div>
+            )}
 
             {!currentTournament && (
               <div className="space-y-4 pt-4 border-t">
@@ -1956,12 +2006,15 @@ const IndividualLeagueInterface = ({ tournament, onUpdateTournament, onUpdateMat
                 let penaltyB = 0;
                 
                 pastTeamMemberIds.forEach(pastSet => {
-                   if (Array.from(teamASet).every(memberId => pastSet.has(memberId))) {
+                    const setAArray = Array.from(teamASet);
+                    const setBArray = Array.from(teamBSet);
+
+                    if (setAArray.length === pastSet.size && setAArray.every(memberId => pastSet.has(memberId))) {
                        penaltyA++;
-                   }
-                   if (Array.from(teamBSet).every(memberId => pastSet.has(memberId))) {
+                    }
+                    if (setBArray.length === pastSet.size && setBArray.every(memberId => pastSet.has(memberId))) {
                        penaltyB++;
-                   }
+                    }
                 });
                 
                 return penaltyA - penaltyB;
