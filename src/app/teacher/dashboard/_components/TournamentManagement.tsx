@@ -285,7 +285,7 @@ function generateRoundRobinMatches(teams: Team[]): Match[] {
     // For a single round-robin, this generates one match for each pair.
     if (matchPairs.length === 0) return [];
     
-    const singleRoundMatches = matchPairs.map((pair, index) => ({
+    return matchPairs.map((pair, index) => ({
         id: uuidv4(),
         round: 1, // All in a single logical round for the league
         matchNumber: index + 1,
@@ -298,45 +298,6 @@ function generateRoundRobinMatches(teams: Team[]): Match[] {
         nextMatchId: null,
         nextMatchSlot: null,
     }));
-    
-    let allMeetings: Match[] = [...singleRoundMatches];
-    
-    // Optimize schedule to avoid back-to-back games
-    if (allMeetings.length > 0) {
-        let finalOrder: Match[] = [];
-        let remainingMatches = [...allMeetings];
-
-        if (remainingMatches.length > 0) {
-            finalOrder.push(remainingMatches[0]);
-            let lastMatchTeams = new Set([remainingMatches[0].teamAId, remainingMatches[0].teamBId]);
-            remainingMatches.splice(0, 1);
-    
-            while (remainingMatches.length > 0) {
-                let nextMatchIndex = remainingMatches.findIndex(
-                    (match) =>
-                    match.teamAId && match.teamBId && !lastMatchTeams.has(match.teamAId) && !lastMatchTeams.has(match.teamBId)
-                );
-    
-                if (nextMatchIndex === -1) {
-                    nextMatchIndex = remainingMatches.findIndex(
-                    (match) =>
-                        match.teamAId && match.teamBId && (!lastMatchTeams.has(match.teamAId) || !lastMatchTeams.has(match.teamBId))
-                    );
-                }
-                if (nextMatchIndex === -1) {
-                    nextMatchIndex = 0;
-                }
-    
-                const nextMatch = remainingMatches[nextMatchIndex];
-                finalOrder.push(nextMatch);
-                lastMatchTeams = new Set([nextMatch.teamAId, nextMatch.teamBId]);
-                remainingMatches.splice(nextMatchIndex, 1);
-            }
-        }
-        return finalOrder;
-    }
-
-    return allMeetings;
 }
 
 
@@ -835,6 +796,8 @@ export default function TournamentManagement({
             matchToUpdate.status = 'completed';
             matchToUpdate.winnerId = winsA > winsB ? matchToUpdate.teamAId : matchToUpdate.teamBId;
         } else {
+          // If no one has won yet, but scores are entered, it's still 'scheduled' until a winner is clear.
+          // Or you could have an 'in_progress' status. For now, we'll keep it simple.
             matchToUpdate.status = 'scheduled';
             matchToUpdate.winnerId = null;
         }
@@ -1629,6 +1592,26 @@ const EditableScore = ({ value, onChange, disabled }: { value: string; onChange:
     );
 };
 
+const MatchPageContent = ({ sport, matchId, gameIndex }: { matchId: string, sport: string, gameIndex: number }) => {
+    // This component now acts as a router for different sport pages.
+    // The actual page components will be rendered inside the dialog.
+    // We pass props down to them. For now, this is simplified.
+    switch (sport) {
+        case 'basketball':
+            return <BasketballMatchPage />;
+        case 'volleyball':
+            return <VolleyballMatchPage />;
+        case 'soccer':
+            return <SoccerMatchPage />;
+        case 'baseball':
+            return <BaseballMatchPage />;
+        case 'dodgeball':
+            return <DodgeballMatchPage />;
+        default:
+            return <GenericMatchPage />;
+    }
+}
+
 
 const MatchResultInput = ({
   gameIndex,
@@ -1698,7 +1681,7 @@ const MatchResultInput = ({
             </Button>
             </DialogTrigger>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
-                <DialogHeader className="p-6 pb-0">
+               <DialogHeader className="p-6 pb-0">
                   <DialogTitle>경기 기록</DialogTitle>
                 </DialogHeader>
                 <div className="flex-1 overflow-y-auto">
@@ -1714,23 +1697,6 @@ const MatchResultInput = ({
   );
 };
 
-
-const MatchPageContent = ({ sport, matchId, gameIndex }: { matchId: string, sport: string, gameIndex: number }) => {
-    switch (sport) {
-        case 'basketball':
-            return <BasketballMatchPage />;
-        case 'volleyball':
-            return <VolleyballMatchPage />;
-        case 'soccer':
-            return <SoccerMatchPage />;
-        case 'baseball':
-            return <BaseballMatchPage />;
-        case 'dodgeball':
-            return <DodgeballMatchPage />;
-        default:
-            return <GenericMatchPage />;
-    }
-}
 
 const TeamNameEditor = ({
   teamId,
