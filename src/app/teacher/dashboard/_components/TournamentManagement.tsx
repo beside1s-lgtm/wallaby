@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -270,33 +271,34 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
 }
 
 function generateRoundRobinMatches(teams: Team[]): { matches: Match[] } {
-    const matches: Omit<Match, 'id' | 'matchNumber'>[] = [];
-    if (teams.length < 2) return { matches: [] };
+  const matches: Omit<Match, 'id' | 'round' | 'matchNumber'>[] = [];
+  if (teams.length < 2) return { matches: [] };
 
-    const shuffledTeams = [...teams].sort(() => Math.random() - 0.5);
-
-    for (let i = 0; i < shuffledTeams.length; i += 2) {
-        if (i + 1 < shuffledTeams.length) {
-            matches.push({
-                teamAId: shuffledTeams[i].id,
-                teamBId: shuffledTeams[i + 1].id,
-                scoreA: null,
-                scoreB: null,
-                winnerId: null,
-                status: 'scheduled',
-                nextMatchId: null,
-                nextMatchSlot: null,
-            });
-        }
+  for (let i = 0; i < teams.length; i++) {
+    for (let j = i + 1; j < teams.length; j++) {
+      matches.push({
+        teamAId: teams[i].id,
+        teamBId: teams[j].id,
+        scoreA: null,
+        scoreB: null,
+        winnerId: null,
+        status: 'scheduled',
+        nextMatchId: null,
+        nextMatchSlot: null,
+      });
     }
+  }
 
-    return {
-        matches: matches.map((m, index) => ({
-            ...m,
-            id: uuidv4(),
-            matchNumber: index + 1,
-        }))
-    };
+  return {
+    matches: matches
+      .sort(() => Math.random() - 0.5)
+      .map((m, index) => ({
+        ...m,
+        id: uuidv4(),
+        round: 1,
+        matchNumber: index + 1,
+      })),
+  };
 }
 
 
@@ -929,11 +931,13 @@ export default function TournamentManagement({
         teamA.matchesPlayed++;
         teamB.matchesPlayed++;
 
-        if (match.scoreA! > match.scoreB!) {
+        if (match.scoreA === null || match.scoreB === null) return;
+        
+        if (match.scoreA > match.scoreB) {
           teamA.wins++;
           teamB.losses++;
           teamA.points += 3;
-        } else if (match.scoreB! > match.scoreA!) {
+        } else if (match.scoreB > match.scoreA) {
           teamB.wins++;
           teamA.losses++;
           teamB.points += 3;
@@ -941,6 +945,7 @@ export default function TournamentManagement({
           teamA.draws++;
           teamB.draws++;
           teamA.points += 1;
+          teamB.points += 1;
         }
       }
     });
@@ -1932,6 +1937,11 @@ const IndividualLeagueInterface = ({ tournament, onUpdateTournament, onUpdateMat
                 toast({ variant: 'destructive', title: '참가자 부족', description: '다음 라운드를 진행하기에 인원이 부족하여 리그를 종료합니다.' });
                 await handleEndLeague();
                 return;
+            }
+             if (participantsToPlay.length % tournament.membersPerTeam !== 0) {
+              toast({ variant: 'destructive', title: '팀 구성 불가', description: `현재 참가자(${participantsToPlay.length}명)를 ${tournament.membersPerTeam}명씩 팀으로 나눌 수 없습니다.` });
+              setIsLoading(false);
+              return;
             }
 
             const pastTeamMemberIds = (tournament.teams || []).map(team => new Set(team.memberIds));
