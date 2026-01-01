@@ -365,7 +365,7 @@ export default function BaseballMatchPage() {
         </div>
         
         <Card className="mb-6 print-hidden">
-          <CardHeader>
+          <CardContent className="p-4">
             <div className="flex flex-wrap items-center gap-4">
               <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
                 <SelectTrigger className="w-full sm:w-[200px]">
@@ -402,7 +402,7 @@ export default function BaseballMatchPage() {
                 <Button onClick={handlePrint}><Printer className="w-4 h-4 mr-2" />인쇄하기</Button>
               </div>
             </div>
-          </CardHeader>
+          </CardContent>
         </Card>
         
         <div id="print-area">
