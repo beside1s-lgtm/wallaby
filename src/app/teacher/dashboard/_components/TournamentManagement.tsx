@@ -4,6 +4,7 @@
 
 
 
+
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -281,16 +282,14 @@ function generateRoundRobinMatches(teams: Team[], meetingsPerTeam: number): Matc
     if (teams.length < 2) return [];
 
     let matches: Match[] = [];
-    
-    for (let m = 0; m < meetingsPerTeam; m++) {
-        let matchPairs: [Team, Team][] = [];
-        for (let i = 0; i < teams.length; i++) {
-            for (let j = i + 1; j < teams.length; j++) {
-                matchPairs.push([teams[i], teams[j]]);
-            }
+    let matchPairs: [Team, Team][] = [];
+    for (let i = 0; i < teams.length; i++) {
+        for (let j = i + 1; j < teams.length; j++) {
+            matchPairs.push([teams[i], teams[j]]);
         }
-        
-        // Shuffle the pairs for this meeting
+    }
+
+    for (let m = 0; m < meetingsPerTeam; m++) {
         for (let i = matchPairs.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [matchPairs[i], matchPairs[j]] = [matchPairs[j], matchPairs[i]];
@@ -313,7 +312,6 @@ function generateRoundRobinMatches(teams: Team[], meetingsPerTeam: number): Matc
         });
     }
 
-    // Intelligent shuffle for play order
     let finalOrder: Match[] = [];
     if (matches.length > 0) {
       finalOrder.push(matches[0]);
@@ -323,11 +321,11 @@ function generateRoundRobinMatches(teams: Team[], meetingsPerTeam: number): Matc
       while(remainingMatches.length > 0) {
         let nextMatchIndex = remainingMatches.findIndex(match => !lastMatchTeams.has(match.teamAId) && !lastMatchTeams.has(match.teamBId));
         
-        if(nextMatchIndex === -1) { // No match with completely new teams, find one with at least one new team
+        if(nextMatchIndex === -1) {
             nextMatchIndex = remainingMatches.findIndex(match => !lastMatchTeams.has(match.teamAId) || !lastMatchTeams.has(match.teamBId));
         }
 
-        if(nextMatchIndex === -1) { // All remaining matches have teams from the last match
+        if(nextMatchIndex === -1) {
             nextMatchIndex = 0;
         }
 
@@ -337,7 +335,6 @@ function generateRoundRobinMatches(teams: Team[], meetingsPerTeam: number): Matc
         remainingMatches.splice(nextMatchIndex, 1);
       }
     }
-
 
     return finalOrder;
 }
@@ -776,7 +773,7 @@ export default function TournamentManagement({
   ) => {
     setMatchResults((prev) => {
         const newResults = {...prev};
-        const matchResult = newResults[matchId] || { scoresA: [], scoresB: [] };
+        const matchResult = newResults[matchId] || { scoresA: Array(bestOf).fill(''), scoresB: Array(bestOf).fill('') };
         
         if (team === 'A') {
             const newScores = [...matchResult.scoresA];
@@ -1484,20 +1481,19 @@ const LeagueMatchNode = ({
       <Dialog>
         <DialogTrigger asChild>
           <Card className="p-3 hover:bg-muted/50 transition-colors cursor-pointer">
-            <div className="flex items-center justify-between">
-              <TeamNameEditor
-                teamId={match.teamAId}
-                name={match.teamAId ? teamNameMap.get(match.teamAId) ?? '미정' : '미정'}
-                onUpdate={onUpdateTeamName}
-                className="font-semibold text-sm"
-              />
-              <span className="text-xs text-muted-foreground">VS</span>
-              <TeamNameEditor
-                teamId={match.teamBId}
-                name={match.teamBId ? teamNameMap.get(match.teamBId) ?? '미정' : '미정'}
-                onUpdate={onUpdateTeamName}
-                className="font-semibold text-sm"
-              />
+            <div className="space-y-2">
+                 <TeamNameEditor
+                    teamId={match.teamAId}
+                    name={match.teamAId ? teamNameMap.get(match.teamAId) ?? '미정' : '미정'}
+                    onUpdate={onUpdateTeamName}
+                    className="font-semibold text-sm"
+                  />
+                  <TeamNameEditor
+                    teamId={match.teamBId}
+                    name={match.teamBId ? teamNameMap.get(match.teamBId) ?? '미정' : '미정'}
+                    onUpdate={onUpdateTeamName}
+                    className="font-semibold text-sm"
+                  />
             </div>
              <MatchResultInputs
                 match={match}
@@ -1592,7 +1588,7 @@ const MatchNode = ({
         <DialogTrigger asChild>
             <div className="relative cursor-pointer">
                 <div className="relative flex w-full flex-col justify-center rounded-md border bg-card p-2 shadow-sm space-y-1 hover:bg-muted/50 transition-colors">
-                  <div className="flex items-center justify-between">
+                  <div className={cn("flex flex-col gap-1", (tournament.bestOf || 1) > 1 && "mb-2")}>
                     <TeamNameEditor
                         teamId={match.teamAId}
                         name={
@@ -1603,8 +1599,6 @@ const MatchNode = ({
                             winnerIsA ? 'font-bold text-primary' : ''
                         } ${match.teamAId ? '' : 'text-muted-foreground'}`}
                     />
-                  </div>
-                  <div className="flex items-center justify-between">
                     <TeamNameEditor
                         teamId={match.teamBId}
                         name={
@@ -1623,7 +1617,7 @@ const MatchNode = ({
                             : 'text-muted-foreground'
                         }`}
                     />
-                  </div>
+                </div>
 
                 <MatchResultInputs
                     match={match}
@@ -1635,7 +1629,7 @@ const MatchNode = ({
                 {match.status === 'scheduled' && match.teamAId && match.teamBId && (
                     <Button
                     size="sm"
-                    className="h-7 w-full"
+                    className="h-7 w-full mt-2"
                     onClick={(e) => {
                         e.preventDefault();
                         onUpdateMatch(match.id);
@@ -1651,7 +1645,7 @@ const MatchNode = ({
                         <Button
                         size="sm"
                         variant="ghost"
-                        className="h-7 w-full"
+                        className="h-7 w-full mt-2"
                         onClick={(e) => e.preventDefault()}
                         >
                         <RotateCcw className="mr-2 h-3 w-3" /> 결과 초기화
@@ -1702,6 +1696,33 @@ const MatchResultInputs = ({
   matchResults: Record<string, { scoresA: string[]; scoresB: string[] }>;
   onResultChange: (matchId: string, team: 'A' | 'B', gameIndex: number, score: string) => void;
 }) => {
+  if (bestOf === 1) {
+    const scoreA = matchResults[match.id]?.scoresA?.[0] ?? '';
+    const scoreB = matchResults[match.id]?.scoresB?.[0] ?? '';
+    return (
+        <div className="flex gap-1">
+            <Input
+                type="number"
+                className="h-7 w-full text-center"
+                placeholder="-"
+                value={scoreA}
+                onChange={(e) => onResultChange(match.id, 'A', 0, e.target.value)}
+                onClick={(e) => e.preventDefault()}
+                disabled={match.status !== 'scheduled' || !match.teamAId || !match.teamBId}
+            />
+            <Input
+                type="number"
+                className="h-7 w-full text-center"
+                placeholder="-"
+                value={scoreB}
+                onChange={(e) => onResultChange(match.id, 'B', 0, e.target.value)}
+                onClick={(e) => e.preventDefault()}
+                disabled={match.status !== 'scheduled' || !match.teamAId || !match.teamBId}
+            />
+        </div>
+    );
+  }
+
   const numGames = bestOf;
   const scoresA = matchResults[match.id]?.scoresA || [];
   const scoresB = matchResults[match.id]?.scoresB || [];
@@ -1721,9 +1742,10 @@ const MatchResultInputs = ({
   const isMatchOver = winsA >= requiredWins || winsB >= requiredWins;
 
   return (
-    <div className="flex justify-around gap-1 mt-1">
+    <div className="flex justify-around gap-2 mt-1">
       {Array.from({ length: numGames }).map((_, i) => (
-        <div key={i} className="flex flex-col gap-1 w-full">
+        <div key={i} className="flex-1 space-y-1 border-l pl-2 first:border-l-0 first:pl-0">
+          <p className="text-xs text-center text-muted-foreground">{i+1}경기</p>
           <Input
             type="number"
             className="h-7 w-full text-center"
@@ -1731,7 +1753,7 @@ const MatchResultInputs = ({
             value={scoresA[i] ?? ''}
             onChange={(e) => onResultChange(match.id, 'A', i, e.target.value)}
             onClick={(e) => e.preventDefault()}
-            disabled={match.status !== 'scheduled' || !match.teamAId || (isMatchOver && (scoresA[i] === undefined || scoresA[i] === ''))}
+            disabled={match.status !== 'scheduled' || !match.teamAId || !match.teamBId || (isMatchOver && scoresA[i] === undefined)}
           />
           <Input
             type="number"
@@ -1740,7 +1762,7 @@ const MatchResultInputs = ({
             value={scoresB[i] ?? ''}
             onChange={(e) => onResultChange(match.id, 'B', i, e.target.value)}
             onClick={(e) => e.preventDefault()}
-            disabled={match.status !== 'scheduled' || !match.teamBId || (isMatchOver && (scoresB[i] === undefined || scoresB[i] === ''))}
+            disabled={match.status !== 'scheduled' || !match.teamAId || !match.teamBId || (isMatchOver && scoresB[i] === undefined)}
           />
         </div>
       ))}
