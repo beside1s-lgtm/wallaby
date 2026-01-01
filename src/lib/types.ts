@@ -95,6 +95,9 @@ export type Match = {
   status: 'scheduled' | 'completed' | 'bye';
   nextMatchId: string | null;
   nextMatchSlot: 'A' | 'B' | null;
+  tournamentName?: string; // For sport-specific page context
+  teamNameA?: string;
+  teamNameB?: string;
 };
 
 export type IndividualLeagueParticipant = {
