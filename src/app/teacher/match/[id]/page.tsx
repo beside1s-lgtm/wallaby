@@ -4,7 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 
-export default function MatchPage() {
+export default function GenericMatchPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
@@ -13,9 +13,6 @@ export default function MatchPage() {
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8">
       <div className="flex items-center gap-4 mb-6">
-        <Button variant="outline" size="icon" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
         <h1 className="text-3xl font-bold">경기 기록 페이지 ({sport})</h1>
       </div>
       <p className="text-muted-foreground">경기 ID: {id}</p>

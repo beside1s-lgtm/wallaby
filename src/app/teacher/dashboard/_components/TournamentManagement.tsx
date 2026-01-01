@@ -2,6 +2,7 @@
 
 
 
+
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -113,6 +114,12 @@ import type { ScoutingReportOutput } from "@/ai/flows/scouting-report-flow";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import TeamBalancer from "./TeamBalancer";
+import BasketballMatchPage from "../../match/basketball/[id]/page";
+import VolleyballMatchPage from "../../match/volleyball/[id]/page";
+import SoccerMatchPage from "../../match/soccer/[id]/page";
+import BaseballMatchPage from "../../match/baseball/[id]/page";
+import DodgeballMatchPage from "../../match/dodgeball/[id]/page";
+import GenericMatchPage from "../../match/[id]/page";
 
 /* -------------------------------------------------------
  * Utils
@@ -269,37 +276,43 @@ function generateTournamentBracket(teams: Team[], format: 'single-elimination' |
   return { matches: allMatches };
 }
 
-function generateRoundRobinMatches(teams: Team[]): { matches: Match[] } {
-  if (teams.length < 2) return { matches: [] };
-  
-  let matchPairs: [Team, Team][] = [];
-  for (let i = 0; i < teams.length; i++) {
-    for (let j = i + 1; j < teams.length; j++) {
-      matchPairs.push([teams[i], teams[j]]);
-    }
-  }
+function generateRoundRobinMatches(teams: Team[], meetingsPerTeam: number): Match[] {
+    if (teams.length < 2) return [];
 
-  // Shuffle the pairs
-  for (let i = matchPairs.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [matchPairs[i], matchPairs[j]] = [matchPairs[j], matchPairs[i]];
-  }
-  
-  return {
-    matches: matchPairs.map((pair, index) => ({
-        id: uuidv4(),
-        round: 1,
-        matchNumber: index + 1,
-        teamAId: pair[0].id,
-        teamBId: pair[1].id,
-        scoreA: null,
-        scoreB: null,
-        winnerId: null,
-        status: 'scheduled',
-        nextMatchId: null,
-        nextMatchSlot: null,
-      })),
-  };
+    const matches: Match[] = [];
+    
+    for (let m = 0; m < meetingsPerTeam; m++) {
+        let matchPairs: [Team, Team][] = [];
+        for (let i = 0; i < teams.length; i++) {
+            for (let j = i + 1; j < teams.length; j++) {
+                matchPairs.push([teams[i], teams[j]]);
+            }
+        }
+        
+        // Shuffle the pairs for this meeting
+        for (let i = matchPairs.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [matchPairs[i], matchPairs[j]] = [matchPairs[j], matchPairs[i]];
+        }
+
+        matchPairs.forEach((pair, index) => {
+            matches.push({
+                id: uuidv4(),
+                round: m + 1,
+                matchNumber: index + 1,
+                teamAId: pair[0].id,
+                teamBId: pair[1].id,
+                scoreA: null,
+                scoreB: null,
+                winnerId: null,
+                status: 'scheduled',
+                nextMatchId: null,
+                nextMatchSlot: null,
+            });
+        });
+    }
+
+    return matches;
 }
 
 
@@ -551,7 +564,7 @@ export default function TournamentManagement({
         const { matches } =
           tournamentType === 'tournament'
             ? generateTournamentBracket(teamsForBracket, tournamentFormat)
-            : generateRoundRobinMatches(teamsForBracket);
+            : { matches: generateRoundRobinMatches(teamsForBracket, meetingsPerTeam) };
 
         let tournamentData: Omit<Tournament, 'id' | 'createdAt'> = {
           school,
@@ -1429,102 +1442,107 @@ const LeagueMatchNode = ({
 }) => {
   const sport = getSportFromTournamentName(tournament.name);
   return (
-    <Link href={`/teacher/match/${sport}/${match.id}`} className="block">
-      <Card className="p-3 hover:bg-muted/50 transition-colors">
-        <div className="flex items-center justify-between">
-          <TeamNameEditor
-            teamId={match.teamAId}
-            name={match.teamAId ? teamNameMap.get(match.teamAId) ?? '미정' : '미정'}
-            onUpdate={onUpdateTeamName}
-            className="font-semibold text-sm"
-          />
-          <span className="text-xs text-muted-foreground">VS</span>
-          <TeamNameEditor
-            teamId={match.teamBId}
-            name={match.teamBId ? teamNameMap.get(match.teamBId) ?? '미정' : '미정'}
-            onUpdate={onUpdateTeamName}
-            className="font-semibold text-sm"
-          />
-        </div>
-        <div className="flex items-center justify-center gap-2 mt-2">
-          <Input
-            type="number"
-            className="h-8 w-16 text-center"
-            placeholder="-"
-            value={matchResults[match.id]?.scoreA ?? ''}
-            onChange={(e) => {
-              e.preventDefault();
-              onResultChange(match.id, 'A', e.target.value);
-            }}
-            onClick={(e) => e.preventDefault()}
-            disabled={match.status === 'completed'}
-          />
-          <span>:</span>
-          <Input
-            type="number"
-            className="h-8 w-16 text-center"
-            placeholder="-"
-            value={matchResults[match.id]?.scoreB ?? ''}
-            onChange={(e) => {
-              e.preventDefault();
-              onResultChange(match.id, 'B', e.target.value);
-            }}
-            onClick={(e) => e.preventDefault()}
-            disabled={match.status === 'completed'}
-          />
-        </div>
-        <div className="flex gap-2 mt-2">
-          {match.status === 'scheduled' && (
-            <Button
-              size="sm"
-              className="h-7 flex-1"
-              onClick={(e) => {
-                e.preventDefault();
-                onUpdateMatch(match.id);
-              }}
-            >
-              <Save className="mr-2 h-3 w-3" /> 저장
-            </Button>
-          )}
-          {match.status === 'completed' && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
+      <Dialog>
+        <DialogTrigger asChild>
+          <Card className="p-3 hover:bg-muted/50 transition-colors cursor-pointer">
+            <div className="flex items-center justify-between">
+              <TeamNameEditor
+                teamId={match.teamAId}
+                name={match.teamAId ? teamNameMap.get(match.teamAId) ?? '미정' : '미정'}
+                onUpdate={onUpdateTeamName}
+                className="font-semibold text-sm"
+              />
+              <span className="text-xs text-muted-foreground">VS</span>
+              <TeamNameEditor
+                teamId={match.teamBId}
+                name={match.teamBId ? teamNameMap.get(match.teamBId) ?? '미정' : '미정'}
+                onUpdate={onUpdateTeamName}
+                className="font-semibold text-sm"
+              />
+            </div>
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <Input
+                type="number"
+                className="h-8 w-16 text-center"
+                placeholder="-"
+                value={matchResults[match.id]?.scoreA ?? ''}
+                onChange={(e) => {
+                  e.preventDefault();
+                  onResultChange(match.id, 'A', e.target.value);
+                }}
+                onClick={(e) => e.preventDefault()}
+                disabled={match.status === 'completed'}
+              />
+              <span>:</span>
+              <Input
+                type="number"
+                className="h-8 w-16 text-center"
+                placeholder="-"
+                value={matchResults[match.id]?.scoreB ?? ''}
+                onChange={(e) => {
+                  e.preventDefault();
+                  onResultChange(match.id, 'B', e.target.value);
+                }}
+                onClick={(e) => e.preventDefault()}
+                disabled={match.status === 'completed'}
+              />
+            </div>
+            <div className="flex gap-2 mt-2">
+              {match.status === 'scheduled' && (
                 <Button
                   size="sm"
-                  variant="ghost"
                   className="h-7 flex-1"
-                  onClick={(e) => e.preventDefault()}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onUpdateMatch(match.id);
+                  }}
                 >
-                  <RotateCcw className="mr-2 h-3 w-3" /> 초기화
+                  <Save className="mr-2 h-3 w-3" /> 저장
                 </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>결과를 초기화하시겠습니까?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    이 경기의 점수와 승리 기록이 삭제되고, 순위표가 다시
-                    계산됩니다.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel onClick={(e) => e.preventDefault()}>
-                    취소
-                  </AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={(e) => {
-                      e.preventDefault();
-                      onResetMatch(match.id);
-                    }}
-                  >
-                    초기화
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-        </div>
-      </Card>
-    </Link>
+              )}
+              {match.status === 'completed' && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 flex-1"
+                      onClick={(e) => e.preventDefault()}
+                    >
+                      <RotateCcw className="mr-2 h-3 w-3" /> 초기화
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>결과를 초기화하시겠습니까?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        이 경기의 점수와 승리 기록이 삭제되고, 순위표가 다시
+                        계산됩니다.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel onClick={(e) => e.preventDefault()}>
+                        취소
+                      </AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={(e) => {
+                          e.preventDefault();
+                          onResetMatch(match.id);
+                        }}
+                      >
+                        초기화
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </div>
+          </Card>
+        </DialogTrigger>
+        <DialogContent className="max-w-7xl h-[90vh]">
+            <MatchPageContent matchId={match.id} sport={sport} />
+        </DialogContent>
+    </Dialog>
   );
 };
 
@@ -1552,120 +1570,142 @@ const MatchNode = ({
   const sport = getSportFromTournamentName(tournament.name);
 
   return (
-    <div className="relative">
-      <Link href={`/teacher/match/${sport}/${match.id}`} className="block">
-        <div className="relative flex w-full flex-col justify-center rounded-md border bg-card p-2 shadow-sm space-y-1 hover:bg-muted/50 transition-colors">
-          <div className="flex items-center justify-between">
-            <TeamNameEditor
-              teamId={match.teamAId}
-              name={
-                match.teamAId ? teamNameMap.get(match.teamAId) ?? '미정' : '미정'
-              }
-              onUpdate={onUpdateTeamName}
-              className={`truncate text-sm ${
-                winnerIsA ? 'font-bold text-primary' : ''
-              } ${match.teamAId ? '' : 'text-muted-foreground'}`}
-            />
-            <Input
-              type="number"
-              className="h-7 w-14 text-center"
-              placeholder="-"
-              value={matchResults[match.id]?.scoreA ?? ''}
-              onChange={(e) => {
-                e.preventDefault();
-                onResultChange(match.id, 'A', e.target.value);
-              }}
-              onClick={(e) => e.preventDefault()}
-              disabled={match.status !== 'scheduled' || !match.teamAId}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <TeamNameEditor
-              teamId={match.teamBId}
-              name={
-                match.teamBId
-                  ? teamNameMap.get(match.teamBId) ?? '팀 없음'
-                  : match.status === 'bye'
-                  ? '(부전승)'
-                  : '미정'
-              }
-              onUpdate={onUpdateTeamName}
-              className={`truncate text-sm ${
-                winnerIsB ? 'font-bold text-primary' : ''
-              } ${
-                match.teamBId || match.status === 'bye'
-                  ? ''
-                  : 'text-muted-foreground'
-              }`}
-            />
-            <Input
-              type="number"
-              className="h-7 w-14 text-center"
-              placeholder="-"
-              value={matchResults[match.id]?.scoreB ?? ''}
-              onChange={(e) => {
-                e.preventDefault();
-                onResultChange(match.id, 'B', e.target.value);
-              }}
-              onClick={(e) => e.preventDefault()}
-              disabled={match.status !== 'scheduled' || !match.teamBId}
-            />
-          </div>
-
-          {match.status === 'scheduled' && match.teamAId && match.teamBId && (
-            <Button
-              size="sm"
-              className="h-7 w-full"
-              onClick={(e) => {
-                e.preventDefault();
-                onUpdateMatch(match.id);
-              }}
-            >
-              <Save className="mr-2 h-3 w-3" /> 결과 저장
-            </Button>
-          )}
-
-          {match.status === 'completed' && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 w-full"
-                  onClick={(e) => e.preventDefault()}
-                >
-                  <RotateCcw className="mr-2 h-3 w-3" /> 결과 초기화
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>결과를 초기화하시겠습니까?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    이 경기의 점수와 승리 기록이 삭제됩니다. 상위 라운드에
-                    진출했다면 해당 기록도 수정됩니다.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel onClick={(e) => e.preventDefault()}>
-                    취소
-                  </AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={(e) => {
-                      e.preventDefault();
-                      onResetMatch(match.id);
+    <Dialog>
+        <DialogTrigger asChild>
+            <div className="relative cursor-pointer">
+                <div className="relative flex w-full flex-col justify-center rounded-md border bg-card p-2 shadow-sm space-y-1 hover:bg-muted/50 transition-colors">
+                <div className="flex items-center justify-between">
+                    <TeamNameEditor
+                    teamId={match.teamAId}
+                    name={
+                        match.teamAId ? teamNameMap.get(match.teamAId) ?? '미정' : '미정'
+                    }
+                    onUpdate={onUpdateTeamName}
+                    className={`truncate text-sm ${
+                        winnerIsA ? 'font-bold text-primary' : ''
+                    } ${match.teamAId ? '' : 'text-muted-foreground'}`}
+                    />
+                    <Input
+                    type="number"
+                    className="h-7 w-14 text-center"
+                    placeholder="-"
+                    value={matchResults[match.id]?.scoreA ?? ''}
+                    onChange={(e) => {
+                        e.preventDefault();
+                        onResultChange(match.id, 'A', e.target.value);
                     }}
-                  >
-                    초기화
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-        </div>
-      </Link>
-    </div>
+                    onClick={(e) => e.preventDefault()}
+                    disabled={match.status !== 'scheduled' || !match.teamAId}
+                    />
+                </div>
+                <div className="flex items-center justify-between">
+                    <TeamNameEditor
+                    teamId={match.teamBId}
+                    name={
+                        match.teamBId
+                        ? teamNameMap.get(match.teamBId) ?? '팀 없음'
+                        : match.status === 'bye'
+                        ? '(부전승)'
+                        : '미정'
+                    }
+                    onUpdate={onUpdateTeamName}
+                    className={`truncate text-sm ${
+                        winnerIsB ? 'font-bold text-primary' : ''
+                    } ${
+                        match.teamBId || match.status === 'bye'
+                        ? ''
+                        : 'text-muted-foreground'
+                    }`}
+                    />
+                    <Input
+                    type="number"
+                    className="h-7 w-14 text-center"
+                    placeholder="-"
+                    value={matchResults[match.id]?.scoreB ?? ''}
+                    onChange={(e) => {
+                        e.preventDefault();
+                        onResultChange(match.id, 'B', e.target.value);
+                    }}
+                    onClick={(e) => e.preventDefault()}
+                    disabled={match.status !== 'scheduled' || !match.teamBId}
+                    />
+                </div>
+
+                {match.status === 'scheduled' && match.teamAId && match.teamBId && (
+                    <Button
+                    size="sm"
+                    className="h-7 w-full"
+                    onClick={(e) => {
+                        e.preventDefault();
+                        onUpdateMatch(match.id);
+                    }}
+                    >
+                    <Save className="mr-2 h-3 w-3" /> 결과 저장
+                    </Button>
+                )}
+
+                {match.status === 'completed' && (
+                    <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-full"
+                        onClick={(e) => e.preventDefault()}
+                        >
+                        <RotateCcw className="mr-2 h-3 w-3" /> 결과 초기화
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                        <AlertDialogTitle>결과를 초기화하시겠습니까?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            이 경기의 점수와 승리 기록이 삭제됩니다. 상위 라운드에
+                            진출했다면 해당 기록도 수정됩니다.
+                        </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                        <AlertDialogCancel onClick={(e) => e.preventDefault()}>
+                            취소
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={(e) => {
+                            e.preventDefault();
+                            onResetMatch(match.id);
+                            }}
+                        >
+                            초기화
+                        </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                    </AlertDialog>
+                )}
+                </div>
+            </div>
+        </DialogTrigger>
+        <DialogContent className="max-w-7xl h-[90vh]">
+            <MatchPageContent matchId={match.id} sport={sport} />
+        </DialogContent>
+    </Dialog>
   );
 };
+
+const MatchPageContent = ({ matchId, sport }: { matchId: string, sport: string }) => {
+    switch (sport) {
+        case 'basketball':
+            return <BasketballMatchPage />;
+        case 'volleyball':
+            return <VolleyballMatchPage />;
+        case 'soccer':
+            return <SoccerMatchPage />;
+        case 'baseball':
+            return <BaseballMatchPage />;
+        case 'dodgeball':
+            return <DodgeballMatchPage />;
+        default:
+            return <GenericMatchPage />;
+    }
+}
 
 const TeamNameEditor = ({
   teamId,
@@ -2039,7 +2079,7 @@ const IndividualLeagueInterface = ({ tournament, onUpdateTournament, onUpdateMat
                 });
             }
 
-            const { matches } = generateRoundRobinMatches(teams);
+            const matches = generateRoundRobinMatches(teams, 1);
             
             const updatedTournament: Tournament = {
                 ...tournament,

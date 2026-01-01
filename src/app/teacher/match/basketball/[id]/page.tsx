@@ -1,16 +1,16 @@
 'use client';
 import * as React from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, GripVertical, Save, Shuffle, Printer } from 'lucide-react';
+import { GripVertical, Save, Shuffle, Printer } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { getTournaments, getStudents, addOrUpdateRecords } from '@/lib/store';
 import { Tournament, Student, Team, MeasurementRecord } from '@/lib/types';
 import { Loader2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -24,7 +24,6 @@ type MatchStats = Record<string, QuarterStats>; // Key: quarterNumber ('1', '2',
 
 export default function BasketballMatchPage() {
   const params = useParams();
-  const router = useRouter();
   const { school } = useAuth();
   const { toast } = useToast();
   const matchId = params.id as string;
@@ -290,7 +289,7 @@ export default function BasketballMatchPage() {
   const teamForPrint = selectedTeamId === teamA?.id ? teamA : teamB;
 
   if (isLoading) {
-    return <div className="flex justify-center items-center h-screen"><Loader2 className="w-12 h-12 animate-spin" /></div>;
+    return <div className="flex justify-center items-center h-full"><Loader2 className="w-12 h-12 animate-spin" /></div>;
   }
 
   if (!tournament || !match) {
@@ -329,9 +328,6 @@ export default function BasketballMatchPage() {
       </style>
       <div className="container mx-auto p-4 md:p-6 lg:p-8 max-w-7xl">
         <div className="flex items-center gap-4 mb-4 print-hidden">
-          <Button variant="outline" size="icon" onClick={() => router.back()}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
           <div>
             <h1 className="text-3xl font-bold">농구 경기 기록 페이지</h1>
             <p className="text-muted-foreground">기록할 팀과 쿼터를 선택하고, 선수별 성적을 입력하세요.</p>

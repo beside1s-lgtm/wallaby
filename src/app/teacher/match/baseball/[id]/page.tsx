@@ -24,7 +24,6 @@ type MatchStats = Record<string, InningStats>; // Key: inningNumber ('1', '2', e
 
 export default function BaseballMatchPage() {
   const params = useParams();
-  const router = useRouter();
   const { school } = useAuth();
   const { toast } = useToast();
   const matchId = params.id as string;
@@ -316,7 +315,7 @@ export default function BaseballMatchPage() {
   const teamForPrint = selectedTeamId === teamA?.id ? teamA : teamB;
 
   if (isLoading) {
-    return <div className="flex justify-center items-center h-screen"><Loader2 className="w-12 h-12 animate-spin" /></div>;
+    return <div className="flex justify-center items-center h-full"><Loader2 className="w-12 h-12 animate-spin" /></div>;
   }
 
   if (!tournament || !match) {
@@ -355,9 +354,6 @@ export default function BaseballMatchPage() {
       </style>
       <div className="container mx-auto p-4 md:p-6 lg:p-8 max-w-7xl">
         <div className="flex items-center gap-4 mb-4 print-hidden">
-          <Button variant="outline" size="icon" onClick={() => router.back()}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
           <div>
             <h1 className="text-3xl font-bold">야구 경기 기록 페이지</h1>
             <p className="text-muted-foreground">기록할 팀과 이닝을 선택하고, 선수별 성적을 입력하세요. 선수 순서는 드래그하여 변경할 수 있습니다.</p>
