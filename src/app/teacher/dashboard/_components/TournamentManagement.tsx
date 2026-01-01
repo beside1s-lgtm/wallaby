@@ -826,7 +826,7 @@ export default function TournamentManagement({
         let winsB = 0;
         for (let i = 0; i < Math.max(scoresA.length, scoresB.length); i++) {
             if ((scoresA[i] || 0) > (scoresB[i] || 0)) winsA++;
-            else if ((scoresB[i] || 0) > (scoresA[i] || 0)) winsB++;
+            else if ((scoresB[i] || 0) > (scoresA[i] || 0)) teamB.points += 1;
         }
 
         const requiredWins = Math.ceil((currentTournament.bestOf || 1) / 2);
@@ -1038,7 +1038,12 @@ export default function TournamentManagement({
       }
     });
 
-    return Object.values(stats).sort((a, b) => b.points - a.points);
+    return Object.values(stats).sort((a, b) => {
+        if(b.points !== a.points) return b.points - a.points;
+        const aGoalDifference = (a as any).wins - (a as any).losses;
+        const bGoalDifference = (b as any).wins - (b as any).losses;
+        return bGoalDifference - aGoalDifference;
+    });
   }, [currentTournament]);
 
   return (
@@ -1501,29 +1506,22 @@ const MatchNode = ({
   isLeague = false,
   matchResults,
 }: MatchNodeProps) => {
-    let winsA = 0;
-    let winsB = 0;
-    
-    const simpleScoresA = matchResults[match.id]?.scoresA || [];
-    const simpleScoresB = matchResults[match.id]?.scoresB || [];
-    const detailedScoresA = match.scoresA || [];
-    const detailedScoresB = match.scoresB || [];
-
-    const hasDetailedScores = detailedScoresA.length > 0 || detailedScoresB.length > 0;
-    const scoresToUseA = hasDetailedScores ? detailedScoresA : simpleScoresA.map(s => parseInt(s, 10)).filter(s => !isNaN(s));
-    const scoresToUseB = hasDetailedScores ? detailedScoresB : simpleScoresB.map(s => parseInt(s, 10)).filter(s => !isNaN(s));
-
-    for (let i = 0; i < Math.max(scoresToUseA.length, scoresToUseB.length); i++) {
-        if ((scoresToUseA[i] || 0) > (scoresToUseB[i] || 0)) winsA++;
-        else if ((scoresToUseB[i] || 0) > (scoresToUseA[i] || 0)) winsB++;
-    }
-
-    const requiredWins = Math.ceil((tournament.bestOf || 1) / 2);
-    const isMatchOver = winsA >= requiredWins || winsB >= requiredWins;
-    const finalWinnerId = isMatchOver ? (winsA > winsB ? match.teamAId : match.teamBId) : null;
-    const finalWinnerIsA = finalWinnerId === match.teamAId;
-    const finalWinnerIsB = finalWinnerId === match.teamBId;
+  let winsA = 0;
+  let winsB = 0;
+  const scoresA = match.scoresA || [];
+  const scoresB = match.scoresB || [];
   
+  for (let i = 0; i < Math.max(scoresA.length, scoresB.length); i++) {
+    if ((scoresA[i] || 0) > (scoresB[i] || 0)) winsA++;
+    else if ((scoresB[i] || 0) > (scoresA[i] || 0)) winsB++;
+  }
+  
+  const requiredWins = Math.ceil((tournament.bestOf || 1) / 2);
+  const isMatchOver = winsA >= requiredWins || winsB >= requiredWins;
+  const finalWinnerId = isMatchOver ? (winsA > winsB ? match.teamAId : match.teamBId) : null;
+  const finalWinnerIsA = finalWinnerId === match.teamAId;
+  const finalWinnerIsB = finalWinnerId === match.teamBId;
+
   const cardClassName = cn(
     "relative flex w-full flex-col justify-center rounded-md border p-2 shadow-sm",
     isLeague ? "hover:bg-muted/50" : ""
@@ -1531,37 +1529,32 @@ const MatchNode = ({
 
   return (
     <Card className={cardClassName}>
-       <div className="flex justify-between items-start mb-2">
-            <div className="flex flex-col gap-1 w-full">
-                <TeamNameEditor
-                    teamId={match.teamAId}
-                    name={match.teamAId ? teamNameMap.get(match.teamAId) ?? '미정' : '미정'}
-                    onUpdate={onUpdateTeamName}
-                    className={`truncate text-sm ${finalWinnerIsA ? 'font-bold text-primary' : ''} ${match.teamAId ? '' : 'text-muted-foreground'}`}
-                />
-                <TeamNameEditor
-                    teamId={match.teamBId}
-                    name={match.teamBId ? teamNameMap.get(match.teamBId) ?? '팀 없음' : (match.status === 'bye' ? '(부전승)' : '미정')}
-                    onUpdate={onUpdateTeamName}
-                    className={`truncate text-sm ${finalWinnerIsB ? 'font-bold text-primary' : ''} ${match.teamBId || match.status === 'bye' ? '' : 'text-muted-foreground'}`}
-                />
-            </div>
-            { (match.status === 'completed' || isMatchOver) && (
-                <div className="font-bold text-lg text-primary pl-2">{`${winsA} : ${winsB}`}</div>
-            )}
+      <div className="flex flex-col gap-2">
+        <TeamNameEditor
+          teamId={match.teamAId}
+          name={match.teamAId ? teamNameMap.get(match.teamAId) ?? '미정' : '미정'}
+          onUpdate={onUpdateTeamName}
+          className={`truncate text-sm ${finalWinnerIsA ? 'font-bold text-primary' : ''} ${match.teamAId ? '' : 'text-muted-foreground'}`}
+        />
+        <TeamNameEditor
+          teamId={match.teamBId}
+          name={match.teamBId ? teamNameMap.get(match.teamBId) ?? '팀 없음' : (match.status === 'bye' ? '(부전승)' : '미정')}
+          onUpdate={onUpdateTeamName}
+          className={`truncate text-sm ${finalWinnerIsB ? 'font-bold text-primary' : ''} ${match.teamBId || match.status === 'bye' ? '' : 'text-muted-foreground'}`}
+        />
       </div>
 
-       <div className="flex flex-col gap-2 mt-2">
+      <div className="flex flex-col gap-1 mt-2 border-t pt-2">
         {Array.from({ length: tournament.bestOf || 1 }).map((_, i) => (
           <MatchResultInput
             key={i}
             gameIndex={i}
             match={match}
             tournament={tournament}
-            teamNameMap={teamNameMap}
             onResultChange={onResultChange}
             isMatchOver={isMatchOver}
             matchResults={matchResults}
+            teamNameMap={teamNameMap}
           />
         ))}
       </div>
@@ -1643,6 +1636,7 @@ const MatchResultInput = ({
   gameIndex,
   match,
   tournament,
+  teamNameMap,
   onResultChange,
   isMatchOver,
   matchResults,
