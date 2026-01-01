@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -268,91 +269,34 @@ function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
   return { matches: allMatches };
 }
 
-function generateLeagueMatches(
-  teams: Team[],
-  meetingsPerTeam: number
-): { matches: Match[] } {
-  let allPossibleMatches: Omit<Match, 'id' | 'matchNumber'>[] = [];
-  if (teams.length < 2) return { matches: [] };
+function generateRoundRobinMatches(teams: Team[]): { matches: Match[] } {
+    const matches: Omit<Match, 'id' | 'matchNumber'>[] = [];
+    if (teams.length < 2) return { matches: [] };
 
-  for (let m = 0; m < meetingsPerTeam; m++) {
-    for (let i = 0; i < teams.length; i++) {
-      for (let j = i + 1; j < teams.length; j++) {
-        allPossibleMatches.push({
-          teamAId: teams[i].id,
-          teamBId: teams[j].id,
-          scoreA: null,
-          scoreB: null,
-          winnerId: null,
-          status: 'scheduled',
-          nextMatchId: null,
-          nextMatchSlot: null,
-        });
-      }
-    }
-  }
+    const shuffledTeams = [...teams].sort(() => Math.random() - 0.5);
 
-  // Shuffle for initial randomness
-  allPossibleMatches.sort(() => Math.random() - 0.5);
-
-  const scheduledMatches: Omit<Match, 'id' | 'matchNumber'>[] = [];
-  const lastPlayedInMatch: Record<string, number> = {}; // studentId -> matchIndex
-
-  for (const nextMatch of allPossibleMatches) {
-    const teamAPlayers = teams.find(t => t.id === nextMatch.teamAId)?.memberIds || [];
-    const teamBPlayers = teams.find(t => t.id === nextMatch.teamBId)?.memberIds || [];
-    
-    let earliestLastPlay = -1;
-    for (const pId of [...teamAPlayers, ...teamBPlayers]) {
-        if(lastPlayedInMatch[pId] !== undefined) {
-            earliestLastPlay = Math.max(earliestLastPlay, lastPlayedInMatch[pId]);
+    for (let i = 0; i < shuffledTeams.length; i += 2) {
+        if (i + 1 < shuffledTeams.length) {
+            matches.push({
+                teamAId: shuffledTeams[i].id,
+                teamBId: shuffledTeams[i + 1].id,
+                scoreA: null,
+                scoreB: null,
+                winnerId: null,
+                status: 'scheduled',
+                nextMatchId: null,
+                nextMatchSlot: null,
+            });
         }
     }
 
-    let bestPosition = scheduledMatches.length;
-    let minConflict = Infinity;
-
-    for (let i = earliestLastPlay + 1; i <= scheduledMatches.length; i++) {
-      let currentConflict = 0;
-      // Check conflict with previous match
-      if (i > 0) {
-        const prevMatch = scheduledMatches[i - 1];
-        const prevPlayers = new Set([...(teams.find(t => t.id === prevMatch.teamAId)?.memberIds || []), ...(teams.find(t => t.id === prevMatch.teamBId)?.memberIds || [])]);
-        teamAPlayers.forEach(p => { if (prevPlayers.has(p)) currentConflict++; });
-        teamBPlayers.forEach(p => { if (prevPlayers.has(p)) currentConflict++; });
-      }
-      // Check conflict with next match
-      if (i < scheduledMatches.length) {
-        const nextExistingMatch = scheduledMatches[i];
-        const nextPlayers = new Set([...(teams.find(t => t.id === nextExistingMatch.teamAId)?.memberIds || []), ...(teams.find(t => t.id === nextExistingMatch.teamBId)?.memberIds || [])]);
-        teamAPlayers.forEach(p => { if (nextPlayers.has(p)) currentConflict++; });
-        teamBPlayers.forEach(p => { if (nextPlayers.has(p)) currentConflict++; });
-      }
-      
-      if (currentConflict < minConflict) {
-        minConflict = currentConflict;
-        bestPosition = i;
-      }
-      if (minConflict === 0) break;
-    }
-    
-    scheduledMatches.splice(bestPosition, 0, nextMatch);
-    
-    const newPlayerLastMatch: Record<string, number> = {};
-    scheduledMatches.forEach((match, index) => {
-        const players = [...(teams.find(t => t.id === match.teamAId)?.memberIds || []), ...(teams.find(t => t.id === match.teamBId)?.memberIds || [])];
-        players.forEach(pId => { newPlayerLastMatch[pId] = index; });
-    });
-    Object.assign(lastPlayedInMatch, newPlayerLastMatch);
-  }
-
-  return {
-    matches: scheduledMatches.map((m, index) => ({
-      ...m,
-      id: uuidv4(),
-      matchNumber: index + 1,
-    }))
-  };
+    return {
+        matches: matches.map((m, index) => ({
+            ...m,
+            id: uuidv4(),
+            matchNumber: index + 1,
+        }))
+    };
 }
 
 
@@ -593,7 +537,7 @@ export default function TournamentManagement({
         const { matches } =
           tournamentType === 'tournament'
             ? generateTournamentBracket(teamsForBracket)
-            : generateLeagueMatches(teamsForBracket, meetingsPerTeam);
+            : generateRoundRobinMatches(teamsForBracket);
 
         let tournamentData: Omit<Tournament, 'id' | 'createdAt'> = {
           school,
@@ -1994,7 +1938,6 @@ const IndividualLeagueInterface = ({ tournament, onUpdateTournament, onUpdateMat
             
             let allPossibleTeams = getCombinations(participantsToPlay, tournament.membersPerTeam);
             
-            // 이전에 함께했던 팀 조합에 패널티를 부여
             allPossibleTeams.sort((teamA, teamB) => {
                 const teamASet = new Set(teamA.map(p => p.id));
                 const teamBSet = new Set(teamB.map(p => p.id));
@@ -2003,10 +1946,10 @@ const IndividualLeagueInterface = ({ tournament, onUpdateTournament, onUpdateMat
                 let penaltyB = 0;
                 
                 pastTeamMemberIds.forEach(pastSet => {
-                   if ([...teamASet].every(memberId => pastSet.has(memberId))) {
+                   if (Array.from(teamASet).every(memberId => pastSet.has(memberId))) {
                        penaltyA++;
                    }
-                   if ([...teamBSet].every(memberId => pastSet.has(memberId))) {
+                   if (Array.from(teamBSet).every(memberId => pastSet.has(memberId))) {
                        penaltyB++;
                    }
                 });
@@ -2032,8 +1975,7 @@ const IndividualLeagueInterface = ({ tournament, onUpdateTournament, onUpdateMat
                 });
             }
 
-
-            const { matches } = generateLeagueMatches(teams, 1);
+            const { matches } = generateRoundRobinMatches(teams);
             
             const updatedTournament: Tournament = {
                 ...tournament,
