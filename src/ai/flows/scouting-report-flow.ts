@@ -41,18 +41,6 @@ export async function getScoutingReport(input: ScoutingReportInput): Promise<Sco
   return scoutingReportFlow(input);
 }
 
-const papsFactorMap: Record<string, string> = {
-    '50m 달리기': '순발력',
-    '제자리 멀리뛰기': '순발력',
-    '윗몸 말아올리기': '근지구력',
-    '팔굽혀펴기': '근지구력',
-    '무릎 대고 팔굽혀펴기': '근지구력',
-    '왕복오래달리기': '심폐지구력',
-    '오래달리기': '심폐지구력',
-    '앉아윗몸앞으로굽히기': '유연성',
-    '악력': '근력',
-};
-
 const prompt = ai.definePrompt({
   name: 'scoutingReportPrompt',
   input: { schema: ScoutingReportInputSchema },
@@ -80,10 +68,10 @@ const prompt = ai.definePrompt({
 
 3.  **PAPS 체력 요소 참고:**
     -   순발력: 50m 달리기, 제자리 멀리뛰기
-    -   근지구력: 윗몸 말아올리기, 팔굽혀펴기
-    -   심폐지구력: 왕복오래달리기
+    -   근지구력/근력: 윗몸 말아올리기, 팔굽혀펴기, 악력
+    -   심폐지구력: 왕복오래달리기, 오래달리기
     -   유연성: 앉아윗몸앞으로굽히기
-    -   근력: 악력
+    - **중요:** PAPS 종목을 언급할 때는, 위의 체력 요소 이름으로 설명해주세요. (예: '50m 달리기 기록이 좋다' -> '순발력이 뛰어나다')
 `,
 });
 
