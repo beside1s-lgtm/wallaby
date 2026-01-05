@@ -34,7 +34,7 @@ export default function TeacherDashboardLayout({
   return (
     <div className="flex min-h-screen w-full flex-col">
       <DashboardHeader />
-      <main className="flex-1 bg-background">{children}</main>
+      <main className="flex-1 bg-transparent">{children}</main>
     </div>
   );
 }

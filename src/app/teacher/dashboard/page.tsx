@@ -30,7 +30,6 @@ import {
   Wrench,
   Search,
 } from "lucide-react";
-import { DashboardHeaderContents } from "@/components/DashboardHeader";
 import {
   Card,
   CardHeader,
@@ -114,7 +113,9 @@ export default function TeacherDashboardPage() {
   if (isLoading || isAuthLoading) {
     return (
       <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-        <DashboardHeaderContents />
+        <h1 className="text-2xl md:text-3xl font-bold mb-6 text-primary font-headline">
+          {school} 교사 대시보드
+        </h1>
         <Skeleton className="h-48 w-full" />
         <div className="flex space-x-1">
           <Skeleton className="h-10 flex-1" />
@@ -129,8 +130,9 @@ export default function TeacherDashboardPage() {
   return (
     <>
       <div className="container mx-auto p-2 sm:p-4 md:p-6 lg:p-8 space-y-6">
-        <DashboardHeaderContents />
-
+         <h1 className="text-2xl md:text-3xl font-bold mb-6 text-primary font-headline">
+          {school} 교사 대시보드
+        </h1>
         <Card className="bg-card/90 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
