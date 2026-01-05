@@ -128,10 +128,10 @@ export default function TeacherDashboardPage() {
 
   return (
     <>
-      <div className="container mx-auto p-2 sm:p-4 md:p-6 lg:p-8">
+      <div className="container mx-auto p-2 sm:p-4 md:p-6 lg:p-8 space-y-6">
         <DashboardHeaderContents />
 
-        <Card className="mb-6 bg-card/90 backdrop-blur-sm">
+        <Card className="bg-card/90 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Bot />
@@ -265,5 +265,3 @@ export default function TeacherDashboardPage() {
     </>
   );
 }
-
-    
