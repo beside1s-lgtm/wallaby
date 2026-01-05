@@ -23,7 +23,6 @@
     --border: 0 0% 89%;
     --input: 0 0% 89%;
     --ring: 220 84% 54%;
-    --radius: 0.5rem;
     --chart-1: 220 84% 54%;
     --chart-2: 36 100% 50%;
     --chart-3: 197 37% 24%;
@@ -67,7 +66,7 @@
     @apply bg-background text-foreground;
   }
   .watermark-bg {
-    background-image: url('https://images.unsplash.com/photo-1579952363873-27f3bade9f55?q=80&w=2970&auto=format&fit=crop');
+    background-image: url('https://images.unsplash.com/photo-1599058917212-d750089bc07e?q=80&w=2938&auto=format&fit=crop');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;

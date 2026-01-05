@@ -167,7 +167,7 @@ export default function LoginPage() {
             <Rocket className="w-12 h-12" />
             <h1 className="font-headline">체육 성장 기록 시스템</h1>
         </div>
-        <Card className="w-full max-w-md bg-card/80 backdrop-blur-sm">
+        <Card className="w-full max-w-md bg-card/90 backdrop-blur-sm">
             <CardHeader>
             <CardTitle>교사 로그인</CardTitle>
             <CardDescription>
