@@ -624,7 +624,7 @@ export default function StudentDashboardPage() {
                 <TabsTrigger value="my-competition">나의 대회</TabsTrigger>
             </TabsList>
             <TabsContent value="growth-record" className="space-y-8 mt-6">
-                <Card className="bg-card/90 backdrop-blur-sm">
+                <Card className="bg-card/80 backdrop-blur-sm">
                     <CardHeader>
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <div>
@@ -674,7 +674,7 @@ export default function StudentDashboardPage() {
                     </CardContent>
                 </Card>
                 {hallOfFameData.length > 0 && (
-                    <Card className="bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 backdrop-blur-sm">
+                    <Card className="bg-yellow-50/80 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 backdrop-blur-sm">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
                                 <Trophy /> 명예의 전당
@@ -710,7 +710,7 @@ export default function StudentDashboardPage() {
                         </CardContent>
                     </Card>
                 )}
-                 <Card className="flex flex-col bg-card/90 backdrop-blur-sm">
+                 <Card className="flex flex-col bg-card/80 backdrop-blur-sm">
                     <CardHeader>
                         <CardTitle>AI 피드백</CardTitle>
                         <CardDescription>가장 최근의 운동 수행 결과를 바탕으로 AI가 피드백을 제공합니다.</CardDescription>
@@ -738,7 +738,7 @@ export default function StudentDashboardPage() {
                         </Button>
                     </CardFooter>
                 </Card>
-                <Card className="bg-card/90 backdrop-blur-sm">
+                <Card className="bg-card/80 backdrop-blur-sm">
                     <CardHeader>
                     <CardTitle>전체 측정 기록</CardTitle>
                     <CardDescription>지금까지의 모든 측정 기록입니다. 잘못 입력된 기록은 삭제할 수 있습니다.</CardDescription>
@@ -799,7 +799,7 @@ export default function StudentDashboardPage() {
                 </Card>
             </TabsContent>
             <TabsContent value="measurement-input" className="space-y-8 mt-6">
-                 <Card className="flex flex-col bg-card/90 backdrop-blur-sm">
+                 <Card className="flex flex-col bg-card/80 backdrop-blur-sm">
                     <CardHeader>
                         <CardTitle>측정 결과 입력</CardTitle>
                         <CardDescription>오늘의 측정 결과를 입력하세요. 같은 날짜에 다시 입력하면 덮어쓰기됩니다.</CardDescription>
@@ -848,7 +848,7 @@ export default function StudentDashboardPage() {
                 </Card>
             </TabsContent>
             <TabsContent value="my-competition" className="space-y-8 mt-6">
-                <Card className="bg-card/90 backdrop-blur-sm">
+                <Card className="bg-card/80 backdrop-blur-sm">
                     <CardHeader className="text-center">
                     <CardTitle className="flex items-center justify-center gap-2">
                         <Swords /> {tournament?.name || "나의 대회"}
@@ -932,7 +932,7 @@ export default function StudentDashboardPage() {
                     )}
                     </CardContent>
                 </Card>
-                <Card className="bg-card/90 backdrop-blur-sm">
+                <Card className="bg-card/80 backdrop-blur-sm">
                     <CardHeader className='flex-row items-start justify-between'>
                         <div>
                             <CardTitle className="flex items-center gap-2"><Users /> 나의 팀 확인</CardTitle>
