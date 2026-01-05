@@ -30,7 +30,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className={cn('font-body antialiased', 'min-h-screen bg-transparent font-sans watermark-bg')}>
+      <body className={cn('font-body antialiased', 'min-h-screen bg-background font-sans watermark-bg')}>
         <Providers>{children}</Providers>
       </body>
     </html>

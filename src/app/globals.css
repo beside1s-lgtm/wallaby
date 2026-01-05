@@ -66,6 +66,7 @@
     @apply bg-background text-foreground;
   }
   .watermark-bg {
+    position: relative;
     background-image: url('https://images.unsplash.com/photo-1599058917212-d750089bc07e?q=80&w=2938&auto=format&fit=crop');
     background-size: cover;
     background-position: center;
@@ -74,16 +75,13 @@
   }
   .watermark-bg::before {
     content: "";
-    position: absolute;
+    position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: hsla(var(--background), 0.85);
+    background-color: rgba(0, 0, 0, 0.5); 
     z-index: -1;
-  }
-  :root .watermark-bg::before {
-    background-color: hsla(var(--background) / 0.85);
   }
   .dark .watermark-bg::before {
       background-color: hsla(var(--background) / 0.9);
