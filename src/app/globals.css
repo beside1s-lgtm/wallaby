@@ -66,6 +66,29 @@
   body {
     @apply bg-background text-foreground;
   }
+  .watermark-bg {
+    background-image: url('https://images.unsplash.com/photo-1579952363873-27f3bade9f55?q=80&w=2970&auto=format&fit=crop');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+  }
+  .watermark-bg::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: hsla(var(--background), 0.85);
+    z-index: -1;
+  }
+  :root .watermark-bg::before {
+    background-color: hsla(var(--background) / 0.85);
+  }
+  .dark .watermark-bg::before {
+      background-color: hsla(var(--background) / 0.9);
+  }
 }
 
 @layer utilities {

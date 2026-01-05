@@ -131,7 +131,7 @@ export default function TeacherDashboardPage() {
       <div className="container mx-auto p-2 sm:p-4 md:p-6 lg:p-8">
         <DashboardHeaderContents />
 
-        <Card className="mb-6">
+        <Card className="mb-6 bg-card/80 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Bot />
@@ -152,7 +152,7 @@ export default function TeacherDashboardPage() {
         </Card>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-           <TabsList className="grid w-full grid-cols-3 mb-6">
+           <TabsList className="grid w-full grid-cols-3 mb-6 bg-card/80 backdrop-blur-sm">
             <TabsTrigger value="measurement" className="text-base font-semibold">
               <LineChart className="h-5 w-5 mr-2" />
               측정 & 분석
@@ -167,7 +167,7 @@ export default function TeacherDashboardPage() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="measurement">
+          <TabsContent value="measurement" className="bg-card/80 backdrop-blur-sm p-4 rounded-lg">
             <Tabs defaultValue="record-input">
               <TabsList className="grid w-full grid-cols-4 mb-6">
                 <TabsTrigger value="record-input"><Edit className="mr-2 h-4 w-4" />기록 입력</TabsTrigger>
@@ -208,7 +208,7 @@ export default function TeacherDashboardPage() {
             </Tabs>
           </TabsContent>
 
-          <TabsContent value="competition">
+          <TabsContent value="competition" className="bg-card/80 backdrop-blur-sm p-4 rounded-lg">
              <Tabs defaultValue="tournament-management">
                 <TabsList className="grid w-full grid-cols-2 mb-6">
                     <TabsTrigger value="tournament-management"><Swords className="mr-2 h-4 w-4" />대회 관리</TabsTrigger>
@@ -234,7 +234,7 @@ export default function TeacherDashboardPage() {
              </Tabs>
           </TabsContent>
 
-          <TabsContent value="data">
+          <TabsContent value="data" className="bg-card/80 backdrop-blur-sm p-4 rounded-lg">
              <Tabs defaultValue="student-management">
                 <TabsList className="grid w-full grid-cols-3 mb-6">
                     <TabsTrigger value="student-management"><Users className="mr-2 h-4 w-4" />학생 관리</TabsTrigger>

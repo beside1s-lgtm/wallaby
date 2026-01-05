@@ -100,14 +100,14 @@ export default function StudentLoginPage() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-transparent p-4">
       <div className="flex items-center gap-4 mb-8 text-4xl font-bold text-primary">
         <a href="#" title="Download Rocket Icon">
           <Rocket className="w-12 h-12 cursor-pointer" onClick={handleIconClick} />
         </a>
         <h1 className="font-headline">체육 성장 기록 시스템</h1>
       </div>
-       <Card className="w-full max-w-md">
+       <Card className="w-full max-w-md bg-card/80 backdrop-blur-sm">
         <CardHeader>
           <CardTitle>학생 로그인</CardTitle>
           <CardDescription>

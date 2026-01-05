@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { Skeleton } from '@/components/ui/skeleton';
 
-export default function StudentLayout({
+export default function TeacherDashboardLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -14,12 +14,12 @@ export default function StudentLayout({
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && role !== 'student') {
+    if (!isLoading && role !== 'teacher') {
       router.replace('/');
     }
   }, [role, isLoading, router]);
 
-   if (isLoading || role !== 'student') {
+  if (isLoading || role !== 'teacher') {
     return (
         <div className="flex flex-col h-screen">
             <Skeleton className="h-16 w-full" />
@@ -33,9 +33,7 @@ export default function StudentLayout({
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-transparent">
-      <div className="print-hidden">
-        <DashboardHeader />
-      </div>
+      <DashboardHeader />
       <main className="flex-1">{children}</main>
     </div>
   );
