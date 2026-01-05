@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import { DashboardHeader } from '@/components/DashboardHeader';
 import { Skeleton } from '@/components/ui/skeleton';
 
-export default function TeacherDashboardLayout({
+export default function TeacherLayout({
   children,
 }: {
   children: React.ReactNode;

@@ -130,9 +130,6 @@ export default function TeacherDashboardPage() {
   return (
     <>
       <div className="container mx-auto p-2 sm:p-4 md:p-6 lg:p-8 space-y-6">
-         <h1 className="text-2xl md:text-3xl font-bold mb-6 text-primary font-headline">
-          {school} 교사 대시보드
-        </h1>
         <Card className="bg-card/90 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
