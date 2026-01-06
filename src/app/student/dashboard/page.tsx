@@ -125,6 +125,32 @@ export default function StudentDashboardPage() {
 
   const [activeReport, setActiveReport] = useState<AiReport | null>(null);
   const [isReportLoading, setIsReportLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("growth-record");
+
+  useEffect(() => {
+    const body = document.body;
+    const originalClasses = body.className;
+    const tabBackgrounds: { [key: string]: string } = {
+        'growth-record': 'measurement-bg',
+        'measurement-input': 'data-bg',
+        'my-competition': 'competition-bg',
+    };
+
+    // Remove all possible background classes first
+    Object.values(tabBackgrounds).forEach(bgClass => {
+        body.classList.remove(bgClass);
+    });
+    body.classList.remove('watermark-bg');
+    
+    // Add the correct class
+    const bgClass = tabBackgrounds[activeTab] || 'watermark-bg';
+    body.classList.add(bgClass);
+
+    return () => {
+        // Cleanup on component unmount
+        body.className = originalClasses;
+    };
+  }, [activeTab]);
   
   useEffect(() => {
     async function loadData() {
@@ -617,7 +643,7 @@ export default function StudentDashboardPage() {
         </Button>
       </div>
 
-        <Tabs defaultValue="growth-record" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-3 bg-card/90 backdrop-blur-sm">
                 <TabsTrigger value="growth-record">성장 기록</TabsTrigger>
                 <TabsTrigger value="measurement-input">측정결과 입력</TabsTrigger>
