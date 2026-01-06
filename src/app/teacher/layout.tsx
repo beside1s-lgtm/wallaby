@@ -2,7 +2,6 @@
 import { useAuth } from '@/hooks/use-auth';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import { DashboardHeader } from '@/components/DashboardHeader';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function TeacherLayout({
@@ -33,7 +32,6 @@ export default function TeacherLayout({
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-transparent">
-      <DashboardHeader />
       <main className="flex-1">{children}</main>
     </div>
   );

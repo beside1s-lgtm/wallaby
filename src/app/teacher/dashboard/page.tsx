@@ -38,6 +38,8 @@ import {
   CardContent,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DashboardHeader } from "@/components/DashboardHeader";
+
 
 export default function TeacherDashboardPage() {
   const { school, isLoading: isAuthLoading } = useAuth();
@@ -156,6 +158,7 @@ export default function TeacherDashboardPage() {
   return (
     <>
       <div className="container mx-auto p-2 sm:p-4 md:p-6 lg:p-8 space-y-6">
+        <DashboardHeader />
         <Card className="bg-card/90 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
