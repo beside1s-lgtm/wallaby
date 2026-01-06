@@ -1009,7 +1009,7 @@ export default function TournamentManagement({
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card className="bg-transparent shadow-none border-none">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Swords /> 대회 관리
@@ -1320,7 +1320,7 @@ export default function TournamentManagement({
       {currentTournament &&
         currentTournament.type === 'tournament' &&
         Object.keys(matchesByRound).length > 0 && (
-          <Card>
+          <Card className="bg-transparent shadow-none border-none">
             <CardHeader className="text-center">
               <CardTitle>{currentTournament.name} 대진표</CardTitle>
             </CardHeader>
@@ -1373,7 +1373,7 @@ export default function TournamentManagement({
           </Card>
         )}
       {currentTournament && currentTournament.type === 'league' && (
-        <Card>
+        <Card className="bg-transparent shadow-none border-none">
           <CardHeader className="text-center">
             <CardTitle>{currentTournament.name} 경기 정보</CardTitle>
           </CardHeader>
@@ -2229,7 +2229,7 @@ const IndividualLeagueInterface = ({ tournament, onUpdateTournament }: {
 
 
     return (
-        <Card>
+        <Card className="bg-transparent shadow-none border-none">
             <CardHeader>
                 <CardTitle>{tournament.name} 진행</CardTitle>
                 <div className='flex gap-2'>

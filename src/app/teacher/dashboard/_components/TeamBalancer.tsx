@@ -961,7 +961,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
             </div>
         </DialogContent>
     </Dialog>
-    <Card>
+    <Card className="bg-transparent shadow-none border-none">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Shuffle /> 팀 자동 편성

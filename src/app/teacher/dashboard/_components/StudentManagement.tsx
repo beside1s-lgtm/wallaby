@@ -340,206 +340,204 @@ export function StudentManagement({
   if (!school) return null;
 
   return (
-    <>
-      <Card>
-        <CardHeader>
-          <CardTitle>학생 관리</CardTitle>
-          <CardDescription>
-            학생을 개별 또는 일괄 등록하고, 선택하여 삭제합니다. 학급별로
-            명단을 필터링하고 다운로드할 수 있습니다.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-2 mb-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <AddStudentDialog onAddStudent={handleAddStudent} />
-              {selectedStudentForEdit && (
-                <EditStudentDialog 
-                  student={selectedStudentForEdit}
-                  onUpdateStudent={handleUpdateStudent}
-                />
-              )}
-              <Button
-                variant="outline"
-                onClick={() =>
-                  document.getElementById("student-csv-upload")?.click()
-                }
-                disabled={isUploading}
-              >
-                {isUploading ? (
-                  <>
-                    {" "}
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 등록 중...{" "}
-                  </>
-                ) : (
-                  <>
-                    {" "}
-                    <FileUp className="mr-2 h-4 w-4" /> 학생 일괄 등록{" "}
-                  </>
-                )}
-              </Button>
-              <input
-                type="file"
-                id="student-csv-upload"
-                accept=".csv"
-                onChange={handleStudentCsvUpload}
-                style={{ display: "none" }}
+    <Card className="bg-transparent shadow-none border-none">
+      <CardHeader>
+        <CardTitle>학생 관리</CardTitle>
+        <CardDescription>
+          학생을 개별 또는 일괄 등록하고, 선택하여 삭제합니다. 학급별로
+          명단을 필터링하고 다운로드할 수 있습니다.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-2 mb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <AddStudentDialog onAddStudent={handleAddStudent} />
+            {selectedStudentForEdit && (
+              <EditStudentDialog 
+                student={selectedStudentForEdit}
+                onUpdateStudent={handleUpdateStudent}
               />
-              <Button variant="link" onClick={handleDownloadStudentTemplate}>
-                학생 템플릿
-              </Button>
-            </div>
+            )}
+            <Button
+              variant="outline"
+              onClick={() =>
+                document.getElementById("student-csv-upload")?.click()
+              }
+              disabled={isUploading}
+            >
+              {isUploading ? (
+                <>
+                  {" "}
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 등록 중...{" "}
+                </>
+              ) : (
+                <>
+                  {" "}
+                  <FileUp className="mr-2 h-4 w-4" /> 학생 일괄 등록{" "}
+                </>
+              )}
+            </Button>
+            <input
+              type="file"
+              id="student-csv-upload"
+              accept=".csv"
+              onChange={handleStudentCsvUpload}
+              style={{ display: "none" }}
+            />
+            <Button variant="link" onClick={handleDownloadStudentTemplate}>
+              학생 템플릿
+            </Button>
+          </div>
 
-            <div className="ml-0 sm:ml-auto flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full sm:w-auto">
-              <div className="flex items-center gap-2">
-                <Select
-                  value={selectedGrade}
-                  onValueChange={(value) => {
-                    setSelectedGrade(value);
-                    setSelectedClassNum("");
-                  }}
-                >
-                  <SelectTrigger className="w-full sm:w-[120px]">
-                    <SelectValue placeholder="학년 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {grades.map((grade) => (
-                      <SelectItem key={grade} value={grade}>
-                        {grade}학년
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select
-                  value={selectedClassNum}
-                  onValueChange={setSelectedClassNum}
-                  disabled={!selectedGrade}
-                >
-                  <SelectTrigger className="w-full sm:w-[120px]">
-                    <SelectValue placeholder="반 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {classNumsByGrade[selectedGrade]?.map((classNum) => (
-                      <SelectItem key={classNum} value={classNum}>
-                        {classNum}반
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  className="w-full"
-                  onClick={handleDownloadClassList}
-                  disabled={!selectedGrade || !selectedClassNum}
-                >
-                  <FileDown className="mr-2 h-4 w-4" />
-                  학급 명단
-                </Button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="destructive"
-                      disabled={selectedIds.length === 0 || isProcessing}
-                    >
-                      {isProcessing ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="mr-2 h-4 w-4" />
-                      )}
-                      선택 삭제 ({selectedIds.length})
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        선택한 {selectedIds.length}명의 학생 정보와 관련된 모든 측정 기록이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>취소</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleDeleteSelected}>삭제</AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
+          <div className="ml-0 sm:ml-auto flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-2">
+              <Select
+                value={selectedGrade}
+                onValueChange={(value) => {
+                  setSelectedGrade(value);
+                  setSelectedClassNum("");
+                }}
+              >
+                <SelectTrigger className="w-full sm:w-[120px]">
+                  <SelectValue placeholder="학년 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {grades.map((grade) => (
+                    <SelectItem key={grade} value={grade}>
+                      {grade}학년
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={selectedClassNum}
+                onValueChange={setSelectedClassNum}
+                disabled={!selectedGrade}
+              >
+                <SelectTrigger className="w-full sm:w-[120px]">
+                  <SelectValue placeholder="반 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  {classNumsByGrade[selectedGrade]?.map((classNum) => (
+                    <SelectItem key={classNum} value={classNum}>
+                      {classNum}반
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                className="w-full"
+                onClick={handleDownloadClassList}
+                disabled={!selectedGrade || !selectedClassNum}
+              >
+                <FileDown className="mr-2 h-4 w-4" />
+                학급 명단
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    disabled={selectedIds.length === 0 || isProcessing}
+                  >
+                    {isProcessing ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="mr-2 h-4 w-4" />
+                    )}
+                    선택 삭제 ({selectedIds.length})
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      선택한 {selectedIds.length}명의 학생 정보와 관련된 모든 측정 기록이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>취소</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeleteSelected}>삭제</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
-          <div className="border rounded-md overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[50px]">
-                    <Checkbox
-                      checked={
-                        sortedStudents.length > 0 &&
-                        selectedIds.length === sortedStudents.length
-                      }
-                      onCheckedChange={handleSelectAll}
-                    />
-                  </TableHead>
-                  <TableHead>사진</TableHead>
-                  <TableHead>학년</TableHead>
-                  <TableHead>반</TableHead>
-                  <TableHead>번호</TableHead>
-                  <TableHead>이름</TableHead>
-                  <TableHead>성별</TableHead>
-                  <TableHead>접속 코드</TableHead>
-                  <TableHead className="text-right">사진 관리</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedStudents.length > 0 ? (
-                  sortedStudents.map((student) => (
-                    <TableRow
-                      key={student.id}
-                      data-state={selection[student.id] && "selected"}
-                    >
-                      <TableCell>
-                        <Checkbox
-                          checked={selection[student.id] || false}
-                          onCheckedChange={(checked) =>
-                            handleSelectRow(student.id, !!checked)
-                          }
-                        />
-                      </TableCell>
-                       <TableCell>
-                        <Avatar>
-                          <AvatarImage src={student.photoUrl || undefined} alt={student.name} />
-                          <AvatarFallback>
-                            {student.name ? student.name.charAt(0) : <UserIcon />}
-                          </AvatarFallback>
-                        </Avatar>
-                      </TableCell>
-                      <TableCell>{student.grade}</TableCell>
-                      <TableCell>{student.classNum}</TableCell>
-                      <TableCell>{student.studentNum}</TableCell>
-                      <TableCell className="font-medium">
-                        {student.name}
-                      </TableCell>
-                      <TableCell>{student.gender}</TableCell>
-                      <TableCell>{student.accessCode}</TableCell>
-                      <TableCell className="text-right">
-                        <PhotoEditDialog student={student} onUpdatePhoto={handleUpdatePhoto} />
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={9} className="h-24 text-center">
-                      {selectedGrade
-                        ? "해당 학급에 등록된 학생이 없습니다."
-                        : "등록된 학생이 없습니다."}
+        </div>
+        <div className="border rounded-md overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[50px]">
+                  <Checkbox
+                    checked={
+                      sortedStudents.length > 0 &&
+                      selectedIds.length === sortedStudents.length
+                    }
+                    onCheckedChange={handleSelectAll}
+                  />
+                </TableHead>
+                <TableHead>사진</TableHead>
+                <TableHead>학년</TableHead>
+                <TableHead>반</TableHead>
+                <TableHead>번호</TableHead>
+                <TableHead>이름</TableHead>
+                <TableHead>성별</TableHead>
+                <TableHead>접속 코드</TableHead>
+                <TableHead className="text-right">사진 관리</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sortedStudents.length > 0 ? (
+                sortedStudents.map((student) => (
+                  <TableRow
+                    key={student.id}
+                    data-state={selection[student.id] && "selected"}
+                  >
+                    <TableCell>
+                      <Checkbox
+                        checked={selection[student.id] || false}
+                        onCheckedChange={(checked) =>
+                          handleSelectRow(student.id, !!checked)
+                        }
+                      />
+                    </TableCell>
+                     <TableCell>
+                      <Avatar>
+                        <AvatarImage src={student.photoUrl || undefined} alt={student.name} />
+                        <AvatarFallback>
+                          {student.name ? student.name.charAt(0) : <UserIcon />}
+                        </AvatarFallback>
+                      </Avatar>
+                    </TableCell>
+                    <TableCell>{student.grade}</TableCell>
+                    <TableCell>{student.classNum}</TableCell>
+                    <TableCell>{student.studentNum}</TableCell>
+                    <TableCell className="font-medium">
+                      {student.name}
+                    </TableCell>
+                    <TableCell>{student.gender}</TableCell>
+                    <TableCell>{student.accessCode}</TableCell>
+                    <TableCell className="text-right">
+                      <PhotoEditDialog student={student} onUpdatePhoto={handleUpdatePhoto} />
                     </TableCell>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-    </>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={9} className="h-24 text-center">
+                    {selectedGrade
+                      ? "해당 학급에 등록된 학생이 없습니다."
+                      : "등록된 학생이 없습니다."}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -909,7 +907,7 @@ function PhotoEditDialog({
         console.error("Failed to delete photo:", error);
         toast({ variant: 'destructive', title: '사진 삭제 실패', description: '사진 삭제 중 오류가 발생했습니다.' });
     } finally {
-        setIsProcessing(false);
+      setIsProcessing(false);
     }
   };
   
@@ -1230,7 +1228,7 @@ export function DatabaseManagement({
   if (!school) return null;
 
   return (
-    <Card>
+    <Card className="bg-transparent shadow-none border-none">
       <CardHeader>
         <CardTitle>DB 유틸리티</CardTitle>
         <CardDescription>

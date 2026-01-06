@@ -221,7 +221,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
   if (!school) return null;
 
   return (
-    <Card>
+    <Card className="bg-transparent shadow-none border-none">
       <CardHeader>
         <CardTitle>종목 관리</CardTitle>
         <CardDescription>측정할 종목을 추가하고, 숨기거나 영구 삭제하여 목록을 관리합니다. '측정 주간'으로 설정하여 명예의 전당에 표시할 수 있습니다.</CardDescription>

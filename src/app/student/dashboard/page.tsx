@@ -910,7 +910,7 @@ export default function StudentDashboardPage() {
                                         match.winnerId === match.teamBId;
 
                                     return (
-                                        <Card key={match.id} className="p-2">
+                                        <Card key={match.id} className="p-2 bg-card/80">
                                         <CardContent className="p-1 space-y-1">
                                             <div className="flex items-center justify-between text-sm">
                                             <span
@@ -923,7 +923,7 @@ export default function StudentDashboardPage() {
                                                 : "미정"}
                                             </span>
                                             <span className="font-semibold ml-2">
-                                                {match.scoreA ?? "-"}
+                                                {match.scoresA?.reduce((a, b) => a + b, 0) ?? "-"}
                                             </span>
                                             </div>
                                             <div className="flex items-center justify-between text-sm">
@@ -939,7 +939,7 @@ export default function StudentDashboardPage() {
                                                 : "미정"}
                                             </span>
                                             <span className="font-semibold ml-2">
-                                                {match.scoreB ?? "-"}
+                                                 {match.scoresB?.reduce((a, b) => a + b, 0) ?? "-"}
                                             </span>
                                             </div>
                                         </CardContent>
