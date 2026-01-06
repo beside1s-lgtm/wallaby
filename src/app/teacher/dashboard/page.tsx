@@ -73,6 +73,32 @@ export default function TeacherDashboardPage() {
     loadData();
   }, [loadData]);
   
+  useEffect(() => {
+    const body = document.body;
+    const originalClasses = body.className;
+    const tabBackgrounds: { [key: string]: string } = {
+        measurement: 'measurement-bg',
+        competition: 'competition-bg',
+        data: 'data-bg',
+    };
+
+    // Remove all possible background classes first
+    Object.values(tabBackgrounds).forEach(bgClass => {
+        body.classList.remove(bgClass);
+    });
+    body.classList.remove('watermark-bg');
+    
+    // Add the correct class
+    const bgClass = tabBackgrounds[activeTab] || 'watermark-bg';
+    body.classList.add(bgClass);
+
+    return () => {
+        // Cleanup on component unmount
+        body.className = originalClasses;
+    };
+  }, [activeTab]);
+
+
   const handleDataUpdate = useCallback(async () => {
     await loadData();
   }, [loadData]);
