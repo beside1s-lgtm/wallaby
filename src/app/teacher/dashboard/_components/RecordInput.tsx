@@ -465,7 +465,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
             <TabsTrigger value="individual">개별 기록</TabsTrigger>
         </TabsList>
         <TabsContent value="batch">
-             <Card>
+             <Card className="bg-transparent shadow-none border-none">
                 <CardHeader>
                     <CardTitle>학급별 측정 기록</CardTitle>
                     <CardDescription>수업 중 측정한 결과를 학급 전체 또는 팀별로 한 번에 입력하고 저장할 수 있습니다.</CardDescription>
@@ -665,7 +665,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
             </Card>
         </TabsContent>
         <TabsContent value="individual">
-             <Card>
+             <Card className="bg-transparent shadow-none border-none">
                 <CardHeader>
                     <CardTitle>개별 학생 기록 추가/수정</CardTitle>
                     <CardDescription>학생을 검색하여 특정 날짜의 기록을 추가하거나, 기존 날짜의 기록을 수정합니다.</CardDescription>

@@ -429,7 +429,7 @@ export default function RecordBrowser({
 
 
   return (
-    <Card>
+    <Card className="bg-transparent shadow-none border-none">
         <CardHeader>
             <CardTitle>기록 조회</CardTitle>
             <CardDescription>

@@ -141,9 +141,7 @@ export default function TeacherDashboardPage() {
   if (isLoading || isAuthLoading) {
     return (
       <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6">
-        <h1 className="text-2xl md:text-3xl font-bold mb-6 text-primary font-headline">
-          {school} 교사 대시보드
-        </h1>
+        <Skeleton className="h-16 w-full" />
         <Skeleton className="h-48 w-full" />
         <div className="flex space-x-1">
           <Skeleton className="h-10 flex-1" />

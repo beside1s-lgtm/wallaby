@@ -811,7 +811,7 @@ export default function ClassAnalytics({
           </div>
         </DialogContent>
       </Dialog>
-      <Card>
+      <Card className="bg-transparent shadow-none border-none">
         <CardHeader>
           <CardTitle>학생별 분석</CardTitle>
           <CardDescription>

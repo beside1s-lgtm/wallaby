@@ -89,7 +89,7 @@ function HallOfFame({ allItems, allRecords, allStudents }: RankingProps) {
   }
 
   return (
-    <Card className="bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800">
+    <Card className="bg-yellow-50/80 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 backdrop-blur-sm">
        <CardHeader>
           <CardTitle className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
             <Trophy />
@@ -99,7 +99,7 @@ function HallOfFame({ allItems, allRecords, allStudents }: RankingProps) {
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {hallOfFameData.map(({ itemName, topStudents }) => (
-                <div key={itemName} className="p-4 rounded-lg bg-background">
+                <div key={itemName} className="p-4 rounded-lg bg-background/80 shadow">
                     <h3 className="font-bold text-lg text-center mb-3">{itemName}</h3>
                     {topStudents.length > 0 ? (
                         <ul className="space-y-2">
@@ -195,7 +195,7 @@ export default function Ranking({
   return (
     <div className="space-y-6">
       <HallOfFame allItems={allItems} allRecords={allRecords} allStudents={allStudents} />
-      <Card>
+      <Card className="bg-transparent shadow-none border-none">
         <CardHeader>
           <CardTitle>종목별 순위 조회</CardTitle>
           <CardDescription>
