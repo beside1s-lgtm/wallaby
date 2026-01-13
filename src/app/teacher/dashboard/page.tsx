@@ -226,7 +226,6 @@ export default function TeacherDashboardPage() {
                     allItems={items}
                     allRecords={records}
                     onRecordUpdate={updateLocalRecords}
-                    sportsClubs={sportsClubs}
                 />
               </TabsContent>
               <TabsContent value="record-browser">
@@ -251,7 +250,7 @@ export default function TeacherDashboardPage() {
                 <TabsList className="grid w-full grid-cols-3 mb-6">
                     <TabsTrigger value="tournament-management"><Swords className="mr-2 h-4 w-4" />대회 관리</TabsTrigger>
                     <TabsTrigger value="team-balancer"><Shuffle className="mr-2 h-4 w-4" />팀 자동 편성</TabsTrigger>
-                    <TabsTrigger value="sports-club"><Users2 className="mr-2 h-4 w-4" />스포츠 클럽 관리</TabsTrigger>
+                    <TabsTrigger value="sports-club"><Users2 className="mr-2 h-4 w-4" />스포츠 클럽</TabsTrigger>
                 </TabsList>
                 <TabsContent value="tournament-management">
                     <TournamentManagement 

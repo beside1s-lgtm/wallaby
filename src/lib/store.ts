@@ -1,5 +1,5 @@
 'use client';
-import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentToAdd, School, StudentToUpdate, TeamGroup, TeamGroupInput, Tournament, Team } from './types';
+import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentToAdd, School, StudentToUpdate, TeamGroup, TeamGroupInput, Tournament, Team, SportsClub } from './types';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { initialItems, initialStudents, initialRecords } from './initial-data';
@@ -909,6 +909,78 @@ export const getLatestTeamGroupForStudent = async (school: string, studentId: st
     throw e; // Re-throw other errors
   }
 };
+
+// --- Sports Clubs ---
+export const saveSportsClub = async (school: string, name: string, memberIds: string[]): Promise<SportsClub> => {
+  await signIn();
+  const clubsRef = collection(db, 'schools', school, 'sportsClubs');
+  const newClubRef = doc(clubsRef);
+  const newClub: SportsClub = {
+    id: newClubRef.id,
+    school,
+    name,
+    memberIds,
+    createdAt: serverTimestamp(),
+  };
+
+  await setDoc(newClubRef, newClub).catch(e => {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: newClubRef.path,
+        operation: 'create',
+        requestResourceData: newClub,
+      }));
+    }
+    throw e;
+  });
+  return newClub;
+};
+
+export const getSportsClubs = async (school: string): Promise<SportsClub[]> => {
+  await signIn();
+  const clubsRef = collection(db, 'schools', school, 'sportsClubs');
+  const q = query(clubsRef, orderBy('createdAt', 'desc'));
+  const snapshot = await getDocs(q).catch(e => {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: clubsRef.path,
+        operation: 'list',
+      }));
+    }
+    throw e;
+  });
+  return snapshot.docs.map(doc => doc.data() as SportsClub);
+};
+
+export const updateSportsClub = async (school: string, clubId: string, data: Partial<Omit<SportsClub, 'id'|'school'|'createdAt'>>): Promise<void> => {
+  await signIn();
+  const clubRef = doc(db, 'schools', school, 'sportsClubs', clubId);
+  await updateDoc(clubRef, data).catch(e => {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: clubRef.path,
+        operation: 'update',
+        requestResourceData: data,
+      }));
+    }
+    throw e;
+  });
+};
+
+export const deleteSportsClub = async (school: string, clubId: string): Promise<void> => {
+  await signIn();
+  const clubRef = doc(db, 'schools', school, 'sportsClubs', clubId);
+  await deleteDoc(clubRef).catch(e => {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: clubRef.path,
+        operation: 'delete',
+      }));
+    }
+    throw e;
+  });
+};
+
 
 // --- Tournament Functions ---
 export const saveTournament = async (tournament: Omit<Tournament, 'id' | 'createdAt'>): Promise<Tournament> => {
