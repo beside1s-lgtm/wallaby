@@ -552,15 +552,21 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
 
     const studentsToBalance = allStudents.filter((s) => selectedStudentIds.includes(s.id));
     
-    // Group students by class
-    const studentsByClass: Record<string, Student[]> = {};
-    studentsToBalance.forEach(student => {
-      const classKey = `${student.grade}-${student.classNum}`;
-      if (!studentsByClass[classKey]) {
-        studentsByClass[classKey] = [];
-      }
-      studentsByClass[classKey].push(student);
-    });
+    const isClubSelected = Object.values(clubSelection).some(Boolean);
+
+    const studentGroups = new Map<string, Student[]>();
+
+    if (isClubSelected) {
+        studentGroups.set("club", studentsToBalance);
+    } else {
+        studentsToBalance.forEach(student => {
+            const classKey = `${student.grade}-${student.classNum}`;
+            if (!studentGroups.has(classKey)) {
+                studentGroups.set(classKey, []);
+            }
+            studentGroups.get(classKey)!.push(student);
+        });
+    }
 
     let finalTeams: Student[][] = [];
     let finalLeftovers: Student[] = [];
@@ -633,16 +639,16 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     if (divideBy === 'single') {
         finalTeams.push(studentsToBalance);
     } else {
-      Object.values(studentsByClass).forEach(classStudentGroup => {
-          const effectiveNumTeams = divideBy === 'teams' ? numTeams : Math.max(1, Math.floor(classStudentGroup.length / membersPerTeam));
+      studentGroups.forEach(studentGroup => {
+          const effectiveNumTeams = divideBy === 'teams' ? numTeams : Math.max(1, Math.floor(studentGroup.length / membersPerTeam));
           if (effectiveNumTeams === 0) {
-              finalLeftovers.push(...classStudentGroup);
+              finalLeftovers.push(...studentGroup);
               return;
           }
 
           if (selectedGender === 'separate') {
-              const maleStudents = classStudentGroup.filter(s => s.gender === '남');
-              const femaleStudents = classStudentGroup.filter(s => s.gender === '여');
+              const maleStudents = studentGroup.filter(s => s.gender === '남');
+              const femaleStudents = studentGroup.filter(s => s.gender === '여');
 
               const { teams: maleTeams, leftovers: maleLeftovers } = createTeamsForGroup(maleStudents, effectiveNumTeams);
               const { teams: femaleTeams, leftovers: femaleLeftovers } = createTeamsForGroup(femaleStudents, effectiveNumTeams);
@@ -650,7 +656,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
               finalTeams.push(...maleTeams, ...femaleTeams);
               finalLeftovers.push(...maleLeftovers, ...femaleLeftovers);
           } else {
-              const { teams: newTeams, leftovers } = createTeamsForGroup(classStudentGroup, effectiveNumTeams);
+              const { teams: newTeams, leftovers } = createTeamsForGroup(studentGroup, effectiveNumTeams);
               finalTeams.push(...newTeams);
               finalLeftovers.push(...leftovers);
           }
@@ -1565,7 +1571,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                              <ResponsiveContainer width="100%" height="100%">
                                 <RadarChart cx="50%" cy="50%" outerRadius="70%" data={avgData}>
                                     <PolarGrid />
-                                    <PolarAngleAxis dataKey="item" tick={{ fontSize: 10 }} />
+                                    <PolarAngleAxis dataKey="item" tick={{fontSize: 10}} />
                                     <PolarRadiusAxis axisLine={false} tick={false} domain={[0, 100]} />
                                     <Radar name="팀 평균" dataKey="score" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.6} />
                                     <Tooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", fontSize: '12px' }}/>
