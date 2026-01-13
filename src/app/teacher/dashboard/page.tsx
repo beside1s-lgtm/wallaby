@@ -218,6 +218,7 @@ export default function TeacherDashboardPage() {
                   allItems={items}
                   onRecordUpdate={updateLocalRecords}
                   allTeamGroups={teamGroups}
+                  sportsClubs={sportsClubs}
                 />
               </TabsContent>
               <TabsContent value="record-analysis">
@@ -268,6 +269,7 @@ export default function TeacherDashboardPage() {
                         teamGroups={teamGroups}
                         onTeamGroupUpdate={handleTeamGroupAddedOrUpdated}
                         onTeamGroupDelete={handleTeamGroupDeleted}
+                        sportsClubs={sportsClubs}
                     />
                 </TabsContent>
                  <TabsContent value="sports-club">

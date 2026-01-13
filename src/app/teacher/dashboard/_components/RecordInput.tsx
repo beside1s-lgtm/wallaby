@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { addOrUpdateRecord, addOrUpdateRecords } from '@/lib/store';
-import { Student, MeasurementItem, MeasurementRecord, TeamGroup } from '@/lib/types';
+import { Student, MeasurementItem, MeasurementRecord, TeamGroup, SportsClub } from '@/lib/types';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -51,9 +51,10 @@ interface RecordInputProps {
     allItems: MeasurementItem[];
     onRecordUpdate: (records: MeasurementRecord[] | string, action: 'update' | 'delete') => void;
     allTeamGroups: TeamGroup[];
+    sportsClubs: SportsClub[];
 }
 
-export default function RecordInput({ allStudents, allItems, onRecordUpdate, allTeamGroups }: RecordInputProps) {
+export default function RecordInput({ allStudents, allItems, onRecordUpdate, allTeamGroups, sportsClubs }: RecordInputProps) {
   const { school } = useAuth();
   const { toast } = useToast();
   
@@ -72,7 +73,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
   // States for batch recording
   const [selectedGrade, setSelectedGrade] = useState('');
   const [selectedClassNum, setSelectedClassNum] = useState('');
-  const [selectedTeamGroupId, setSelectedTeamGroupId] = useState('');
+  const [selectedGroupId, setSelectedGroupId] = useState(''); // Can be TeamGroup or SportsClub ID
   const [selectedTeamId, setSelectedTeamId] = useState('');
   const [batchRecordItem, setBatchRecordItem] = useState('');
   const [batchRecordDate, setBatchRecordDate] = useState<Date | undefined>(new Date());
@@ -84,6 +85,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
   
   const activeItems = useMemo(() => allItems.filter(item => !item.isArchived), [allItems]);
 
+  const studentMap = useMemo(() => new Map(allStudents.map(s => [s.id, s])), [allStudents]);
 
   const { grades, classNumsByGrade } = useMemo(() => {
     const grades = [...new Set(allStudents.map(s => s.grade))].sort();
@@ -94,65 +96,57 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
     return { grades, classNumsByGrade };
   }, [allStudents]);
   
-  const selectedTeamGroup = useMemo(() => {
-    return allTeamGroups.find(g => g.id === selectedTeamGroupId);
-  }, [selectedTeamGroupId, allTeamGroups]);
+  const selectedGroup = useMemo(() => {
+    if (!selectedGroupId) return null;
+    const teamGroup = allTeamGroups.find(g => g.id === selectedGroupId);
+    if (teamGroup) return { type: 'teamGroup', data: teamGroup };
 
-  const studentMap = useMemo(() => new Map(allStudents.map(s => [s.id, s])), [allStudents]);
+    const sportsClub = sportsClubs.find(c => c.id === selectedGroupId);
+    if (sportsClub) return { type: 'sportsClub', data: sportsClub };
+    
+    return null;
+  }, [selectedGroupId, allTeamGroups, sportsClubs]);
 
   const studentsForBatch = useMemo(() => {
-    if (selectedTeamGroupId) {
-        if (!selectedTeamGroup) return [];
+    if (selectedGroupId && selectedGroup) {
+        if (selectedGroup.type === 'teamGroup') {
+            const teamGroup = selectedGroup.data as TeamGroup;
+            const teamToShow = selectedTeamId ? teamGroup.teams.find(t => t.id === selectedTeamId) : null;
+            const teamsToProcess = teamToShow ? [teamToShow] : teamGroup.teams;
+            
+            return teamsToProcess.flatMap((team) => {
+                 return team.memberIds.map(memberId => studentMap.get(memberId))
+                    .filter((s): s is Student => !!s);
+            }).sort((a,b) => parseInt(a.studentNum) - parseInt(b.studentNum));
 
-        const teamToShow = selectedTeamId ? selectedTeamGroup.teams.find(t => t.id === selectedTeamId) : null;
-        
-        const teamsToProcess = teamToShow ? [teamToShow] : selectedTeamGroup.teams;
-
-        return teamsToProcess.flatMap((team) => {
-            const firstStudent = team.memberIds.length > 0 ? studentMap.get(team.memberIds[0]) : null;
-            let teamName = `팀 ${team.teamIndex + 1}`;
-
-            if(firstStudent){
-                const genderDisplay = selectedTeamGroup?.gender === 'separate' ? (firstStudent?.gender === '남' ? '(남)' : '(여)') : '';
-                const teamsInClass = selectedTeamGroup.teams.filter(t => {
-                    const fs = t.memberIds.length > 0 ? studentMap.get(t.memberIds[0]) : null;
-                    if (!fs) return false;
-                    return fs.grade === firstStudent.grade && fs.classNum === firstStudent.classNum && (selectedTeamGroup?.gender !== 'separate' || fs.gender === firstStudent.gender);
+        } else if (selectedGroup.type === 'sportsClub') {
+            const club = selectedGroup.data as SportsClub;
+             return club.memberIds.map(memberId => studentMap.get(memberId))
+                .filter((s): s is Student => !!s)
+                .sort((a,b) => {
+                    if (a.grade !== b.grade) return parseInt(a.grade) - parseInt(b.grade);
+                    if (a.classNum !== b.classNum) return parseInt(a.classNum) - parseInt(b.classNum);
+                    return parseInt(a.studentNum) - parseInt(b.studentNum);
                 });
-                 const teamToFind = teamsInClass.find(t => t.id === team.id);
-                 const relativeIndex = teamToFind ? teamsInClass.indexOf(teamToFind) : -1;
-                 teamName = `${firstStudent.grade}-${firstStudent.classNum}반 ${genderDisplay} 팀 ${relativeIndex + 1}`.trim();
-            }
-
-            return team.memberIds.map((memberId, memberIndex) => {
-                const student = studentMap.get(memberId);
-                return student ? { ...student, teamName, teamMemberNumber: memberIndex + 1 } : null;
-            }).filter((s): s is (Student & {teamName: string, teamMemberNumber: number}) => s !== null)
-        }).sort((a,b) => {
-            if(a.teamName < b.teamName) return -1;
-            if(a.teamName > b.teamName) return 1;
-            return a.teamMemberNumber - b.teamMemberNumber;
-        });
-
+        }
     } else if (selectedGrade && selectedClassNum) {
         return allStudents
             .filter(s => s.grade === selectedGrade && s.classNum === selectedClassNum)
-            .sort((a,b) => parseInt(a.studentNum) - parseInt(b.studentNum))
-            .map(s => ({...s, teamName: `${s.grade}-${s.classNum}`, teamMemberNumber: parseInt(s.studentNum)}));
+            .sort((a,b) => parseInt(a.studentNum) - parseInt(b.studentNum));
     }
     return [];
-  }, [allStudents, selectedGrade, selectedClassNum, selectedTeamGroupId, selectedTeamId, selectedTeamGroup, studentMap]);
+  }, [allStudents, selectedGrade, selectedClassNum, selectedGroupId, selectedTeamId, selectedGroup, studentMap]);
   
   useEffect(() => {
     setBatchRecords({}); // Clear batch records on filter change
-    if(selectedTeamGroupId) {
+    if(selectedGroupId) {
         setSelectedGrade('');
         setSelectedClassNum('');
     }
-    if(!selectedTeamGroupId){
+    if(!selectedGroupId){
         setSelectedTeamId('');
     }
-  }, [selectedGrade, selectedClassNum, batchRecordItem, selectedTeamGroupId]);
+  }, [selectedGrade, selectedClassNum, batchRecordItem, selectedGroupId]);
 
   useEffect(() => {
     // When selected item for single add changes, reset inputs
@@ -385,37 +379,9 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
     const clearFilters = () => {
         setSelectedGrade('');
         setSelectedClassNum('');
-        setSelectedTeamGroupId('');
+        setSelectedGroupId('');
         setSelectedTeamId('');
     };
-
-    const sortedTeamsForDropdown = useMemo(() => {
-        if (!selectedTeamGroup) return [];
-
-        return [...selectedTeamGroup.teams].sort((a, b) => {
-            const studentA = a.memberIds.length > 0 ? studentMap.get(a.memberIds[0]) : null;
-            const studentB = b.memberIds.length > 0 ? studentMap.get(b.memberIds[0]) : null;
-            
-            if (!studentA || !studentB) return 0;
-            
-            const gradeA = parseInt(studentA.grade);
-            const gradeB = parseInt(studentB.grade);
-            if (gradeA !== gradeB) return gradeA - gradeB;
-
-            const classA = parseInt(studentA.classNum);
-            const classB = parseInt(studentB.classNum);
-            if (classA !== classB) return classA - classB;
-
-            const genderOrder = {'남': 1, '여': 2};
-            const genderA = genderOrder[studentA.gender] || 3;
-            const genderB = genderOrder[studentB.gender] || 3;
-            if (genderA !== genderB) return genderA - genderB;
-
-            return a.teamIndex - b.teamIndex;
-        });
-
-    }, [selectedTeamGroup, studentMap]);
-
 
   if (!school) return null;
 
@@ -461,16 +427,16 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
       </Dialog>
       <Tabs defaultValue="batch">
         <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="batch">학급별 기록</TabsTrigger>
+            <TabsTrigger value="batch">학급/팀별 기록</TabsTrigger>
             <TabsTrigger value="individual">개별 기록</TabsTrigger>
         </TabsList>
         <TabsContent value="batch">
              <Card className="bg-transparent shadow-none border-none">
                 <CardHeader>
-                    <CardTitle>학급별 측정 기록</CardTitle>
+                    <CardTitle>학급/팀별 측정 기록</CardTitle>
                     <CardDescription>수업 중 측정한 결과를 학급 전체 또는 팀별로 한 번에 입력하고 저장할 수 있습니다.</CardDescription>
                     <div className="flex flex-wrap items-center gap-2 pt-4">
-                        <Select value={selectedGrade} onValueChange={(value) => { setSelectedGrade(value); setSelectedClassNum(''); setSelectedTeamGroupId(''); }}>
+                        <Select value={selectedGrade} onValueChange={(value) => { setSelectedGrade(value); setSelectedClassNum(''); setSelectedGroupId(''); }}>
                             <SelectTrigger className="w-full sm:w-[120px]">
                                 <SelectValue placeholder="학년 선택" />
                             </SelectTrigger>
@@ -479,7 +445,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                             </SelectContent>
                         </Select>
 
-                        <Select value={selectedClassNum} onValueChange={v => { setSelectedClassNum(v); setSelectedTeamGroupId(''); }} disabled={!selectedGrade}>
+                        <Select value={selectedClassNum} onValueChange={v => { setSelectedClassNum(v); setSelectedGroupId(''); }} disabled={!selectedGrade}>
                             <SelectTrigger className="w-full sm:w-[120px]">
                                 <SelectValue placeholder="반 선택" />
                             </SelectTrigger>
@@ -490,50 +456,22 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                         
                         <span className="text-sm text-muted-foreground mx-2">또는</span>
 
-                        <Select value={selectedTeamGroupId} onValueChange={v => { setSelectedTeamGroupId(v); setSelectedGrade(''); setSelectedClassNum(''); setSelectedTeamId(''); }}>
+                        <Select value={selectedGroupId} onValueChange={v => { setSelectedGroupId(v); setSelectedGrade(''); setSelectedClassNum(''); setSelectedTeamId(''); }}>
                             <SelectTrigger className="w-full sm:w-[200px]">
-                                <SelectValue placeholder="팀 편성 그룹 선택" />
+                                <SelectValue placeholder="팀/클럽 그룹 선택" />
                             </SelectTrigger>
                             <SelectContent>
-                                {allTeamGroups.length > 0 ? allTeamGroups.map(group => (
+                                {allTeamGroups.length > 0 && allTeamGroups.map(group => (
                                     <SelectItem key={group.id} value={group.id}>{group.description}</SelectItem>
-                                )) : <SelectItem value="none" disabled>저장된 팀 그룹이 없습니다.</SelectItem>}
+                                ))}
+                                 {sportsClubs.length > 0 && sportsClubs.map(club => (
+                                    <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
+                                ))}
+                                {(allTeamGroups.length === 0 && sportsClubs.length === 0) && <SelectItem value="none" disabled>저장된 그룹이 없습니다.</SelectItem>}
                             </SelectContent>
                         </Select>
                          
-                        {selectedTeamGroupId && (
-                          <Select value={selectedTeamId} onValueChange={v => setSelectedTeamId(v === 'all-teams' ? '' : v)}>
-                              <SelectTrigger className="w-full sm:w-[200px]">
-                                  <SelectValue placeholder="팀 선택" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                  <SelectItem value="all-teams">전체 팀</SelectItem>
-                                  {sortedTeamsForDropdown.map(team => {
-                                      const firstStudent = team.memberIds.length > 0 ? studentMap.get(team.memberIds[0]) : null;
-                                      const genderDisplay = selectedTeamGroup?.gender === 'separate' ? (firstStudent?.gender === '남' ? '(남)' : '(여)') : '';
-                                      
-                                      const teamsInClass = sortedTeamsForDropdown.filter(t => {
-                                        const fs = t.memberIds.length > 0 ? studentMap.get(t.memberIds[0]) : null;
-                                        if (!fs || !firstStudent) return false;
-                                        return fs.grade === firstStudent.grade && fs.classNum === firstStudent.classNum && (selectedTeamGroup?.gender !== 'separate' || fs.gender === firstStudent.gender);
-                                      });
-                                      
-                                      const teamToFind = teamsInClass.find(t => t.id === team.id);
-                                      const relativeIndex = teamToFind ? teamsInClass.indexOf(teamToFind) : -1;
-                                      
-                                      const teamName = firstStudent 
-                                          ? `${firstStudent.grade}-${firstStudent.classNum}반 ${genderDisplay} 팀 ${relativeIndex + 1}`.trim()
-                                          : `팀 ${team.teamIndex + 1}`;
-
-                                      return (
-                                          <SelectItem key={team.id} value={team.id}>{teamName}</SelectItem>
-                                      );
-                                  })}
-                              </SelectContent>
-                          </Select>
-                        )}
-                         
-                        {(selectedGrade || selectedTeamGroupId) && <Button variant="ghost" size="icon" onClick={clearFilters}><X className="h-4 w-4" /></Button>}
+                        {(selectedGrade || selectedGroupId) && <Button variant="ghost" size="icon" onClick={clearFilters}><X className="h-4 w-4" /></Button>}
                         
                         <div className="flex-grow min-w-[240px]">
                             <Popover>
@@ -567,7 +505,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                     <TableHeader>
                         <TableRow>
                             <TableHead>사진</TableHead>
-                            <TableHead>팀</TableHead>
+                            <TableHead>학년-반</TableHead>
                             <TableHead>번호</TableHead>
                             <TableHead>이름</TableHead>
                             {selectedItemForBatchAdd?.isCompound ? (
@@ -596,8 +534,8 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                                         <AvatarFallback>{student.name.charAt(0)}</AvatarFallback>
                                     </Avatar>
                                 </TableCell>
-                                <TableCell>{student.teamName}</TableCell>
-                                <TableCell>{selectedTeamGroupId ? student.teamMemberNumber : student.studentNum}</TableCell>
+                                <TableCell>{student.grade}-{student.classNum}</TableCell>
+                                <TableCell>{student.studentNum}</TableCell>
                                 <TableCell>{student.name}</TableCell>
                                 {selectedItemForBatchAdd?.isCompound ? (
                                     <>
@@ -655,7 +593,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                       ) : (
                         <TableRow>
                           <TableCell colSpan={7} className="h-24 text-center">
-                            기록을 입력할 학급 또는 팀 그룹을 선택해주세요.
+                            기록을 입력할 학급 또는 팀/클럽 그룹을 선택해주세요.
                           </TableCell>
                         </TableRow>
                       )}
