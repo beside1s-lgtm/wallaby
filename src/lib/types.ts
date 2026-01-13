@@ -46,6 +46,14 @@ export type School = {
   createdAt: any; // Can be a Date or a server timestamp
 };
 
+export type SportsClub = {
+  id: string;
+  school: string;
+  name: string;
+  memberIds: string[];
+  createdAt: any;
+};
+
 export type Team = {
   id: string;
   name: string;

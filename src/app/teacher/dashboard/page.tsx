@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { getStudents, getItems, getRecords, getTeamGroups } from "@/lib/store";
-import type { Student, MeasurementItem, MeasurementRecord, TeamGroup } from "@/lib/types";
+import { getStudents, getItems, getRecords, getTeamGroups, getSportsClubs } from "@/lib/store";
+import type { Student, MeasurementItem, MeasurementRecord, TeamGroup, SportsClub } from "@/lib/types";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StudentManagement, DatabaseManagement } from "./_components/StudentManagement";
@@ -15,6 +15,7 @@ import RecordInput from "./_components/RecordInput";
 import AiWelcome from "./_components/AiWelcome";
 import TournamentManagement from "./_components/TournamentManagement";
 import TeamBalancer from "./_components/TeamBalancer";
+import SportsClubManagement from "./_components/SportsClubManagement";
 import {
   Users,
   ClipboardList,
@@ -29,6 +30,7 @@ import {
   Target,
   Wrench,
   Search,
+  Users2,
 } from "lucide-react";
 import {
   Card,
@@ -47,6 +49,7 @@ export default function TeacherDashboardPage() {
   const [items, setItems] = useState<MeasurementItem[]>([]);
   const [records, setRecords] = useState<MeasurementRecord[]>([]);
   const [teamGroups, setTeamGroups] = useState<TeamGroup[]>([]);
+  const [sportsClubs, setSportsClubs] = useState<SportsClub[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("measurement");
 
@@ -54,16 +57,18 @@ export default function TeacherDashboardPage() {
     if (isAuthLoading || !school) return;
     setIsLoading(true);
     try {
-      const [studentData, itemData, recordData, teamGroupData] = await Promise.all([
+      const [studentData, itemData, recordData, teamGroupData, sportsClubData] = await Promise.all([
         getStudents(school),
         getItems(school),
         getRecords(school),
         getTeamGroups(school),
+        getSportsClubs(school),
       ]);
       setStudents(studentData);
       setItems(itemData);
       setRecords(recordData);
       setTeamGroups(teamGroupData);
+      setSportsClubs(sportsClubData);
     } catch (error) {
       console.error("Failed to load dashboard data:", error);
     } finally {
@@ -137,6 +142,12 @@ export default function TeacherDashboardPage() {
   const handleTeamGroupDeleted = useCallback((groupId: string) => {
     setTeamGroups(prev => prev.filter(g => g.id !== groupId));
   }, []);
+
+  const handleSportsClubUpdate = useCallback(() => {
+    if (school) {
+        getSportsClubs(school).then(setSportsClubs);
+    }
+  }, [school]);
 
   if (isLoading || isAuthLoading) {
     return (
@@ -215,6 +226,7 @@ export default function TeacherDashboardPage() {
                     allItems={items}
                     allRecords={records}
                     onRecordUpdate={updateLocalRecords}
+                    sportsClubs={sportsClubs}
                 />
               </TabsContent>
               <TabsContent value="record-browser">
@@ -236,9 +248,10 @@ export default function TeacherDashboardPage() {
 
           <TabsContent value="competition" className="bg-card/90 backdrop-blur-sm p-4 rounded-lg">
              <Tabs defaultValue="tournament-management">
-                <TabsList className="grid w-full grid-cols-2 mb-6">
+                <TabsList className="grid w-full grid-cols-3 mb-6">
                     <TabsTrigger value="tournament-management"><Swords className="mr-2 h-4 w-4" />대회 관리</TabsTrigger>
                     <TabsTrigger value="team-balancer"><Shuffle className="mr-2 h-4 w-4" />팀 자동 편성</TabsTrigger>
+                    <TabsTrigger value="sports-club"><Users2 className="mr-2 h-4 w-4" />스포츠 클럽 관리</TabsTrigger>
                 </TabsList>
                 <TabsContent value="tournament-management">
                     <TournamentManagement 
@@ -255,6 +268,13 @@ export default function TeacherDashboardPage() {
                         teamGroups={teamGroups}
                         onTeamGroupUpdate={handleTeamGroupAddedOrUpdated}
                         onTeamGroupDelete={handleTeamGroupDeleted}
+                    />
+                </TabsContent>
+                 <TabsContent value="sports-club">
+                    <SportsClubManagement
+                        allStudents={students}
+                        sportsClubs={sportsClubs}
+                        onClubUpdate={handleSportsClubUpdate}
                     />
                 </TabsContent>
              </Tabs>
