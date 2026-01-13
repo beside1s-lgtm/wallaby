@@ -8,7 +8,7 @@ import {
   deleteTeamGroup,
   updateTeamGroup,
 } from "@/lib/store";
-import { Student, MeasurementItem, MeasurementRecord, TeamGroup, Team, TeamGroupInput } from "@/lib/types";
+import { Student, MeasurementItem, MeasurementRecord, TeamGroup, Team, TeamGroupInput, SportsClub } from "@/lib/types";
 import {
   Card,
   CardContent,
@@ -82,6 +82,7 @@ interface TeamBalancerProps {
   teamGroups: TeamGroup[];
   onTeamGroupUpdate: (newGroup: TeamGroup) => void;
   onTeamGroupDelete: (groupId: string) => void;
+  sportsClubs: SportsClub[];
 }
 
 type ClassSelection = {
@@ -98,7 +99,7 @@ type MovingStudentState = {
   sourceTeamIndex: number;
 } | null;
 
-export default function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGroupUpdate, onTeamGroupDelete }: TeamBalancerProps) {
+export default function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGroupUpdate, onTeamGroupDelete, sportsClubs }: TeamBalancerProps) {
   const { school } = useAuth();
   const { toast } = useToast();
 
@@ -106,6 +107,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
   const [selectedTeamGroupId, setSelectedTeamGroupId] = useState<string>('');
 
   const [classSelection, setClassSelection] = useState<ClassSelection>({});
+  const [clubSelection, setClubSelection] = useState<Record<string, boolean>>({});
 
   const [selectedGender, setSelectedGender] = useState<"all" | "남" | "여" | "separate">(
     "all"
@@ -195,7 +197,12 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
       });
     });
     setClassSelection(initialSelection);
-  }, [grades, classNumsByGrade]);
+    const initialClubSelection: Record<string, boolean> = {};
+    sportsClubs.forEach(club => {
+        initialClubSelection[club.id] = false;
+    })
+    setClubSelection(initialClubSelection);
+  }, [grades, classNumsByGrade, sportsClubs]);
 
 
   const resetToNewTeam = () => {
@@ -209,6 +216,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
       });
     });
     setClassSelection(newSelection);
+    setClubSelection({});
     setSelectedGender('all');
     setExcludeNonParticipants(true);
     setSelectedItemNames([]);
@@ -236,18 +244,26 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         ...team,
         members: team.memberIds.map(id => studentMap.get(id)).filter((s): s is Student => !!s)
     }));
+    
+    const allMemberIds = new Set(teamsWithMembers.flatMap(t => t.members.map(m => m.id)));
 
-    const newSelection: ClassSelection = {};
+    const newClassSelection: ClassSelection = {};
     grades.forEach(grade => {
-        newSelection[grade] = { all: false, classes: {} };
+        newClassSelection[grade] = { all: false, classes: {} };
         classNumsByGrade[grade]?.forEach(classNum => {
             const isSelected = teamsWithMembers.some(team => team.members && team.members.some(member => member.grade === grade && member.classNum === classNum));
-            newSelection[grade].classes[classNum] = isSelected;
+            newClassSelection[grade].classes[classNum] = isSelected;
         });
-        const allSelected = classNumsByGrade[grade]?.every(cn => newSelection[grade].classes[cn]);
-        newSelection[grade].all = !!allSelected;
+        const allSelected = classNumsByGrade[grade]?.every(cn => newClassSelection[grade].classes[cn]);
+        newClassSelection[grade].all = !!allSelected;
     });
-    setClassSelection(newSelection);
+    setClassSelection(newClassSelection);
+    
+    const newClubSelection: Record<string, boolean> = {};
+    sportsClubs.forEach(club => {
+        newClubSelection[club.id] = club.memberIds.some(id => allMemberIds.has(id));
+    })
+    setClubSelection(newClubSelection);
     
     setSelectedGender(group.gender || 'all');
     setSelectedItemNames(group.itemNamesForBalancing || []);
@@ -276,27 +292,35 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
   };
 
   const targetStudents = useMemo(() => {
-    const selectedClasses: { grade: string; classNum: string }[] = [];
+    const selectedStudentIds = new Set<string>();
+
     Object.entries(classSelection).forEach(([grade, selection]) => {
       Object.entries(selection.classes).forEach(([classNum, isSelected]) => {
         if (isSelected) {
-          selectedClasses.push({ grade, classNum });
+          allStudents.forEach(s => {
+            if (s.grade === grade && s.classNum === classNum) {
+              selectedStudentIds.add(s.id);
+            }
+          });
         }
       });
     });
 
-    if (selectedClasses.length === 0) return [];
-    
-    let students = allStudents.filter(s => 
-      selectedClasses.some(sc => sc.grade === s.grade && sc.classNum === s.classNum)
-    );
+    Object.entries(clubSelection).forEach(([clubId, isSelected]) => {
+        if (isSelected) {
+            const club = sportsClubs.find(c => c.id === clubId);
+            club?.memberIds.forEach(id => selectedStudentIds.add(id));
+        }
+    });
+
+    let students = Array.from(selectedStudentIds).map(id => allStudents.find(s => s.id === id)).filter((s): s is Student => !!s);
 
     if (selectedGender !== "all" && selectedGender !== "separate") {
       students = students.filter((s) => s.gender === selectedGender);
     }
 
     return students;
-  }, [classSelection, selectedGender, allStudents]);
+  }, [classSelection, clubSelection, sportsClubs, selectedGender, allStudents]);
 
   useEffect(() => {
     if (targetStudents.length > 0 && selectedItemNames.length > 0) {
@@ -1017,8 +1041,28 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
           <h3 className="font-semibold">1. 분석 대상 설정</h3>
           <div className="flex flex-wrap items-end gap-4">
              <div className="space-y-2">
-                <Label>편성 대상 학급</Label>
+                <Label>편성 대상</Label>
                 <Accordion type="multiple" className="w-full sm:w-[400px] border rounded-md p-2 bg-background">
+                    {sportsClubs.length > 0 && (
+                        <AccordionItem value="clubs">
+                           <AccordionTrigger className="font-semibold">스포츠 클럽</AccordionTrigger>
+                           <AccordionContent className="pt-2 pl-2">
+                                <div className="grid grid-cols-2 gap-2">
+                                  {sportsClubs.map(club => (
+                                    <div key={club.id} className="flex items-center gap-2">
+                                      <Checkbox 
+                                        id={`club-${club.id}`}
+                                        checked={clubSelection[club.id] || false}
+                                        onCheckedChange={(checked) => setClubSelection(prev => ({...prev, [club.id]: !!checked}))}
+                                        disabled={!!selectedTeamGroupId}
+                                      />
+                                      <Label htmlFor={`club-${club.id}`}>{club.name}</Label>
+                                    </div>
+                                  ))}
+                                </div>
+                           </AccordionContent>
+                        </AccordionItem>
+                    )}
                   {grades.map(grade => (
                     <AccordionItem value={grade} key={grade}>
                       <div className="flex items-center space-x-2 py-2">
