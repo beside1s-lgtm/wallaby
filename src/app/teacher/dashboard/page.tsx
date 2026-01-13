@@ -226,6 +226,7 @@ export default function TeacherDashboardPage() {
                     allItems={items}
                     allRecords={records}
                     onRecordUpdate={updateLocalRecords}
+                    sportsClubs={sportsClubs}
                 />
               </TabsContent>
               <TabsContent value="record-browser">
