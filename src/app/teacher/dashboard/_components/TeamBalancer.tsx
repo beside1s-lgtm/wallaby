@@ -593,16 +593,15 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                 }
             });
         } else { // 레벨별 편성 (실력 그룹화)
-             const studentsPerTeam = Math.floor(studentsToDistribute.length / numTeamsForDivision);
-             for(let i = 0; i < numTeamsForDivision; i++) {
-                newTeams[i] = studentsToDistribute.splice(0, studentsPerTeam);
-             }
-             // 남은 학생들을 팀에 순서대로 배분
-             let teamIndex = 0;
-             while(studentsToDistribute.length > 0) {
-                 newTeams[teamIndex].push(studentsToDistribute.shift()!);
-                 teamIndex = (teamIndex + 1) % numTeamsForDivision;
-             }
+            const studentsPerTeam = Math.floor(studentsToDistribute.length / numTeamsForDivision);
+            const remainingStudents = studentsToDistribute.length % numTeamsForDivision;
+
+            let currentIndex = 0;
+            for (let i = 0; i < numTeamsForDivision; i++) {
+                const teamSize = studentsPerTeam + (i < remainingStudents ? 1 : 0);
+                newTeams[i] = studentsToDistribute.slice(currentIndex, currentIndex + teamSize);
+                currentIndex += teamSize;
+            }
         }
         return { teams: newTeams.filter(t => t.length > 0), leftovers: [] };
       } else { // divide by members
@@ -626,9 +625,9 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                 }
             });
         } else { // 레벨별 편성 (순서대로)
-             for(let i = 0; i < numTeamsForGroup; i++) {
+            for(let i = 0; i < numTeamsForGroup; i++) {
                 newTeams[i] = groupToDistribute.splice(0, membersPerTeam);
-             }
+            }
         }
         
         return { teams: newTeams, leftovers: studentsToDistribute };
