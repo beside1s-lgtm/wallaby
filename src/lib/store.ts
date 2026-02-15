@@ -418,7 +418,7 @@ export const addItem = async (school: string, item: Omit<MeasurementItem, 'id' |
 
   if (existing.empty) {
     const newItemRef = doc(itemsRef);
-    const newItem = { ...item, id: newItemRef.id };
+    const newItem = { ...item, id: newItemRef.id, isDeactivated: false, isArchived: false };
     await setDoc(newItemRef, newItem).catch(e => {
         if (e.code === 'permission-denied') {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -431,7 +431,15 @@ export const addItem = async (school: string, item: Omit<MeasurementItem, 'id' |
     });
     return newItem;
   }
-  return existing.docs[0].data() as MeasurementItem;
+  
+  // If exists but deactivated, reactivate it
+  const existingItem = existing.docs[0].data() as MeasurementItem;
+  if (existingItem.isDeactivated) {
+      await updateDoc(existing.docs[0].ref, { isDeactivated: false, isArchived: false });
+      return { ...existingItem, isDeactivated: false, isArchived: false };
+  }
+  
+  return existingItem;
 };
 
 export const updateItem = async (school: string, itemId: string, data: Partial<Omit<MeasurementItem, 'id'>>) => {
@@ -452,7 +460,7 @@ export const updateItem = async (school: string, itemId: string, data: Partial<O
 export const archiveItem = async (school: string, itemId: string, archive: boolean): Promise<void> => {
   await signIn();
   const itemDocRef = doc(db, 'schools', school, 'items', itemId);
-  await updateDoc(itemDocRef, { isArchived: archive }).catch(e => {
+  await updateDoc(itemDocRef, { isArchived: archive, isDeactivated: false }).catch(e => {
     if (e.code === 'permission-denied') {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: itemDocRef.path,
@@ -473,7 +481,7 @@ export const archiveCategory = async (school: string, category: string, items: M
 
   itemsToUpdate.forEach(item => {
     const itemDocRef = doc(db, 'schools', school, 'items', item.id);
-    batch.update(itemDocRef, { isArchived: archive });
+    batch.update(itemDocRef, { isArchived: archive, isDeactivated: false });
   });
 
   await batch.commit().catch(e => {
@@ -486,6 +494,45 @@ export const archiveCategory = async (school: string, category: string, items: M
     }
     throw e;
   });
+};
+
+export const deactivateItem = async (school: string, itemId: string, deactivate: boolean): Promise<void> => {
+    await signIn();
+    const itemDocRef = doc(db, 'schools', school, 'items', itemId);
+    await updateDoc(itemDocRef, { isDeactivated: deactivate, isArchived: false }).catch(e => {
+      if (e.code === 'permission-denied') {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+              path: itemDocRef.path,
+              operation: 'update',
+              requestResourceData: { isDeactivated: deactivate }
+          }));
+      }
+      throw e;
+    });
+};
+
+export const deactivateCategory = async (school: string, category: string, items: MeasurementItem[], deactivate: boolean): Promise<void> => {
+    await signIn();
+    const batch = writeBatch(db);
+    const itemsToUpdate = items.filter(item => (item.category || (item.isPaps ? 'PAPS' : '기타')) === category);
+  
+    if (itemsToUpdate.length === 0) return;
+  
+    itemsToUpdate.forEach(item => {
+      const itemDocRef = doc(db, 'schools', school, 'items', item.id);
+      batch.update(itemDocRef, { isDeactivated: deactivate, isArchived: false });
+    });
+  
+    await batch.commit().catch(e => {
+      if (e.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: `schools/${school}/items`,
+          operation: 'write',
+          requestResourceData: { message: `Deactivating/Reactivating category ${category}.` }
+        }));
+      }
+      throw e;
+    });
 };
 
 
@@ -1110,13 +1157,15 @@ export const deleteTournament = async (school: string, tournamentId: string): Pr
 
 export const deleteItemAndAssociatedRecords = async (school: string, itemToDelete: MeasurementItem) => {
   await signIn();
+  if (itemToDelete.isPaps) return; // Never delete PAPS items
+
   const batch = writeBatch(db);
 
   // Delete all records associated with the item
   const recordsRef = collection(db, 'schools', school, 'records');
   const q = query(recordsRef, where('item', '==', itemToDelete.name));
   const recordsSnapshot = await getDocs(q);
-  recordsSnapshot.forEach(doc => batch.delete(doc.ref));
+  recordsSnapshot.docs.forEach(doc => batch.delete(doc.ref));
 
   // Delete the item itself
   const itemDocRef = doc(db, 'schools', school, 'items', itemToDelete.id);
@@ -1138,7 +1187,7 @@ export const deleteCategoryAndAssociatedRecords = async (school: string, categor
   await signIn();
   const batch = writeBatch(db);
   
-  const itemsToDelete = allItems.filter(item => (item.category || (item.isPaps ? 'PAPS' : '기타')) === category);
+  const itemsToDelete = allItems.filter(item => (item.category || (item.isPaps ? 'PAPS' : '기타')) === category && !item.isPaps);
   const itemNamesToDelete = itemsToDelete.map(item => item.name);
 
   if (itemNamesToDelete.length === 0) return;
@@ -1153,7 +1202,7 @@ export const deleteCategoryAndAssociatedRecords = async (school: string, categor
   for (const chunk of chunks) {
       const q = query(recordsRef, where('item', 'in', chunk));
       const recordsSnapshot = await getDocs(q);
-      recordsSnapshot.forEach(doc => batch.delete(doc.ref));
+      recordsSnapshot.docs.forEach(doc => batch.delete(doc.ref));
   }
 
   // Delete the items themselves

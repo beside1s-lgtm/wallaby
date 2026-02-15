@@ -1,4 +1,3 @@
-
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
@@ -10,6 +9,8 @@ import {
     deleteItemAndAssociatedRecords,
     deleteCategoryAndAssociatedRecords,
     updateItem,
+    deactivateItem,
+    deactivateCategory,
 } from '@/lib/store';
 import {
   Card,
@@ -21,7 +22,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Loader2, Trash2, Pencil, Swords, Target, CalendarRange, Check, X } from 'lucide-react';
+import { Plus, Loader2, Trash2, Pencil, Swords, Target, CalendarRange, Check, X, ChevronRight } from 'lucide-react';
 import type { MeasurementItem, RecordType } from '@/lib/types';
 import {
   Dialog,
@@ -80,7 +81,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
   const { school } = useAuth();
   const { toast } = useToast();
   
-  const [editMode, setEditMode] = useState<'none' | 'archive' | 'delete' | 'measurementWeek'>('none');
+  const [editMode, setEditMode] = useState<'none' | 'archive' | 'deactivate' | 'delete' | 'measurementWeek'>('none');
   const [selection, setSelection] = useState<Record<string, boolean>>({});
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -102,8 +103,8 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
     await addItemToDb(school, newItem);
     await refreshItems();
     toast({
-      title: '추가 완료',
-      description: `"${newItem.name}" 종목이 추가되었습니다.`,
+      title: '추가/활성화 완료',
+      description: `"${newItem.name}" 종목이 활성 목록에 추가되었습니다.`,
     });
   };
   
@@ -157,7 +158,21 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
                 await archiveItem(school, item.id, true);
             }
             toast({ title: '숨김 처리 완료', description: '선택한 항목들이 숨김 처리되었습니다.' });
+        } else if (editMode === 'deactivate') {
+            for (const category of selectedCategories) {
+                await deactivateCategory(school, category, items, true);
+            }
+            for (const item of selectedItems) {
+                await deactivateItem(school, item.id, true);
+            }
+            toast({ title: '비활성화 완료', description: '선택한 항목들이 비활성화되었습니다.' });
         } else if (editMode === 'delete') {
+            const papsIncluded = selectedItems.some(i => i.isPaps);
+            if (papsIncluded) {
+                toast({ variant: 'destructive', title: '삭제 불가', description: 'PAPS 종목은 영구 삭제할 수 없습니다. 대신 비활성화를 이용해주세요.' });
+                setIsProcessing(false);
+                return;
+            }
             for (const category of selectedCategories) {
                 await deleteCategoryAndAssociatedRecords(school, category, items);
             }
@@ -182,6 +197,8 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
     const archived: Record<string, MeasurementItem[]> = {};
 
     items.forEach(item => {
+        if (item.isDeactivated) return; // Deactivated items aren't in these lists
+
         const category = item.category || (item.isPaps ? 'PAPS' : '기타');
         if (item.isArchived) {
             if (!archived[category]) archived[category] = [];
@@ -216,12 +233,12 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
     <Card className="bg-transparent shadow-none border-none">
       <CardHeader>
         <CardTitle>종목 관리</CardTitle>
-        <CardDescription>측정할 종목을 추가하고 관리합니다. '측정 주간'으로 설정된 종목은 명예의 전당에 노출됩니다.</CardDescription>
+        <CardDescription>측정할 종목을 추가하고 관리합니다. 비활성화된 종목은 '+스포츠' 또는 '+PAPS' 메뉴에서 다시 꺼낼 수 있습니다.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex w-full flex-wrap items-center gap-2">
             <AddPapsItemDialog onAddItem={handleAddItem} currentItems={items} />
-            <AddSportItemDialog onAddItem={handleAddItem} />
+            <AddSportDialog onAddItem={handleAddItem} allItems={items} />
             <AddCustomItemDialog onAddItem={handleAddItem} />
 
             <div className="flex gap-2 ml-auto">
@@ -238,10 +255,13 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
                   </DropdownMenuTrigger>
                   <DropdownMenuContent>
                     <DropdownMenuItem onSelect={() => { setEditMode('archive'); setSelection({}); }}>
-                      선택 항목 숨기기
+                      선택 항목 숨기기 (데이터 유지)
                     </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => { setEditMode('delete'); setSelection({}); }} className="text-destructive">
-                      선택 항목 영구 삭제
+                    <DropdownMenuItem onSelect={() => { setEditMode('deactivate'); setSelection({}); }}>
+                      선택 항목 비활성화 (카탈로그로 이동)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => { setEditMode('delete'); setSelection({}); }} className="text-destructive font-semibold">
+                      선택 항목 영구 삭제 (데이터 소멸)
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -264,7 +284,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
                         categoryItems.length > 0 && (
                             <AccordionItem value={category} key={category}>
                                 <div className="flex items-center w-full">
-                                    {(editMode === 'archive' || editMode === 'delete') && (
+                                    {editMode !== 'none' && editMode !== 'measurementWeek' && (
                                         <Checkbox
                                             id={`category-${category}`}
                                             checked={selection[category] || false}
@@ -287,7 +307,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
                                                         onCheckedChange={(checked) => handleToggleMeasurementWeek(item, !!checked)}
                                                         className="mr-4"
                                                     />
-                                                ) : (editMode === 'archive' || editMode === 'delete') ? (
+                                                ) : editMode !== 'none' ? (
                                                     <Checkbox
                                                         id={`item-${item.id}`}
                                                         checked={selection[item.id] || false}
@@ -316,7 +336,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
                 <Accordion type="single" collapsible className="w-full mt-4">
                     <AccordionItem value="archived" className="border-none">
                         <AccordionTrigger className="font-semibold text-muted-foreground hover:no-underline">
-                            숨겨진 종목 ({items.filter(i => i.isArchived).length})
+                            숨겨진 종목 (과거 데이터 보관 중: {items.filter(i => i.isArchived).length})
                         </AccordionTrigger>
                         <AccordionContent>
                              <div className="space-y-6 pt-2">
@@ -369,16 +389,18 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
                                     disabled={isProcessing || Object.values(selection).filter(Boolean).length === 0}
                                 >
                                     {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                    {editMode === 'archive' ? '선택 항목 숨기기' : '선택 항목 영구 삭제'}
+                                    {editMode === 'archive' ? '선택 항목 숨기기' : editMode === 'deactivate' ? '선택 항목 비활성화' : '선택 항목 영구 삭제'}
                                 </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                                 <AlertDialogHeader>
-                                    <AlertDialogTitle>정말로 {editMode === 'archive' ? '숨기시겠습니까?' : '삭제하시겠습니까?'}</AlertDialogTitle>
+                                    <AlertDialogTitle>정말로 {editMode === 'archive' ? '숨기시겠습니까?' : editMode === 'deactivate' ? '비활성화하시겠습니까?' : '영구 삭제하시겠습니까?'}</AlertDialogTitle>
                                     <AlertDialogDescription>
                                         {editMode === 'archive' 
-                                            ? '선택한 항목들이 목록에서 숨겨집니다. 기록은 삭제되지 않으며 나중에 복원할 수 있습니다.'
-                                            : '이 작업은 되돌릴 수 없습니다. 선택한 항목과 관련된 모든 학생 기록이 영구적으로 삭제됩니다.'
+                                            ? '기록은 유지되며 하단 숨겨진 종목 목록으로 이동합니다.'
+                                            : editMode === 'deactivate' 
+                                            ? '목록에서 사라지지만 "+스포츠" 메뉴에서 언제든 다시 활성화할 수 있습니다.'
+                                            : '이 작업은 되돌릴 수 없습니다. 모든 기록이 영구적으로 삭제됩니다. (PAPS는 삭제 불가)'
                                         }
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
@@ -488,7 +510,6 @@ function EditItemDialog({ item, onUpdate }: { item: MeasurementItem, onUpdate: (
                             id="edit-unit"
                             value={unit}
                             onChange={(e) => setUnit(e.target.value)}
-                            disabled={item.isPaps}
                             className="col-span-3"
                             placeholder="예: 회, 초, m"
                         />
@@ -541,8 +562,9 @@ function AddPapsItemDialog({ onAddItem, currentItems }: { onAddItem: (item: Omit
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
 
+    // PAPS items that are NOT currently active
     const availablePapsItems = Object.keys(papsStandards).filter(
-        papsItemName => !currentItems.some(item => item.name === papsItemName)
+        papsItemName => !currentItems.some(item => item.name === papsItemName && !item.isDeactivated)
     );
 
     const handleSubmit = async () => {
@@ -573,10 +595,11 @@ function AddPapsItemDialog({ onAddItem, currentItems }: { onAddItem: (item: Omit
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>PAPS 종목 추가</DialogTitle>
+                    <DialogTitle>PAPS 종목 추가/활성화</DialogTitle>
+                    <DialogDescription>비활성화된 PAPS 종목을 다시 활성 목록으로 가져옵니다.</DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
-                    <Label htmlFor="paps-item">추가할 종목</Label>
+                    <Label htmlFor="paps-item">종목 선택</Label>
                     <Select onValueChange={setSelectedItemName} value={selectedItemName}>
                         <SelectTrigger id="paps-item">
                             <SelectValue placeholder="PAPS 종목 선택" />
@@ -587,7 +610,7 @@ function AddPapsItemDialog({ onAddItem, currentItems }: { onAddItem: (item: Omit
                                     <SelectItem key={name} value={name}>{name}</SelectItem>
                                 ))
                             ) : (
-                                <SelectItem value="none" disabled>추가할 수 있는 PAPS 종목이 없습니다.</SelectItem>
+                                <SelectItem value="none" disabled>모든 PAPS 종목이 활성화되어 있습니다.</SelectItem>
                             )}
                         </SelectContent>
                     </Select>
@@ -598,7 +621,7 @@ function AddPapsItemDialog({ onAddItem, currentItems }: { onAddItem: (item: Omit
                     </DialogClose>
                     <Button onClick={handleSubmit} disabled={availablePapsItems.length === 0 || isSubmitting}>
                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                       추가
+                       활성화하기
                     </Button>
                 </DialogFooter>
             </DialogContent>
@@ -606,99 +629,178 @@ function AddPapsItemDialog({ onAddItem, currentItems }: { onAddItem: (item: Omit
     );
 }
 
-function AddSportItemDialog({ onAddItem }: { onAddItem: (item: Omit<MeasurementItem, 'id'>) => Promise<void> }) {
-  const [name, setName] = useState('');
-  const [unit, setUnit] = useState('');
-  const [recordType, setRecordType] = useState<RecordType | ''>('');
-  const [goal, setGoal] = useState('');
-  const [category, setCategory] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const { toast } = useToast();
+function AddSportDialog({ onAddItem, allItems }: { onAddItem: (item: Omit<MeasurementItem, 'id'>) => Promise<void>, allItems: MeasurementItem[] }) {
+    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const { toast } = useToast();
 
-  const handleSubmit = async () => {
-    if (!name || !unit || !recordType || !category) {
-      toast({ variant: 'destructive', title: '입력 오류', description: '스포츠명(카테고리), 평가지표명, 단위, 기록 유형은 필수입니다.' });
-      return;
-    }
-    setIsSubmitting(true);
-    const newItem: Omit<MeasurementItem, 'id'> = { name, unit, recordType, isPaps: false, category };
-    if (goal) {
-        newItem.goal = parseFloat(goal);
-    }
-    await onAddItem(newItem);
-    setName('');
-    setUnit('');
-    setRecordType('');
-    setGoal('');
-    setCategory('');
-    setIsSubmitting(false);
-    document.getElementById('add-sport-item-dialog-close')?.click();
-  };
+    const baseCategories = ['배구', '농구', '야구', '축구', '피구'];
+    const currentCategories = [...new Set(allItems.filter(i => !i.isPaps && i.category !== '기타').map(i => i.category as string))];
+    const categories = [...new Set([...baseCategories, ...currentCategories])].sort();
 
-  return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button><Swords className="mr-2 h-4 w-4" /> 스포츠 종목 추가</Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>스포츠 평가지표 추가</DialogTitle>
-           <DialogDescription>새로운 스포츠와 평가지표를 만듭니다. (예: 카테고리: 럭비, 종목명: 태클 성공)</DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="sport-category" className="text-right">스포츠명(카테고리)</Label>
-            <Input id="sport-category" value={category} onChange={(e) => setCategory(e.target.value)} className="col-span-3" placeholder="예: 농구, 축구, 럭비" />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="sport-name" className="text-right">평가지표명</Label>
-            <Input id="sport-name" value={name} onChange={(e) => setName(e.target.value)} className="col-span-3" placeholder="예: 자유투, 헤딩, 태클 성공" />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="sport-unit" className="text-right">단위</Label>
-            <Input id="sport-unit" value={unit} onChange={(e) => setUnit(e.target.value)} className="col-span-3" placeholder="예: 회, 점, 개" />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="sport-recordType" className="text-right">기록 유형</Label>
-            <Select onValueChange={(value) => setRecordType(value as RecordType)} value={recordType}>
-                <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="기록 유형 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="time">시간 (낮을수록 좋음)</SelectItem>
-                    <SelectItem value="count">횟수 (높을수록 좋음)</SelectItem>
-                    <SelectItem value="distance">거리 (높을수록 좋음)</SelectItem>
-                    <SelectItem value="weight">무게 (높을수록 좋음)</SelectItem>
-                    <SelectItem value="level">상-중-하</SelectItem>
-                </SelectContent>
-            </Select>
-          </div>
-           {recordType && recordType !== 'time' && recordType !== 'level' && (
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="sport-goal" className="text-right">목표값(선택)</Label>
-              <Input
-                id="sport-goal"
-                type="number"
-                value={goal}
-                onChange={(e) => setGoal(e.target.value)}
-                className="col-span-3"
-                placeholder="예: 10 (달성률 계산에 사용)"
-              />
-            </div>
-          )}
-        </div>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button id="add-sport-item-dialog-close" variant="outline">취소</Button>
-          </DialogClose>
-          <Button onClick={handleSubmit} disabled={isSubmitting}>
-             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-             추가
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+    const deactivatedInCategory = useMemo(() => {
+        if (!selectedCategory) return [];
+        return allItems.filter(i => i.category === selectedCategory && i.isDeactivated);
+    }, [selectedCategory, allItems]);
+
+    return (
+        <Dialog onOpenChange={(open) => !open && setSelectedCategory(null)}>
+            <DialogTrigger asChild>
+                <Button className="bg-primary text-white"><Swords className="mr-2 h-4 w-4" /> +스포츠</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>스포츠 종목 관리</DialogTitle>
+                    <DialogDescription>스포츠를 선택하여 비활성화된 종목을 복원하거나 새 지표를 추가하세요.</DialogDescription>
+                </DialogHeader>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+                    <div className="space-y-2">
+                        <Label>카테고리 선택</Label>
+                        <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-2">
+                            {categories.map(cat => (
+                                <Button 
+                                    key={cat} 
+                                    variant={selectedCategory === cat ? "default" : "outline"}
+                                    onClick={() => setSelectedCategory(cat)}
+                                    className="justify-between"
+                                >
+                                    {cat} <ChevronRight className="h-4 w-4 opacity-50" />
+                                </Button>
+                            ))}
+                        </div>
+                        <AddCategoryDialog onAdd={(name) => setSelectedCategory(name)} />
+                    </div>
+
+                    <div className="space-y-4 border-l pl-6">
+                        {selectedCategory ? (
+                            <>
+                                <div className="flex items-center justify-between">
+                                    <h4 className="font-bold text-lg text-primary">{selectedCategory} 지표</h4>
+                                    <AddMetricInCategoryDialog category={selectedCategory} onAddItem={onAddItem} />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label className="text-muted-foreground text-xs">비활성화된 종목 (클릭 시 활성화)</Label>
+                                    <div className="space-y-1">
+                                        {deactivatedInCategory.length > 0 ? (
+                                            deactivatedInCategory.map(item => (
+                                                <Button 
+                                                    key={item.id} 
+                                                    variant="secondary" 
+                                                    className="w-full justify-start text-sm"
+                                                    onClick={() => onAddItem({ ...item })}
+                                                >
+                                                    <Plus className="h-3 w-3 mr-2" /> {item.name} ({item.unit})
+                                                </Button>
+                                            ))
+                                        ) : (
+                                            <p className="text-xs text-muted-foreground text-center py-4 border border-dashed rounded-md">비활성화된 종목이 없습니다.</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-muted-foreground opacity-50">
+                                <Swords className="h-12 w-12 mb-2" />
+                                <p className="text-sm">스포츠를 선택해주세요.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function AddCategoryDialog({ onAdd }: { onAdd: (name: string) => void }) {
+    const [name, setName] = useState('');
+    const [isOpen, setIsOpen] = useState(false);
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="ghost" className="w-full border-dashed border-2 mt-2"><Plus className="h-4 w-4 mr-2" /> 새로운 스포츠 추가</Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader><DialogTitle>새 스포츠 카테고리</DialogTitle></DialogHeader>
+                <div className="py-4">
+                    <Label htmlFor="new-cat-name">스포츠 이름</Label>
+                    <Input id="new-cat-name" value={name} onChange={e => setName(e.target.value)} placeholder="예: 배드민턴, 핸드볼" />
+                </div>
+                <DialogFooter>
+                    <Button onClick={() => { if(name.trim()) { onAdd(name.trim()); setIsOpen(false); setName(''); } }}>추가</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+}
+
+function AddMetricInCategoryDialog({ category, onAddItem }: { category: string, onAddItem: (item: Omit<MeasurementItem, 'id'>) => Promise<void> }) {
+    const [name, setName] = useState('');
+    const [unit, setUnit] = useState('');
+    const [recordType, setRecordType] = useState<RecordType>('count');
+    const [goal, setGoal] = useState('');
+    const [isOpen, setIsOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleSubmit = async () => {
+        if (!name.trim() || !unit.trim()) return;
+        setIsSubmitting(true);
+        await onAddItem({
+            name: name.trim(),
+            unit: unit.trim(),
+            recordType,
+            category,
+            isPaps: false,
+            goal: goal ? parseFloat(goal) : undefined
+        });
+        setIsSubmitting(false);
+        setIsOpen(false);
+        setName('');
+        setUnit('');
+        setGoal('');
+    }
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button size="sm" variant="outline"><Plus className="h-3 w-3 mr-1" /> 추가</Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader><DialogTitle>{category} 지표 추가</DialogTitle></DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label className="text-right">지표명</Label>
+                        <Input value={name} onChange={e => setName(e.target.value)} className="col-span-3" placeholder="예: 스파이크 성공" />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label className="text-right">단위</Label>
+                        <Input value={unit} onChange={e => setUnit(e.target.value)} className="col-span-3" placeholder="예: 회, 초, m" />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label className="text-right">유형</Label>
+                        <Select value={recordType} onValueChange={v => setRecordType(v as RecordType)}>
+                            <SelectTrigger className="col-span-3"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                {Object.entries(recordTypeDisplay).map(([key, label]) => (
+                                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    {recordType !== 'time' && recordType !== 'level' && (
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label className="text-right">목표치</Label>
+                            <Input type="number" value={goal} onChange={e => setGoal(e.target.value)} className="col-span-3" placeholder="예: 10 (성취도 계산용)" />
+                        </div>
+                    )}
+                </div>
+                <DialogFooter>
+                    <Button onClick={handleSubmit} disabled={isSubmitting}>{isSubmitting ? <Loader2 className="animate-spin h-4 w-4" /> : '추가하기'}</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
 }
 
 function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<MeasurementItem, 'id'>) => Promise<void> }) {
@@ -731,7 +833,7 @@ function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measurement
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline"><Target className="mr-2 h-4 w-4" /> 기타 종목 추가</Button>
+        <Button variant="outline"><Target className="mr-2 h-4 w-4" /> +기타</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
