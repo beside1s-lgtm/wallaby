@@ -1,6 +1,8 @@
-import { initializeApp, getApp, getApps } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged, type User } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+'use client';
+
+import { initializeApp, getApp, getApps, FirebaseApp } from 'firebase/app';
+import { getAuth, signInAnonymously, onAuthStateChanged, type User, Auth } from 'firebase/auth';
+import { getFirestore, Firestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -11,14 +13,32 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const db = getFirestore(app);
-const auth = getAuth(app);
+// 필수 설정값이 누락되었는지 확인합니다.
+const isConfigValid = !!firebaseConfig.apiKey && !!firebaseConfig.projectId;
+
+let app: FirebaseApp;
+let db: Firestore;
+let auth: Auth;
+
+if (typeof window !== 'undefined') {
+  if (!isConfigValid) {
+    console.error("Firebase 설정값이 누락되었습니다. 환경 변수 설정을 확인해주세요.");
+  }
+  
+  app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+  db = getFirestore(app);
+  auth = getAuth(app);
+} else {
+  // SSR 환경을 위한 더미 초기화
+  app = null as any;
+  db = null as any;
+  auth = null as any;
+}
 
 let authUser: User | null = null;
 
 const signIn = async (): Promise<User> => {
+    if (!auth) throw new Error("Firebase Auth가 초기화되지 않았습니다.");
     return new Promise((resolve, reject) => {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
             unsubscribe(); 
