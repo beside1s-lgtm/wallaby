@@ -180,41 +180,36 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
   };
 
 
-  const { groupedItems, archivedItems } = useMemo(() => {
+  const { groupedItems, groupedArchivedItems } = useMemo(() => {
     const active: Record<string, MeasurementItem[]> = {};
-    const archived: MeasurementItem[] = [];
+    const archived: Record<string, MeasurementItem[]> = {};
 
     items.forEach(item => {
-        if (item.isArchived) {
-            archived.push(item);
-            return;
-        }
         const category = item.category || (item.isPaps ? 'PAPS' : '기타');
-        if (!active[category]) {
-            active[category] = [];
+        if (item.isArchived) {
+            if (!archived[category]) archived[category] = [];
+            archived[category].push(item);
+        } else {
+            if (!active[category]) active[category] = [];
+            active[category].push(item);
         }
-        active[category].push(item);
     });
 
-    const orderedGroups: Record<string, MeasurementItem[]> = {};
-    
-    if (active['PAPS']) {
-        orderedGroups['PAPS'] = active['PAPS'];
-    }
-    
-    const sortedCategories = Object.keys(active)
-      .filter(key => key !== 'PAPS' && key !== '기타')
-      .sort((a,b) => a.localeCompare(b));
+    const orderCategories = (data: Record<string, MeasurementItem[]>) => {
+        const ordered: Record<string, MeasurementItem[]> = {};
+        if (data['PAPS']) ordered['PAPS'] = data['PAPS'];
+        Object.keys(data)
+            .filter(k => k !== 'PAPS' && k !== '기타')
+            .sort((a, b) => a.localeCompare(b))
+            .forEach(k => { ordered[k] = data[k]; });
+        if (data['기타']) ordered['기타'] = data['기타'];
+        return ordered;
+    };
 
-    sortedCategories.forEach(key => {
-        orderedGroups[key] = active[key];
-    });
-
-    if (active['기타']) {
-        orderedGroups['기타'] = active['기타'];
-    }
-
-    return { groupedItems: orderedGroups, archivedItems: archived };
+    return { 
+        groupedItems: orderCategories(active), 
+        groupedArchivedItems: orderCategories(archived) 
+    };
   }, [items]);
 
 
@@ -303,28 +298,35 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
                 <p className="text-sm text-muted-foreground text-center py-4">활성화된 종목이 없습니다.</p>
             )}
 
-            {archivedItems.length > 0 && (
+            {Object.keys(groupedArchivedItems).length > 0 && (
                 <Accordion type="single" collapsible className="w-full mt-4">
                     <AccordionItem value="archived">
                         <AccordionTrigger className="font-semibold text-muted-foreground">
-                            숨겨진 종목 ({archivedItems.length})
+                            숨겨진 종목 ({items.filter(i => i.isArchived).length})
                         </AccordionTrigger>
                         <AccordionContent>
-                             <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pl-2">
-                                {archivedItems.map((item) => (
-                                    <li key={item.id} className="flex items-center justify-between p-2 bg-secondary/50 rounded-md text-sm">
-                                        <div>
-                                            <span className="font-semibold">{item.name}</span>
-                                        </div>
-                                        <Button variant="ghost" size="sm" onClick={async () => {
-                                            if(!school) return;
-                                            await archiveItem(school, item.id, false);
-                                            refreshItems();
-                                            toast({ title: '복원 완료', description: `${item.name} 종목이 복원되었습니다.`});
-                                        }}>복원</Button>
-                                    </li>
+                             <div className="space-y-6 pt-2">
+                                {Object.entries(groupedArchivedItems).map(([category, categoryItems]) => (
+                                    <div key={category} className="space-y-2">
+                                        <h4 className="text-sm font-bold text-muted-foreground border-b pb-1 px-1">{category}</h4>
+                                        <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pl-2">
+                                            {categoryItems.map((item) => (
+                                                <li key={item.id} className="flex items-center justify-between p-2 bg-secondary/50 rounded-md text-sm">
+                                                    <div className="truncate mr-2">
+                                                        <span className="font-semibold">{item.name}</span>
+                                                    </div>
+                                                    <Button variant="ghost" size="sm" className="h-7 px-2 shrink-0" onClick={async () => {
+                                                        if(!school) return;
+                                                        await archiveItem(school, item.id, false);
+                                                        refreshItems();
+                                                        toast({ title: '복원 완료', description: `${item.name} 종목이 복원되었습니다.`});
+                                                    }}>복원</Button>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
                                 ))}
-                            </ul>
+                             </div>
                         </AccordionContent>
                     </AccordionItem>
                 </Accordion>
