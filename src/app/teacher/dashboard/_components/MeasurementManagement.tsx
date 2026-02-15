@@ -1,3 +1,4 @@
+
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
@@ -20,7 +21,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Loader2, Trash2, Pencil, Swords, Target } from 'lucide-react';
+import { Plus, Loader2, Trash2, Pencil, Swords, Target, CalendarRange, Check, X } from 'lucide-react';
 import type { MeasurementItem, RecordType } from '@/lib/types';
 import {
   Dialog,
@@ -67,19 +68,19 @@ interface MeasurementManagementProps {
 }
 
 const recordTypeDisplay: Record<RecordType, string> = {
-    time: "시간",
-    count: "횟수",
-    distance: "거리",
-    weight: "무게",
-    level: "상중하",
-    compound: "복합"
+    time: "시간(낮을수록 우수)",
+    count: "횟수(높을수록 우수)",
+    distance: "거리(높을수록 우수)",
+    weight: "무게(높을수록 우수)",
+    level: "상중하(정성평가)",
+    compound: "복합(BMI 등)"
 };
 
 export default function MeasurementManagement({ items, onItemsUpdate }: MeasurementManagementProps) {
   const { school } = useAuth();
   const { toast } = useToast();
   
-  const [editMode, setEditMode] = useState<'none' | 'archive' | 'delete'>('none');
+  const [editMode, setEditMode] = useState<'none' | 'archive' | 'delete' | 'measurementWeek'>('none');
   const [selection, setSelection] = useState<Record<string, boolean>>({});
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -122,10 +123,6 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
     try {
       await updateItem(school, item.id, { isMeasurementWeek: checked });
       await refreshItems();
-       toast({
-        title: '설정 변경',
-        description: `${item.name}이(가) 측정 주간으로 ${checked ? '설정' : '해제'}되었습니다.`,
-      });
     } catch(error) {
        toast({
         variant: 'destructive',
@@ -219,7 +216,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
     <Card className="bg-transparent shadow-none border-none">
       <CardHeader>
         <CardTitle>종목 관리</CardTitle>
-        <CardDescription>측정할 종목을 추가하고, 숨기거나 영구 삭제하여 목록을 관리합니다. '측정 주간'으로 설정하여 명예의 전당에 표시할 수 있습니다.</CardDescription>
+        <CardDescription>측정할 종목을 추가하고 관리합니다. '측정 주간'으로 설정된 종목은 명예의 전당에 노출됩니다.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex w-full flex-wrap items-center gap-2">
@@ -227,30 +224,47 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
             <AddSportItemDialog onAddItem={handleAddItem} />
             <AddCustomItemDialog onAddItem={handleAddItem} />
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline"><Pencil className="mr-2 h-4 w-4" /> 종목 편집</Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onSelect={() => { setEditMode('archive'); setSelection({}); }}>
-                  선택 숨김
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => { setEditMode('delete'); setSelection({}); }} className="text-destructive">
-                  선택 영구 삭제
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex gap-2 ml-auto">
+                <Button 
+                    variant={editMode === 'measurementWeek' ? 'outline-active' : 'outline'}
+                    onClick={() => setEditMode(editMode === 'measurementWeek' ? 'none' : 'measurementWeek')}
+                >
+                    <CalendarRange className="mr-2 h-4 w-4" /> 측정 주간 설정
+                </Button>
 
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline"><Pencil className="mr-2 h-4 w-4" /> 종목 편집</Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onSelect={() => { setEditMode('archive'); setSelection({}); }}>
+                      선택 항목 숨기기
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => { setEditMode('delete'); setSelection({}); }} className="text-destructive">
+                      선택 항목 영구 삭제
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
         </div>
+
         <div className="border rounded-md p-4 space-y-2">
-            <h3 className="font-semibold">활성 종목 목록</h3>
+            <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold">활성 종목 목록</h3>
+                {editMode !== 'none' && (
+                    <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded">
+                        {editMode === 'measurementWeek' ? '측정 주간 설정 모드 활성화됨' : '종목 선택 모드 활성화됨'}
+                    </span>
+                )}
+            </div>
+            
             {Object.values(groupedItems).some(arr => arr.length > 0) ? (
                 <Accordion type="multiple" defaultValue={Object.keys(groupedItems)} className="w-full">
                     {Object.entries(groupedItems).map(([category, categoryItems]) => (
                         categoryItems.length > 0 && (
                             <AccordionItem value={category} key={category}>
                                 <div className="flex items-center w-full">
-                                    {editMode !== 'none' && (
+                                    {(editMode === 'archive' || editMode === 'delete') && (
                                         <Checkbox
                                             id={`category-${category}`}
                                             checked={selection[category] || false}
@@ -265,27 +279,27 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
                                 <AccordionContent>
                                     <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pl-2">
                                         {categoryItems.map((item) => (
-                                          <li key={item.id} className="flex items-center p-2 bg-secondary rounded-md text-sm">
-                                               {editMode !== 'none' ? (
-                                                    <Checkbox
-                                                        id={`item-${item.id}`}
-                                                        checked={selection[item.id] || false}
-                                                        onCheckedChange={(checked) => setSelection(prev => ({...prev, [item.id]: !!checked}))}
-                                                        className="mr-4"
-                                                    />
-                                                ) : (
+                                          <li key={item.id} className="flex items-center p-2 bg-secondary rounded-md text-sm group">
+                                               {editMode === 'measurementWeek' ? (
                                                     <Checkbox
                                                         id={`measurement-week-${item.id}`}
                                                         checked={item.isMeasurementWeek || false}
                                                         onCheckedChange={(checked) => handleToggleMeasurementWeek(item, !!checked)}
                                                         className="mr-4"
                                                     />
-                                                )}
-                                              <div className="flex-1">
+                                                ) : (editMode === 'archive' || editMode === 'delete') ? (
+                                                    <Checkbox
+                                                        id={`item-${item.id}`}
+                                                        checked={selection[item.id] || false}
+                                                        onCheckedChange={(checked) => setSelection(prev => ({...prev, [item.id]: !!checked}))}
+                                                        className="mr-4"
+                                                    />
+                                                ) : null}
+                                              <div className="flex-1 truncate">
                                                   <span className="font-semibold">{item.name}</span>
-                                                  <span className="text-muted-foreground ml-2">({item.unit}, {recordTypeDisplay[item.recordType]}{item.goal ? `, 목표:${item.goal}`: ''})</span>
+                                                  <span className="text-muted-foreground ml-2">({item.unit})</span>
                                               </div>
-                                              <EditItemDialog item={item} onUpdate={handleUpdateItem} />
+                                              {editMode === 'none' && <EditItemDialog item={item} onUpdate={handleUpdateItem} />}
                                           </li>
                                         ))}
                                     </ul>
@@ -300,8 +314,8 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
 
             {Object.keys(groupedArchivedItems).length > 0 && (
                 <Accordion type="single" collapsible className="w-full mt-4">
-                    <AccordionItem value="archived">
-                        <AccordionTrigger className="font-semibold text-muted-foreground">
+                    <AccordionItem value="archived" className="border-none">
+                        <AccordionTrigger className="font-semibold text-muted-foreground hover:no-underline">
                             숨겨진 종목 ({items.filter(i => i.isArchived).length})
                         </AccordionTrigger>
                         <AccordionContent>
@@ -315,7 +329,7 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
                                                     <div className="truncate mr-2">
                                                         <span className="font-semibold">{item.name}</span>
                                                     </div>
-                                                    <Button variant="ghost" size="sm" className="h-7 px-2 shrink-0" onClick={async () => {
+                                                    <Button variant="ghost" size="sm" className="h-7 px-2 shrink-0 text-xs" onClick={async () => {
                                                         if(!school) return;
                                                         await archiveItem(school, item.id, false);
                                                         refreshItems();
@@ -332,40 +346,52 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
                 </Accordion>
             )}
         </div>
+
         {editMode !== 'none' && (
-            <div className="flex justify-end items-center gap-2 p-4 border-t sticky bottom-0 bg-background">
-                <p className="text-sm text-muted-foreground">
-                    {Object.values(selection).filter(Boolean).length}개 항목 선택됨
-                </p>
-                <Button variant="outline" onClick={cancelEditMode}>취소</Button>
-                 <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                        <Button
-                            variant={editMode === 'delete' ? 'destructive' : 'default'}
-                            disabled={isProcessing || Object.values(selection).filter(Boolean).length === 0}
-                        >
-                            {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            {editMode === 'archive' ? '선택 항목 숨기기' : '선택 항목 영구 삭제'}
-                        </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>정말로 {editMode === 'archive' ? '숨기시겠습니까?' : '삭제하시겠습니까?'}</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                {editMode === 'archive' 
-                                    ? '선택한 항목들이 목록에서 숨겨집니다. 기록은 삭제되지 않으며 나중에 복원할 수 있습니다.'
-                                    : '이 작업은 되돌릴 수 없습니다. 선택한 항목과 관련된 모든 학생 기록이 영구적으로 삭제됩니다.'
-                                }
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>취소</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleBulkAction} className={editMode === 'delete' ? 'bg-destructive' : ''}>
-                                {editMode === 'archive' ? '숨김 처리' : '영구 삭제'}
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
+            <div className="flex justify-between items-center p-4 border rounded-md bg-primary/5 animate-in fade-in slide-in-from-bottom-2">
+                <div className="flex items-center gap-2">
+                    {editMode === 'measurementWeek' ? (
+                        <p className="text-sm font-medium">측정 주간으로 설정할 종목을 체크하세요.</p>
+                    ) : (
+                        <p className="text-sm font-medium">{Object.values(selection).filter(Boolean).length}개 항목 선택됨</p>
+                    )}
+                </div>
+                <div className="flex gap-2">
+                    <Button variant="ghost" size="sm" onClick={cancelEditMode}>취소</Button>
+                    {editMode === 'measurementWeek' ? (
+                        <Button size="sm" onClick={cancelEditMode}><Check className="mr-2 h-4 w-4" /> 설정 완료</Button>
+                    ) : (
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button
+                                    size="sm"
+                                    variant={editMode === 'delete' ? 'destructive' : 'default'}
+                                    disabled={isProcessing || Object.values(selection).filter(Boolean).length === 0}
+                                >
+                                    {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                                    {editMode === 'archive' ? '선택 항목 숨기기' : '선택 항목 영구 삭제'}
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>정말로 {editMode === 'archive' ? '숨기시겠습니까?' : '삭제하시겠습니까?'}</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        {editMode === 'archive' 
+                                            ? '선택한 항목들이 목록에서 숨겨집니다. 기록은 삭제되지 않으며 나중에 복원할 수 있습니다.'
+                                            : '이 작업은 되돌릴 수 없습니다. 선택한 항목과 관련된 모든 학생 기록이 영구적으로 삭제됩니다.'
+                                        }
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>취소</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleBulkAction} className={editMode === 'delete' ? 'bg-destructive' : ''}>
+                                        확인
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    )}
+                </div>
             </div>
         )}
       </CardContent>
@@ -376,42 +402,45 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
 function EditItemDialog({ item, onUpdate }: { item: MeasurementItem, onUpdate: (itemId: string, data: Partial<Omit<MeasurementItem, 'id'>>) => Promise<void> }) {
     const [isOpen, setIsOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [name, setName] = useState(item.name);
+    const [unit, setUnit] = useState(item.unit);
+    const [recordType, setRecordType] = useState<RecordType>(item.recordType);
     const [goal, setGoal] = useState(item.goal?.toString() || '');
     const [category, setCategory] = useState(item.category || '');
     const { toast } = useToast();
     
     useEffect(() => {
         if(isOpen) {
+            setName(item.name);
+            setUnit(item.unit);
+            setRecordType(item.recordType);
             setGoal(item.goal?.toString() || '');
             setCategory(item.category || (item.isPaps ? 'PAPS' : ''));
         }
     }, [isOpen, item]);
 
     const handleSubmit = async () => {
-        if (item.isPaps) {
-            toast({ variant: 'destructive', title: '수정 불가', description: 'PAPS 종목은 수정할 수 없습니다.' });
+        if (!name.trim() || !unit.trim()) {
+            toast({ variant: 'destructive', title: '입력 오류', description: '이름과 단위는 필수입니다.' });
             return;
         }
 
         const dataToUpdate: Partial<Omit<MeasurementItem, 'id'>> = {};
         
-        if (category.trim() !== (item.category || '')) {
-            dataToUpdate.category = category.trim();
+        if (!item.isPaps) {
+            dataToUpdate.name = name.trim();
+            dataToUpdate.recordType = recordType;
+            dataToUpdate.unit = unit.trim();
         }
         
-        if (item.recordType !== 'time' && item.recordType !== 'level' && item.recordType !== 'compound') {
-            const newGoal = goal ? parseFloat(goal) : undefined;
-            if (newGoal !== item.goal) {
-                dataToUpdate.goal = newGoal;
-            }
+        dataToUpdate.category = category.trim();
+        
+        if (recordType !== 'time' && recordType !== 'level' && recordType !== 'compound') {
+            dataToUpdate.goal = goal ? parseFloat(goal) : undefined;
+        } else {
+            dataToUpdate.goal = undefined;
         }
         
-        if (Object.keys(dataToUpdate).length === 0) {
-            toast({ title: '변경 사항 없음' });
-            setIsOpen(false);
-            return;
-        }
-
         setIsSubmitting(true);
         await onUpdate(item.id, dataToUpdate);
         setIsSubmitting(false);
@@ -421,57 +450,87 @@ function EditItemDialog({ item, onUpdate }: { item: MeasurementItem, onUpdate: (
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto" disabled={item.isPaps}>
-                    <Pencil className="h-4 w-4" />
+                <Button variant="ghost" size="icon" className="h-6 w-6 ml-auto hover:bg-primary/10">
+                    <Pencil className="h-4 w-4 text-muted-foreground group-hover:text-primary" />
                 </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-md">
                 <DialogHeader>
-                    <DialogTitle>{item.name} 종목 수정</DialogTitle>
+                    <DialogTitle>종목 정보 수정</DialogTitle>
                     <DialogDescription>
-                        {item.isPaps ? 'PAPS 종목은 수정할 수 없습니다.' : '종목의 카테고리 또는 목표값을 수정합니다.'}
+                        {item.isPaps ? 'PAPS 종목은 이름과 측정 방식을 수정할 수 없습니다.' : '종목의 상세 설정을 수정합니다.'}
                     </DialogDescription>
                 </DialogHeader>
-                {!item.isPaps && (
-                    <>
-                        <div className="grid gap-4 py-4">
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="edit-category" className="text-right">
-                                    카테고리
-                                </Label>
-                                <Input
-                                    id="edit-category"
-                                    value={category}
-                                    onChange={(e) => setCategory(e.target.value)}
-                                    className="col-span-3"
-                                    placeholder="예: 구기, 육상"
-                                />
-                            </div>
-                            {(item.recordType !== 'time' && item.recordType !== 'level' && item.recordType !== 'compound') && (
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="edit-goal" className="text-right">
-                                        목표값
-                                    </Label>
-                                    <Input
-                                        id="edit-goal"
-                                        type="number"
-                                        value={goal}
-                                        onChange={(e) => setGoal(e.target.value)}
-                                        className="col-span-3"
-                                        placeholder="예: 10 (달성률 계산에 사용)"
-                                    />
-                                </div>
-                            )}
+                <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="edit-name" className="text-right">종목명</Label>
+                        <Input
+                            id="edit-name"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            disabled={item.isPaps}
+                            className="col-span-3"
+                        />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="edit-category" className="text-right">카테고리</Label>
+                        <Input
+                            id="edit-category"
+                            value={category}
+                            onChange={(e) => setCategory(e.target.value)}
+                            className="col-span-3"
+                            placeholder="예: 구기, 육상"
+                        />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="edit-unit" className="text-right">단위</Label>
+                        <Input
+                            id="edit-unit"
+                            value={unit}
+                            onChange={(e) => setUnit(e.target.value)}
+                            disabled={item.isPaps}
+                            className="col-span-3"
+                            placeholder="예: 회, 초, m"
+                        />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="edit-type" className="text-right">기록 유형</Label>
+                        <Select 
+                            value={recordType} 
+                            onValueChange={(v) => setRecordType(v as RecordType)}
+                            disabled={item.isPaps}
+                        >
+                            <SelectTrigger className="col-span-3">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {Object.entries(recordTypeDisplay).map(([key, label]) => (
+                                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    {(recordType !== 'time' && recordType !== 'level' && recordType !== 'compound') && (
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="edit-goal" className="text-right">목표값</Label>
+                            <Input
+                                id="edit-goal"
+                                type="number"
+                                value={goal}
+                                onChange={(e) => setGoal(e.target.value)}
+                                className="col-span-3"
+                                placeholder="달성률 계산 기준 (예: 10)"
+                            />
                         </div>
-                        <DialogFooter>
-                            <DialogClose asChild><Button variant="outline">취소</Button></DialogClose>
-                            <Button onClick={handleSubmit} disabled={isSubmitting}>
-                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                저장
-                            </Button>
-                        </DialogFooter>
-                    </>
-                )}
+                    )}
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="outline">취소</Button></DialogClose>
+                    <Button onClick={handleSubmit} disabled={isSubmitting}>
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        저장하기
+                    </Button>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     );
