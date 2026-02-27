@@ -81,7 +81,8 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
   const [foundStudents, setFoundStudents] = useState<Student[]>([]);
   const [isSelectionDialogOpen, setIsSelectionDialogOpen] = useState(false);
   
-  const activeItems = useMemo(() => allItems.filter(item => !item.isArchived), [allItems]);
+  // Only items that are NOT archived and NOT deactivated should be visible for recording
+  const activeItems = useMemo(() => allItems.filter(item => !item.isArchived && !item.isDeactivated), [allItems]);
 
   const studentMap = useMemo(() => new Map(allStudents.map(s => [s.id, s])), [allStudents]);
 

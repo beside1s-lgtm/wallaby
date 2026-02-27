@@ -203,7 +203,8 @@ export default function ClassAnalytics({
 
   const studentDetailRef = useRef<HTMLDivElement>(null);
   
-  const activeItems = useMemo(() => allItems.filter(item => !item.isArchived), [allItems]);
+  // Filter out items that are archived or deactivated for active analysis
+  const activeItems = useMemo(() => allItems.filter(item => !item.isArchived && !item.isDeactivated), [allItems]);
 
 
   const { grades, classNumsByGrade } = useMemo(() => {
@@ -1009,7 +1010,7 @@ export default function ClassAnalytics({
                         <SelectValue placeholder="종목 선택" />
                       </SelectTrigger>
                       <SelectContent>
-                        {allItems.map((item) => (
+                        {activeItems.map((item) => (
                           <SelectItem key={item.id} value={item.name}>
                             {item.name}
                           </SelectItem>
@@ -1196,8 +1197,7 @@ export default function ClassAnalytics({
                                 <AlertDialogContent>
                                   <AlertDialogHeader>
                                     <AlertDialogTitle>
-                                      정말로 삭제하시겠습니까?
-                                    </AlertDialogTitle>
+                                      정말로 삭제하시겠습니까?</AlertDialogTitle>
                                     <AlertDialogDescription>
                                       이 작업은 되돌릴 수 없습니다. 이 기록이
                                       영구적으로 삭제됩니다.

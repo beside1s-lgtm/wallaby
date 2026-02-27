@@ -141,7 +141,8 @@ export default function Ranking({
     [allStudents]
   );
   
-  const activeItems = useMemo(() => allItems.filter(item => !item.isArchived), [allItems]);
+  // Filter for active items only
+  const activeItems = useMemo(() => allItems.filter(item => !item.isArchived && !item.isDeactivated), [allItems]);
 
 
   useEffect(() => {
