@@ -100,7 +100,7 @@ export function StudentManagement({
   onStudentsUpdate,
 }: StudentManagementProps) {
   const { school } = useAuth();
-  const [selection, setSelection] = setuseState<Record<string, boolean>>({});
+  const [selection, setSelection] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -245,7 +245,7 @@ export function StudentManagement({
       reader.onload = async (e) => {
         const text = e.target?.result as string;
         try {
-          const newStudents = parseCsv<Omit<Student, "id" | "accessCode">>(
+          const newStudents = parseCsv<Omit<Student, "id" | "accessCode" | "photoUrl">>(
             text
           );
           if (newStudents.length === 0) throw new Error("No data in CSV");
@@ -905,7 +905,7 @@ function PhotoEditDialog({
       setIsOpen(false);
     } catch (error) {
       console.error("Failed to process image:", error);
-       toast({ variant: 'destructive', title: '이미지 처리 실패', description: '사진을 처리하는 중 오류가 발생했습니다.' });
+       toast({ variant: "destructive", title: "이미지 처리 실패", description: "사진을 처리하는 중 오류가 발생했습니다." });
     } finally {
       setIsProcessing(false);
     }
@@ -919,7 +919,7 @@ function PhotoEditDialog({
         setIsOpen(false);
     } catch (error) {
         console.error("Failed to delete photo:", error);
-        toast({ variant: 'destructive', title: '사진 삭제 실패', description: '사진 삭제 중 오류가 발생했습니다.' });
+        toast({ variant: "destructive", title: "사진 삭제 실패", description: "사진 삭제 중 오류가 발생했습니다." });
     } finally {
       setIsProcessing(false);
     }
@@ -1013,7 +1013,7 @@ export function DatabaseManagement({
   const [deleteItem, setDeleteItem] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const [studentSearch, setStudentSearch] = useState('');
+  const [studentSearch, setStudentSearch] = useState("");
   const [foundStudent, setFoundStudent] = useState<Student | null>(null);
   
   const recordDates = useMemo(() => [...new Set(records.map(r => r.date))].sort((a,b) => new Date(b).getTime() - new Date(a).getTime()), [records]);
@@ -1055,30 +1055,30 @@ export function DatabaseManagement({
 
   const handleSearchStudent = () => {
     if (!studentSearch.trim()) {
-        toast({ variant: 'destructive', title: '검색 오류', description: '검색할 학생 이름을 입력해주세요.' });
+        toast({ variant: "destructive", title: "검색 오류", description: "검색할 학생 이름을 입력해주세요." });
         return;
     }
     const found = students.filter(s => s.name.toLowerCase().includes(studentSearch.toLowerCase()));
     if (found.length === 1) {
         setFoundStudent(found[0]);
-        toast({ title: '학생 선택됨', description: `${found[0].name} 학생의 기록을 다운로드할 수 있습니다.`});
+        toast({ title: "학생 선택됨", description: `${found[0].name} 학생의 기록을 다운로드할 수 있습니다.`});
     } else if (found.length > 1) {
-        toast({ variant: 'destructive', title: '여러 학생 발견됨', description: '더 구체적인 이름으로 검색해주세요.'});
+        toast({ variant: "destructive", title: "여러 학생 발견됨", description: "더 구체적인 이름으로 검색해주세요."});
         setFoundStudent(null);
     } else {
-        toast({ variant: 'destructive', title: '검색 결과 없음' });
+        toast({ variant: "destructive", title: "검색 결과 없음" });
         setFoundStudent(null);
     }
   };
 
   const handleDownloadStudentRecords = () => {
       if (!school || !foundStudent) {
-          toast({ variant: 'destructive', title: '다운로드 실패', description: '학생을 먼저 선택해주세요.' });
+          toast({ variant: "destructive", title: "다운로드 실패", description: "학생을 먼저 선택해주세요." });
           return;
       }
       const studentRecords = records.filter(r => r.studentId === foundStudent.id);
       if (studentRecords.length === 0) {
-          toast({ variant: 'destructive', title: '데이터 없음', description: '해당 학생의 기록이 없습니다.' });
+          toast({ variant: "destructive", title: "데이터 없음", description: "해당 학생의 기록이 없습니다." });
           return;
       }
       
@@ -1095,7 +1095,7 @@ export function DatabaseManagement({
       }));
 
       exportToCsv(`${school}_${foundStudent.name}_기록.csv`, dataToExport);
-      toast({ title: '다운로드 시작', description: `${foundStudent.name} 학생의 기록을 다운로드합니다.` });
+      toast({ title: "다운로드 시작", description: `${foundStudent.name} 학생의 기록을 다운로드합니다.` });
   };
 
 
