@@ -81,7 +81,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
   const [foundStudents, setFoundStudents] = useState<Student[]>([]);
   const [isSelectionDialogOpen, setIsSelectionDialogOpen] = useState(false);
   
-  const [showVideo, setShowVideo] = useState(true);
+  const [showVideo, setShowVideo] = useState(false);
 
   // Only items that are NOT archived and NOT deactivated should be visible for recording
   const activeItems = useMemo(() => allItems.filter(item => !item.isArchived && !item.isDeactivated), [allItems]);
@@ -155,11 +155,11 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
     setRecordValue('');
     setHeight('');
     setWeight('');
-    if (selectedItemName) setShowVideo(true);
+    if (selectedItemName) setShowVideo(false);
   }, [selectedItemName, selectedStudent]);
 
   useEffect(() => {
-    if (batchRecordItem) setShowVideo(true);
+    if (batchRecordItem) setShowVideo(false);
   }, [batchRecordItem]);
 
 
