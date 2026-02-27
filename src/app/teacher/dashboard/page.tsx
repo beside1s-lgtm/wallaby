@@ -16,6 +16,7 @@ import AiWelcome from "./_components/AiWelcome";
 import TournamentManagement from "./_components/TournamentManagement";
 import TeamBalancer from "./_components/TeamBalancer";
 import SportsClubManagement from "./_components/SportsClubManagement";
+import TheoryExamManagement from "./_components/TheoryExamManagement";
 import {
   Users,
   ClipboardList,
@@ -31,6 +32,7 @@ import {
   Wrench,
   Search,
   Users2,
+  BookOpen,
 } from "lucide-react";
 import {
   Card,
@@ -284,9 +286,10 @@ export default function TeacherDashboardPage() {
 
           <TabsContent value="data" className="bg-card/90 backdrop-blur-sm p-4 rounded-lg">
              <Tabs defaultValue="student-management">
-                <TabsList className="grid w-full grid-cols-3 mb-6">
+                <TabsList className="grid w-full grid-cols-4 mb-6">
                     <TabsTrigger value="student-management"><Users className="mr-2 h-4 w-4" />학생 관리</TabsTrigger>
                     <TabsTrigger value="item-management"><Target className="mr-2 h-4 w-4" />종목 관리</TabsTrigger>
+                    <TabsTrigger value="theory-exam"><BookOpen className="mr-2 h-4 w-4" />이론 평가</TabsTrigger>
                     <TabsTrigger value="database-management"><Wrench className="mr-2 h-4 w-4" />DB 유틸리티</TabsTrigger>
                 </TabsList>
                 <TabsContent value="student-management">
@@ -297,6 +300,9 @@ export default function TeacherDashboardPage() {
                 </TabsContent>
                  <TabsContent value="item-management">
                     <MeasurementManagement items={items} onItemsUpdate={handleItemsUpdate} />
+                </TabsContent>
+                <TabsContent value="theory-exam">
+                    <TheoryExamManagement />
                 </TabsContent>
                 <TabsContent value="database-management">
                     <DatabaseManagement
