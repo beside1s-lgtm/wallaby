@@ -32,6 +32,7 @@ import {
   DialogFooter,
   DialogClose,
   DialogDescription,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 
 interface TheoryExamManagementProps {
@@ -368,7 +369,7 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
                                             )}
 
                                             {q.type === 'fill-in-the-blanks' && q.options && (
-                                                <div className="flex flex-wrap gap-2 pl-8 items-center text-sm">
+                                                <div className="flex wrap gap-2 pl-8 items-center text-sm">
                                                     <span className="text-muted-foreground font-medium">[ 보기 ] : </span>
                                                     {q.options.map((opt, oi) => (
                                                         <Badge key={oi} variant="secondary">{opt}</Badge>
@@ -426,9 +427,11 @@ function EditQuestionDialog({ question, onSave }: { question: QuizQuestion, onSa
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <Button variant="ghost" size="icon" className="h-8 w-8 print:hidden" onClick={() => setIsOpen(true)}>
-                <Pencil className="h-4 w-4" />
-            </Button>
+            <DialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 print:hidden">
+                    <Pencil className="h-4 w-4" />
+                </Button>
+            </DialogTrigger>
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>문제 수정</DialogTitle>
