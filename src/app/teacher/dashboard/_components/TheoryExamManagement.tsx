@@ -130,6 +130,9 @@ export default function TheoryExamManagement() {
             });
             toast({ title: '저장 완료', description: '문제지가 라이브러리에 저장되었습니다.' });
             fetchSavedQuizzes();
+            setGeneratedQuiz(null);
+            setContent('');
+            setShowAnswers(false);
         } catch (error) {
             console.error("Failed to save quiz:", error);
             toast({ variant: 'destructive', title: '저장 실패' });
