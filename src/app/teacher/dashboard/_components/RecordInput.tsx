@@ -36,13 +36,13 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, Calendar as CalendarIcon, User, X } from 'lucide-react';
+import { Loader2, Search, Calendar as CalendarIcon, User, X, Youtube, Play } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 
@@ -80,6 +80,9 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
 
   const [foundStudents, setFoundStudents] = useState<Student[]>([]);
   const [isSelectionDialogOpen, setIsSelectionDialogOpen] = useState(false);
+
+  // For YouTube video
+  const [youtubeUrl, setYoutubeUrl] = useState('');
   
   // Only items that are NOT archived and NOT deactivated should be visible for recording
   const activeItems = useMemo(() => allItems.filter(item => !item.isArchived && !item.isDeactivated), [allItems]);
@@ -383,6 +386,16 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
         setSelectedTeamId('');
     };
 
+    const getYouTubeEmbedUrl = (url: string) => {
+        if (!url) return null;
+        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+        const match = url.match(regExp);
+        if (match && match[2].length === 11) {
+            return `https://www.youtube.com/embed/${match[2]}`;
+        }
+        return null;
+    };
+
   if (!school) return null;
 
   return (
@@ -501,7 +514,56 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                         </Button>
                     </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-6">
+                    {/* YouTube Video Section */}
+                    <div className="p-4 border rounded-lg bg-primary/5 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Youtube className="h-5 w-5 text-red-600" />
+                                <h3 className="font-semibold">측정 예시 영상 시청</h3>
+                            </div>
+                            {youtubeUrl && (
+                                <Button variant="ghost" size="sm" onClick={() => setYoutubeUrl('')}>
+                                    <X className="h-4 w-4 mr-1" /> 영상 닫기
+                                </Button>
+                            )}
+                        </div>
+                        <div className="flex gap-2">
+                            <div className="relative flex-1">
+                                <Input 
+                                    placeholder="유튜브 영상 주소를 입력하세요 (예: https://www.youtube.com/watch?v=...)" 
+                                    value={youtubeUrl} 
+                                    onChange={(e) => setYoutubeUrl(e.target.value)}
+                                    className="pr-10"
+                                />
+                                {youtubeUrl && (
+                                    <button 
+                                        onClick={() => setYoutubeUrl('')}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                )}
+                            </div>
+                            <Button variant="secondary" className="shrink-0" disabled={!youtubeUrl}>
+                                <Play className="h-4 w-4 mr-2" /> 영상 로드
+                            </Button>
+                        </div>
+                        {getYouTubeEmbedUrl(youtubeUrl) && (
+                            <div className="aspect-video w-full max-w-2xl mx-auto rounded-lg overflow-hidden border shadow-lg bg-black">
+                                <iframe
+                                    width="100%"
+                                    height="100%"
+                                    src={getYouTubeEmbedUrl(youtubeUrl)!}
+                                    title="YouTube video player"
+                                    frameBorder="0"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                    allowFullScreen
+                                ></iframe>
+                            </div>
+                        )}
+                    </div>
+
                   <Table>
                     <TableHeader>
                         <TableRow>
@@ -593,7 +655,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                         })
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={7} className="h-24 text-center">
+                          <TableCell colSpan={selectedItemForBatchAdd?.isCompound ? 7 : 6} className="h-24 text-center">
                             기록을 입력할 학급 또는 팀/클럽 그룹을 선택해주세요.
                           </TableCell>
                         </TableRow>
