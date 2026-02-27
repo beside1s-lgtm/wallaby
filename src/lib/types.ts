@@ -143,3 +143,21 @@ export type Tournament = {
   currentRound?: number;
   isFinished?: boolean;
 };
+
+// --- Quiz Types ---
+export type QuizQuestion = {
+  type: 'multiple-choice' | 'short-answer' | 'ox' | 'fill-in-the-blanks';
+  question: string;
+  options?: string[];
+  answer: string;
+  explanation: string;
+};
+
+export type Quiz = {
+  id: string;
+  school: string;
+  title: string;
+  content: string; // The source material
+  questions: QuizQuestion[];
+  createdAt: any;
+};

@@ -1,24 +1,61 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BrainCircuit, FileText, Loader2, Sparkles, Printer, Copy, CheckCircle2, XCircle, HelpCircle } from "lucide-react";
+import { BrainCircuit, FileText, Loader2, Sparkles, Printer, Copy, CheckCircle2, XCircle, HelpCircle, Save, Library, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { generateQuiz, QuizOutput } from "@/ai/flows/quiz-generation-flow";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from '@/hooks/use-auth';
+import { saveQuiz as saveQuizToDb, getQuizzes, deleteQuiz } from '@/lib/store';
+import { Quiz } from '@/lib/types';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export default function TheoryExamManagement() {
+    const { school } = useAuth();
     const { toast } = useToast();
     const [content, setContent] = useState('');
     const [questionCount, setQuestionCount] = useState('5');
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [generatedQuiz, setGeneratedQuiz] = useState<QuizOutput | null>(null);
     const [showAnswers, setShowAnswers] = useState(false);
+    const [savedQuizzes, setSavedQuizzes] = useState<Quiz[]>([]);
+    const [isLoadingQuizzes, setIsLoadingQuizzes] = useState(false);
+
+    useEffect(() => {
+        if (school) {
+            fetchSavedQuizzes();
+        }
+    }, [school]);
+
+    const fetchSavedQuizzes = async () => {
+        if (!school) return;
+        setIsLoadingQuizzes(true);
+        try {
+            const data = await getQuizzes(school);
+            setSavedQuizzes(data);
+        } catch (error) {
+            console.error("Failed to fetch quizzes:", error);
+        } finally {
+            setIsLoadingQuizzes(false);
+        }
+    };
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -62,6 +99,49 @@ export default function TheoryExamManagement() {
         }
     };
 
+    const handleSaveQuiz = async () => {
+        if (!school || !generatedQuiz) return;
+        
+        setIsSaving(true);
+        try {
+            await saveQuizToDb(school, {
+                school,
+                title: generatedQuiz.quizTitle,
+                content: content,
+                questions: generatedQuiz.questions
+            });
+            toast({ title: '저장 완료', description: '문제지가 라이브러리에 저장되었습니다.' });
+            fetchSavedQuizzes();
+        } catch (error) {
+            console.error("Failed to save quiz:", error);
+            toast({ variant: 'destructive', title: '저장 실패' });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleDeleteQuiz = async (id: string) => {
+        if (!school) return;
+        try {
+            await deleteQuiz(school, id);
+            toast({ title: '삭제 완료' });
+            fetchSavedQuizzes();
+        } catch (error) {
+            console.error("Failed to delete quiz:", error);
+            toast({ variant: 'destructive', title: '삭제 실패' });
+        }
+    };
+
+    const loadSavedQuiz = (quiz: Quiz) => {
+        setContent(quiz.content);
+        setGeneratedQuiz({
+            quizTitle: quiz.title,
+            questions: quiz.questions
+        });
+        setShowAnswers(false);
+        toast({ title: '불러오기 완료', description: `'${quiz.title}' 문제지를 불러왔습니다.` });
+    };
+
     const handleCopy = () => {
         if (!generatedQuiz) return;
         const text = generatedQuiz.questions.map((q, i) => {
@@ -94,60 +174,115 @@ export default function TheoryExamManagement() {
                     AI 이론 평가 문제 생성기
                 </CardTitle>
                 <CardDescription>
-                    체육 학습 자료를 입력하면 AI가 자동으로 퀴즈를 만들어줍니다. (텍스트 입력 또는 .txt 파일 업로드)
+                    체육 학습 자료를 입력하면 AI가 자동으로 퀴즈를 만들어줍니다. 저장된 문제지를 라이브러리에서 불러올 수 있습니다.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Input Section */}
-                    <div className="lg:col-span-1 space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="content-input">학습 자료 내용</Label>
-                            <Textarea 
-                                id="content-input"
-                                placeholder="종목의 규칙, 역사, 기술 설명 등 문제를 만들 텍스트를 이곳에 붙여넣으세요..."
-                                className="min-h-[300px] resize-none"
-                                value={content}
-                                onChange={(e) => setContent(e.target.value)}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="file-upload">파일에서 가져오기 (.txt)</Label>
-                            <Input 
-                                id="file-upload" 
-                                type="file" 
-                                accept=".txt"
-                                onChange={handleFileUpload}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label>출제 문항 수</Label>
-                            <Select value={questionCount} onValueChange={setQuestionCount}>
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="5">5문항</SelectItem>
-                                    <SelectItem value="10">10문항</SelectItem>
-                                    <SelectItem value="15">15문항</SelectItem>
-                                    <SelectItem value="20">20문항</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <Button 
-                            className="w-full py-6 text-lg font-bold" 
-                            onClick={handleGenerate}
-                            disabled={isGenerating}
-                        >
-                            {isGenerating ? (
-                                <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> 생성 중...</>
-                            ) : (
-                                <><Sparkles className="mr-2 h-5 w-5" /> AI 문제 생성하기</>
-                            )}
-                        </Button>
+                    {/* Left Section: Inputs & Library */}
+                    <div className="lg:col-span-1 space-y-6">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-lg">출제 설정</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="content-input">학습 자료 내용</Label>
+                                    <Textarea 
+                                        id="content-input"
+                                        placeholder="종목의 규칙, 역사, 기술 설명 등 문제를 만들 텍스트를 이곳에 붙여넣으세요..."
+                                        className="min-h-[200px] resize-none"
+                                        value={content}
+                                        onChange={(e) => setContent(e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="file-upload">파일에서 가져오기 (.txt)</Label>
+                                    <Input 
+                                        id="file-upload" 
+                                        type="file" 
+                                        accept=".txt"
+                                        onChange={handleFileUpload}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>출제 문항 수</Label>
+                                    <Select value={questionCount} onValueChange={setQuestionCount}>
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="5">5문항</SelectItem>
+                                            <SelectItem value="10">10문항</SelectItem>
+                                            <SelectItem value="15">15문항</SelectItem>
+                                            <SelectItem value="20">20문항</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <Button 
+                                    className="w-full py-6 text-lg font-bold" 
+                                    onClick={handleGenerate}
+                                    disabled={isGenerating}
+                                >
+                                    {isGenerating ? (
+                                        <><Loader2 className="mr-2 h-5 w-5 animate-spin" /> 생성 중...</>
+                                    ) : (
+                                        <><Sparkles className="mr-2 h-5 w-5" /> AI 문제 생성하기</>
+                                    )}
+                                </Button>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-lg flex items-center gap-2">
+                                    <Library className="h-5 w-5 text-primary" />
+                                    저장된 문제지 목록
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="max-h-[300px] overflow-y-auto pr-2">
+                                {isLoadingQuizzes ? (
+                                    <div className="flex justify-center p-4"><Loader2 className="animate-spin text-primary" /></div>
+                                ) : savedQuizzes.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {savedQuizzes.map((quiz) => (
+                                            <div key={quiz.id} className="flex items-center gap-2 group p-2 rounded-md hover:bg-secondary/50 border border-transparent hover:border-border transition-all">
+                                                <Button 
+                                                    variant="ghost" 
+                                                    className="flex-1 justify-start text-left truncate"
+                                                    onClick={() => loadSavedQuiz(quiz)}
+                                                >
+                                                    <FileText className="h-4 w-4 mr-2 shrink-0" />
+                                                    <span className="truncate">{quiz.title}</span>
+                                                </Button>
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                                        </Button>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>문제지 삭제</AlertDialogTitle>
+                                                            <AlertDialogDescription>이 문제지를 영구적으로 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>취소</AlertDialogCancel>
+                                                            <AlertDialogAction onClick={() => handleDeleteQuiz(quiz.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">삭제</AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-center text-sm text-muted-foreground py-8">저장된 문제지가 없습니다.</p>
+                                )}
+                            </CardContent>
+                        </Card>
                     </div>
 
-                    {/* Result Section */}
+                    {/* Right Section: Result Display */}
                     <div className="lg:col-span-2">
                         {generatedQuiz ? (
                             <Card className="h-full border-2 border-primary/20">
@@ -157,6 +292,10 @@ export default function TheoryExamManagement() {
                                         <CardDescription>{generatedQuiz.questions.length}개의 문제가 출제되었습니다.</CardDescription>
                                     </div>
                                     <div className="flex gap-2 print:hidden">
+                                        <Button variant="outline" size="sm" onClick={handleSaveQuiz} disabled={isSaving}>
+                                            {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
+                                            저장
+                                        </Button>
                                         <Button variant="outline" size="sm" onClick={() => setShowAnswers(!showAnswers)}>
                                             {showAnswers ? '정답 숨기기' : '정답 확인'}
                                         </Button>
@@ -168,7 +307,7 @@ export default function TheoryExamManagement() {
                                         </Button>
                                     </div>
                                 </CardHeader>
-                                <CardContent className="space-y-8 max-h-[600px] overflow-y-auto pr-4">
+                                <CardContent className="space-y-8 max-h-[700px] overflow-y-auto pr-4">
                                     {generatedQuiz.questions.map((q, idx) => (
                                         <div key={idx} className="space-y-3 p-4 rounded-lg bg-secondary/20 relative group">
                                             <div className="flex items-start justify-between gap-2">
@@ -226,7 +365,7 @@ export default function TheoryExamManagement() {
                                 </div>
                                 <h3 className="text-lg font-semibold mb-1">학습 자료를 입력해주세요</h3>
                                 <p className="text-sm text-muted-foreground text-center max-w-xs">
-                                    왼쪽 입력창에 내용을 넣고 생성 버튼을 누르면 AI가 문제를 만들어줍니다.
+                                    왼쪽 입력창에 내용을 넣고 생성 버튼을 누르면 AI가 문제를 만들어줍니다. 또는 라이브러리에서 저장된 문제를 불러오세요.
                                 </p>
                             </div>
                         )}
@@ -238,7 +377,7 @@ export default function TheoryExamManagement() {
                     .print-hidden { display: none !important; }
                     header, footer, .sidebar, .tabs-list { display: none !important; }
                     .card { border: none !important; box-shadow: none !important; }
-                    .max-h-[600px] { max-height: none !important; overflow: visible !important; }
+                    .max-h-[700px] { max-height: none !important; overflow: visible !important; }
                 }
             `}</style>
         </Card>
