@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { getItems, addOrUpdateRecord, getRecordsByStudent, getStudentById, calculateRanks, deleteRecord, getLatestTeamGroupForStudent, getTeamGroups, getLatestTournamentForStudent, getStudents, getQuizAssignments, getSportsClubs, getRecords } from '@/lib/store';
@@ -134,6 +134,8 @@ export default function StudentDashboardPage() {
   const [activeReport, setActiveReport] = useState<AiReport | null>(null);
   const [isReportLoading, setIsReportLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("growth-record");
+  
+  const hasAutoSelectedTab = useRef(false);
 
   const [assignedQuizzes, setAssignedQuizzes] = useState<QuizAssignment[]>([]);
   const [selectedAssignment, setSelectedAssignment] = useState<QuizAssignment | null>(null);
@@ -201,6 +203,18 @@ export default function StudentDashboardPage() {
                 }
             });
             setAssignedQuizzes(studentAssignments);
+            
+            // Auto-select initial tab based on priority
+            if (!hasAutoSelectedTab.current) {
+                if (studentAssignments.length > 0) {
+                    setActiveTab("physical-knowledge");
+                } else if (tournamentData) {
+                    setActiveTab("my-competition");
+                } else {
+                    setActiveTab("growth-record");
+                }
+                hasAutoSelectedTab.current = true;
+            }
             
             if (teamData) {
                 const studentMap = new Map(allStuds.map(s => [s.id, s]));
