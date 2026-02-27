@@ -166,6 +166,7 @@ export type QuizAssignment = {
   id: string;
   quizId: string;
   quizTitle: string;
+  questions?: QuizQuestion[]; // 문제를 배포 시점에 직접 포함
   school: string;
   targetType: 'class' | 'club';
   targetGrade?: string;

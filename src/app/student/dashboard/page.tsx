@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { getItems, addOrUpdateRecord, getRecordsByStudent, getStudentById, calculateRanks, deleteRecord, getLatestTeamGroupForStudent, getTeamGroups, getLatestTournamentForStudent, getStudents } from '@/lib/store';
+import { getItems, addOrUpdateRecord, getRecordsByStudent, getStudentById, calculateRanks, deleteRecord, getLatestTeamGroupForStudent, getTeamGroups, getLatestTournamentForStudent, getStudents, getQuizAssignments, getSportsClubs } from '@/lib/store';
 import {
   Card,
   CardContent,
@@ -51,14 +51,25 @@ import { getScoutingReport } from '@/ai/flows/scouting-report-flow';
 import { getTeamAnalysis } from '@/ai/flows/team-analysis-flow';
 import type { ScoutingReportOutput } from '@/ai/flows/scouting-report-flow';
 import type { TeamAnalysisOutput } from '@/ai/flows/team-analysis-flow';
-import { Loader2, Wand2, Trash2, Users, User as UserIcon, Swords, Bot, Printer, Crown, Medal, Trophy } from 'lucide-react';
-import type { Student, MeasurementRecord, MeasurementItem, TeamGroup, Tournament, Match } from '@/lib/types';
+import { Loader2, Wand2, Trash2, Users, User as UserIcon, Swords, Bot, Printer, Crown, Medal, Trophy, BookOpen, ChevronRight, CheckCircle2, AlertCircle, HelpCircle } from 'lucide-react';
+import type { Student, MeasurementRecord, MeasurementItem, TeamGroup, Tournament, Match, QuizAssignment, QuizQuestion } from '@/lib/types';
 import { getPapsGrade, getCustomItemGrade, normalizePapsRecord, normalizeCustomRecord } from '@/lib/paps';
 import { getRecords } from '@/lib/store';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
 import Link from 'next/link';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import { Badge } from '@/components/ui/badge';
 
 
 const chartConfig = {
@@ -127,6 +138,12 @@ export default function StudentDashboardPage() {
   const [isReportLoading, setIsReportLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("growth-record");
 
+  const [assignedQuizzes, setAssignedQuizzes] = useState<QuizAssignment[]>([]);
+  const [selectedAssignment, setSelectedAssignment] = useState<QuizAssignment | null>(null);
+  const [isQuizModalOpen, setIsQuizModalOpen] = useState(false);
+  const [quizAnswers, setQuizAnswers] = useState<Record<number, string>>({});
+  const [quizResult, setQuizResult] = useState<{ score: number, total: number, corrections: boolean[] } | null>(null);
+
   useEffect(() => {
     const body = document.body;
     const originalClasses = body.className;
@@ -134,20 +151,18 @@ export default function StudentDashboardPage() {
         'growth-record': 'measurement-bg',
         'measurement-input': 'data-bg',
         'my-competition': 'competition-bg',
+        'physical-knowledge': 'watermark-bg',
     };
 
-    // Remove all possible background classes first
     Object.values(tabBackgrounds).forEach(bgClass => {
         body.classList.remove(bgClass);
     });
     body.classList.remove('watermark-bg');
     
-    // Add the correct class
     const bgClass = tabBackgrounds[activeTab] || 'watermark-bg';
     body.classList.add(bgClass);
 
     return () => {
-        // Cleanup on component unmount
         body.className = originalClasses;
     };
   }, [activeTab]);
@@ -159,7 +174,7 @@ export default function StudentDashboardPage() {
         }
         setIsDataLoading(true);
         try {
-            const [items, recs, stud, allStuds, allRecs, teamData, allTeamGroups] = await Promise.all([
+            const [items, recs, stud, allStuds, allRecs, teamData, allTeamGroups, allClubs, allAssignments] = await Promise.all([
                 getItems(school),
                 getRecordsByStudent(school, student.id),
                 getStudentById(school, student.id),
@@ -167,6 +182,8 @@ export default function StudentDashboardPage() {
                 getRecords(school),
                 getLatestTeamGroupForStudent(school, student.id),
                 getTeamGroups(school),
+                getSportsClubs(school),
+                getQuizAssignments(school),
             ]);
             const tournamentData = await getLatestTournamentForStudent(school, student.id, allStuds, allTeamGroups);
             setTournament(tournamentData);
@@ -175,6 +192,19 @@ export default function StudentDashboardPage() {
             setFullStudent(stud || null);
             setAllStudents(allStuds);
             setAllRecords(allRecs);
+
+            // Filter assignments for this student
+            const studentClubs = allClubs.filter(c => c.memberIds.includes(student.id));
+            const studentClubIds = new Set(studentClubs.map(c => c.id));
+
+            const studentAssignments = allAssignments.filter(a => {
+                if (a.targetType === 'class') {
+                    return a.targetGrade === stud?.grade && a.targetClassNum === stud?.classNum;
+                } else {
+                    return a.targetClubId && studentClubIds.has(a.targetClubId);
+                }
+            });
+            setAssignedQuizzes(studentAssignments);
 
             if (items.length > 0 && chartItemFilter === 'all') {
               const firstPapsItem = items.find(i => i.isPaps)?.name;
@@ -217,7 +247,6 @@ export default function StudentDashboardPage() {
                         });
                     };
 
-                    // Set scores for the logged-in student
                     setAbilityScores(getScoresForStudent(stud));
                     
                     if (studentTeam) {
@@ -243,7 +272,6 @@ export default function StudentDashboardPage() {
                             });
                             setTeamAverageScores(avgScores);
                         } else {
-                            // If user is the only one in the team, team average is their own score
                             setTeamAverageScores(getScoresForStudent(stud));
                         }
                     }
@@ -303,7 +331,7 @@ export default function StudentDashboardPage() {
     if (selectedItem?.isCompound) {
       const h = parseFloat(height);
       const w = parseFloat(weight);
-      if (isNaN(h) || iNaN(w) || h <= 0 || w <= 0) {
+      if (isNaN(h) || isNaN(w) || h <= 0 || w <= 0) {
         toast({ variant: 'destructive', title: '입력 오류', description: '유효한 키와 몸무게를 입력해주세요.' });
         return;
       }
@@ -491,7 +519,7 @@ export default function StudentDashboardPage() {
           strengths: result.strengths,
           weaknesses: result.weaknesses,
           assessment: result.assessment,
-          position: result.strategy, // Reuse position field for strategy
+          position: result.strategy,
           suggestedTrainingMethods: '',
         }
         setActiveReport({ type: 'team', data: reportData });
@@ -540,7 +568,7 @@ export default function StudentDashboardPage() {
             date: record.date,
             itemName: record.item,
             grade: grade,
-            score: 6 - grade, // 1등급 -> 5점, 5등급 -> 1점
+            score: 6 - grade,
             achievement: achievement,
             value: record.value,
             unit: itemInfo.unit,
@@ -609,6 +637,36 @@ export default function StudentDashboardPage() {
     return Math.round(total / teamAverageScores.length);
   }, [teamAverageScores]);
 
+  const handleStartQuiz = (assignment: QuizAssignment) => {
+    setSelectedAssignment(assignment);
+    setQuizAnswers({});
+    setQuizResult(null);
+    setIsQuizModalOpen(true);
+  };
+
+  const handleQuizAnswerChange = (questionIndex: number, answer: string) => {
+    setQuizAnswers(prev => ({ ...prev, [questionIndex]: answer }));
+  };
+
+  const handleSubmitQuiz = () => {
+    if (!selectedAssignment || !selectedAssignment.questions) return;
+    
+    let score = 0;
+    const corrections = selectedAssignment.questions.map((q, idx) => {
+        const studentAnswer = (quizAnswers[idx] || '').trim().toLowerCase();
+        const correctAnswer = (q.answer || '').trim().toLowerCase();
+        const isCorrect = studentAnswer === correctAnswer;
+        if (isCorrect) score++;
+        return isCorrect;
+    });
+
+    setQuizResult({
+        score,
+        total: selectedAssignment.questions.length,
+        corrections
+    });
+  };
+
 
   if (isDataLoading || !fullStudent || !school) {
     return (
@@ -644,10 +702,11 @@ export default function StudentDashboardPage() {
       </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 bg-card/90 backdrop-blur-sm">
+            <TabsList className="grid w-full grid-cols-4 bg-card/90 backdrop-blur-sm">
                 <TabsTrigger value="growth-record">성장 기록</TabsTrigger>
                 <TabsTrigger value="measurement-input">측정결과 입력</TabsTrigger>
                 <TabsTrigger value="my-competition">나의 대회</TabsTrigger>
+                <TabsTrigger value="physical-knowledge">체육 지식</TabsTrigger>
             </TabsList>
             <TabsContent value="growth-record" className="space-y-8 mt-6">
                 <Card className="bg-card/80 backdrop-blur-sm">
@@ -1108,7 +1167,143 @@ export default function StudentDashboardPage() {
                     </CardFooter>
                 </Card>
             </TabsContent>
+            <TabsContent value="physical-knowledge" className="space-y-8 mt-6">
+                <Card className="bg-card/80 backdrop-blur-sm">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2"><BookOpen /> 체육 지식 퀴즈</CardTitle>
+                        <CardDescription>선생님이 배포하신 퀴즈를 풀고 실력을 확인해보세요.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        {assignedQuizzes.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {assignedQuizzes.map(assignment => (
+                                    <Card key={assignment.id} className="hover:bg-muted/50 cursor-pointer transition-colors" onClick={() => handleStartQuiz(assignment)}>
+                                        <CardHeader>
+                                            <CardTitle className="text-lg">{assignment.quizTitle}</CardTitle>
+                                            <CardDescription>배포일: {assignment.createdAt?.toDate ? format(assignment.createdAt.toDate(), 'yyyy-MM-dd') : '-'}</CardDescription>
+                                        </CardHeader>
+                                        <CardFooter>
+                                            <Button variant="outline" className="w-full">퀴즈 풀기 <ChevronRight className="ml-2 h-4 w-4" /></Button>
+                                        </CardFooter>
+                                    </Card>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-12 text-muted-foreground">
+                                <BookOpen className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                                <p>아직 배포된 퀴즈가 없습니다.</p>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </TabsContent>
         </Tabs>
+
+        {/* Quiz Modal */}
+        <Dialog open={isQuizModalOpen} onOpenChange={setIsQuizModalOpen}>
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>{selectedAssignment?.quizTitle}</DialogTitle>
+                    <DialogDescription>문제를 잘 읽고 정답을 선택하세요.</DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-8 py-4">
+                    {selectedAssignment?.questions?.map((q, qIdx) => (
+                        <div key={qIdx} className="space-y-4 p-4 rounded-lg bg-secondary/20">
+                            <div className="flex items-start gap-3">
+                                <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
+                                    {qIdx + 1}
+                                </span>
+                                <h4 className="font-semibold text-lg">{q.question}</h4>
+                            </div>
+
+                            {quizResult && (
+                                <div className="ml-9">
+                                    {quizResult.corrections[qIdx] ? (
+                                        <Badge className="bg-green-100 text-green-700 border-green-200">정답입니다!</Badge>
+                                    ) : (
+                                        <Badge variant="destructive">오답 (정답: {q.answer})</Badge>
+                                    )}
+                                </div>
+                            )}
+
+                            <div className="ml-9 space-y-2">
+                                {q.type === 'multiple-choice' && q.options && (
+                                    <RadioGroup value={quizAnswers[qIdx]} onValueChange={(val) => handleQuizAnswerChange(qIdx, val)} disabled={!!quizResult}>
+                                        {q.options.map((opt, oIdx) => (
+                                            <div key={oIdx} className="flex items-center space-x-2 p-2 rounded hover:bg-background/50">
+                                                <RadioGroupItem value={String(oIdx + 1)} id={`q${qIdx}-o${oIdx}`} />
+                                                <Label htmlFor={`q${qIdx}-o${oIdx}`} className="flex-grow cursor-pointer">{oIdx + 1}. {opt}</Label>
+                                            </div>
+                                        ))}
+                                    </RadioGroup>
+                                )}
+
+                                {q.type === 'ox' && (
+                                    <RadioGroup value={quizAnswers[qIdx]} onValueChange={(val) => handleQuizAnswerChange(qIdx, val)} className="flex gap-4" disabled={!!quizResult}>
+                                        <div className="flex items-center space-x-2">
+                                            <RadioGroupItem value="O" id={`q${qIdx}-o`} />
+                                            <Label htmlFor={`q${qIdx}-o`} className="text-xl font-bold">O</Label>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                            <RadioGroupItem value="X" id={`q${qIdx}-x`} />
+                                            <Label htmlFor={`q${qIdx}-x`} className="text-xl font-bold">X</Label>
+                                        </div>
+                                    </RadioGroup>
+                                )}
+
+                                {(q.type === 'short-answer' || q.type === 'fill-in-the-blanks') && (
+                                    <div className="space-y-2">
+                                        {q.type === 'fill-in-the-blanks' && q.options && (
+                                            <div className="flex flex-wrap gap-2 mb-2 p-2 bg-muted/50 rounded-md">
+                                                <span className="text-xs text-muted-foreground font-medium mr-2">[ 보기 ]</span>
+                                                {q.options.map((opt, i) => <Badge key={i} variant="secondary">{opt}</Badge>)}
+                                            </div>
+                                        )}
+                                        <Input 
+                                            placeholder="정답을 입력하세요" 
+                                            value={quizAnswers[qIdx] || ''} 
+                                            onChange={(e) => handleQuizAnswerChange(qIdx, e.target.value)}
+                                            disabled={!!quizResult}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            {quizResult && !quizResult.corrections[qIdx] && (
+                                <div className="ml-9 p-3 bg-primary/5 border-l-2 border-primary rounded text-sm mt-2">
+                                    <p className="font-bold text-primary flex items-center gap-1 mb-1"><HelpCircle className="h-3 w-3" /> 해설</p>
+                                    <p className="text-muted-foreground">{q.explanation}</p>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+
+                <DialogFooter className="sticky bottom-0 bg-background pt-4 border-t">
+                    {quizResult ? (
+                        <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div className="flex items-center gap-2 font-bold text-xl">
+                                <Trophy className="text-yellow-500" />
+                                점수: {quizResult.score} / {quizResult.total}
+                            </div>
+                            <DialogClose asChild>
+                                <Button className="w-full sm:w-auto">닫기</Button>
+                            </DialogClose>
+                        </div>
+                    ) : (
+                        <div className="w-full flex gap-2">
+                            <DialogClose asChild>
+                                <Button variant="outline" className="flex-1">그만두기</Button>
+                            </DialogClose>
+                            <Button className="flex-1" onClick={handleSubmitQuiz} disabled={Object.keys(quizAnswers).length === 0}>
+                                <CheckCircle2 className="mr-2 h-4 w-4" /> 제출하기
+                            </Button>
+                        </div>
+                    )}
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     </div>
   );
 }
