@@ -358,17 +358,7 @@ export default function TheoryExamManagement() {
                                     ))}
                                 </CardContent>
                             </Card>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center h-full min-h-[400px] border-2 border-dashed rounded-xl bg-muted/30">
-                                <div className="bg-background p-4 rounded-full shadow-sm mb-4">
-                                    <HelpCircle className="h-10 w-10 text-muted-foreground opacity-50" />
-                                </div>
-                                <h3 className="text-lg font-semibold mb-1">학습 자료를 입력해주세요</h3>
-                                <p className="text-sm text-muted-foreground text-center max-w-xs">
-                                    왼쪽 입력창에 내용을 넣고 생성 버튼을 누르면 AI가 문제를 만들어줍니다. 또는 라이브러리에서 저장된 문제를 불러오세요.
-                                </p>
-                            </div>
-                        )}
+                        ) : null}
                     </div>
                 </div>
             </CardContent>
