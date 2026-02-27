@@ -19,7 +19,7 @@ const QuestionSchema = z.object({
   type: QuestionTypeSchema.describe('문제 유형 (multiple-choice: 4지선다, short-answer: 단답형, ox: OX문제, fill-in-the-blanks: 문장 완성)'),
   question: z.string().describe('문제 내용'),
   options: z.array(z.string()).optional().describe('객관성 또는 보기 제시형 문제의 선택지 (4개 또는 보기 단어들)'),
-  answer: z.string().describe('정답'),
+  answer: z.string().describe('정답 (객관식의 경우 선택지 번호가 아닌 정답 텍스트 내용을 그대로 적으세요)'),
   explanation: z.string().describe('정답에 대한 간단한 해설'),
 });
 
@@ -49,7 +49,7 @@ const prompt = ai.definePrompt({
 ### 출제 지침:
 1. **내용 충실성:** 반드시 제공된 '학습 자료 내용'에 근거하여 문제를 출제하세요. 자료에 없는 내용은 출제하지 마세요.
 2. **유형 다양성:** 아래 4가지 유형을 골고루 섞어서 {{count}}개의 문제를 만드세요.
-   - **multiple-choice (4지선다형):** 가장 적절한 것을 고르는 문제. 보기는 4개여야 합니다.
+   - **multiple-choice (4지선다형):** 가장 적절한 것을 고르는 문제. 보기는 4개여야 합니다. **정답(answer)에는 선택한 번호가 아닌 해당 보기의 텍스트 내용을 적으세요.**
    - **short-answer (단답형):** 핵심 용어를 직접 쓰는 문제.
    - **ox (OX문제):** 설명이 맞으면 O, 틀리면 X를 선택하는 문제.
    - **fill-in-the-blanks (문장 완성):** 문장 중간에 빈칸을 두고, 보기(options)로 단어를 제시하여 알맞은 것을 골라 채우게 하는 문제.
