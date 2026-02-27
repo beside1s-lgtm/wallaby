@@ -176,3 +176,13 @@ export type QuizAssignment = {
   createdAt: any;
   status: 'active' | 'closed';
 };
+
+export type QuizResult = {
+  id: string;
+  assignmentId: string;
+  studentId: string;
+  score: number;
+  total: number;
+  passed: boolean;
+  createdAt: any;
+};

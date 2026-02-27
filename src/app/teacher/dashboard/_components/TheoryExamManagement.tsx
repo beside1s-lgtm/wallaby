@@ -6,13 +6,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BrainCircuit, FileText, Loader2, Sparkles, Printer, Copy, CheckCircle2, Save, Library, Trash2, Pencil, Send, History } from "lucide-react";
+import { BrainCircuit, FileText, Loader2, Sparkles, Printer, Copy, CheckCircle2, Save, Library, Trash2, Pencil, Send, History, ChevronRight, UserCircle2, CheckCircle, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { generateQuiz, QuizOutput } from "@/ai/flows/quiz-generation-flow";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from '@/hooks/use-auth';
-import { saveQuiz as saveQuizToDb, getQuizzes, deleteQuiz, distributeQuiz, getQuizAssignments, deleteQuizAssignment } from '@/lib/store';
-import { Quiz, QuizQuestion, Student, SportsClub, QuizAssignment } from '@/lib/types';
+import { saveQuiz as saveQuizToDb, getQuizzes, deleteQuiz, distributeQuiz, getQuizAssignments, deleteQuizAssignment, getQuizResultsBySchool } from '@/lib/store';
+import { Quiz, QuizQuestion, Student, SportsClub, QuizAssignment, QuizResult } from '@/lib/types';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/dialog";
 import { format } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
+import { Progress } from '@/components/ui/progress';
 
 interface TheoryExamManagementProps {
     allStudents?: Student[];
@@ -55,11 +56,16 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
     const [isLoadingQuizzes, setIsLoadingQuizzes] = useState(false);
     const [assignments, setAssignments] = useState<QuizAssignment[]>([]);
     const [isLoadingAssignments, setIsLoadingAssignments] = useState(false);
+    const [quizResults, setQuizResults] = useState<QuizResult[]>([]);
+    
+    const [selectedDetailAssignment, setSelectedDetailAssignment] = useState<QuizAssignment | null>(null);
+    const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
 
     useEffect(() => {
         if (school) {
             fetchSavedQuizzes();
             fetchAssignments();
+            fetchResults();
         }
     }, [school]);
 
@@ -86,6 +92,16 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
             console.error("Failed to fetch assignments:", error);
         } finally {
             setIsLoadingAssignments(false);
+        }
+    };
+
+    const fetchResults = async () => {
+        if (!school) return;
+        try {
+            const results = await getQuizResultsBySchool(school);
+            setQuizResults(results);
+        } catch (error) {
+            console.error("Failed to fetch results:", error);
         }
     };
 
@@ -223,6 +239,27 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
         }
     };
 
+    const getAssignmentStats = (assignment: QuizAssignment) => {
+        const results = quizResults.filter(r => r.assignmentId === assignment.id);
+        const uniquePassedIds = new Set(results.filter(r => r.passed).map(r => r.studentId));
+        const passCount = uniquePassedIds.size;
+        
+        let totalCount = 0;
+        if (assignment.targetType === 'class') {
+            totalCount = allStudents.filter(s => s.grade === assignment.targetGrade && s.classNum === assignment.targetClassNum).length;
+        } else {
+            const club = sportsClubs.find(c => c.id === assignment.targetClubId);
+            totalCount = club?.memberIds.length || 0;
+        }
+        
+        return { passCount, totalCount, results };
+    }
+
+    const openDetail = (assignment: QuizAssignment) => {
+        setSelectedDetailAssignment(assignment);
+        setIsDetailDialogOpen(true);
+    };
+
     return (
         <Card className="bg-transparent shadow-none border-none">
             <CardHeader>
@@ -345,45 +382,58 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
                                     실시간 배포 현황
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="max-h-[300px] overflow-y-auto pr-2">
+                            <CardContent className="max-h-[400px] overflow-y-auto pr-2">
                                 {isLoadingAssignments ? (
                                     <div className="flex justify-center p-4"><Loader2 className="animate-spin text-primary" /></div>
                                 ) : assignments.length > 0 ? (
                                     <div className="space-y-3">
-                                        {assignments.map((assignment) => (
-                                            <div key={assignment.id} className="p-3 rounded-lg border bg-background/50 space-y-2 relative group">
-                                                <div className="flex justify-between items-start">
-                                                    <div>
-                                                        <h5 className="font-bold text-sm truncate pr-8">{assignment.quizTitle}</h5>
-                                                        <p className="text-xs text-muted-foreground">
-                                                            {assignment.targetType === 'class' ? 
-                                                                `${assignment.targetGrade}학년 ${assignment.targetClassNum}반` : 
-                                                                `${assignment.targetClubName}`}
-                                                        </p>
+                                        {assignments.map((assignment) => {
+                                            const { passCount, totalCount } = getAssignmentStats(assignment);
+                                            return (
+                                                <div key={assignment.id} className="p-3 rounded-lg border bg-background/50 space-y-2 relative group hover:border-primary/50 cursor-pointer transition-all" onClick={() => openDetail(assignment)}>
+                                                    <div className="flex justify-between items-start">
+                                                        <div className="pr-8">
+                                                            <h5 className="font-bold text-sm truncate">{assignment.quizTitle}</h5>
+                                                            <p className="text-xs text-muted-foreground">
+                                                                {assignment.targetType === 'class' ? 
+                                                                    `${assignment.targetGrade}학년 ${assignment.targetClassNum}반` : 
+                                                                    `${assignment.targetClubName}`}
+                                                            </p>
+                                                        </div>
+                                                        <AlertDialog>
+                                                            <AlertDialogTrigger asChild>
+                                                                <Button variant="ghost" size="icon" className="h-7 w-7 absolute top-2 right-2 text-destructive hover:bg-destructive/10" onClick={(e) => e.stopPropagation()}>
+                                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                                </Button>
+                                                            </AlertDialogTrigger>
+                                                            <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                                                                <AlertDialogHeader>
+                                                                    <AlertDialogTitle>배포 취소</AlertDialogTitle>
+                                                                    <AlertDialogDescription>이 퀴즈의 배포를 취소하시겠습니까? 학생들의 화면에서 즉시 사라집니다.</AlertDialogDescription>
+                                                                </AlertDialogHeader>
+                                                                <AlertDialogFooter>
+                                                                    <AlertDialogCancel>취소</AlertDialogCancel>
+                                                                    <AlertDialogAction onClick={() => handleCancelAssignment(assignment.id)} className="bg-destructive text-destructive-foreground">배포 취소</AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
                                                     </div>
-                                                    <AlertDialog>
-                                                        <AlertDialogTrigger asChild>
-                                                            <Button variant="ghost" size="icon" className="h-7 w-7 absolute top-2 right-2 text-destructive hover:bg-destructive/10">
-                                                                <Trash2 className="h-3.5 w-3.5" />
-                                                            </Button>
-                                                        </AlertDialogTrigger>
-                                                        <AlertDialogContent>
-                                                            <AlertDialogHeader>
-                                                                <AlertDialogTitle>배포 취소</AlertDialogTitle>
-                                                                <AlertDialogDescription>이 퀴즈의 배포를 취소하시겠습니까? 학생들의 화면에서 즉시 사라집니다.</AlertDialogDescription>
-                                                            </AlertDialogHeader>
-                                                            <AlertDialogFooter>
-                                                                <AlertDialogCancel>취소</AlertDialogCancel>
-                                                                <AlertDialogAction onClick={() => handleCancelAssignment(assignment.id)} className="bg-destructive text-destructive-foreground">배포 취소</AlertDialogAction>
-                                                            </AlertDialogFooter>
-                                                        </AlertDialogContent>
-                                                    </AlertDialog>
+                                                    
+                                                    <div className="space-y-1">
+                                                        <div className="flex justify-between text-[10px] font-medium">
+                                                            <span>평가 통과 현황</span>
+                                                            <span className="text-primary">{passCount} / {totalCount} 통과</span>
+                                                        </div>
+                                                        <Progress value={totalCount > 0 ? (passCount / totalCount) * 100 : 0} className="h-1.5" />
+                                                    </div>
+
+                                                    <div className="text-[10px] text-muted-foreground pt-1 border-t flex justify-between">
+                                                        <span>배포일: {assignment.createdAt?.toDate ? format(assignment.createdAt.toDate(), 'yy-MM-dd HH:mm') : '-'}</span>
+                                                        <ChevronRight className="h-3 w-3" />
+                                                    </div>
                                                 </div>
-                                                <div className="text-[10px] text-muted-foreground pt-1 border-t">
-                                                    배포일: {assignment.createdAt?.toDate ? format(assignment.createdAt.toDate(), 'yyyy-MM-dd HH:mm') : '-'}
-                                                </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 ) : (
                                     <p className="text-center text-sm text-muted-foreground py-8">현재 배포된 퀴즈가 없습니다.</p>
@@ -484,6 +534,100 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
                     </div>
                 </div>
             </CardContent>
+
+            {/* Assignment Detail Dialog */}
+            <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
+                <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle>{selectedDetailAssignment?.quizTitle} - 상세 현황</DialogTitle>
+                        <DialogDescription>
+                            {selectedDetailAssignment?.targetType === 'class' ? 
+                                `${selectedDetailAssignment.targetGrade}학년 ${selectedDetailAssignment.targetClassNum}반` : 
+                                `${selectedDetailAssignment?.targetClubName}`}
+                            의 평가 응시 및 통과 현황입니다.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex-1 overflow-y-auto pr-2 py-4">
+                        {selectedDetailAssignment && (
+                            <div className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <Card className="bg-primary/5">
+                                        <CardContent className="p-4 text-center space-y-1">
+                                            <p className="text-xs text-muted-foreground uppercase font-bold">전체 인원</p>
+                                            <p className="text-3xl font-bold">{getAssignmentStats(selectedDetailAssignment).totalCount}명</p>
+                                        </CardContent>
+                                    </Card>
+                                    <Card className="bg-green-50">
+                                        <CardContent className="p-4 text-center space-y-1">
+                                            <p className="text-xs text-green-600 uppercase font-bold">통과 인원</p>
+                                            <p className="text-3xl font-bold text-green-700">{getAssignmentStats(selectedDetailAssignment).passCount}명</p>
+                                        </CardContent>
+                                    </Card>
+                                    <Card className="bg-orange-50">
+                                        <CardContent className="p-4 text-center space-y-1">
+                                            <p className="text-xs text-orange-600 uppercase font-bold">미응시/미통과</p>
+                                            <p className="text-3xl font-bold text-orange-700">
+                                                {getAssignmentStats(selectedDetailAssignment).totalCount - getAssignmentStats(selectedDetailAssignment).passCount}명
+                                            </p>
+                                        </CardContent>
+                                    </Card>
+                                </div>
+
+                                <div className="border rounded-md">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>번호</TableHead>
+                                                <TableHead>이름</TableHead>
+                                                <TableHead>상태</TableHead>
+                                                <TableHead>점수</TableHead>
+                                                <TableHead>응시일</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {(() => {
+                                                const { results } = getAssignmentStats(selectedDetailAssignment);
+                                                const targetStudents = selectedDetailAssignment.targetType === 'class' ?
+                                                    allStudents.filter(s => s.grade === selectedDetailAssignment.targetGrade && s.classNum === selectedDetailAssignment.targetClassNum) :
+                                                    allStudents.filter(s => sportsClubs.find(c => c.id === selectedDetailAssignment.targetClubId)?.memberIds.includes(s.id));
+                                                
+                                                return targetStudents.sort((a, b) => parseInt(a.studentNum) - parseInt(b.studentNum)).map(student => {
+                                                    const result = results.find(r => r.studentId === student.id);
+                                                    return (
+                                                        <TableRow key={student.id}>
+                                                            <TableCell>{student.studentNum}</TableCell>
+                                                            <TableCell className="font-medium">{student.name}</TableCell>
+                                                            <TableCell>
+                                                                {result ? (
+                                                                    result.passed ? 
+                                                                        <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200">통과</Badge> : 
+                                                                        <Badge variant="destructive">미통과</Badge>
+                                                                ) : (
+                                                                    <Badge variant="outline" className="text-muted-foreground">미응시</Badge>
+                                                                )}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                {result ? `${result.score} / ${result.total}` : '-'}
+                                                            </TableCell>
+                                                            <TableCell className="text-xs text-muted-foreground">
+                                                                {result?.createdAt?.toDate ? format(result.createdAt.toDate(), 'yy-MM-dd HH:mm') : '-'}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    );
+                                                });
+                                            })()}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setIsDetailDialogOpen(false)}>닫기</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <style jsx global>{`
                 @media print {
                     .print-hidden { display: none !important; }

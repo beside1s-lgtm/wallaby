@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { getItems, addOrUpdateRecord, getRecordsByStudent, getStudentById, calculateRanks, deleteRecord, getLatestTeamGroupForStudent, getTeamGroups, getLatestTournamentForStudent, getStudents, getQuizAssignments, getSportsClubs, getRecords } from '@/lib/store';
+import { getItems, addOrUpdateRecord, getRecordsByStudent, getStudentById, calculateRanks, deleteRecord, getLatestTeamGroupForStudent, getTeamGroups, getLatestTournamentForStudent, getStudents, getQuizAssignments, getSportsClubs, getRecords, saveQuizResult } from '@/lib/store';
 import {
   Card,
   CardContent,
@@ -662,7 +662,7 @@ export default function StudentDashboardPage() {
     setQuizAnswers(prev => ({ ...prev, [questionIndex]: answer }));
   };
 
-  const handleSubmitQuiz = () => {
+  const handleSubmitQuiz = async () => {
     if (!selectedAssignment || !selectedAssignment.questions) return;
     
     let score = 0;
@@ -683,11 +683,23 @@ export default function StudentDashboardPage() {
         return isCorrect;
     });
 
-    setQuizResult({
+    const passed = score >= 3;
+    const resultData = {
         score,
         total: selectedAssignment.questions.length,
         corrections
-    });
+    };
+    setQuizResult(resultData);
+
+    if (school && student && selectedAssignment) {
+        saveQuizResult(school, {
+            assignmentId: selectedAssignment.id,
+            studentId: student.id,
+            score,
+            total: selectedAssignment.questions.length,
+            passed
+        });
+    }
   };
 
   const handleRestartQuiz = () => {

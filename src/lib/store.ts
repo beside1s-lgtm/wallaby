@@ -1,5 +1,5 @@
 'use client';
-import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentToAdd, School, StudentToUpdate, TeamGroup, TeamGroupInput, Tournament, Team, SportsClub, Quiz, QuizAssignment } from './types';
+import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentToAdd, School, StudentToUpdate, TeamGroup, TeamGroupInput, Tournament, Team, SportsClub, Quiz, QuizAssignment, QuizResult } from './types';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { initialItems, initialStudents, initialRecords } from './initial-data';
@@ -1344,4 +1344,34 @@ export const deleteQuizAssignment = async (school: string, assignmentId: string)
     }
     throw e;
   });
+};
+
+export const saveQuizResult = async (school: string, result: Omit<QuizResult, 'id' | 'createdAt'>): Promise<void> => {
+  await signIn();
+  const resultsRef = collection(db, 'schools', school, 'quizResults');
+  const q = query(resultsRef, where('assignmentId', '==', result.assignmentId), where('studentId', '==', result.studentId));
+  const snapshot = await getDocs(q);
+  
+  if (!snapshot.empty) {
+    const docRef = snapshot.docs[0].ref;
+    await updateDoc(docRef, { ...result, createdAt: serverTimestamp() });
+  } else {
+    const newDocRef = doc(resultsRef);
+    await setDoc(newDocRef, { ...result, id: newDocRef.id, createdAt: serverTimestamp() });
+  }
+};
+
+export const getQuizResultsBySchool = async (school: string): Promise<QuizResult[]> => {
+  await signIn();
+  const resultsRef = collection(db, 'schools', school, 'quizResults');
+  const snapshot = await getDocs(resultsRef).catch(e => {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: resultsRef.path,
+        operation: 'list'
+      }));
+    }
+    throw e;
+  });
+  return snapshot.docs.map(doc => doc.data() as QuizResult);
 };
