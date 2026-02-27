@@ -1,3 +1,4 @@
+
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
@@ -58,7 +59,7 @@ import { getRecords } from '@/lib/store';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
-import Link from 'next/link';
+import Link from 'next/navigation';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Dialog,
@@ -118,7 +119,7 @@ export default function StudentDashboardPage() {
   const [isAiButtonDisabled, setIsAiButtonDisabled] = useState(false);
 
   const [chartFilter, setChartFilter] = useState<'all' | 'paps' | 'custom'>('all');
-  const [chartItemFilter, setChartItemFilter] = useState('all');
+  const [chartItemFilter, setChartItemFilter] = useState('');
   
   const [fullStudent, setFullStudent] = useState<Student | null>(null);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
@@ -205,15 +206,6 @@ export default function StudentDashboardPage() {
                 }
             });
             setAssignedQuizzes(studentAssignments);
-
-            if (items.length > 0 && chartItemFilter === 'all') {
-              const firstPapsItem = items.find(i => i.isPaps)?.name;
-              if (firstPapsItem) {
-                setChartItemFilter(firstPapsItem);
-              } else {
-                setChartItemFilter(items[0].name);
-              }
-            }
             
             if (teamData) {
                 const studentMap = new Map(allStuds.map(s => [s.id, s]));
@@ -531,24 +523,34 @@ export default function StudentDashboardPage() {
     }
   }
 
-  const { chartData, availableItems } = useMemo(() => {
-    if (!fullStudent || !school || !chartItemFilter || chartItemFilter === 'all' || isAuthLoading) return { chartData: [], availableItems: [] };
-
-    const allItemRanks = calculateRanks(school, measurementItems, allRecords, allStudents, fullStudent.grade);
+  const availableItems = useMemo(() => {
+    if (!fullStudent || isAuthLoading) return [];
     
-    const itemsToShow = measurementItems.filter(item => {
+    const studentMeasuredItemNames = new Set(records.map(r => r.item));
+    
+    return measurementItems.filter(item => {
+        const isMeasured = studentMeasuredItemNames.has(item.name);
+        if (!isMeasured) return false;
+        
         if (chartFilter === 'paps') return item.isPaps;
         if (chartFilter === 'custom') return !item.isPaps;
         return true;
     });
+  }, [measurementItems, records, chartFilter, fullStudent, isAuthLoading]);
+
+  const chartData = useMemo(() => {
+    if (!fullStudent || !school || !chartItemFilter || isAuthLoading) return [];
 
     const itemInfo = measurementItems.find(i => i.name === chartItemFilter);
-    if (!itemInfo) return { chartData: [], availableItems: itemsToShow };
+    if (!itemInfo) return [];
 
+    const recordsForItem = records.filter(record => record.item === chartItemFilter);
+    if (recordsForItem.length === 0) return [];
+
+    const allItemRanks = calculateRanks(school, measurementItems, allRecords, allStudents, fullStudent.grade);
     const itemRanks = allItemRanks[chartItemFilter] || [];
 
-    const data = records
-      .filter(record => record.item === chartItemFilter)
+    return recordsForItem
       .map(record => {
         let grade: number | null = null;
         let achievement: number | null = null;
@@ -577,15 +579,19 @@ export default function StudentDashboardPage() {
     })
     .filter((d): d is NonNullable<typeof d> => d !== null)
     .sort((a, b) => new Date(a.date).getTime() - new Date(a.date).getTime());
-    
-    const itemsWithGrade = itemsToShow.filter(item => {
-        const tempStudent = { ...fullStudent, gender: '남' as const };
-        if (item.isPaps) return getPapsGrade(item.name, tempStudent, 0) !== null;
-        return getCustomItemGrade(item, 0) !== null;
-    });
-    
-    return { chartData: data, availableItems: itemsWithGrade };
-  }, [records, chartFilter, chartItemFilter, measurementItems, fullStudent, school, allRecords, allStudents, isAuthLoading]);
+  }, [records, chartItemFilter, measurementItems, fullStudent, school, allRecords, allStudents, isAuthLoading]);
+
+  // Ensure chartItemFilter is valid whenever availableItems or current selection changes
+  useEffect(() => {
+    if (availableItems.length > 0) {
+        const isCurrentValid = availableItems.some(i => i.name === chartItemFilter);
+        if (!isCurrentValid) {
+            setChartItemFilter(availableItems[0].name);
+        }
+    } else {
+        setChartItemFilter('');
+    }
+  }, [availableItems, chartItemFilter]);
 
   const hallOfFameData = useMemo(() => {
     if (!school || !fullStudent) return [];
@@ -724,12 +730,16 @@ export default function StudentDashboardPage() {
                             </div>
                             <Select onValueChange={setChartItemFilter} value={chartItemFilter}>
                                 <SelectTrigger className="w-full sm:w-[200px]">
-                                <SelectValue placeholder="종목 선택" />
+                                <SelectValue placeholder={availableItems.length > 0 ? "종목 선택" : "측정 종목 없음"} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                {availableItems.map(item => (
-                                    <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
-                                ))}
+                                {availableItems.length > 0 ? (
+                                    availableItems.map(item => (
+                                        <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
+                                    ))
+                                ) : (
+                                    <SelectItem value="none" disabled>측정 종목 없음</SelectItem>
+                                )}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -753,7 +763,7 @@ export default function StudentDashboardPage() {
                         </ChartContainer>
                     ) : (
                         <div className="h-[400px] flex items-center justify-center text-muted-foreground">
-                        <p>그래프를 표시할 종목을 선택해주세요.</p>
+                        <p>{availableItems.length > 0 ? '그래프를 표시할 종목을 선택해주세요.' : '측정된 기록이 없습니다.'}</p>
                         </div>
                     )}
                     </CardContent>
