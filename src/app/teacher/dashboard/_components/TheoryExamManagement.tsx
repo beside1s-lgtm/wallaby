@@ -6,14 +6,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BrainCircuit, FileText, Loader2, Sparkles, Printer, Copy, CheckCircle2, XCircle, HelpCircle, Save, Library, Trash2 } from "lucide-react";
+import { BrainCircuit, FileText, Loader2, Sparkles, Printer, Copy, CheckCircle2, Save, Library, Trash2, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { generateQuiz, QuizOutput } from "@/ai/flows/quiz-generation-flow";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { useAuth } from '@/hooks/use-auth';
 import { saveQuiz as saveQuizToDb, getQuizzes, deleteQuiz } from '@/lib/store';
-import { Quiz } from '@/lib/types';
+import { Quiz, QuizQuestion } from '@/lib/types';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,6 +24,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 export default function TheoryExamManagement() {
     const { school } = useAuth();
@@ -97,6 +105,16 @@ export default function TheoryExamManagement() {
         } finally {
             setIsGenerating(false);
         }
+    };
+
+    const handleUpdateQuestion = (index: number, updatedQuestion: QuizQuestion) => {
+        if (!generatedQuiz) return;
+        const newQuestions = [...generatedQuiz.questions];
+        newQuestions[index] = updatedQuestion;
+        setGeneratedQuiz({
+            ...generatedQuiz,
+            questions: newQuestions
+        });
     };
 
     const handleSaveQuiz = async () => {
@@ -174,7 +192,7 @@ export default function TheoryExamManagement() {
                     AI 이론 평가 문제 생성기
                 </CardTitle>
                 <CardDescription>
-                    체육 학습 자료를 입력하면 AI가 자동으로 퀴즈를 만들어줍니다. 저장된 문제지를 라이브러리에서 불러올 수 있습니다.
+                    체육 학습 자료를 입력하면 AI가 자동으로 퀴즈를 만들어줍니다. 생성 후 개별 문항을 수정할 수 있습니다.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -317,7 +335,13 @@ export default function TheoryExamManagement() {
                                                     </span>
                                                     <h4 className="font-semibold text-lg">{q.question}</h4>
                                                 </div>
-                                                {getTypeBadge(q.type)}
+                                                <div className="flex items-center gap-2">
+                                                    {getTypeBadge(q.type)}
+                                                    <EditQuestionDialog 
+                                                        question={q} 
+                                                        onSave={(updated) => handleUpdateQuestion(idx, updated)} 
+                                                    />
+                                                </div>
                                             </div>
 
                                             {q.type === 'multiple-choice' && q.options && (
@@ -371,5 +395,103 @@ export default function TheoryExamManagement() {
                 }
             `}</style>
         </Card>
+    );
+}
+
+function EditQuestionDialog({ question, onSave }: { question: QuizQuestion, onSave: (updated: QuizQuestion) => void }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const [edited, setEdited] = useState<QuizQuestion>({ ...question });
+
+    useEffect(() => {
+        if (isOpen) setEdited({ ...question });
+    }, [isOpen, question]);
+
+    const handleSave = () => {
+        onSave(edited);
+        setIsOpen(false);
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <Button variant="ghost" size="icon" className="h-8 w-8 print:hidden" onClick={() => setIsOpen(true)}>
+                <Pencil className="h-4 w-4" />
+            </Button>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>문제 수정</DialogTitle>
+                    <DialogDescription>문제 내용과 선택지, 정답을 수정합니다.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <div className="space-y-2">
+                        <Label>질문</Label>
+                        <Textarea 
+                            value={edited.question} 
+                            onChange={e => setEdited({...edited, question: e.target.value})}
+                        />
+                    </div>
+                    
+                    {edited.options && (
+                        <div className="space-y-2">
+                            <Label>선택지 / 보기</Label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {edited.options.map((opt, i) => (
+                                    <div key={i} className="flex items-center gap-2">
+                                        <span className="text-xs font-bold text-muted-foreground w-4">{i+1}</span>
+                                        <Input 
+                                            value={opt} 
+                                            onChange={e => {
+                                                const newOpts = [...edited.options!];
+                                                newOpts[i] = e.target.value;
+                                                setEdited({...edited, options: newOpts});
+                                            }}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>정답</Label>
+                            {edited.type === 'ox' ? (
+                                <Select value={edited.answer} onValueChange={v => setEdited({...edited, answer: v})}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="O">O</SelectItem>
+                                        <SelectItem value="X">X</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            ) : (
+                                <Input 
+                                    value={edited.answer} 
+                                    onChange={e => setEdited({...edited, answer: e.target.value})}
+                                />
+                            )}
+                        </div>
+                        <div className="space-y-2">
+                            <Label>유형</Label>
+                            <Badge variant="secondary" className="h-10 w-full justify-center">
+                                {edited.type === 'multiple-choice' ? '4지선다' : 
+                                 edited.type === 'short-answer' ? '단답형' :
+                                 edited.type === 'ox' ? 'OX형' : '빈칸채우기'}
+                            </Badge>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>해설</Label>
+                        <Textarea 
+                            value={edited.explanation} 
+                            onChange={e => setEdited({...edited, explanation: e.target.value})}
+                        />
+                    </div>
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="outline">취소</Button></DialogClose>
+                    <Button onClick={handleSave}>적용하기</Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }
