@@ -161,3 +161,17 @@ export type Quiz = {
   questions: QuizQuestion[];
   createdAt: any;
 };
+
+export type QuizAssignment = {
+  id: string;
+  quizId: string;
+  quizTitle: string;
+  school: string;
+  targetType: 'class' | 'club';
+  targetGrade?: string;
+  targetClassNum?: string;
+  targetClubId?: string;
+  targetClubName?: string;
+  createdAt: any;
+  status: 'active' | 'closed';
+};

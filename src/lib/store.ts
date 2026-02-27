@@ -1,5 +1,5 @@
 'use client';
-import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentToAdd, School, StudentToUpdate, TeamGroup, TeamGroupInput, Tournament, Team, SportsClub, Quiz } from './types';
+import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentToAdd, School, StudentToUpdate, TeamGroup, TeamGroupInput, Tournament, Team, SportsClub, Quiz, QuizAssignment } from './types';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { initialItems, initialStudents, initialRecords } from './initial-data';
@@ -1279,6 +1279,28 @@ export const deleteQuiz = async (school: string, quizId: string): Promise<void> 
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: quizRef.path,
         operation: 'delete'
+      }));
+    }
+    throw e;
+  });
+};
+
+export const distributeQuiz = async (school: string, assignment: Omit<QuizAssignment, 'id' | 'createdAt' | 'status'>): Promise<void> => {
+  await signIn();
+  const assignmentsRef = collection(db, 'schools', school, 'quizAssignments');
+  const newDocRef = doc(assignmentsRef);
+  const dataToSave: QuizAssignment = {
+    ...assignment,
+    id: newDocRef.id,
+    createdAt: serverTimestamp(),
+    status: 'active',
+  };
+  await setDoc(newDocRef, dataToSave).catch(e => {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: newDocRef.path,
+        operation: 'create',
+        requestResourceData: dataToSave
       }));
     }
     throw e;

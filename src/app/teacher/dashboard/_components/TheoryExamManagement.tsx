@@ -1,18 +1,18 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BrainCircuit, FileText, Loader2, Sparkles, Printer, Copy, CheckCircle2, Save, Library, Trash2, Pencil } from "lucide-react";
+import { BrainCircuit, FileText, Loader2, Sparkles, Printer, Copy, CheckCircle2, Save, Library, Trash2, Pencil, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { generateQuiz, QuizOutput } from "@/ai/flows/quiz-generation-flow";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from '@/hooks/use-auth';
-import { saveQuiz as saveQuizToDb, getQuizzes, deleteQuiz } from '@/lib/store';
-import { Quiz, QuizQuestion } from '@/lib/types';
+import { saveQuiz as saveQuizToDb, getQuizzes, deleteQuiz, distributeQuiz } from '@/lib/store';
+import { Quiz, QuizQuestion, Student, SportsClub, QuizAssignment } from '@/lib/types';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,7 +34,12 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 
-export default function TheoryExamManagement() {
+interface TheoryExamManagementProps {
+    allStudents?: Student[];
+    sportsClubs?: SportsClub[];
+}
+
+export default function TheoryExamManagement({ allStudents = [], sportsClubs = [] }: TheoryExamManagementProps) {
     const { school } = useAuth();
     const { toast } = useToast();
     const [content, setContent] = useState('');
@@ -312,7 +317,12 @@ export default function TheoryExamManagement() {
                                         <CardTitle className="text-xl">{generatedQuiz.quizTitle}</CardTitle>
                                         <CardDescription>{generatedQuiz.questions.length}개의 문제가 출제되었습니다.</CardDescription>
                                     </div>
-                                    <div className="flex gap-2 print:hidden">
+                                    <div className="flex gap-2 print:hidden flex-wrap justify-end">
+                                        <DistributeQuizDialog 
+                                            quiz={generatedQuiz}
+                                            allStudents={allStudents}
+                                            sportsClubs={sportsClubs}
+                                        />
                                         <Button variant="outline" size="sm" onClick={handleSaveQuiz} disabled={isSaving}>
                                             {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
                                             저장
@@ -498,3 +508,135 @@ function EditQuestionDialog({ question, onSave }: { question: QuizQuestion, onSa
         </Dialog>
     );
 }
+
+function DistributeQuizDialog({ quiz, allStudents, sportsClubs }: { quiz: QuizOutput, allStudents: Student[], sportsClubs: SportsClub[] }) {
+    const { school } = useAuth();
+    const { toast } = useToast();
+    const [isOpen, setIsOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    
+    const [targetType, setTargetType] = useState<'class' | 'club'>('class');
+    const [selectedGrade, setSelectedGrade] = useState('');
+    const [selectedClassNum, setSelectedClassNum] = useState('');
+    const [selectedClubId, setSelectedClubId] = useState('');
+
+    const { grades, classNumsByGrade } = useMemo(() => {
+        const grades = [...new Set(allStudents.map(s => s.grade))].sort((a,b) => parseInt(a) - parseInt(b));
+        const classNumsByGrade: Record<string, string[]> = {};
+        grades.forEach(grade => {
+            classNumsByGrade[grade] = [...new Set(allStudents.filter(s => s.grade === grade).map(s => s.classNum))].sort((a,b) => parseInt(a) - parseInt(b));
+        });
+        return { grades, classNumsByGrade };
+    }, [allStudents]);
+
+    const handleDistribute = async () => {
+        if (!school) return;
+        
+        if (targetType === 'class' && (!selectedGrade || !selectedClassNum)) {
+            toast({ variant: 'destructive', title: '대상 미선택', description: '배포할 학년과 반을 선택해주세요.' });
+            return;
+        }
+        if (targetType === 'club' && !selectedClubId) {
+            toast({ variant: 'destructive', title: '대상 미선택', description: '배포할 스포츠 클럽을 선택해주세요.' });
+            return;
+        }
+
+        setIsSubmitting(true);
+        try {
+            const assignment: Omit<QuizAssignment, 'id' | 'createdAt' | 'status'> = {
+                quizId: 'temporary-id-' + uuidv4(), // Later we'll use actual saved quiz ID
+                quizTitle: quiz.quizTitle,
+                school,
+                targetType,
+                targetGrade: targetType === 'class' ? selectedGrade : undefined,
+                targetClassNum: targetType === 'class' ? selectedClassNum : undefined,
+                targetClubId: targetType === 'club' ? selectedClubId : undefined,
+                targetClubName: targetType === 'club' ? sportsClubs.find(c => c.id === selectedClubId)?.name : undefined,
+            };
+
+            await distributeQuiz(school, assignment);
+            toast({ title: '배포 완료', description: '학생들에게 퀴즈가 성공적으로 전달되었습니다.' });
+            setIsOpen(false);
+        } catch (error) {
+            console.error("Failed to distribute quiz:", error);
+            toast({ variant: 'destructive', title: '배포 실패' });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={setIsOpen}>
+            <DialogTrigger asChild>
+                <Button variant="default" size="sm" className="bg-green-600 hover:bg-green-700">
+                    <Send className="h-4 w-4 mr-1" /> 배포
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>퀴즈 배포 설정</DialogTitle>
+                    <DialogDescription>문제를 풀 대상을 선택해주세요. 배포 즉시 해당 학생들의 대시보드에 나타납니다.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                    <div className="space-y-2">
+                        <Label>배포 대상 유형</Label>
+                        <Select value={targetType} onValueChange={(v) => setTargetType(v as any)}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="class">학급 (학년/반)</SelectItem>
+                                <SelectItem value="club">스포츠 클럽</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {targetType === 'class' ? (
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label>학년</Label>
+                                <Select value={selectedGrade} onValueChange={setSelectedGrade}>
+                                    <SelectTrigger><SelectValue placeholder="학년 선택" /></SelectTrigger>
+                                    <SelectContent>
+                                        {grades.map(g => <SelectItem key={g} value={g}>{g}학년</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>반</Label>
+                                <Select value={selectedClassNum} onValueChange={setSelectedClassNum} disabled={!selectedGrade}>
+                                    <SelectTrigger><SelectValue placeholder="반 선택" /></SelectTrigger>
+                                    <SelectContent>
+                                        {classNumsByGrade[selectedGrade]?.map(c => <SelectItem key={c} value={c}>{c}반</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            <Label>스포츠 클럽 선택</Label>
+                            <Select value={selectedClubId} onValueChange={setSelectedClubId}>
+                                <SelectTrigger><SelectValue placeholder="클럽 선택" /></SelectTrigger>
+                                <SelectContent>
+                                    {sportsClubs.map(club => <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+                </div>
+                <DialogFooter>
+                    <DialogClose asChild><Button variant="outline">취소</Button></DialogClose>
+                    <Button onClick={handleDistribute} disabled={isSubmitting}>
+                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+                        지금 배포하기
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+const uuidv4 = () => {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+};

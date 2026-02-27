@@ -302,7 +302,7 @@ export default function TeacherDashboardPage() {
                     <MeasurementManagement items={items} onItemsUpdate={handleItemsUpdate} />
                 </TabsContent>
                 <TabsContent value="theory-exam">
-                    <TheoryExamManagement />
+                    <TheoryExamManagement allStudents={students} sportsClubs={sportsClubs} />
                 </TabsContent>
                 <TabsContent value="database-management">
                     <DatabaseManagement
