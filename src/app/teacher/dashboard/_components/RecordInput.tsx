@@ -36,7 +36,7 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, Calendar as CalendarIcon, User, X, Youtube } from 'lucide-react';
+import { Loader2, Search, Calendar as CalendarIcon, User, X, Youtube, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -80,6 +80,8 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
 
   const [foundStudents, setFoundStudents] = useState<Student[]>([]);
   const [isSelectionDialogOpen, setIsSelectionDialogOpen] = useState(false);
+  
+  const [showVideo, setShowVideo] = useState(true);
 
   // Only items that are NOT archived and NOT deactivated should be visible for recording
   const activeItems = useMemo(() => allItems.filter(item => !item.isArchived && !item.isDeactivated), [allItems]);
@@ -153,7 +155,12 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
     setRecordValue('');
     setHeight('');
     setWeight('');
+    if (selectedItemName) setShowVideo(true);
   }, [selectedItemName, selectedStudent]);
+
+  useEffect(() => {
+    if (batchRecordItem) setShowVideo(true);
+  }, [batchRecordItem]);
 
 
   useEffect(() => {
@@ -238,7 +245,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
     if (selectedItemForSingleAdd?.isCompound) {
       const h = parseFloat(height);
       const w = parseFloat(weight);
-      if (isNaN(h) || iNaN(w) || h <= 0 || w <= 0) {
+      if (isNaN(h) || isNaN(w) || h <= 0 || w <= 0) {
         toast({ variant: 'destructive', title: '입력 오류', description: '유효한 키와 몸무게를 입력해주세요.' });
         return;
       }
@@ -515,21 +522,32 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                     {/* YouTube Video Section - Item Specific */}
                     {selectedItemForBatchAdd?.videoUrl && getYouTubeEmbedUrl(selectedItemForBatchAdd.videoUrl) && (
                         <div className="p-4 border rounded-lg bg-primary/5 space-y-4">
-                            <div className="flex items-center gap-2">
-                                <Youtube className="h-5 w-5 text-red-600" />
-                                <h3 className="font-semibold">{selectedItemForBatchAdd.name} 측정 예시 영상</h3>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Youtube className="h-5 w-5 text-red-600" />
+                                    <h3 className="font-semibold">{selectedItemForBatchAdd.name} 측정 예시 영상</h3>
+                                </div>
+                                <Button variant="ghost" size="sm" onClick={() => setShowVideo(!showVideo)}>
+                                    {showVideo ? (
+                                        <><EyeOff className="mr-2 h-4 w-4" /> 숨기기</>
+                                    ) : (
+                                        <><Eye className="mr-2 h-4 w-4" /> 보기</>
+                                    )}
+                                </Button>
                             </div>
-                            <div className="aspect-video w-full max-w-2xl mx-auto rounded-lg overflow-hidden border shadow-lg bg-black">
-                                <iframe
-                                    width="100%"
-                                    height="100%"
-                                    src={getYouTubeEmbedUrl(selectedItemForBatchAdd.videoUrl)!}
-                                    title="YouTube video player"
-                                    frameBorder="0"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                    allowFullScreen
-                                ></iframe>
-                            </div>
+                            {showVideo && (
+                                <div className="aspect-video w-full max-w-2xl mx-auto rounded-lg overflow-hidden border shadow-lg bg-black animate-in fade-in zoom-in-95 duration-200">
+                                    <iframe
+                                        width="100%"
+                                        height="100%"
+                                        src={getYouTubeEmbedUrl(selectedItemForBatchAdd.videoUrl)!}
+                                        title="YouTube video player"
+                                        frameBorder="0"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                        allowFullScreen
+                                    ></iframe>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -671,21 +689,32 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                             {/* Individual Video Section - Item Specific */}
                             {selectedItemForSingleAdd?.videoUrl && getYouTubeEmbedUrl(selectedItemForSingleAdd.videoUrl) && (
                                 <div className="p-4 border rounded-lg bg-primary/5 space-y-4">
-                                    <div className="flex items-center gap-2">
-                                        <Youtube className="h-5 w-5 text-red-600" />
-                                        <h3 className="font-semibold">{selectedItemForSingleAdd.name} 측정 예시 영상</h3>
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <Youtube className="h-5 w-5 text-red-600" />
+                                            <h3 className="font-semibold">{selectedItemForSingleAdd.name} 측정 예시 영상</h3>
+                                        </div>
+                                        <Button variant="ghost" size="sm" onClick={() => setShowVideo(!showVideo)}>
+                                            {showVideo ? (
+                                                <><EyeOff className="mr-2 h-4 w-4" /> 숨기기</>
+                                            ) : (
+                                                <><Eye className="mr-2 h-4 w-4" /> 보기</>
+                                            )}
+                                        </Button>
                                     </div>
-                                    <div className="aspect-video w-full rounded-lg overflow-hidden border shadow-lg bg-black">
-                                        <iframe
-                                            width="100%"
-                                            height="100%"
-                                            src={getYouTubeEmbedUrl(selectedItemForSingleAdd.videoUrl)!}
-                                            title="YouTube video player"
-                                            frameBorder="0"
-                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                            allowFullScreen
-                                        ></iframe>
-                                    </div>
+                                    {showVideo && (
+                                        <div className="aspect-video w-full rounded-lg overflow-hidden border shadow-lg bg-black animate-in fade-in zoom-in-95 duration-200">
+                                            <iframe
+                                                width="100%"
+                                                height="100%"
+                                                src={getYouTubeEmbedUrl(selectedItemForSingleAdd.videoUrl)!}
+                                                title="YouTube video player"
+                                                frameBorder="0"
+                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                                allowFullScreen
+                                            ></iframe>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
