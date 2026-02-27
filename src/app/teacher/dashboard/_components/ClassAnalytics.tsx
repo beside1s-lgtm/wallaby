@@ -176,7 +176,7 @@ export default function ClassAnalytics({
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedGrade, setSelectedGrade] = useState("");
-  const [selectedClassNum, setSelectedClassNum] = useState("");
+  const [selectedClassNum, setSelectedClassNum] = useState("all");
   const [selectedClubId, setSelectedClubId] = useState("");
 
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -187,7 +187,6 @@ export default function ClassAnalytics({
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isAiButtonDisabled, setIsAiButtonDisabled] = useState(false);
 
-  // States for sorting
   const [sortedStudents, setSortedStudents] = useState<
     (Student & { sortValue?: string | number })[] | null
   >(null);
@@ -228,11 +227,12 @@ export default function ClassAnalytics({
             return allStudents.filter(s => clubStudentIds.has(s.id));
         }
     }
-    if (selectedGrade && selectedClassNum) {
-      const classStudents = allStudents.filter(
-        (s) => s.grade === selectedGrade && s.classNum === selectedClassNum
-      );
-      return classStudents.sort(
+    if (selectedGrade) {
+      let students = allStudents.filter((s) => s.grade === selectedGrade);
+      if (selectedClassNum !== "all") {
+        students = students.filter((s) => s.classNum === selectedClassNum);
+      }
+      return students.sort(
         (a, b) => parseInt(a.studentNum) - parseInt(b.studentNum)
       );
     }
@@ -242,7 +242,6 @@ export default function ClassAnalytics({
   useEffect(() => {
     setSortedStudents(null);
     setSortType(null);
-    // When class selection changes, reset student selection
     setSelectedStudent(null);
   }, [selectedGrade, selectedClassNum, selectedClubId]);
 
@@ -262,8 +261,7 @@ export default function ClassAnalytics({
   }, [activeItems]);
 
   useEffect(() => {
-    // Reset student search when class filter changes
-    if (selectedGrade && selectedClassNum) {
+    if (selectedGrade) {
       setSearchTerm("");
       setSelectedStudent(null);
     }
@@ -311,7 +309,6 @@ export default function ClassAnalytics({
       handleSelectStudent(matchingStudents[0]);
       resetFilters(true);
     } else {
-      // Multiple students found, open selection dialog
       setFoundStudents(matchingStudents);
       setIsSelectionDialogOpen(true);
     }
@@ -475,7 +472,7 @@ export default function ClassAnalytics({
           .filter((g): g is number => g !== null);
 
         if (grades.length === 0) {
-          return { ...student, sortValue: "미측정", _sortValue: 6 }; // 미측정 학생은 6등급으로 처리하여 마지막에 정렬
+          return { ...student, sortValue: "미측정", _sortValue: 6 }; 
         }
 
         const avgGrade = grades.reduce((a, b) => a + b, 0) / grades.length;
@@ -638,7 +635,7 @@ export default function ClassAnalytics({
         }
       });
     } else if (filteredStudentsBySelection.length > 0) {
-      label = selectedClubId ? (sportsClubs.find(c=>c.id === selectedClubId)?.name || '클럽') : `${selectedGrade}학년 ${selectedClassNum}반 평균`;
+      label = selectedClubId ? (sportsClubs.find(c=>c.id === selectedClubId)?.name || '클럽') : (selectedClassNum === 'all' ? `${selectedGrade}학년 전체 평균` : `${selectedGrade}학년 ${selectedClassNum}반 평균`);
       comparisonTargetData = calculateAverageGrades(
         filteredStudentsBySelection,
         comparisonType === "paps"
@@ -733,7 +730,7 @@ export default function ClassAnalytics({
           date: r.date,
           itemName: r.item,
           grade: grade,
-          score: grade ? 6 - grade : undefined, // 1등급 -> 5점, 5등급 -> 1점
+          score: grade ? 6 - grade : undefined, 
           achievement: achievement,
           value: r.value,
           unit: itemInfo.unit,
@@ -771,7 +768,7 @@ export default function ClassAnalytics({
   const resetFilters = (keepSearch: boolean = false) => {
     if (!keepSearch) setSearchTerm("");
     setSelectedGrade("");
-    setSelectedClassNum("");
+    setSelectedClassNum("all");
     setSelectedClubId("");
     setSelectedStudent(null);
   };
@@ -849,7 +846,7 @@ export default function ClassAnalytics({
             
           <Select
             value={selectedClubId}
-            onValueChange={value => { setSelectedClubId(value); setSelectedGrade(''); setSelectedClassNum(''); }}
+            onValueChange={value => { setSelectedClubId(value); setSelectedGrade(''); setSelectedClassNum('all'); }}
           >
             <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="클럽 선택" />
@@ -865,7 +862,7 @@ export default function ClassAnalytics({
             value={selectedGrade}
             onValueChange={(value) => {
               setSelectedGrade(value);
-              setSelectedClassNum("");
+              setSelectedClassNum("all");
               setSelectedClubId('');
             }}
           >
@@ -890,6 +887,7 @@ export default function ClassAnalytics({
               <SelectValue placeholder="반 선택" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="all">전체 반</SelectItem>
               {classNumsByGrade[selectedGrade]?.map((classNum) => (
                 <SelectItem key={classNum} value={classNum}>
                   {classNum}반
@@ -1237,7 +1235,7 @@ export default function ClassAnalytics({
           filteredStudentsBySelection.length > 0 && (
             <div className="space-y-8">
               <h2 className="text-2xl font-bold">
-                {selectedClubId ? (sportsClubs.find(c=>c.id === selectedClubId)?.name) : `${selectedGrade}학년 ${selectedClassNum}반`} 분석
+                {selectedClubId ? (sportsClubs.find(c=>c.id === selectedClubId)?.name) : (selectedClassNum === 'all' ? `${selectedGrade}학년 전체` : `${selectedGrade}학년 ${selectedClassNum}반`)} 분석
               </h2>
               <Card>
                 <CardHeader className="flex-col md:flex-row items-start justify-between gap-2">
@@ -1310,7 +1308,7 @@ export default function ClassAnalytics({
 
               <Card>
                 <CardHeader>
-                  <CardTitle>학급 학생 목록 정렬</CardTitle>
+                  <CardTitle>학생 목록 정렬</CardTitle>
                   <CardDescription>
                     학생을 선택하여 개별 기록을 조회하거나, 목록을 정렬하여
                     성취도를 비교할 수 있습니다.

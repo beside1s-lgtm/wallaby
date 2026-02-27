@@ -61,7 +61,6 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   
-  // States for adding a new record (for single student)
   const [selectedItemName, setSelectedItemName] = useState('');
   const [recordValue, setRecordValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -70,10 +69,9 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
   const [weight, setWeight] = useState('');
 
 
-  // States for batch recording
   const [selectedGrade, setSelectedGrade] = useState('');
-  const [selectedClassNum, setSelectedClassNum] = useState('');
-  const [selectedGroupId, setSelectedGroupId] = useState(''); // Can be TeamGroup or SportsClub ID
+  const [selectedClassNum, setSelectedClassNum] = useState('all');
+  const [selectedGroupId, setSelectedGroupId] = useState(''); 
   const [selectedTeamId, setSelectedTeamId] = useState('');
   const [batchRecordItem, setBatchRecordItem] = useState('');
   const [batchRecordDate, setBatchRecordDate] = useState<Date | undefined>(new Date());
@@ -129,19 +127,21 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                     return parseInt(a.studentNum) - parseInt(b.studentNum);
                 });
         }
-    } else if (selectedGrade && selectedClassNum) {
-        return allStudents
-            .filter(s => s.grade === selectedGrade && s.classNum === selectedClassNum)
-            .sort((a,b) => parseInt(a.studentNum) - parseInt(b.studentNum));
+    } else if (selectedGrade) {
+        let students = allStudents.filter(s => s.grade === selectedGrade);
+        if (selectedClassNum !== "all") {
+            students = students.filter(s => s.classNum === selectedClassNum);
+        }
+        return students.sort((a,b) => parseInt(a.studentNum) - parseInt(b.studentNum));
     }
     return [];
   }, [allStudents, selectedGrade, selectedClassNum, selectedGroupId, selectedTeamId, selectedGroup, studentMap]);
   
   useEffect(() => {
-    setBatchRecords({}); // Clear batch records on filter change
+    setBatchRecords({}); 
     if(selectedGroupId) {
         setSelectedGrade('');
-        setSelectedClassNum('');
+        setSelectedClassNum('all');
     }
     if(!selectedGroupId){
         setSelectedTeamId('');
@@ -149,7 +149,6 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
   }, [selectedGrade, selectedClassNum, batchRecordItem, selectedGroupId]);
 
   useEffect(() => {
-    // When selected item for single add changes, reset inputs
     setRecordValue('');
     setHeight('');
     setWeight('');
@@ -353,7 +352,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
             const updatedRecords = await addOrUpdateRecords(school, studentsForBatch, recordsToProcess);
             onRecordUpdate(updatedRecords, 'update');
             toast({ title: '저장 완료', description: `${batchRecordItem}에 대한 ${recordsToProcess.length}개의 기록이 저장/업데이트되었습니다.` });
-            setBatchRecords({}); // Clear inputs after saving
+            setBatchRecords({}); 
         } else {
             toast({ variant: 'destructive', title: '저장할 기록 없음', description: '유효한 기록을 입력해주세요.' });
         }
@@ -378,7 +377,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
 
     const clearFilters = () => {
         setSelectedGrade('');
-        setSelectedClassNum('');
+        setSelectedClassNum('all');
         setSelectedGroupId('');
         setSelectedTeamId('');
     };
@@ -436,7 +435,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                     <CardTitle>학급/팀별 측정 기록</CardTitle>
                     <CardDescription>수업 중 측정한 결과를 학급 전체 또는 팀별로 한 번에 입력하고 저장할 수 있습니다.</CardDescription>
                     <div className="flex flex-wrap items-center gap-2 pt-4">
-                        <Select value={selectedGrade} onValueChange={(value) => { setSelectedGrade(value); setSelectedClassNum(''); setSelectedGroupId(''); }}>
+                        <Select value={selectedGrade} onValueChange={(value) => { setSelectedGrade(value); setSelectedClassNum('all'); setSelectedGroupId(''); }}>
                             <SelectTrigger className="w-full sm:w-[120px]">
                                 <SelectValue placeholder="학년 선택" />
                             </SelectTrigger>
@@ -450,13 +449,14 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                                 <SelectValue placeholder="반 선택" />
                             </SelectTrigger>
                             <SelectContent>
+                                <SelectItem value="all">전체 반</SelectItem>
                                 {classNumsByGrade[selectedGrade]?.map(classNum => <SelectItem key={classNum} value={classNum}>{classNum}반</SelectItem>)}
                             </SelectContent>
                         </Select>
                         
                         <span className="text-sm text-muted-foreground mx-2">또는</span>
 
-                        <Select value={selectedGroupId} onValueChange={v => { setSelectedGroupId(v); setSelectedGrade(''); setSelectedClassNum(''); setSelectedTeamId(''); }}>
+                        <Select value={selectedGroupId} onValueChange={v => { setSelectedGroupId(v); setSelectedGrade(''); setSelectedClassNum('all'); setSelectedTeamId(''); }}>
                             <SelectTrigger className="w-full sm:w-[200px]">
                                 <SelectValue placeholder="팀/클럽 그룹 선택" />
                             </SelectTrigger>
