@@ -49,7 +49,7 @@ import { getStudentFeedback } from '@/ai/flows/student-ai-feedback';
 import { getScoutingReport } from '@/ai/flows/scouting-report-flow';
 import { getTeamAnalysis } from '@/ai/flows/team-analysis-flow';
 import type { ScoutingReportOutput } from '@/ai/flows/scouting-report-flow';
-import { Loader2, Wand2, Trash2, Users, User as UserIcon, Swords, Bot, Printer, Crown, Medal, Trophy, BookOpen, ChevronRight, CheckCircle2, AlertCircle, HelpCircle } from 'lucide-react';
+import { Loader2, Wand2, Trash2, Users, User as UserIcon, Swords, Bot, Printer, Crown, Medal, Trophy, BookOpen, ChevronRight, CheckCircle2, AlertCircle, HelpCircle, Star, Frown, RotateCcw } from 'lucide-react';
 import type { Student, MeasurementRecord, MeasurementItem, TeamGroup, Tournament, Match, QuizAssignment } from '@/lib/types';
 import { getPapsGrade, getCustomItemGrade, normalizePapsRecord, normalizeCustomRecord } from '@/lib/paps';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -67,6 +67,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 
 const chartConfig = {
   score: { label: "등급", color: "hsl(var(--chart-2))" },
@@ -657,7 +658,6 @@ export default function StudentDashboardPage() {
         
         let isCorrect = false;
         if (q.type === 'multiple-choice' && q.options) {
-            // Check if the student selected the text of the answer OR the index matching the answer text
             const selectedOptionIndex = parseInt(studentAnswer) - 1;
             const selectedOptionText = q.options[selectedOptionIndex];
             isCorrect = (selectedOptionText === correctAnswer) || (studentAnswer === correctAnswer);
@@ -675,6 +675,39 @@ export default function StudentDashboardPage() {
         corrections
     });
   };
+
+  const handleRestartQuiz = () => {
+    setQuizAnswers({});
+    setQuizResult(null);
+  };
+
+  const quizFeedback = useMemo(() => {
+    if (!quizResult) return null;
+    const percent = Math.round((quizResult.score / quizResult.total) * 100);
+    
+    if (percent === 100) {
+        return {
+            title: "완벽해요!",
+            description: "대단해요! 완벽하게 이해했군요! 💯",
+            icon: <Trophy className="h-12 w-12 text-yellow-500 mx-auto" />,
+            passed: true
+        };
+    } else if (quizResult.score >= 3) {
+        return {
+            title: "축하합니다!",
+            description: "축하합니다! 통과하셨습니다. 👍",
+            icon: <Star className="h-12 w-12 text-blue-500 mx-auto" />,
+            passed: true
+        };
+    } else {
+        return {
+            title: "재도전이 필요해요",
+            description: "아쉬워요. 다시 한 번 도전해 볼까요? 💪",
+            icon: <Frown className="h-12 w-12 text-muted-foreground mx-auto" />,
+            passed: false
+        };
+    }
+  }, [quizResult]);
 
 
   if (isDataLoading || !fullStudent || !school) {
@@ -1217,101 +1250,106 @@ export default function StudentDashboardPage() {
             <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>{selectedAssignment?.quizTitle}</DialogTitle>
-                    <DialogDescription>문제를 잘 읽고 정답을 선택하세요.</DialogDescription>
+                    <DialogDescription>
+                        {quizResult ? "퀴즈 결과 리포트" : "문제를 잘 읽고 정답을 선택하세요."}
+                    </DialogDescription>
                 </DialogHeader>
                 
                 <div className="space-y-8 py-4">
-                    {selectedAssignment && selectedAssignment.questions && selectedAssignment.questions.length > 0 ? (
-                        selectedAssignment.questions.map((q, qIdx) => (
-                            <div key={qIdx} className="space-y-4 p-4 rounded-lg bg-secondary/20">
-                                <div className="flex items-start gap-3">
-                                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
-                                        {qIdx + 1}
-                                    </span>
-                                    <h4 className="font-semibold text-lg">{q.question}</h4>
+                    {quizResult ? (
+                        <div className="text-center space-y-6 py-10 animate-in fade-in zoom-in-95">
+                            {quizFeedback?.icon}
+                            <div className="space-y-2">
+                                <h3 className="text-3xl font-bold">{quizFeedback?.title}</h3>
+                                <p className="text-xl text-muted-foreground">{quizFeedback?.description}</p>
+                            </div>
+                            
+                            <div className="max-w-xs mx-auto space-y-2">
+                                <div className="flex justify-between text-sm font-medium">
+                                    <span>성취도</span>
+                                    <span>{Math.round((quizResult.score / quizResult.total) * 100)}%</span>
                                 </div>
+                                <Progress value={(quizResult.score / quizResult.total) * 100} className="h-3" />
+                                <p className="text-sm text-muted-foreground">총 {quizResult.total}문제 중 {quizResult.score}문제를 맞혔습니다.</p>
+                            </div>
 
-                                {quizResult && (
-                                    <div className="ml-9">
-                                        {quizResult.corrections[qIdx] ? (
-                                            <Badge className="bg-green-100 text-green-700 border-green-200">정답입니다!</Badge>
-                                        ) : (
-                                            <Badge variant="destructive">오답 (정답: {q.answer})</Badge>
-                                        )}
-                                    </div>
-                                )}
-
-                                <div className="ml-9 space-y-2">
-                                    {q.type === 'multiple-choice' && q.options && (
-                                        <RadioGroup value={quizAnswers[qIdx]} onValueChange={(val) => handleQuizAnswerChange(qIdx, val)} disabled={!!quizResult}>
-                                            {q.options.map((opt, oIdx) => (
-                                                <div key={oIdx} className="flex items-center space-x-2 p-2 rounded hover:bg-background/50">
-                                                    <RadioGroupItem value={String(oIdx + 1)} id={`q${qIdx}-o${oIdx}`} />
-                                                    <Label htmlFor={`q${qIdx}-o${oIdx}`} className="flex-grow cursor-pointer">{oIdx + 1}. {opt}</Label>
-                                                </div>
-                                            ))}
-                                        </RadioGroup>
-                                    )}
-
-                                    {q.type === 'ox' && (
-                                        <RadioGroup value={quizAnswers[qIdx]} onValueChange={(val) => handleQuizAnswerChange(qIdx, val)} className="flex gap-4" disabled={!!quizResult}>
-                                            <div className="flex items-center space-x-2">
-                                                <RadioGroupItem value="O" id={`q${qIdx}-o`} />
-                                                <Label htmlFor={`q${qIdx}-o`} className="text-xl font-bold">O</Label>
-                                            </div>
-                                            <div className="flex items-center space-x-2">
-                                                <RadioGroupItem value="X" id={`q${qIdx}-x`} />
-                                                <Label htmlFor={`q${qIdx}-x`} className="text-xl font-bold">X</Label>
-                                            </div>
-                                        </RadioGroup>
-                                    )}
-
-                                    {(q.type === 'short-answer' || q.type === 'fill-in-the-blanks') && (
-                                        <div className="space-y-2">
-                                            {q.type === 'fill-in-the-blanks' && q.options && (
-                                                <div className="flex flex-wrap gap-2 mb-2 p-2 bg-muted/50 rounded-md">
-                                                    <span className="text-xs text-muted-foreground font-medium mr-2">[ 보기 ]</span>
-                                                    {q.options.map((opt, i) => <Badge key={i} variant="secondary">{opt}</Badge>)}
-                                                </div>
-                                            )}
-                                            <Input 
-                                                placeholder="정답을 입력하세요" 
-                                                value={quizAnswers[qIdx] || ''} 
-                                                onChange={(e) => handleQuizAnswerChange(qIdx, e.target.value)}
-                                                disabled={!!quizResult}
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-
-                                {quizResult && !quizResult.corrections[qIdx] && (
-                                    <div className="ml-9 p-3 bg-primary/5 border-l-2 border-primary rounded text-sm mt-2">
-                                        <p className="font-bold text-primary flex items-center gap-1 mb-1"><HelpCircle className="h-3 w-3" /> 해설</p>
-                                        <p className="text-muted-foreground">{q.explanation}</p>
-                                    </div>
+                            <div className="pt-6">
+                                {quizFeedback?.passed ? (
+                                    <DialogClose asChild>
+                                        <Button className="w-full max-w-sm py-6 text-lg">닫기</Button>
+                                    </DialogClose>
+                                ) : (
+                                    <Button onClick={handleRestartQuiz} className="w-full max-w-sm py-6 text-lg" variant="default">
+                                        <RotateCcw className="mr-2 h-5 w-5" /> 처음부터 다시 풀기
+                                    </Button>
                                 )}
                             </div>
-                        ))
-                    ) : (
-                        <div className="text-center py-12 text-muted-foreground">
-                            <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                            <p>문제를 불러오는 중이거나 데이터가 없습니다.</p>
                         </div>
+                    ) : (
+                        selectedAssignment && selectedAssignment.questions && selectedAssignment.questions.length > 0 ? (
+                            selectedAssignment.questions.map((q, qIdx) => (
+                                <div key={qIdx} className="space-y-4 p-4 rounded-lg bg-secondary/20">
+                                    <div className="flex items-start gap-3">
+                                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
+                                            {qIdx + 1}
+                                        </span>
+                                        <h4 className="font-semibold text-lg">{q.question}</h4>
+                                    </div>
+
+                                    <div className="ml-9 space-y-2">
+                                        {q.type === 'multiple-choice' && q.options && (
+                                            <RadioGroup value={quizAnswers[qIdx]} onValueChange={(val) => handleQuizAnswerChange(qIdx, val)}>
+                                                {q.options.map((opt, oIdx) => (
+                                                    <div key={oIdx} className="flex items-center space-x-2 p-2 rounded hover:bg-background/50">
+                                                        <RadioGroupItem value={String(oIdx + 1)} id={`q${qIdx}-o${oIdx}`} />
+                                                        <Label htmlFor={`q${qIdx}-o${oIdx}`} className="flex-grow cursor-pointer">{oIdx + 1}. {opt}</Label>
+                                                    </div>
+                                                ))}
+                                            </RadioGroup>
+                                        )}
+
+                                        {q.type === 'ox' && (
+                                            <RadioGroup value={quizAnswers[qIdx]} onValueChange={(val) => handleQuizAnswerChange(qIdx, val)} className="flex gap-4">
+                                                <div className="flex items-center space-x-2">
+                                                    <RadioGroupItem value="O" id={`q${qIdx}-o`} />
+                                                    <Label htmlFor={`q${qIdx}-o`} className="text-xl font-bold">O</Label>
+                                                </div>
+                                                <div className="flex items-center space-x-2">
+                                                    <RadioGroupItem value="X" id={`q${qIdx}-x`} />
+                                                    <Label htmlFor={`q${qIdx}-x`} className="text-xl font-bold">X</Label>
+                                                </div>
+                                            </RadioGroup>
+                                        )}
+
+                                        {(q.type === 'short-answer' || q.type === 'fill-in-the-blanks') && (
+                                            <div className="space-y-2">
+                                                {q.type === 'fill-in-the-blanks' && q.options && (
+                                                    <div className="flex flex-wrap gap-2 mb-2 p-2 bg-muted/50 rounded-md">
+                                                        <span className="text-xs text-muted-foreground font-medium mr-2">[ 보기 ]</span>
+                                                        {q.options.map((opt, i) => <Badge key={i} variant="secondary">{opt}</Badge>)}
+                                                    </div>
+                                                )}
+                                                <Input 
+                                                    placeholder="정답을 입력하세요" 
+                                                    value={quizAnswers[qIdx] || ''} 
+                                                    onChange={(e) => handleQuizAnswerChange(qIdx, e.target.value)}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="text-center py-12 text-muted-foreground">
+                                <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-20" />
+                                <p>문제를 불러오는 중이거나 데이터가 없습니다.</p>
+                            </div>
+                        )
                     )}
                 </div>
 
-                <DialogFooter className="sticky bottom-0 bg-background pt-4 border-t">
-                    {quizResult ? (
-                        <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4">
-                            <div className="flex items-center gap-2 font-bold text-xl">
-                                <Trophy className="text-yellow-500" />
-                                점수: {quizResult.score} / {quizResult.total}
-                            </div>
-                            <DialogClose asChild>
-                                <Button className="w-full sm:w-auto">닫기</Button>
-                            </DialogClose>
-                        </div>
-                    ) : (
+                {!quizResult && (
+                    <DialogFooter className="sticky bottom-0 bg-background pt-4 border-t">
                         <div className="w-full flex gap-2">
                             <DialogClose asChild>
                                 <Button variant="outline" className="flex-1">그만두기</Button>
@@ -1320,8 +1358,8 @@ export default function StudentDashboardPage() {
                                 <CheckCircle2 className="mr-2 h-4 w-4" /> 제출하기
                             </Button>
                         </div>
-                    )}
-                </DialogFooter>
+                    </DialogFooter>
+                )}
             </DialogContent>
         </Dialog>
     </div>
