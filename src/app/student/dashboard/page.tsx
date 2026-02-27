@@ -303,7 +303,7 @@ export default function StudentDashboardPage() {
     if (selectedItem?.isCompound) {
       const h = parseFloat(height);
       const w = parseFloat(weight);
-      if (isNaN(h) || isNaN(w) || h <= 0 || w <= 0) {
+      if (isNaN(h) || iNaN(w) || h <= 0 || w <= 0) {
         toast({ variant: 'destructive', title: '입력 오류', description: '유효한 키와 몸무게를 입력해주세요.' });
         return;
       }
@@ -562,7 +562,7 @@ export default function StudentDashboardPage() {
   const hallOfFameData = useMemo(() => {
     if (!school || !fullStudent) return [];
     
-    const measurementWeekItems = measurementItems.filter(item => item.isMeasurementWeek && !item.isArchived);
+    const measurementWeekItems = measurementItems.filter(item => item.isMeasurementWeek && !item.isArchived && !item.isDeactivated);
     if (measurementWeekItems.length === 0) return [];
     
     const allRanks = calculateRanks(school, measurementItems, allRecords, allStudents);

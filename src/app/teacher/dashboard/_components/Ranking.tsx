@@ -49,7 +49,7 @@ function HallOfFame({ allItems, allRecords, allStudents }: RankingProps) {
   const hallOfFameData = useMemo(() => {
     if (!school) return [];
     
-    const measurementWeekItems = allItems.filter(item => item.isMeasurementWeek && !item.isArchived);
+    const measurementWeekItems = allItems.filter(item => item.isMeasurementWeek && !item.isArchived && !item.isDeactivated);
     if (measurementWeekItems.length === 0) return [];
     
     const allRanks = calculateRanks(school, allItems, allRecords, allStudents);

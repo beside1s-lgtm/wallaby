@@ -508,12 +508,16 @@ export const archiveCategory = async (school: string, category: string, items: M
 export const deactivateItem = async (school: string, itemId: string, deactivate: boolean): Promise<void> => {
     await signIn();
     const itemDocRef = doc(db, 'schools', school, 'items', itemId);
-    await updateDoc(itemDocRef, { isDeactivated: deactivate, isArchived: false }).catch(e => {
+    const updates: any = { isDeactivated: deactivate, isArchived: false };
+    if (deactivate) {
+        updates.isMeasurementWeek = false;
+    }
+    await updateDoc(itemDocRef, updates).catch(e => {
       if (e.code === 'permission-denied') {
           errorEmitter.emit('permission-error', new FirestorePermissionError({
               path: itemDocRef.path,
               operation: 'update',
-              requestResourceData: { isDeactivated: deactivate }
+              requestResourceData: updates
           }));
       }
       throw e;
@@ -527,9 +531,14 @@ export const deactivateCategory = async (school: string, category: string, items
   
     if (itemsToUpdate.length === 0) return;
   
+    const updates: any = { isDeactivated: deactivate, isArchived: false };
+    if (deactivate) {
+        updates.isMeasurementWeek = false;
+    }
+
     itemsToUpdate.forEach(item => {
       const itemDocRef = doc(db, 'schools', school, 'items', item.id);
-      batch.update(itemDocRef, { isDeactivated: deactivate, isArchived: false });
+      batch.update(itemDocRef, updates);
     });
   
     await batch.commit().catch(e => {
@@ -537,7 +546,7 @@ export const deactivateCategory = async (school: string, category: string, items
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: `schools/${school}/items`,
           operation: 'write',
-          requestResourceData: { message: `Deactivating/Reactivating category ${category}.` }
+          requestResourceData: { message: `Deactivating/Reactivating category ${category}.`, updates }
         }));
       }
       throw e;
