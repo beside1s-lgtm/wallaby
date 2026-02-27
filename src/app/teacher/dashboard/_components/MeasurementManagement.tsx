@@ -22,7 +22,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Loader2, Trash2, Pencil, Swords, Target, CalendarRange, Check, X, ChevronRight } from 'lucide-react';
+import { Plus, Loader2, Trash2, Pencil, Swords, Target, CalendarRange, Check, X, ChevronRight, Youtube } from 'lucide-react';
 import type { MeasurementItem, RecordType } from '@/lib/types';
 import {
   Dialog,
@@ -429,6 +429,7 @@ function EditItemDialog({ item, onUpdate }: { item: MeasurementItem, onUpdate: (
     const [recordType, setRecordType] = useState<RecordType>(item.recordType);
     const [goal, setGoal] = useState(item.goal?.toString() || '');
     const [category, setCategory] = useState(item.category || '');
+    const [videoUrl, setVideoUrl] = useState(item.videoUrl || '');
     const { toast } = useToast();
     
     useEffect(() => {
@@ -438,6 +439,7 @@ function EditItemDialog({ item, onUpdate }: { item: MeasurementItem, onUpdate: (
             setRecordType(item.recordType);
             setGoal(item.goal?.toString() || '');
             setCategory(item.category || (item.isPaps ? 'PAPS' : ''));
+            setVideoUrl(item.videoUrl || '');
         }
     }, [isOpen, item]);
 
@@ -456,6 +458,7 @@ function EditItemDialog({ item, onUpdate }: { item: MeasurementItem, onUpdate: (
         }
         
         dataToUpdate.category = category.trim();
+        dataToUpdate.videoUrl = videoUrl.trim();
         
         if (recordType !== 'time' && recordType !== 'level' && recordType !== 'compound') {
             dataToUpdate.goal = goal ? parseFloat(goal) : undefined;
@@ -544,6 +547,18 @@ function EditItemDialog({ item, onUpdate }: { item: MeasurementItem, onUpdate: (
                             />
                         </div>
                     )}
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label htmlFor="edit-video" className="text-right flex items-center justify-end gap-1">
+                            <Youtube className="h-4 w-4 text-red-600" /> 영상 주소
+                        </Label>
+                        <Input
+                            id="edit-video"
+                            value={videoUrl}
+                            onChange={(e) => setVideoUrl(e.target.value)}
+                            className="col-span-3"
+                            placeholder="유튜브 링크 (선택 사항)"
+                        />
+                    </div>
                 </div>
                 <DialogFooter>
                     <DialogClose asChild><Button variant="outline">취소</Button></DialogClose>
@@ -740,6 +755,7 @@ function AddMetricInCategoryDialog({ category, onAddItem }: { category: string, 
     const [unit, setUnit] = useState('');
     const [recordType, setRecordType] = useState<RecordType>('count');
     const [goal, setGoal] = useState('');
+    const [videoUrl, setVideoUrl] = useState('');
     const [isOpen, setIsOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -752,13 +768,15 @@ function AddMetricInCategoryDialog({ category, onAddItem }: { category: string, 
             recordType,
             category,
             isPaps: false,
-            goal: goal ? parseFloat(goal) : undefined
+            goal: goal ? parseFloat(goal) : undefined,
+            videoUrl: videoUrl.trim()
         });
         setIsSubmitting(false);
         setIsOpen(false);
         setName('');
         setUnit('');
         setGoal('');
+        setVideoUrl('');
     }
 
     return (
@@ -794,6 +812,12 @@ function AddMetricInCategoryDialog({ category, onAddItem }: { category: string, 
                             <Input type="number" value={goal} onChange={e => setGoal(e.target.value)} className="col-span-3" placeholder="예: 10 (성취도 계산용)" />
                         </div>
                     )}
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <Label className="text-right flex items-center justify-end gap-1">
+                            <Youtube className="h-4 w-4 text-red-600" /> 영상 주소
+                        </Label>
+                        <Input value={videoUrl} onChange={e => setVideoUrl(e.target.value)} className="col-span-3" placeholder="유튜브 링크 (선택)" />
+                    </div>
                 </div>
                 <DialogFooter>
                     <Button onClick={handleSubmit} disabled={isSubmitting}>{isSubmitting ? <Loader2 className="animate-spin h-4 w-4" /> : '추가하기'}</Button>
@@ -808,6 +832,7 @@ function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measurement
   const [unit, setUnit] = useState('');
   const [recordType, setRecordType] = useState<RecordType | ''>('');
   const [goal, setGoal] = useState('');
+  const [videoUrl, setVideoUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
@@ -817,7 +842,7 @@ function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measurement
       return;
     }
     setIsSubmitting(true);
-    const newItem: Omit<MeasurementItem, 'id'> = { name, unit, recordType, isPaps: false, category: '기타' };
+    const newItem: Omit<MeasurementItem, 'id'> = { name, unit, recordType, isPaps: false, category: '기타', videoUrl: videoUrl.trim() };
     if (goal) {
         newItem.goal = parseFloat(goal);
     }
@@ -826,6 +851,7 @@ function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measurement
     setUnit('');
     setRecordType('');
     setGoal('');
+    setVideoUrl('');
     setIsSubmitting(false);
     document.getElementById('add-custom-item-dialog-close')?.click();
   };
@@ -877,6 +903,12 @@ function AddCustomItemDialog({ onAddItem }: { onAddItem: (item: Omit<Measurement
               />
             </div>
           )}
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="custom-video" className="text-right flex items-center justify-end gap-1">
+                <Youtube className="h-4 w-4 text-red-600" /> 영상 주소
+            </Label>
+            <Input id="custom-video" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} className="col-span-3" placeholder="유튜브 링크 (선택)" />
+          </div>
         </div>
         <DialogFooter>
           <DialogClose asChild>

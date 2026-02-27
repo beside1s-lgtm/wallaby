@@ -27,6 +27,7 @@ export type MeasurementItem = {
   isArchived?: boolean; // To hide from UI without deleting records (Hidden)
   isDeactivated?: boolean; // To remove from lists but keep in catalog (Deactivated)
   isMeasurementWeek?: boolean; // 명예의 전당 표시를 위한 측정 주간 설정
+  videoUrl?: string; // 측정 방법 예시 영상 (YouTube URL)
 };
 
 export type MeasurementRecord = {
