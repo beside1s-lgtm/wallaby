@@ -617,7 +617,7 @@ function DistributeQuizDialog({ quiz, allStudents, sportsClubs, onDistributed }:
     }, [allStudents]);
 
     const handleDistribute = async () => {
-        if (!school) return;
+        if (!school || !quiz) return;
         
         if (targetType === 'class' && (!selectedGrade || !selectedClassNum)) {
             toast({ variant: 'destructive', title: '대상 미선택', description: '배포할 학년과 반을 선택해주세요.' });
@@ -718,7 +718,7 @@ function DistributeQuizDialog({ quiz, allStudents, sportsClubs, onDistributed }:
                 </div>
                 <DialogFooter>
                     <DialogClose asChild><Button variant="outline">취소</Button></DialogClose>
-                    <Button onClick={handleDistribute} disabled={isSubmitting}>
+                    <Button onClick={handleDistribute} disabled={isSubmitting || !quiz}>
                         {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
                         지금 배포하기
                     </Button>
