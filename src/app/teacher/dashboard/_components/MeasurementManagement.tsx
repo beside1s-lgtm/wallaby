@@ -424,8 +424,8 @@ export default function MeasurementManagement({ items, onItemsUpdate }: Measurem
 function EditItemDialog({ item, onUpdate }: { item: MeasurementItem, onUpdate: (itemId: string, data: Partial<Omit<MeasurementItem, 'id'>>) => Promise<void> }) {
     const [isOpen, setIsOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [name, setName] = useState(item.name);
-    const [unit, setUnit] = useState(item.unit);
+    const [name, setName] = useState(item.name || '');
+    const [unit, setUnit] = useState(item.unit || '');
     const [recordType, setRecordType] = useState<RecordType>(item.recordType);
     const [goal, setGoal] = useState(item.goal?.toString() || '');
     const [category, setCategory] = useState(item.category || '');
@@ -434,8 +434,8 @@ function EditItemDialog({ item, onUpdate }: { item: MeasurementItem, onUpdate: (
     
     useEffect(() => {
         if(isOpen) {
-            setName(item.name);
-            setUnit(item.unit);
+            setName(item.name || '');
+            setUnit(item.unit || '');
             setRecordType(item.recordType);
             setGoal(item.goal?.toString() || '');
             setCategory(item.category || (item.isPaps ? 'PAPS' : ''));
@@ -449,7 +449,7 @@ function EditItemDialog({ item, onUpdate }: { item: MeasurementItem, onUpdate: (
             return;
         }
 
-        const dataToUpdate: Partial<Omit<MeasurementItem, 'id'>> = {};
+        const dataToUpdate: any = {};
         
         if (!item.isPaps) {
             dataToUpdate.name = name.trim();
@@ -461,15 +461,20 @@ function EditItemDialog({ item, onUpdate }: { item: MeasurementItem, onUpdate: (
         dataToUpdate.videoUrl = videoUrl.trim();
         
         if (recordType !== 'time' && recordType !== 'level' && recordType !== 'compound') {
-            dataToUpdate.goal = goal ? parseFloat(goal) : undefined;
+            dataToUpdate.goal = goal ? parseFloat(goal) : null;
         } else {
-            dataToUpdate.goal = undefined;
+            dataToUpdate.goal = null;
         }
         
         setIsSubmitting(true);
-        await onUpdate(item.id, dataToUpdate);
-        setIsSubmitting(false);
-        setIsOpen(false);
+        try {
+            await onUpdate(item.id, dataToUpdate);
+            setIsOpen(false);
+        } catch (e) {
+            console.error("Update failed", e);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (

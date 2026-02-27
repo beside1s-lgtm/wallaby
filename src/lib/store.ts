@@ -445,12 +445,21 @@ export const addItem = async (school: string, item: Omit<MeasurementItem, 'id' |
 export const updateItem = async (school: string, itemId: string, data: Partial<Omit<MeasurementItem, 'id'>>) => {
     await signIn();
     const itemRef = doc(db, 'schools', school, 'items', itemId);
-    await updateDoc(itemRef, data).catch(e => {
+    
+    // Clean up undefined values which cause Firestore updateDoc to fail
+    const cleanData: any = {};
+    Object.entries(data).forEach(([key, value]) => {
+        if (value !== undefined) {
+            cleanData[key] = value;
+        }
+    });
+
+    await updateDoc(itemRef, cleanData).catch(e => {
         if (e.code === 'permission-denied') {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: itemRef.path,
                 operation: 'update',
-                requestResourceData: data,
+                requestResourceData: cleanData,
             }));
         }
         throw e;

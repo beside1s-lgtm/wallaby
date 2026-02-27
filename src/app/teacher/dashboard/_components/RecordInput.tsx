@@ -36,7 +36,7 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, Calendar as CalendarIcon, User, X, Youtube, Play } from 'lucide-react';
+import { Loader2, Search, Calendar as CalendarIcon, User, X, Youtube } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -238,7 +238,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
     if (selectedItemForSingleAdd?.isCompound) {
       const h = parseFloat(height);
       const w = parseFloat(weight);
-      if (isNaN(h) || isNaN(w) || h <= 0 || w <= 0) {
+      if (isNaN(h) || iNaN(w) || h <= 0 || w <= 0) {
         toast({ variant: 'destructive', title: '입력 오류', description: '유효한 키와 몸무게를 입력해주세요.' });
         return;
       }
@@ -512,7 +512,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                     </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    {/* YouTube Video Section - Context Aware */}
+                    {/* YouTube Video Section - Item Specific */}
                     {selectedItemForBatchAdd?.videoUrl && getYouTubeEmbedUrl(selectedItemForBatchAdd.videoUrl) && (
                         <div className="p-4 border rounded-lg bg-primary/5 space-y-4">
                             <div className="flex items-center gap-2">
@@ -668,7 +668,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                 {selectedStudent ? (
                     <>
                         <CardContent className="space-y-4">
-                            {/* Individual Video Section - Context Aware */}
+                            {/* Individual Video Section - Item Specific */}
                             {selectedItemForSingleAdd?.videoUrl && getYouTubeEmbedUrl(selectedItemForSingleAdd.videoUrl) && (
                                 <div className="p-4 border rounded-lg bg-primary/5 space-y-4">
                                     <div className="flex items-center gap-2">
