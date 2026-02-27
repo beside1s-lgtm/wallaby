@@ -1306,3 +1306,33 @@ export const distributeQuiz = async (school: string, assignment: Omit<QuizAssign
     throw e;
   });
 };
+
+export const getQuizAssignments = async (school: string): Promise<QuizAssignment[]> => {
+  await signIn();
+  const assignmentsRef = collection(db, 'schools', school, 'quizAssignments');
+  const q = query(assignmentsRef, orderBy('createdAt', 'desc'));
+  const snapshot = await getDocs(q).catch(e => {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: assignmentsRef.path,
+        operation: 'list'
+      }));
+    }
+    throw e;
+  });
+  return snapshot.docs.map(doc => doc.data() as QuizAssignment);
+};
+
+export const deleteQuizAssignment = async (school: string, assignmentId: string): Promise<void> => {
+  await signIn();
+  const assignmentRef = doc(db, 'schools', school, 'quizAssignments', assignmentId);
+  await deleteDoc(assignmentRef).catch(e => {
+    if (e.code === 'permission-denied') {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: assignmentRef.path,
+        operation: 'delete'
+      }));
+    }
+    throw e;
+  });
+};

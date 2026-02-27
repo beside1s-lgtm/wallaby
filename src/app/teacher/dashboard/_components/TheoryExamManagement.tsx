@@ -6,12 +6,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BrainCircuit, FileText, Loader2, Sparkles, Printer, Copy, CheckCircle2, Save, Library, Trash2, Pencil, Send } from "lucide-react";
+import { BrainCircuit, FileText, Loader2, Sparkles, Printer, Copy, CheckCircle2, Save, Library, Trash2, Pencil, Send, History } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { generateQuiz, QuizOutput } from "@/ai/flows/quiz-generation-flow";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from '@/hooks/use-auth';
-import { saveQuiz as saveQuizToDb, getQuizzes, deleteQuiz, distributeQuiz } from '@/lib/store';
+import { saveQuiz as saveQuizToDb, getQuizzes, deleteQuiz, distributeQuiz, getQuizAssignments, deleteQuizAssignment } from '@/lib/store';
 import { Quiz, QuizQuestion, Student, SportsClub, QuizAssignment } from '@/lib/types';
 import {
   AlertDialog,
@@ -51,10 +51,13 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
     const [showAnswers, setShowAnswers] = useState(false);
     const [savedQuizzes, setSavedQuizzes] = useState<Quiz[]>([]);
     const [isLoadingQuizzes, setIsLoadingQuizzes] = useState(false);
+    const [assignments, setAssignments] = useState<QuizAssignment[]>([]);
+    const [isLoadingAssignments, setIsLoadingAssignments] = useState(false);
 
     useEffect(() => {
         if (school) {
             fetchSavedQuizzes();
+            fetchAssignments();
         }
     }, [school]);
 
@@ -68,6 +71,19 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
             console.error("Failed to fetch quizzes:", error);
         } finally {
             setIsLoadingQuizzes(false);
+        }
+    };
+
+    const fetchAssignments = async () => {
+        if (!school) return;
+        setIsLoadingAssignments(true);
+        try {
+            const data = await getQuizAssignments(school);
+            setAssignments(data);
+        } catch (error) {
+            console.error("Failed to fetch assignments:", error);
+        } finally {
+            setIsLoadingAssignments(false);
         }
     };
 
@@ -156,6 +172,18 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
         } catch (error) {
             console.error("Failed to delete quiz:", error);
             toast({ variant: 'destructive', title: '삭제 실패' });
+        }
+    };
+
+    const handleCancelAssignment = async (id: string) => {
+        if (!school) return;
+        try {
+            await deleteQuizAssignment(school, id);
+            toast({ title: '배포 취소 완료', description: '해당 배포 내역이 삭제되었습니다.' });
+            fetchAssignments();
+        } catch (error) {
+            console.error("Failed to cancel assignment:", error);
+            toast({ variant: 'destructive', title: '배포 취소 실패' });
         }
     };
 
@@ -307,6 +335,59 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
                                 )}
                             </CardContent>
                         </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="text-lg flex items-center gap-2">
+                                    <History className="h-5 w-5 text-green-600" />
+                                    실시간 배포 현황
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="max-h-[300px] overflow-y-auto pr-2">
+                                {isLoadingAssignments ? (
+                                    <div className="flex justify-center p-4"><Loader2 className="animate-spin text-primary" /></div>
+                                ) : assignments.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {assignments.map((assignment) => (
+                                            <div key={assignment.id} className="p-3 rounded-lg border bg-background/50 space-y-2 relative group">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <h5 className="font-bold text-sm truncate pr-8">{assignment.quizTitle}</h5>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {assignment.targetType === 'class' ? 
+                                                                `${assignment.targetGrade}학년 ${assignment.targetClassNum}반` : 
+                                                                `${assignment.targetClubName}`}
+                                                        </p>
+                                                    </div>
+                                                    <AlertDialog>
+                                                        <AlertDialogTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-7 w-7 absolute top-2 right-2 text-destructive hover:bg-destructive/10">
+                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                        </AlertDialogTrigger>
+                                                        <AlertDialogContent>
+                                                            <AlertDialogHeader>
+                                                                <AlertDialogTitle>배포 취소</AlertDialogTitle>
+                                                                <AlertDialogDescription>이 퀴즈의 배포를 취소하시겠습니까? 학생들의 화면에서 즉시 사라집니다.</AlertDialogDescription>
+                                                            </AlertDialogHeader>
+                                                            <AlertDialogFooter>
+                                                                <AlertDialogCancel>취소</AlertDialogCancel>
+                                                                <AlertDialogAction onClick={() => handleCancelAssignment(assignment.id)} className="bg-destructive text-destructive-foreground">배포 취소</AlertDialogAction>
+                                                            </AlertDialogFooter>
+                                                        </AlertDialogContent>
+                                                    </AlertDialog>
+                                                </div>
+                                                <div className="text-[10px] text-muted-foreground pt-1 border-t">
+                                                    배포일: {assignment.createdAt?.toDate ? format(assignment.createdAt.toDate(), 'yyyy-MM-dd HH:mm') : '-'}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-center text-sm text-muted-foreground py-8">현재 배포된 퀴즈가 없습니다.</p>
+                                )}
+                            </CardContent>
+                        </Card>
                     </div>
 
                     {/* Right Section: Result Display */}
@@ -323,6 +404,7 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
                                             quiz={generatedQuiz}
                                             allStudents={allStudents}
                                             sportsClubs={sportsClubs}
+                                            onDistributed={fetchAssignments}
                                         />
                                         <Button variant="outline" size="sm" onClick={handleSaveQuiz} disabled={isSaving}>
                                             {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
@@ -512,7 +594,7 @@ function EditQuestionDialog({ question, onSave }: { question: QuizQuestion, onSa
     );
 }
 
-function DistributeQuizDialog({ quiz, allStudents, sportsClubs }: { quiz: QuizOutput, allStudents: Student[], sportsClubs: SportsClub[] }) {
+function DistributeQuizDialog({ quiz, allStudents, sportsClubs, onDistributed }: { quiz: QuizOutput, allStudents: Student[], sportsClubs: SportsClub[], onDistributed: () => void }) {
     const { school } = useAuth();
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
@@ -547,7 +629,7 @@ function DistributeQuizDialog({ quiz, allStudents, sportsClubs }: { quiz: QuizOu
         setIsSubmitting(true);
         try {
             const assignment: Omit<QuizAssignment, 'id' | 'createdAt' | 'status'> = {
-                quizId: 'temporary-id-' + uuidv4(), // Later we'll use actual saved quiz ID
+                quizId: 'temporary-id-' + uuidv4(), 
                 quizTitle: quiz.quizTitle,
                 school,
                 targetType,
@@ -559,6 +641,7 @@ function DistributeQuizDialog({ quiz, allStudents, sportsClubs }: { quiz: QuizOu
 
             await distributeQuiz(school, assignment);
             toast({ title: '배포 완료', description: '학생들에게 퀴즈가 성공적으로 전달되었습니다.' });
+            onDistributed();
             setIsOpen(false);
         } catch (error) {
             console.error("Failed to distribute quiz:", error);
