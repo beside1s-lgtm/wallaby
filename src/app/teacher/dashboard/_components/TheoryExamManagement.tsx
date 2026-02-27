@@ -34,6 +34,7 @@ import {
   DialogDescription,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { format } from 'date-fns';
 
 interface TheoryExamManagementProps {
     allStudents?: Student[];
@@ -227,7 +228,7 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
                 <CardTitle className="flex items-center gap-2 text-2xl font-bold">
                     <BrainCircuit className="h-6 w-6 text-primary" />
                     AI 이론 평가 문제 생성기
-                </CardTitle>
+                </BrainCircuit>
                 <CardDescription>
                     체육 학습 자료를 입력하면 AI가 자동으로 퀴즈를 만들어줍니다. 생성 후 개별 문항을 수정할 수 있습니다.
                 </CardDescription>
