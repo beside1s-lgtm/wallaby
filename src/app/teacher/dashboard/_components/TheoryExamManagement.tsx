@@ -628,16 +628,23 @@ function DistributeQuizDialog({ quiz, allStudents, sportsClubs, onDistributed }:
 
         setIsSubmitting(true);
         try {
-            const assignment: Omit<QuizAssignment, 'id' | 'createdAt' | 'status'> = {
-                quizId: 'temporary-id-' + uuidv4(), 
+            // Firestore does not accept undefined field values.
+            // Construct the assignment object dynamically based on targetType.
+            const assignment: any = {
+                quizId: 'temp-' + uuidv4(), 
                 quizTitle: quiz.quizTitle,
                 school,
                 targetType,
-                targetGrade: targetType === 'class' ? selectedGrade : undefined,
-                targetClassNum: targetType === 'class' ? selectedClassNum : undefined,
-                targetClubId: targetType === 'club' ? selectedClubId : undefined,
-                targetClubName: targetType === 'club' ? sportsClubs.find(c => c.id === selectedClubId)?.name : undefined,
             };
+
+            if (targetType === 'class') {
+                assignment.targetGrade = selectedGrade;
+                assignment.targetClassNum = selectedClassNum;
+            } else if (targetType === 'club') {
+                assignment.targetClubId = selectedClubId;
+                const club = sportsClubs.find(c => c.id === selectedClubId);
+                assignment.targetClubName = club?.name || '알 수 없는 클럽';
+            }
 
             await distributeQuiz(school, assignment);
             toast({ title: '배포 완료', description: '학생들에게 퀴즈가 성공적으로 전달되었습니다.' });
