@@ -34,6 +34,14 @@ import {
   DialogDescription,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { format } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
 import { Progress } from '@/components/ui/progress';
