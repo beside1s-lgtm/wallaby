@@ -2,7 +2,7 @@
 import type { MeasurementItem, Student } from './types';
 
 // 1. PAPS 등급 기준표 (기존 유지)
-const papsGradeStandards: Record<
+export const papsGradeStandards: Record<
   string, // 학년
   Record<
     string, // 종목명

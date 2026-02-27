@@ -1,3 +1,4 @@
+
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
@@ -36,7 +37,7 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, Calendar as CalendarIcon, User, X, Youtube, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Search, Calendar as CalendarIcon, User, X, Youtube, Eye, EyeOff, ClipboardList } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -44,6 +45,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { papsGradeStandards } from '@/lib/paps';
 
 
 interface RecordInputProps {
@@ -82,6 +84,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
   const [isSelectionDialogOpen, setIsSelectionDialogOpen] = useState(false);
   
   const [showVideo, setShowVideo] = useState(false);
+  const [showGradeTable, setShowGradeTable] = useState(false);
 
   // Only items that are NOT archived and NOT deactivated should be visible for recording
   const activeItems = useMemo(() => allItems.filter(item => !item.isArchived && !item.isDeactivated), [allItems]);
@@ -155,11 +158,17 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
     setRecordValue('');
     setHeight('');
     setWeight('');
-    if (selectedItemName) setShowVideo(false);
+    if (selectedItemName) {
+        setShowVideo(false);
+        setShowGradeTable(false);
+    }
   }, [selectedItemName, selectedStudent]);
 
   useEffect(() => {
-    if (batchRecordItem) setShowVideo(false);
+    if (batchRecordItem) {
+        setShowVideo(false);
+        setShowGradeTable(false);
+    }
   }, [batchRecordItem]);
 
 
@@ -400,6 +409,35 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
         return null;
     };
 
+    const renderGradeRanges = (gender: 'male' | 'female') => {
+        const gradeToUse = selectedGrade || (studentsForBatch.length > 0 ? studentsForBatch[0].grade : '5');
+        const itemKey = batchRecordItem === '무릎 대고 팔굽혀펴기' ? '팔굽혀펴기' : batchRecordItem;
+        const itemStandards = papsGradeStandards[gradeToUse]?.[itemKey];
+        
+        if (!itemStandards) return <TableCell colSpan={5} className="text-center text-muted-foreground">데이터 없음</TableCell>;
+
+        const ranges = itemStandards[gender];
+        const unit = selectedItemForBatchAdd?.unit || '';
+        const type = itemStandards.type;
+
+        return [1, 2, 3, 4, 5].map(g => {
+            const gradeRanges = ranges.filter(r => r.grade === g);
+            if (gradeRanges.length === 0) return <TableCell key={g} className="text-center">-</TableCell>;
+
+            const rangeTexts = gradeRanges.map(r => {
+                if (r.max === Infinity) return `${r.min}${unit} 이상`;
+                if (r.min === 1 || r.min === -Infinity || (type === 'time' && r.min === 0)) return `${r.max}${unit} 이하`;
+                return `${r.min}~${r.max}${unit}`;
+            });
+
+            return (
+                <TableCell key={g} className="text-center text-xs break-keep">
+                    {rangeTexts.join(' 또는 ')}
+                </TableCell>
+            );
+        });
+    };
+
   if (!school) return null;
 
   return (
@@ -519,6 +557,51 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                     </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                    {/* PAPS Grade Standard Table Section */}
+                    {selectedItemForBatchAdd?.isPaps && (
+                        <div className="p-4 border rounded-lg bg-secondary/30 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <ClipboardList className="h-5 w-5 text-primary" />
+                                    <h3 className="font-semibold">{batchRecordItem} 등급 기준표 ({selectedGrade || (studentsForBatch[0]?.grade || '5')}학년)</h3>
+                                </div>
+                                <Button variant="ghost" size="sm" onClick={() => setShowGradeTable(!showGradeTable)}>
+                                    {showGradeTable ? (
+                                        <><EyeOff className="mr-2 h-4 w-4" /> 숨기기</>
+                                    ) : (
+                                        <><Eye className="mr-2 h-4 w-4" /> 보기</>
+                                    )}
+                                </Button>
+                            </div>
+                            {showGradeTable && (
+                                <div className="overflow-x-auto rounded-md border bg-background animate-in fade-in zoom-in-95 duration-200">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow className="bg-muted/50">
+                                                <TableHead className="text-center w-[100px]">성별</TableHead>
+                                                <TableHead className="text-center">1등급</TableHead>
+                                                <TableHead className="text-center">2등급</TableHead>
+                                                <TableHead className="text-center">3등급</TableHead>
+                                                <TableHead className="text-center">4등급</TableHead>
+                                                <TableHead className="text-center">5등급</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            <TableRow>
+                                                <TableCell className="text-center font-semibold bg-muted/20">남학생</TableCell>
+                                                {renderGradeRanges('male')}
+                                            </TableRow>
+                                            <TableRow>
+                                                <TableCell className="text-center font-semibold bg-muted/20">여학생</TableCell>
+                                                {renderGradeRanges('female')}
+                                            </TableRow>
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* YouTube Video Section - Item Specific */}
                     {selectedItemForBatchAdd?.videoUrl && getYouTubeEmbedUrl(selectedItemForBatchAdd.videoUrl) && (
                         <div className="p-4 border rounded-lg bg-primary/5 space-y-4">
@@ -675,7 +758,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                                         {selectedStudent.name ? selectedStudent.name.charAt(0) : <User />}
                                     </AvatarFallback>
                                 </Avatar>
-                                <div>
+                                <div className="text-left">
                                     <span className="font-semibold block">{selectedStudent.name}</span>
                                     <span className="text-muted-foreground">{selectedStudent.grade}-{selectedStudent.classNum}</span>
                                 </div>
@@ -762,7 +845,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                                     </div>
                                 </div>
                             ) : (
-                                <div>
+                                <div className="text-left">
                                     <Label>{selectedItemForSingleAdd?.unit ? `기록 (${selectedItemForSingleAdd.unit})` : '기록'}</Label>
                                     <Input
                                         placeholder={inputPlaceholder}
