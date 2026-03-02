@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KIS 스쿨버스 매니저 - 대화형 교사용 매뉴얼</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+    <!-- Chosen Palette: Soft Slate & Trust Blue -->
+    <!-- Application Structure Plan: 이 앱은 '기능 중심 탐색기' 구조를 채택했습니다. 실제 앱에 존재하지 않는 통계 차트를 제거하고, 좌석표와 명단 뷰를 통합하여 실제 업무 흐름에 맞췄습니다. 사이드바 내비게이션을 통해 선생님들이 필요한 매뉴얼 세션으로 즉시 이동할 수 있으며, 각 섹션은 '도입 문구 - 대화형 시뮬레이션 - 기능 설명'의 3단계로 구성되어 학습 효과를 극대화합니다. -->
+    <!-- Visualization & Content Choices: 
+         1. Section 1 (필터) -> 목표: 정보 전달 -> 대화형 드롭다운 -> 선택값에 따른 상태 변화 시각화 -> NO SVG/Mermaid.
+         2. Section 2 (좌석표) -> 목표: 조작 및 변경 -> HTML 그리드 시스템 -> 좌클릭(상태 변경) 및 우클릭(자리 교체) 시뮬레이션 지원 -> NO SVG/Mermaid.
+         3. Section 3 (검색) -> 목표: 조직화 -> 실시간 필터링 리스트 및 동적 사이드 패널 -> 학생 상세 정보 노출 및 강제 상태 변경 시뮬레이션 -> NO SVG/Mermaid.
+         4. Section 4 (조장) -> 목표: 변경 및 관리 -> 유니코드 아이콘 기반 리스트 -> 조장 임명 및 이력 관리 시뮬레이션 -> NO SVG/Mermaid.
+         5. Section 5 (하차/분실물) -> 목표: 정보 전달 -> 체크리스트 및 입력 폼 -> 단계별 하차 확인 및 사진 업로드 UI 재현 -> NO SVG/Mermaid. 
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Noto Sans KR"', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            900: '#1e3a8a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #f8fafc; /* slate-50 */
+            color: #334155; /* slate-700 */
+        }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .nav-item.active {
+            background-color: #eff6ff;
+            color: #2563eb;
+            border-right: 4px solid #3b82f6;
+            font-weight: 700;
+        }
+
+        .seat-item {
+            transition: all 0.2s ease;
+            cursor: pointer;
+            user-select: none;
+        }
+        .seat-item.swap-target {
+            outline: 3px dashed #f59e0b; /* amber-500 */
+            transform: scale(1.05);
+            z-index: 10;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col md:flex-row overflow-hidden font-sans">
+
+    <!-- Sidebar Navigation -->
+    <nav class="w-full md:w-72 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col h-auto md:h-screen z-10 shadow-sm">
+        <div class="p-6 border-b border-slate-100">
+            <h1 class="text-2xl font-bold text-brand-900 flex items-center gap-2">
+                <span class="text-3xl">🚌</span> KIS 매니저
+            </h1>
+            <p class="text-sm text-slate-500 mt-2">교사용 대화형 사용 설명서</p>
+        </div>
+        <div class="flex flex-row md:flex-col overflow-x-auto md:overflow-y-auto p-4 gap-2 flex-grow">
+            <button onclick="switchTab('sec1')" id="nav-sec1" class="nav-item active flex items-center gap-3 p-3 text-left rounded-lg text-slate-600 hover:bg-slate-50 whitespace-nowrap md:whitespace-normal transition-all">
+                <span class="text-xl">1️⃣</span> 담당 버스 확인 및 선택
+            </button>
+            <button onclick="switchTab('sec2')" id="nav-sec2" class="nav-item flex items-center gap-3 p-3 text-left rounded-lg text-slate-600 hover:bg-slate-50 whitespace-nowrap md:whitespace-normal transition-all">
+                <span class="text-xl">2️⃣</span> 좌석표 및 탑승 관리
+            </button>
+            <button onclick="switchTab('sec3')" id="nav-sec3" class="nav-item flex items-center gap-3 p-3 text-left rounded-lg text-slate-600 hover:bg-slate-50 whitespace-nowrap md:whitespace-normal transition-all">
+                <span class="text-xl">3️⃣</span> 학생 검색 및 상태 변경
+            </button>
+            <button onclick="switchTab('sec4')" id="nav-sec4" class="nav-item flex items-center gap-3 p-3 text-left rounded-lg text-slate-600 hover:bg-slate-50 whitespace-nowrap md:whitespace-normal transition-all">
+                <span class="text-xl">4️⃣</span> 조장 임명 및 관리
+            </button>
+            <button onclick="switchTab('sec5')" id="nav-sec5" class="nav-item flex items-center gap-3 p-3 text-left rounded-lg text-slate-600 hover:bg-slate-50 whitespace-nowrap md:whitespace-normal transition-all">
+                <span class="text-xl">5️⃣</span> 하차 확인 및 분실물
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow h-[calc(100vh-140px)] md:h-screen overflow-y-auto bg-slate-50 p-6 md:p-10 relative">
+        
+        <!-- Section 1: 운행 시작 및 버스 선택 -->
+        <section id="sec1" class="max-w-5xl mx-auto animate-fade-in block">
+            <header class="mb-8">
+                <h2 class="text-3xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <span>📍</span> 1. 담당 버스 확인 및 선택
+                </h2>
+                <p class="text-lg text-slate-600 leading-relaxed">
+                    선생님 페이지에 로그인하면 가장 먼저 <strong>본인에게 배정된 담당 버스</strong>를 확인해야 합니다. 상단 필터에서 버스 호차와 날짜, 노선 타입을 선택하면 해당 운행에 맞는 학생 명단과 좌석표가 자동으로 불러와집니다. 아래 필터를 조작해 보세요.
+                </p>
+            </header>
+
+            <div class="bg-white rounded-2xl p-8 shadow-sm border border-slate-200 mb-8">
+                <h3 class="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2"><span>🎮</span> 필터 조작 시뮬레이션</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-500 mb-2 uppercase tracking-wider">버스 선택</label>
+                        <select id="sim-bus" class="w-full p-3 border border-slate-300 rounded-xl focus:ring-4 focus:ring-brand-100 focus:border-brand-500 bg-white transition-all shadow-sm" onchange="updateSim1()">
+                            <option value="1호">1호 (45인승)</option>
+                            <option value="5호">5호 (29인승)</option>
+                            <option value="12호">12호 (16인승)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-500 mb-2 uppercase tracking-wider">운행 일자</label>
+                        <input type="date" id="sim-date" class="w-full p-3 border border-slate-300 rounded-xl focus:ring-4 focus:ring-brand-100 focus:border-brand-500 bg-white transition-all shadow-sm" onchange="updateSim1()">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-500 mb-2 uppercase tracking-wider">노선 타입</label>
+                        <div class="flex p-1 bg-slate-200 rounded-xl">
+                            <button onclick="setRouteType('등교', this)" class="flex-1 py-2 px-3 rounded-lg font-bold text-sm bg-white text-brand-600 shadow-sm transition-all">등교</button>
+                            <button onclick="setRouteType('하교', this)" class="flex-1 py-2 px-3 rounded-lg font-bold text-sm text-slate-500 hover:text-slate-700 transition-all">하교</button>
+                            <button onclick="setRouteType('방과후', this)" class="flex-1 py-2 px-3 rounded-lg font-bold text-sm text-slate-500 hover:text-slate-700 transition-all">방과후</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col md:flex-row items-center justify-between bg-brand-900 text-white p-6 rounded-2xl shadow-xl gap-4">
+                    <div class="text-center md:text-left">
+                        <p class="text-brand-300 text-xs font-bold mb-1 tracking-widest uppercase">현재 선택된 노선 정보</p>
+                        <p class="text-2xl font-bold" id="sim1-result">1호 버스 - 등교 노선</p>
+                    </div>
+                    <div class="flex items-center gap-3 px-6 py-3 bg-white/10 border border-white/20 rounded-full font-bold">
+                        <span class="relative flex h-3 w-3">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                        </span>
+                        운행 대기 중
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+                    <h4 class="font-bold text-brand-900 mb-3 flex items-center gap-2"><span>🛡️</span> 담당 버스 보안</h4>
+                    <p class="text-slate-600 text-sm leading-relaxed">로그인한 계정에 할당된 버스만 목록에 나타납니다. 다른 버스를 운행해야 하는 특이 사항 발생 시 관리자에게 즉시 문의하여 권한을 조정받으세요.</p>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+                    <h4 class="font-bold text-brand-900 mb-3 flex items-center gap-2"><span>⚡</span> 빠른 전환</h4>
+                    <p class="text-slate-600 text-sm leading-relaxed">등교/하교/방과후 탭을 클릭하면 별도의 페이지 이동 없이 즉시 해당 시간대의 학생 명단으로 화면이 갱신됩니다.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 2: 좌석표 및 실시간 탑승 관리 -->
+        <section id="sec2" class="max-w-6xl mx-auto hidden animate-fade-in">
+            <header class="mb-8">
+                <h2 class="text-3xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <span>💺</span> 2. 좌석표 및 실시간 탑승 관리
+                </h2>
+                <p class="text-lg text-slate-600 leading-relaxed">
+                    실제 버스 구조를 본떠 만든 <strong>좌석표(Seat Map)</strong>를 통해 학생들의 탑승 여부를 체크합니다. <strong>좌클릭</strong>은 상태 변경, <strong>우클릭</strong>은 자리 교체 기능을 수행합니다. 아래 시뮬레이터에서 직접 조작해 보세요.
+                </p>
+            </header>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Seat Map Interactive UI -->
+                <div class="lg:col-span-2 bg-white rounded-3xl p-8 shadow-sm border border-slate-200">
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+                        <h3 class="text-xl font-bold text-slate-800">실시간 좌석 배치도 시뮬레이션</h3>
+                        <div class="flex gap-4 p-2 bg-slate-50 rounded-xl border border-slate-100 text-xs font-bold">
+                            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-white border border-slate-300"></span> 대기</span>
+                            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-brand-500"></span> 탑승</span>
+                            <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-rose-500"></span> 미탑승</span>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-slate-100 p-8 rounded-3xl relative border-4 border-slate-200">
+                        <div class="absolute top-6 right-6 text-5xl opacity-10">🚌</div>
+                        <div id="mock-seat-map" class="grid grid-cols-4 gap-4 max-w-md mx-auto">
+                            <!-- Seats injected via JS -->
+                        </div>
+                    </div>
+
+                    <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="bg-brand-50 p-5 rounded-2xl border border-brand-100">
+                            <h4 class="font-bold text-brand-900 mb-2 flex items-center gap-2"><span>🖱️</span> 좌클릭: 출결 처리</h4>
+                            <p class="text-sm text-brand-700 leading-snug">좌석을 클릭하면 상태가 바뀝니다.<br><span class="font-bold">대기 ➔ 탑승 ➔ 미탑승 ➔ 대기</span> 순으로 순환합니다.</p>
+                        </div>
+                        <div class="bg-amber-50 p-5 rounded-2xl border border-amber-100">
+                            <h4 class="font-bold text-amber-900 mb-2 flex items-center gap-2"><span>🖱️</span> 우클릭: 자리 교체</h4>
+                            <p class="text-sm text-amber-700 leading-snug">A좌석 우클릭 후 B좌석을 우클릭하면 두 학생의 위치가 즉시 교체됩니다. (우클릭 취소는 화면 빈 곳 클릭)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detailed Roster List -->
+                <div class="flex flex-col gap-6">
+                    <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 flex-grow flex flex-col overflow-hidden">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="text-lg font-bold text-slate-800">📋 탑승 학생 명단</h3>
+                            <span class="text-xs bg-slate-100 px-2 py-1 rounded text-slate-500 font-bold" id="boarded-count">0 / 8 탑승</span>
+                        </div>
+                        <div class="overflow-y-auto flex-grow pr-2 h-[450px]">
+                            <ul id="mock-roster" class="space-y-3">
+                                <!-- Roster injected via JS -->
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: 학생 검색 -->
+        <section id="sec3" class="max-w-5xl mx-auto hidden animate-fade-in">
+            <header class="mb-8">
+                <h2 class="text-3xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <span>🔍</span> 3. 학생 검색 및 '오늘 안 탐' 관리
+                </h2>
+                <p class="text-lg text-slate-600 leading-relaxed">
+                    특정 학생을 빠르게 찾거나 긴급하게 정보를 확인해야 할 때 사용합니다. <strong>이름이나 반</strong>으로 검색한 후 학생을 선택하면 상세 연락처와 오늘의 하차 지점이 표시됩니다.
+                </p>
+            </header>
+
+            <div class="flex flex-col md:flex-row gap-8 h-[550px]">
+                <!-- Search Area -->
+                <div class="w-full md:w-5/12 bg-white rounded-3xl p-8 shadow-sm border border-slate-200 flex flex-col">
+                    <h3 class="font-bold text-slate-800 mb-4">학생 통합 검색</h3>
+                    <div class="relative mb-6">
+                        <span class="absolute left-4 top-3.5 text-slate-400">🔍</span>
+                        <input type="text" id="sim-search" placeholder="이름 또는 학년/반 검색..." class="w-full pl-12 p-4 border border-slate-300 rounded-2xl focus:ring-4 focus:ring-brand-100 focus:border-brand-500 outline-none transition-all shadow-inner" onkeyup="filterStudents()">
+                    </div>
+                    <div class="flex-grow overflow-y-auto border border-slate-100 rounded-2xl bg-slate-50">
+                        <ul id="sim-search-results" class="divide-y divide-slate-100">
+                            <li class="p-8 text-center text-slate-400 text-sm">검색어를 입력하세요.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Side Panel Area -->
+                <div class="w-full md:w-7/12 bg-white rounded-3xl shadow-lg border border-slate-200 relative overflow-hidden flex flex-col border-t-8 border-t-brand-600">
+                    <div class="p-6 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                        <h3 class="font-bold text-lg text-brand-900">학생 상세 패널 (Simulation)</h3>
+                        <span class="text-xs font-bold text-brand-600 bg-brand-50 px-3 py-1 rounded-full">실시간 정보</span>
+                    </div>
+                    <div id="sim-side-panel" class="p-10 flex flex-col items-center justify-center h-full text-slate-400 text-center">
+                        <div class="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center text-5xl mb-6 shadow-inner">👤</div>
+                        <p class="text-lg font-medium">목록에서 학생을 선택하면<br>상세 관리 메뉴가 여기에 활성화됩니다.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 4: 조장 임명 -->
+        <section id="sec4" class="max-w-5xl mx-auto hidden animate-fade-in">
+            <header class="mb-8">
+                <h2 class="text-3xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <span>👑</span> 4. 조장(Leader) 임명 및 관리
+                </h2>
+                <p class="text-lg text-slate-600 leading-relaxed">
+                    버스 내 안전과 질서를 위해 학생 리더를 지정합니다. 조장으로 임명된 학생은 시스템에 기록되어 활동 내역이 관리됩니다.
+                </p>
+            </header>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="bg-white rounded-3xl p-8 shadow-sm border border-slate-200">
+                    <h3 class="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2"><span>👈</span> 조장 지정하기</h3>
+                    <p class="text-sm text-slate-500 mb-6">아래 리스트에서 학생 이름 옆의 👑 아이콘을 누르면 즉시 조장으로 등록됩니다.</p>
+                    
+                    <div class="space-y-4" id="leader-list">
+                        <!-- JS Rendered -->
+                    </div>
+                </div>
+
+                <div class="bg-amber-50/50 rounded-3xl p-8 shadow-sm border border-amber-200">
+                    <h3 class="text-xl font-bold text-amber-900 mb-6 flex justify-between items-center">
+                        <span>📋 조장 활동 이력</span>
+                    </h3>
+                    
+                    <div id="leader-history" class="bg-white p-6 rounded-2xl border border-amber-100 min-h-[300px] shadow-sm">
+                        <div class="text-center text-slate-400 mt-20" id="no-leader-msg">
+                            <span class="text-4xl block mb-4">😶</span>
+                            현재 활성화된 조장 데이터가 없습니다.
+                        </div>
+                    </div>
+
+                    <div class="mt-8 p-4 bg-white border border-amber-100 rounded-xl text-sm text-amber-800 italic">
+                        * 팁: 조장 관리는 단순히 표기만 하는 것이 아니라, 추후 학생 보상이나 관리에 활용될 수 있습니다.
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 5: 하차 및 분실물 -->
+        <section id="sec5" class="max-w-5xl mx-auto hidden animate-fade-in">
+            <header class="mb-8">
+                <h2 class="text-3xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <span>🎒</span> 5. 하차 확인 및 분실물 등록
+                </h2>
+                <p class="text-lg text-slate-600 leading-relaxed">
+                    운행이 끝난 후에는 <strong>하차하지 않은 학생이 있는지 최종 확인</strong>하고, 차량 내에서 발견된 분실물을 즉시 등록하여 학부모의 걱정을 덜어주세요.
+                </p>
+            </header>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Drop-off Management -->
+                <div class="bg-white rounded-3xl p-8 shadow-sm border border-slate-200">
+                    <div class="flex items-center justify-between mb-8">
+                        <h3 class="text-xl font-bold text-slate-800">🚏 정류장별 하차 확인</h3>
+                        <span class="px-4 py-1.5 bg-rose-100 text-rose-700 rounded-full text-xs font-bold ring-2 ring-rose-200" id="stop-badge">강남역 (2명 대기)</span>
+                    </div>
+                    
+                    <div class="space-y-4 mb-8">
+                        <div class="group flex items-center gap-4 p-5 bg-slate-50 border border-slate-200 rounded-2xl cursor-pointer hover:bg-emerald-50 hover:border-emerald-200 transition-all">
+                            <input type="checkbox" class="w-6 h-6 text-emerald-600 rounded-lg focus:ring-emerald-500 drop-checkbox">
+                            <div class="flex-grow">
+                                <p class="font-bold text-slate-800">이하준 <span class="text-sm font-normal text-slate-500">(G3)</span></p>
+                                <p class="text-xs text-slate-400 mt-1">부모님 인계 필수 대상</p>
+                            </div>
+                        </div>
+                        <div class="group flex items-center gap-4 p-5 bg-slate-50 border border-slate-200 rounded-2xl cursor-pointer hover:bg-emerald-50 hover:border-emerald-200 transition-all">
+                            <input type="checkbox" class="w-6 h-6 text-emerald-600 rounded-lg focus:ring-emerald-500 drop-checkbox">
+                            <div class="flex-grow">
+                                <p class="font-bold text-slate-800">박소윤 <span class="text-sm font-normal text-slate-500">(G5)</span></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2">
+                        <span>✅</span> 최종 하차 완료 처리
+                    </button>
+                </div>
+
+                <!-- Lost and Found -->
+                <div class="bg-white rounded-3xl p-8 shadow-sm border border-slate-200 flex flex-col">
+                    <h3 class="text-xl font-bold text-slate-800 mb-8 flex items-center gap-2"><span>📷</span> 분실물 현황 등록</h3>
+                    
+                    <div class="space-y-5 flex-grow">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 mb-2 uppercase">물건 설명</label>
+                            <input type="text" placeholder="예: 파란색 나이키 필통" class="w-full p-4 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-brand-100 outline-none bg-slate-50">
+                        </div>
+                        <div class="border-2 border-dashed border-slate-300 rounded-3xl p-10 text-center bg-slate-50/50 cursor-pointer hover:bg-brand-50 hover:border-brand-300 transition-all group">
+                            <span class="text-4xl mb-3 block group-hover:scale-110 transition-transform">📸</span>
+                            <span class="text-sm font-bold text-slate-400 group-hover:text-brand-500">사진을 촬영하거나 업로드하세요</span>
+                        </div>
+                    </div>
+                    <button onclick="alert('분실물 등록이 완료되었습니다.')" class="w-full py-4 bg-slate-800 text-white rounded-2xl font-bold hover:bg-slate-700 transition-all mt-8 shadow-xl">
+                        등록하기
+                    </button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Application JavaScript Logic -->
+    <script>
+        // Set today's date in simulator
+        document.getElementById('sim-date').valueAsDate = new Date();
+
+        // 1. Navigation Logic
+        function switchTab(tabId) {
+            document.querySelectorAll('main > section').forEach(sec => sec.classList.add('hidden'));
+            document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.remove('hidden');
+            const activeNav = document.getElementById('nav-' + tabId);
+            activeNav.classList.add('active');
+        }
+
+        function setRouteType(type, btn) {
+            const btns = btn.parentElement.querySelectorAll('button');
+            btns.forEach(b => {
+                b.classList.remove('bg-white', 'text-brand-600', 'shadow-sm');
+                b.classList.add('text-slate-500');
+            });
+            btn.classList.add('bg-white', 'text-brand-600', 'shadow-sm');
+            btn.classList.remove('text-slate-500');
+            updateSim1();
+        }
+
+        // 2. Section 1: Filter Logic
+        function updateSim1() {
+            const bus = document.getElementById('sim-bus').value;
+            const activeTypeBtn = document.querySelector('#sec1 .bg-white.text-brand-600');
+            const type = activeTypeBtn ? activeTypeBtn.innerText : '등교';
+            document.getElementById('sim1-result').innerText = `${bus} 버스 - ${type} 노선`;
+        }
+
+        // 3. Section 2: Seat Map Logic
+        let mockSeats = [
+            { id: 1, name: '김지민', grade: 'G1', status: 'empty' },
+            { id: 2, name: '이현우', grade: 'G2', status: 'empty' },
+            { id: 3, name: '박서연', grade: 'G1', status: 'empty' },
+            { id: 4, name: '최준영', grade: 'G3', status: 'empty' },
+            { id: 5, name: '정하늘', grade: 'G2', status: 'empty' },
+            { id: 6, name: '강민재', grade: 'G4', status: 'empty' },
+            { id: 7, name: '윤서아', grade: 'G1', status: 'empty' },
+            { id: 8, name: '조승우', grade: 'G5', status: 'empty' }
+        ];
+
+        let selectedSwapId = null;
+
+        function updateRoster() {
+            let boarded = 0;
+            const rosterEl = document.getElementById('mock-roster');
+            rosterEl.innerHTML = '';
+
+            mockSeats.forEach(seat => {
+                if (seat.status === 'boarded') boarded++;
+
+                const li = document.createElement('li');
+                li.className = 'flex justify-between items-center p-4 rounded-2xl bg-white border border-slate-100 shadow-sm transition-all hover:border-brand-200';
+                
+                let statusLabel = '<span class="text-xs text-slate-300 font-bold uppercase tracking-widest">Wait</span>';
+                if(seat.status === 'boarded') statusLabel = '<span class="px-2 py-0.5 rounded-lg bg-brand-500 text-[10px] text-white font-black uppercase tracking-tighter animate-pulse">Boarded</span>';
+                if(seat.status === 'not') statusLabel = '<span class="px-2 py-0.5 rounded-lg bg-rose-500 text-[10px] text-white font-black uppercase tracking-tighter">Absent</span>';
+
+                li.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-400">${seat.id}</div>
+                        <div>
+                            <p class="font-bold text-slate-700">${seat.name}</p>
+                            <p class="text-[10px] text-slate-400 font-bold">${seat.grade}</p>
+                        </div>
+                    </div>
+                    ${statusLabel}
+                `;
+                rosterEl.appendChild(li);
+            });
+
+            document.getElementById('boarded-count').innerText = `${boarded} / 8 탑승`;
+        }
+
+        function handleSeatLeftClick(id) {
+            if(selectedSwapId !== null) {
+                selectedSwapId = null;
+                renderSeats();
+                return;
+            }
+
+            const seat = mockSeats.find(s => s.id === id);
+            if (seat.status === 'empty') seat.status = 'boarded';
+            else if (seat.status === 'boarded') seat.status = 'not';
+            else seat.status = 'empty';
+            
+            renderSeats();
+        }
+
+        function handleSeatRightClick(e, id) {
+            e.preventDefault(); 
+            
+            if (selectedSwapId === null) {
+                selectedSwapId = id; 
+            } else if (selectedSwapId === id) {
+                selectedSwapId = null; 
+            } else {
+                const idx1 = mockSeats.findIndex(s => s.id === selectedSwapId);
+                const idx2 = mockSeats.findIndex(s => s.id === id);
+                
+                const temp = {...mockSeats[idx1]};
+                mockSeats[idx1].name = mockSeats[idx2].name;
+                mockSeats[idx1].grade = mockSeats[idx2].grade;
+                mockSeats[idx1].status = mockSeats[idx2].status;
+
+                mockSeats[idx2].name = temp.name;
+                mockSeats[idx2].grade = temp.grade;
+                mockSeats[idx2].status = temp.status;
+
+                selectedSwapId = null;
+            }
+            renderSeats();
+        }
+
+        function renderSeats() {
+            const container = document.getElementById('mock-seat-map');
+            container.innerHTML = '';
+
+            mockSeats.forEach(seat => {
+                const el = document.createElement('div');
+                let bgClass = 'bg-white border-slate-200 text-slate-700 hover:border-slate-300';
+                if (seat.status === 'boarded') bgClass = 'bg-brand-500 border-brand-600 text-white shadow-lg ring-4 ring-brand-100';
+                if (seat.status === 'not') bgClass = 'bg-rose-500 border-rose-600 text-white shadow-lg ring-4 ring-rose-100';
+
+                const isSwapTarget = selectedSwapId === seat.id ? 'swap-target scale-110' : '';
+
+                el.className = `seat-item ${bgClass} ${isSwapTarget} border-2 rounded-2xl p-3 flex flex-col items-center justify-center h-28 relative shadow-sm`;
+                el.onclick = () => handleSeatLeftClick(seat.id);
+                el.oncontextmenu = (e) => handleSeatRightClick(e, seat.id);
+
+                el.innerHTML = `
+                    <span class="text-[10px] font-black opacity-30 absolute top-2 left-2">${seat.id}</span>
+                    <span class="font-black text-sm">${seat.name}</span>
+                    <span class="text-[9px] opacity-70 mt-1 font-bold uppercase tracking-wider">${seat.grade}</span>
+                    ${seat.status === 'boarded' ? '<span class="absolute bottom-2 text-xs">✔️</span>' : ''}
+                `;
+                container.appendChild(el);
+            });
+
+            updateRoster();
+        }
+
+        // 4. Section 3: Search Logic
+        const allStudents = [...mockSeats, {id:9, name:'장우진', grade:'G5'}, {id:10, name:'이나은', grade:'G6'}, {id:11, name:'김민철', grade:'G2'}];
+        
+        function filterStudents() {
+            const query = document.getElementById('sim-search').value.toLowerCase();
+            const list = document.getElementById('sim-search-results');
+            list.innerHTML = '';
+
+            if(!query) {
+                list.innerHTML = '<li class="p-8 text-center text-slate-400 text-sm">검색어를 입력하세요.</li>';
+                return;
+            }
+
+            const filtered = allStudents.filter(s => s.name.includes(query) || s.grade.toLowerCase().includes(query));
+            
+            if(filtered.length === 0) {
+                list.innerHTML = '<li class="p-8 text-center text-slate-400 text-sm">일치하는 학생이 없습니다.</li>';
+                return;
+            }
+
+            filtered.forEach(s => {
+                const li = document.createElement('li');
+                li.className = 'p-5 hover:bg-brand-50 cursor-pointer flex justify-between items-center transition-all group';
+                li.onclick = () => showStudentDetails(s);
+                li.innerHTML = `
+                    <div class="font-bold text-slate-700 group-hover:text-brand-900 transition-colors">${s.name} <span class="text-[10px] font-black text-slate-400 ml-2 uppercase">${s.grade}</span></div>
+                    <span class="text-[10px] px-3 py-1 bg-white border border-slate-200 rounded-full text-slate-400 font-bold group-hover:bg-brand-500 group-hover:text-white group-hover:border-brand-500 transition-all">상세보기</span>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        function showStudentDetails(s) {
+            const panel = document.getElementById('sim-side-panel');
+            panel.innerHTML = `
+                <div class="w-full text-left bg-white h-full flex flex-col animate-fade-in">
+                    <div class="flex items-center justify-between mb-8">
+                        <div>
+                            <h4 class="text-3xl font-black text-brand-900 mb-1">${s.name}</h4>
+                            <p class="text-sm font-bold text-slate-400 uppercase tracking-widest">${s.grade} Class Student</p>
+                        </div>
+                        <div class="w-20 h-20 bg-brand-50 rounded-3xl flex items-center justify-center text-4xl shadow-inner">👤</div>
+                    </div>
+                    <div class="space-y-5 mb-10 flex-grow">
+                        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                            <p class="text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-tighter">비상 연락처</p>
+                            <p class="font-bold text-slate-700">010-9988-1234 (보호자)</p>
+                        </div>
+                        <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                            <p class="text-[10px] font-bold text-slate-400 mb-2 uppercase tracking-tighter">하차 예정 지점</p>
+                            <p class="font-bold text-brand-600 flex items-center gap-2">📍 강남역 11번 출구 앞</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 mt-auto">
+                        <button onclick="alert('${s.name} 학생을 강제 탑승 처리했습니다.')" class="py-4 bg-brand-600 text-white rounded-2xl font-bold hover:bg-brand-700 transition-all shadow-lg shadow-brand-100">탑승 처리</button>
+                        <button onclick="alert('${s.name} 학생을 [오늘 안 탐] 처리했습니다.')" class="py-4 border-2 border-rose-500 text-rose-600 rounded-2xl font-bold hover:bg-rose-50 transition-all">오늘 안 탐</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // 5. Section 4: Leader Logic
+        function renderLeaderList() {
+            const list = document.getElementById('leader-list');
+            list.innerHTML = '';
+            mockSeats.slice(0,4).forEach(s => {
+                const el = document.createElement('div');
+                el.className = 'flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-2xl group hover:bg-white hover:border-brand-200 transition-all shadow-sm hover:shadow-md';
+                el.innerHTML = `
+                    <div>
+                        <span class="font-bold text-slate-700">${s.name}</span>
+                        <span class="text-[10px] font-bold text-slate-400 ml-2 uppercase">${s.grade}</span>
+                    </div>
+                    <button onclick="assignLeader('${s.name}')" class="w-12 h-12 flex items-center justify-center bg-white border border-amber-200 rounded-2xl hover:bg-amber-500 hover:border-amber-600 hover:text-white transition-all text-xl shadow-sm" title="조장 임명">👑</button>
+                `;
+                list.appendChild(el);
+            });
+        }
+
+        function assignLeader(name) {
+            const msg = document.getElementById('no-leader-msg');
+            if(msg) msg.style.display = 'none';
+            const history = document.getElementById('leader-history');
+            const date = new Date().toLocaleDateString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+            
+            const div = document.createElement('div');
+            div.className = 'flex justify-between items-center bg-amber-50 border border-amber-200 p-4 rounded-2xl mb-4 animate-fade-in shadow-sm';
+            div.innerHTML = `
+                <div>
+                    <p class="font-black text-amber-900 flex items-center gap-2 underline decoration-amber-300 decoration-4">👑 ${name}</p>
+                    <p class="text-[10px] text-amber-600 mt-2 font-bold uppercase tracking-wider">Appointment: ${date}</p>
+                </div>
+                <button onclick="this.parentElement.remove(); checkEmptyLeader();" class="text-[10px] font-black bg-white border border-amber-200 text-amber-600 px-3 py-1.5 rounded-lg hover:bg-amber-100 transition-all uppercase">Cancel</button>
+            `;
+            history.insertBefore(div, history.firstChild);
+        }
+
+        function checkEmptyLeader() {
+            const history = document.getElementById('leader-history');
+            if(history.children.length === 0 || (history.children.length === 1 && history.children[0].id === 'no-leader-msg')) {
+                document.getElementById('no-leader-msg').style.display = 'block';
+            }
+        }
+
+        // 6. Section 5: Dropoff logic
+        document.querySelectorAll('.drop-checkbox').forEach(cb => {
+            cb.addEventListener('change', function() {
+                const checked = document.querySelectorAll('.drop-checkbox:checked').length;
+                const total = document.querySelectorAll('.drop-checkbox').length;
+                const badge = document.getElementById('stop-badge');
+                
+                if (checked === total) {
+                    badge.className = 'px-4 py-1.5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold ring-2 ring-emerald-200';
+                    badge.innerText = '강남역 (모두 하차 완료)';
+                } else {
+                    badge.className = 'px-4 py-1.5 bg-rose-100 text-rose-700 rounded-full text-xs font-bold ring-2 ring-rose-200';
+                    badge.innerText = `강남역 (${total - checked}명 대기)`;
+                }
+            });
+        });
+
+        // Global Event for right-click swap cancellation
+        window.addEventListener('click', (e) => {
+            if(selectedSwapId !== null && !e.target.closest('.seat-item')) {
+                selectedSwapId = null;
+                renderSeats();
+            }
+        });
+
+        // Initialize
+        window.onload = () => {
+            renderSeats();
+            renderLeaderList();
+            updateSim1();
+        };
+    </script>
+</body>
+</html>
