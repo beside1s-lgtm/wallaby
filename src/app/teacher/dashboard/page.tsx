@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -55,9 +56,12 @@ export default function TeacherDashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("measurement");
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (isSilent = false) => {
     if (isAuthLoading || !school) return;
-    setIsLoading(true);
+    
+    // 초기 로딩 시에만 전체 스켈레톤 화면을 보여주어 UI 상태(필터 등)가 유지되도록 함
+    if (!isSilent) setIsLoading(true);
+    
     try {
       const [studentData, itemData, recordData, teamGroupData, sportsClubData] = await Promise.all([
         getStudents(school),
@@ -74,12 +78,13 @@ export default function TeacherDashboardPage() {
     } catch (error) {
       console.error("Failed to load dashboard data:", error);
     } finally {
-      setIsLoading(false);
+      if (!isSilent) setIsLoading(false);
     }
   }, [school, isAuthLoading]);
 
   useEffect(() => {
-    loadData();
+    // 첫 렌더링 시에는 스켈레톤을 보여줌
+    loadData(false);
   }, [loadData]);
   
   useEffect(() => {
@@ -109,7 +114,9 @@ export default function TeacherDashboardPage() {
 
 
   const handleDataUpdate = useCallback(async () => {
-    await loadData();
+    // 학생 정보 수정, 사진 등록 등의 업데이트는 'Silent' 모드로 진행하여
+    // 하위 컴포넌트가 언마운트되거나 필터 상태가 초기화되는 것을 방지함
+    await loadData(true);
   }, [loadData]);
   
   const handleItemsUpdate = useCallback((updatedItems: MeasurementItem[]) => {
