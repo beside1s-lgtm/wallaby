@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
-import { getItems, addOrUpdateRecord, getRecordsByStudent, getStudentById, calculateRanks, deleteRecord, getLatestTeamGroupForStudent, getTeamGroups, getLatestTournamentForStudent, getStudents, getQuizAssignments, getSportsClubs, getRecords, saveQuizResult } from '@/lib/store';
+import { getItems, addOrUpdateRecord, getRecordsByStudent, getStudentById, calculateRanks, deleteRecord, getLatestTeamGroupForStudent, getTeamGroups, getLatestTournamentForStudent, getStudents, getQuizAssignments, getSportsClubs, getRecords, saveQuizResult, getQuizResultsBySchool } from '@/lib/store';
 import {
   Card,
   CardContent,
@@ -49,8 +49,8 @@ import { getStudentFeedback } from '@/ai/flows/student-ai-feedback';
 import { getScoutingReport } from '@/ai/flows/scouting-report-flow';
 import { getTeamAnalysis } from '@/ai/flows/team-analysis-flow';
 import type { ScoutingReportOutput } from '@/ai/flows/scouting-report-flow';
-import { Loader2, Wand2, Trash2, Users, User as UserIcon, Swords, Bot, Printer, Crown, Medal, Trophy, BookOpen, ChevronRight, CheckCircle2, AlertCircle, HelpCircle, Star, Frown, RotateCcw, Youtube, Eye, EyeOff } from 'lucide-react';
-import type { Student, MeasurementRecord, MeasurementItem, TeamGroup, Tournament, Match, QuizAssignment } from '@/lib/types';
+import { Loader2, Wand2, Trash2, Users, User as UserIcon, Swords, Bot, Printer, Crown, Medal, Trophy, BookOpen, ChevronRight, CheckCircle2, AlertCircle, HelpCircle, Star, Frown, RotateCcw, Youtube, Eye, EyeOff, Award } from 'lucide-react';
+import type { Student, MeasurementRecord, MeasurementItem, TeamGroup, Tournament, Match, QuizAssignment, QuizResult } from '@/lib/types';
 import { getPapsGrade, getCustomItemGrade, normalizePapsRecord, normalizeCustomRecord } from '@/lib/paps';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -138,6 +138,7 @@ export default function StudentDashboardPage() {
   const hasAutoSelectedTab = useRef(false);
 
   const [assignedQuizzes, setAssignedQuizzes] = useState<QuizAssignment[]>([]);
+  const [studentQuizResults, setStudentQuizResults] = useState<QuizResult[]>([]);
   const [selectedAssignment, setSelectedAssignment] = useState<QuizAssignment | null>(null);
   const [isQuizModalOpen, setIsQuizModalOpen] = useState(false);
   const [quizAnswers, setQuizAnswers] = useState<Record<number, string>>({});
@@ -174,7 +175,7 @@ export default function StudentDashboardPage() {
         }
         setIsDataLoading(true);
         try {
-            const [items, recs, stud, allStuds, allRecs, teamData, allTeamGroups, allClubs, allAssignments] = await Promise.all([
+            const [items, recs, stud, allStuds, allRecs, teamData, allTeamGroups, allClubs, allAssignments, allResults] = await Promise.all([
                 getItems(school),
                 getRecordsByStudent(school, student.id),
                 getStudentById(school, student.id),
@@ -184,6 +185,7 @@ export default function StudentDashboardPage() {
                 getTeamGroups(school),
                 getSportsClubs(school),
                 getQuizAssignments(school),
+                getQuizResultsBySchool(school),
             ]);
             const tournamentData = await getLatestTournamentForStudent(school, student.id, allStuds, allTeamGroups);
             setTournament(tournamentData);
@@ -205,9 +207,15 @@ export default function StudentDashboardPage() {
             });
             setAssignedQuizzes(studentAssignments);
             
+            const results = allResults.filter(r => r.studentId === student.id);
+            setStudentQuizResults(results);
+            
             // Auto-select initial tab based on priority
             if (!hasAutoSelectedTab.current) {
-                if (studentAssignments.length > 0) {
+                // Only auto-switch to theory if there's an active quiz NOT passed yet
+                const hasActiveUnpassedQuiz = studentAssignments.some(a => !results.find(r => r.assignmentId === a.id)?.passed);
+                
+                if (hasActiveUnpassedQuiz) {
                     setActiveTab("physical-knowledge");
                 } else if (tournamentData) {
                     setActiveTab("my-competition");
@@ -653,9 +661,20 @@ export default function StudentDashboardPage() {
   }, [teamAverageScores]);
 
   const handleStartQuiz = (assignment: QuizAssignment) => {
+    const existingResult = studentQuizResults.find(r => r.assignmentId === assignment.id);
     setSelectedAssignment(assignment);
     setQuizAnswers({});
-    setQuizResult(null);
+    
+    if (existingResult) {
+        setQuizResult({
+            score: existingResult.score,
+            total: existingResult.total,
+            corrections: [] // We don't store individual corrections in DB currently
+        });
+    } else {
+        setQuizResult(null);
+    }
+    
     setShowQuizVideo(false);
     setIsQuizModalOpen(true);
   };
@@ -694,13 +713,17 @@ export default function StudentDashboardPage() {
     setQuizResult(resultData);
 
     if (school && student && selectedAssignment) {
-        saveQuizResult(school, {
+        await saveQuizResult(school, {
             assignmentId: selectedAssignment.id,
             studentId: student.id,
             score,
             total: selectedAssignment.questions.length,
             passed
         });
+        
+        // Refresh local results
+        const allResults = await getQuizResultsBySchool(school);
+        setStudentQuizResults(allResults.filter(r => r.studentId === student.id));
     }
   };
 
@@ -1251,26 +1274,331 @@ export default function StudentDashboardPage() {
                     </CardFooter>
                 </Card>
             </TabsContent>
+            <TabsContent value="measurement-input" className="space-y-8 mt-6">
+                 <Card className="flex flex-col bg-card/80 backdrop-blur-sm">
+                    <CardHeader>
+                        <CardTitle>측정 결과 입력</CardTitle>
+                        <CardDescription>오늘의 측정 결과를 입력하세요. 같은 날짜에 다시 입력하면 덮어쓰기됩니다.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex-grow space-y-4">
+                        <Select onValueChange={setSelectedItemName} value={selectedItemName}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="측정 종목 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {measurementItems.map(item => (
+                            <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                        </Select>
+                        {selectedItem?.isCompound ? (
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <Label htmlFor="height">키 (cm)</Label>
+                                    <Input id="height" type="number" value={height} onChange={e => setHeight(e.target.value)} />
+                                </div>
+                                <div>
+                                    <Label htmlFor="weight">몸무게 (kg)</Label>
+                                    <Input id="weight" type="number" value={weight} onChange={e => setWeight(e.target.value)} />
+                                </div>
+                            </div>
+                        ) : (
+                            <div>
+                            <Label htmlFor="value">결과 ({selectedItem?.unit})</Label>
+                            <Input
+                                id="value"
+                                placeholder={inputPlaceholder}
+                                value={value}
+                                onChange={e => setValue(e.target.value)}
+                                type="number"
+                            />
+                            </div>
+                        )}
+                    </CardContent>
+                    <CardFooter>
+                        <Button onClick={handleSubmit} disabled={isSubmitting} className="w-full">
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        결과 저장
+                        </Button>
+                    </CardFooter>
+                </Card>
+            </TabsContent>
+            <TabsContent value="my-competition" className="space-y-8 mt-6">
+                <Card className="bg-card/80 backdrop-blur-sm">
+                    <CardHeader className="text-center">
+                    <CardTitle className="flex items-center justify-center gap-2">
+                        <Swords /> {tournament?.name || "나의 대회"}
+                    </CardTitle>
+                    <CardDescription>
+                        {tournament
+                        ? "현재 진행 중인 대회 대진표입니다."
+                        : "참가 중인 대회가 없습니다."}
+                    </CardDescription>
+                    </CardHeader>
+                    <CardContent className="overflow-x-auto p-4">
+                    {tournament && Object.keys(matchesByRound).length > 0 ? (
+                        <div className="flex justify-center min-w-max">
+                        <div className="flex items-start space-x-8">
+                            {Object.entries(matchesByRound).map(([round, matches]) => (
+                                <div
+                                key={round}
+                                className="flex flex-col space-y-4 min-w-[180px]"
+                                >
+                                <h4 className="font-bold text-center text-lg">
+                                    {parseInt(round) ===
+                                    Math.max(...Object.keys(matchesByRound).map(Number))
+                                    ? "결승"
+                                    : `${matches.length * 2}강`}
+                                </h4>
+                                <div className="flex flex-col justify-around h-full space-y-4">
+                                    {matches.map((match) => {
+                                    const winnerIsA =
+                                        !!match.winnerId &&
+                                        match.winnerId === match.teamAId;
+                                    const winnerIsB =
+                                        !!match.winnerId &&
+                                        match.winnerId === match.teamBId;
+
+                                    return (
+                                        <Card key={match.id} className="p-2 bg-card/80">
+                                        <CardContent className="p-1 space-y-1">
+                                            <div className="flex items-center justify-between text-sm">
+                                            <span
+                                                className={`truncate ${
+                                                winnerIsA ? "font-bold text-primary" : ""
+                                                }`}
+                                            >
+                                                {match.teamAId
+                                                ? teamNameMap.get(match.teamAId) ?? "미정"
+                                                : "미정"}
+                                            </span>
+                                            <span className="font-semibold ml-2">
+                                                {match.scoresA?.reduce((a, b) => a + b, 0) ?? "-"}
+                                            </span>
+                                            </div>
+                                            <div className="flex items-center justify-between text-sm">
+                                            <span
+                                                className={`truncate ${
+                                                winnerIsB ? "font-bold text-primary" : ""
+                                                }`}
+                                            >
+                                                {match.teamBId
+                                                ? teamNameMap.get(match.teamBId) ?? "미정"
+                                                : match.status === "bye"
+                                                ? "(부전승)"
+                                                : "미정"}
+                                            </span>
+                                            <span className="font-semibold ml-2">
+                                                 {match.scoresB?.reduce((a, b) => a + b, 0) ?? "-"}
+                                            </span>
+                                            </div>
+                                        </CardContent>
+                                        </Card>
+                                    );
+                                    })}
+                                </div>
+                                </div>
+                            ))}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex items-center justify-center h-24 text-muted-foreground">
+                        <p>선생님이 대회를 생성하고 전달하면 여기에 표시됩니다.</p>
+                        </div>
+                    )}
+                    </CardContent>
+                </Card>
+                <Card className="bg-card/80 backdrop-blur-sm">
+                    <CardHeader className='flex-row items-start justify-between'>
+                        <div>
+                            <CardTitle className="flex items-center gap-2"><Users /> 나의 팀 확인</CardTitle>
+                            <CardDescription>{teamGroup?.description || '전달된 팀 편성 정보가 없습니다.'}</CardDescription>
+                        </div>
+                        {teamGroup && (
+                            <Select
+                                value={selectedTeamIndex !== null ? String(selectedTeamIndex) : undefined}
+                                onValueChange={(value) => setSelectedTeamIndex(Number(value))}
+                            >
+                                <SelectTrigger className="w-[180px]">
+                                    <SelectValue placeholder="팀 선택" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {teamGroup.teams.map(team => (
+                                        <SelectItem key={team.teamIndex} value={String(team.teamIndex)}>
+                                            팀 {team.teamIndex + 1} {myTeam?.teamIndex === team.teamIndex ? '(나의 팀)' : ''}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
+                    </CardHeader>
+                    <CardContent>
+                        {isDataLoading ? (
+                            <div className="flex items-center justify-center h-24">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="order-2 md:order-1">
+                                    {displayedTeam ? (
+                                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                            {displayedTeam.members && displayedTeam.members.map(member => (
+                                                <div key={member.id} className={`p-3 rounded-md text-center ${member.id === student.id ? 'bg-primary/20' : 'bg-secondary'}`}>
+                                                <p className="font-semibold">{member.name}</p>
+                                                <p className="text-sm text-muted-foreground">{member.grade}-{member.classNum}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground text-center py-8">팀 정보가 없습니다. 선생님이 팀을 편성하고 전달할 때까지 기다려주세요.</p>
+                                    )}
+                                </div>
+                                <div className="order-1 md:order-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    {abilityScores.length > 0 && (
+                                        <div className='text-center h-[350px] flex flex-col'>
+                                            <h4 className="font-semibold mb-2">나의 능력치</h4>
+                                            <div className="flex-grow">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={abilityScores}>
+                                                    <PolarGrid />
+                                                    <PolarAngleAxis dataKey="item" tick={{ fontSize: 12 }} />
+                                                    <PolarRadiusAxis axisLine={false} tick={false} domain={[0, 100]} />
+                                                    <Radar name="나" dataKey="score" stroke="hsl(var(--chart-1))" fill="hsl(var(--chart-1))" fillOpacity={0.6} />
+                                                    <Tooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}/>
+                                                </RadarChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                            <p className="font-bold text-lg mt-2">총점: {myTotalScore} / 100</p>
+                                        </div>
+                                    )}
+                                    {teamAverageScores.length > 0 && (
+                                        <div className='text-center h-[350px] flex flex-col'>
+                                            <h4 className="font-semibold mb-2">팀 평균 능력치</h4>
+                                            <div className="flex-grow">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={teamAverageScores}>
+                                                    <PolarGrid />
+                                                    <PolarAngleAxis dataKey="item" tick={{ fontSize: 12 }} />
+                                                    <PolarRadiusAxis axisLine={false} tick={false} domain={[0, 100]} />
+                                                    <Radar name="팀 평균" dataKey="score" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.6}/>
+                                                    <Tooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}/>
+                                                </RadarChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                            <p className="font-bold text-lg mt-2">총점: {teamTotalScore} / 100</p>
+                                        </div>
+                                    )}
+                                    {abilityScores.length === 0 && teamAverageScores.length === 0 && (
+                                        <div className="col-span-2 flex items-center justify-center h-full text-sm text-muted-foreground">
+                                            팀 편성 시 사용된 능력치 데이터가 없습니다.
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </CardContent>
+                    <CardFooter className="flex-col gap-4">
+                        <div className="flex flex-col sm:flex-row w-full gap-4">
+                           <Button onClick={handleGetScoutingReport} disabled={isReportLoading || abilityScores.length === 0 || isAiButtonDisabled} className="flex-1">
+                                <Bot className="mr-2 h-4 w-4" />
+                                {isReportLoading && activeReport?.type !== 'scouting' ? "리포트 생성 중..." : isAiButtonDisabled ? '10초 후에 다시 시도하세요' : "나의 스카우팅 리포트"}
+                           </Button>
+                           <Button onClick={handleGetTeamReport} disabled={isReportLoading || teamAverageScores.length === 0 || isAiButtonDisabled} className="flex-1">
+                                <Users className="mr-2 h-4 w-4" />
+                                {isReportLoading && activeReport?.type !== 'team' ? "팀 분석 중..." : isAiButtonDisabled ? '10초 후에 다시 시도하세요' : "우리 팀 전력 분석"}
+                            </Button>
+                        </div>
+                        {isReportLoading && (
+                            <div className="flex justify-center items-center w-full p-4">
+                                <Loader2 className="animate-spin" />
+                            </div>
+                        )}
+                        {activeReport && (
+                            <Card className="w-full bg-secondary">
+                                <CardHeader>
+                                    <CardTitle className="text-lg flex items-center gap-2">
+                                      {activeReport.type === 'scouting' ? <Bot /> : <Users />}
+                                      {activeReport.type === 'scouting' ? 'AI 스카우팅 리포트' : 'AI 팀 전력 분석'}
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4 text-sm">
+                                    <div>
+                                        <h4 className="font-bold text-primary">핵심 강점</h4>
+                                        <p className="whitespace-pre-wrap">{activeReport.data.strengths}</p>
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-destructive">보완점</h4>
+                                        <p className="whitespace-pre-wrap">{activeReport.data.weaknesses}</p>
+                                    </div>
+                                     <div>
+                                        <h4 className="font-bold">종합 평가 (선수 유형)</h4>
+                                        <p className="whitespace-pre-wrap">{(activeReport.data as ScoutingReportOutput).assessment}</p>
+                                    </div>
+                                    { activeReport.type === 'scouting' &&
+                                    <>
+                                        <div>
+                                            <h4 className="font-bold">추천 포지션</h4>
+                                            <p className="whitespace-pre-wrap">{(activeReport.data as ScoutingReportOutput).position}</p>
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold">추천 훈련 방법</h4>
+                                            <p className="whitespace-pre-wrap">{(activeReport.data as ScoutingReportOutput).suggestedTrainingMethods}</p>
+                                        </div>
+                                    </>
+                                    }
+                                    { activeReport.type === 'team' &&
+                                     <div>
+                                        <h4 className="font-bold">추천 전략</h4>
+                                        <p className="whitespace-pre-wrap">{(activeReport.data as any).position}</p>
+                                    </div>
+                                    }
+                                </CardContent>
+                            </Card>
+                        )}
+                    </CardFooter>
+                </Card>
+            </TabsContent>
             <TabsContent value="physical-knowledge" className="space-y-8 mt-6">
                 <Card className="bg-card/80 backdrop-blur-sm">
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2"><BookOpen /> 체육 지식 퀴즈</CardTitle>
-                        <CardDescription>선생님이 배포하신 퀴즈를 풀고 실력을 확인해보세요.</CardDescription>
+                        <CardTitle className="flex items-center gap-2"><BookOpen /> 체육 지식 인증관</CardTitle>
+                        <CardDescription>선생님이 배포하신 퀴즈를 풀고 인증 배지를 획득하세요.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         {assignedQuizzes.length > 0 ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {assignedQuizzes.map(assignment => (
-                                    <Card key={assignment.id} className="hover:bg-muted/50 cursor-pointer transition-colors" onClick={() => handleStartQuiz(assignment)}>
-                                        <CardHeader>
-                                            <CardTitle className="text-lg">{assignment.quizTitle}</CardTitle>
-                                            <CardDescription>배포일: {assignment.createdAt?.toDate ? format(assignment.createdAt.toDate(), 'yyyy-MM-dd') : '-'}</CardDescription>
-                                        </CardHeader>
-                                        <CardFooter>
-                                            <Button variant="outline" className="w-full">퀴즈 풀기 <ChevronRight className="ml-2 h-4 w-4" /></Button>
-                                        </CardFooter>
-                                    </Card>
-                                ))}
+                                {assignedQuizzes.map(assignment => {
+                                    const result = studentQuizResults.find(r => r.assignmentId === assignment.id);
+                                    const isPassed = result?.passed;
+
+                                    return (
+                                        <Card key={assignment.id} className={cn(
+                                            "relative hover:bg-muted/50 cursor-pointer transition-all border-2",
+                                            isPassed ? "border-yellow-400 bg-yellow-50/30" : "border-transparent"
+                                        )} onClick={() => handleStartQuiz(assignment)}>
+                                            {isPassed && (
+                                                <div className="absolute -top-3 -right-3 z-10">
+                                                    <div className="bg-yellow-400 text-yellow-900 rounded-full p-1 shadow-lg ring-2 ring-white">
+                                                        <Award className="h-6 w-6" />
+                                                    </div>
+                                                </div>
+                                            )}
+                                            <CardHeader>
+                                                <div className="flex justify-between items-start">
+                                                    <CardTitle className="text-lg">{assignment.quizTitle}</CardTitle>
+                                                    {isPassed && <Badge className="bg-yellow-500 text-white border-none">인증 완료</Badge>}
+                                                </div>
+                                                <CardDescription>배포일: {assignment.createdAt?.toDate ? format(assignment.createdAt.toDate(), 'yyyy-MM-dd') : '-'}</CardDescription>
+                                            </CardHeader>
+                                            <CardFooter>
+                                                <Button variant={isPassed ? "outline" : "default"} className="w-full">
+                                                    {isPassed ? "인증 내역 확인" : "퀴즈 풀기"} 
+                                                    <ChevronRight className="ml-2 h-4 w-4" />
+                                                </Button>
+                                            </CardFooter>
+                                        </Card>
+                                    );
+                                })}
                             </div>
                         ) : (
                             <div className="text-center py-12 text-muted-foreground">

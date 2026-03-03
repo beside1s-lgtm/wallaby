@@ -1,8 +1,8 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { exportToCsv } from '@/lib/store';
-import type { Student, MeasurementItem, MeasurementRecord } from '@/lib/types';
+import { exportToCsv, getQuizResultsBySchool, getQuizAssignments } from '@/lib/store';
+import type { Student, MeasurementItem, MeasurementRecord, QuizResult, QuizAssignment } from '@/lib/types';
 import { getPapsGrade, calculatePapsScore, getCustomItemGrade } from '@/lib/paps';
 import { calculateRanks } from '@/lib/store';
 import {
@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { FileDown, Calendar as CalendarIcon } from 'lucide-react';
+import { FileDown, Calendar as CalendarIcon, BookOpen } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -86,6 +86,22 @@ export default function RecordBrowser({
   const [itemGradeFilter, setItemGradeFilter] = useState('all');
   const [itemClassNumFilter, setItemClassNumFilter] = useState('all');
   const [itemSort, setItemSort] = useState<SortDescriptor[]>([{ column: 'name', direction: 'ascending' }]);
+  
+  // For Theory Exam Results
+  const [quizResults, setQuizResults] = useState<QuizResult[]>([]);
+  const [quizAssignments, setQuizAssignments] = useState<QuizAssignment[]>([]);
+
+  useEffect(() => {
+    if (school && selectedItem === 'theory-exam') {
+        Promise.all([
+            getQuizResultsBySchool(school),
+            getQuizAssignments(school)
+        ]).then(([results, assignments]) => {
+            setQuizResults(results);
+            setQuizAssignments(assignments);
+        });
+    }
+  }, [school, selectedItem]);
 
 
   const { grades, classNumsByGrade, availableDates } = useMemo(() => {
@@ -98,7 +114,7 @@ export default function RecordBrowser({
         ),
       ].sort((a,b) => parseInt(a) - parseInt(b));
     });
-    const dates = [...new Set(allRecords.map(r => r.date))].sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+    const dates = [...new Set(allRecords.map(r => r.date))].sort((a, b) => new Date(b.getTime()) - new Date(a.getTime()));
     return { grades, classNumsByGrade, availableDates: dates };
   }, [allStudents, allRecords]);
   
@@ -143,7 +159,7 @@ export default function RecordBrowser({
             });
 
             if (recordsForItem.length > 0) {
-              const currentLatest = recordsForItem.sort((a,b) => new Date(b.date).getTime() - new Date(a).getTime())[0];
+              const currentLatest = recordsForItem.sort((a,b) => new Date(b.date).getTime() - new Date(a.getTime())[0]);
               if (!latestRecord || new Date(currentLatest.date) > new Date(latestRecord.date)) {
                   latestRecord = currentLatest;
                   latestItem = item;
@@ -257,6 +273,42 @@ export default function RecordBrowser({
   const studentItemTableData = useMemo(() => {
     if (!selectedItem || !school) return [];
 
+    if (selectedItem === 'theory-exam') {
+        let filteredStudents = allStudents;
+        if (itemGradeFilter !== 'all') {
+            filteredStudents = filteredStudents.filter(s => s.grade === itemGradeFilter);
+            if (itemClassNumFilter !== 'all') {
+                filteredStudents = filteredStudents.filter(s => s.classNum === itemClassNumFilter);
+            }
+        }
+
+        // Flatten assignments and results for display
+        return filteredStudents.flatMap(student => {
+            const results = quizResults.filter(r => r.studentId === student.id);
+            if (results.length === 0) {
+                return [{
+                    ...student,
+                    quizTitle: '-',
+                    score: '-',
+                    recordGrade: null, // Add recordGrade field to prevent errors
+                    passed: false,
+                    latestDate: '-'
+                }];
+            }
+            return results.map(r => {
+                const assignment = quizAssignments.find(a => a.id === r.assignmentId);
+                return {
+                    ...student,
+                    quizTitle: assignment?.quizTitle || '알 수 없는 퀴즈',
+                    score: `${r.score} / ${r.total}`,
+                    recordGrade: null, // Theory exams don't have grades 1-5 like items
+                    passed: r.passed,
+                    latestDate: r.createdAt?.toDate ? format(r.createdAt.toDate(), 'yyyy-MM-dd') : '-'
+                };
+            });
+        });
+    }
+
     const itemInfo = allItems.find(i => i.name === selectedItem);
     if (!itemInfo) return [];
 
@@ -296,13 +348,13 @@ export default function RecordBrowser({
         ...student,
         latestDate: latestRecord?.date || null,
         value: latestRecord?.value,
-        recordGrade, // Changed from 'grade' to 'recordGrade' to avoid conflict
+        recordGrade, 
         rank: rankInfo ? rankInfo.rank : null,
         totalRanked: itemRanks.length,
       };
     });
 
-  }, [school, selectedItem, itemGradeFilter, itemClassNumFilter, allStudents, allRecords, allItems]);
+  }, [school, selectedItem, itemGradeFilter, itemClassNumFilter, allStudents, allRecords, allItems, quizResults, quizAssignments]);
 
   const sortedItemData = useMemo(() => {
       if (!itemSort.length) return studentItemTableData;
@@ -319,10 +371,10 @@ export default function RecordBrowser({
             else if(column === 'classNum') { valA = a.classNum; valB = b.classNum }
             else if(column === 'studentNum') { valA = a.studentNum; valB = b.studentNum }
             else if(column === 'latestDate'){ valA = a.latestDate; valB = b.latestDate }
-            else if(column === 'value'){ valA = a.value; valB = b.value }
+            else if(column === 'value'){ valA = (a as any).value || (a as any).score; valB = (b as any).value || (b as any).score }
             else if(column === 'recordGrade'){ valA = a.recordGrade; valB = b.recordGrade }
             else if(column === 'rank'){ valA = a.rank; valB = b.rank }
-            else { valA = a[column as keyof typeof a]; valB = b[column as keyof typeof b]; }
+            else { valA = (a as any)[column]; valB = (b as any)[column]; }
 
 
             // Handle nulls and undefined to sort them at the end
@@ -368,6 +420,24 @@ export default function RecordBrowser({
       });
       return;
     }
+
+    if (selectedItem === 'theory-exam') {
+        const dataToExport = sortedItemData.map(s => ({
+            '학년': s.grade,
+            '반': s.classNum,
+            '번호': s.studentNum,
+            '이름': s.name,
+            '평가 제목': (s as any).quizTitle || '-',
+            '점수': (s as any).score || '-',
+            '통합 여부': (s as any).passed ? '통과' : '미통과',
+            '응시일': s.latestDate || '-',
+        }));
+        const fileName = `이론평가_현황_${new Date().toISOString().split('T')[0]}.csv`;
+        exportToCsv(fileName, dataToExport);
+        toast({ title: '다운로드 시작', description: '이론 평가 현황을 CSV 파일로 다운로드합니다.' });
+        return;
+    }
+
     const itemInfo = allItems.find(i => i.name === selectedItem);
     const dataToExport = sortedItemData.map(s => ({
         '학년': s.grade,
@@ -568,6 +638,9 @@ export default function RecordBrowser({
                             <SelectValue placeholder="종목 선택" />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="theory-exam" className="font-bold text-primary flex items-center">
+                                <BookOpen className="h-4 w-4 mr-2" /> 이론 평가
+                            </SelectItem>
                             {allItems.map((item) => (
                               <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
                             ))}
@@ -615,10 +688,17 @@ export default function RecordBrowser({
                                       { key: 'classNum', label: '반' },
                                       { key: 'studentNum', label: '번호' },
                                       { key: 'name', label: '이름' },
-                                      { key: 'latestDate', label: '최근 측정일' },
-                                      { key: 'value', label: '기록' },
-                                      { key: 'recordGrade', label: '등급' },
-                                      { key: 'rank', label: '순위' },
+                                      ...(selectedItem === 'theory-exam' ? [
+                                        { key: 'quizTitle', label: '평가 제목' },
+                                        { key: 'value', label: '점수' },
+                                        { key: 'latestDate', label: '응시일' },
+                                        { key: 'passed', label: '통과 여부' }
+                                      ] : [
+                                        { key: 'latestDate', label: '최근 측정일' },
+                                        { key: 'value', label: '기록' },
+                                        { key: 'recordGrade', label: '등급' },
+                                        { key: 'rank', label: '순위' },
+                                      ])
                                     ].map((header) => (
                                        <TableHead key={header.key} onClick={createSortHandler(header.key, itemSort, setItemSort)} className="cursor-pointer hover:bg-muted whitespace-nowrap">
                                           {header.label}
@@ -629,16 +709,33 @@ export default function RecordBrowser({
                             </TableHeader>
                             <TableBody>
                                 {sortedItemData.length > 0 ? (
-                                    sortedItemData.map(s => (
-                                        <TableRow key={s.id}>
+                                    sortedItemData.map((s, idx) => (
+                                        <TableRow key={`${s.id}-${idx}`}>
                                             <TableCell>{s.grade}</TableCell>
                                             <TableCell>{s.classNum}</TableCell>
                                             <TableCell>{s.studentNum}</TableCell>
                                             <TableCell>{s.name}</TableCell>
-                                            <TableCell>{s.latestDate || '-'}</TableCell>
-                                            <TableCell>{s.value !== undefined && s.value !== null ? `${s.value}${allItems.find(i => i.name === selectedItem)?.unit || ''}`: '-'}</TableCell>
-                                            <TableCell>{s.recordGrade ? `${s.recordGrade}등급` : '-'}</TableCell>
-                                            <TableCell>{s.rank ? `${s.rank} / ${s.totalRanked}` : '-'}</TableCell>
+                                            {selectedItem === 'theory-exam' ? (
+                                                <>
+                                                    <TableCell className="max-w-[200px] truncate">{(s as any).quizTitle}</TableCell>
+                                                    <TableCell>{(s as any).score}</TableCell>
+                                                    <TableCell>{s.latestDate || '-'}</TableCell>
+                                                    <TableCell>
+                                                        {(s as any).passed !== undefined ? (
+                                                            (s as any).passed ? 
+                                                                <Badge className="bg-green-100 text-green-700">통과</Badge> : 
+                                                                <Badge variant="destructive">미통과</Badge>
+                                                        ) : '-'}
+                                                    </TableCell>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <TableCell>{s.latestDate || '-'}</TableCell>
+                                                    <TableCell>{s.value !== undefined && s.value !== null ? `${s.value}${allItems.find(i => i.name === selectedItem)?.unit || ''}`: '-'}</TableCell>
+                                                    <TableCell>{s.recordGrade ? `${s.recordGrade}등급` : '-'}</TableCell>
+                                                    <TableCell>{s.rank ? `${s.rank} / ${s.totalRanked}` : '-'}</TableCell>
+                                                </>
+                                            )}
                                         </TableRow>
                                     ))
                                 ) : (
