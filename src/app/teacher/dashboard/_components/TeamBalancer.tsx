@@ -1,3 +1,4 @@
+
 "use client";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
@@ -156,18 +157,12 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
   const { grades, classNumsByGrade, groupedItems } = useMemo(() => {
     const grades = [...new Set(allStudents.map((s) => s.grade))].sort((a,b) => parseInt(a) - parseInt(b));
     const classNumsByGrade: Record<string, string[]> = {};
-    const initialSelection: ClassSelection = {};
-
+    
     grades.forEach((grade) => {
       const classes = [...new Set(
         allStudents.filter((s) => s.grade === grade).map((s) => s.classNum)
       )].sort((a,b) => parseInt(a) - parseInt(b));
       classNumsByGrade[grade] = classes;
-      
-      initialSelection[grade] = { all: false, classes: {} };
-      classes.forEach(classNum => {
-        initialSelection[grade].classes[classNum] = false;
-      });
     });
 
     const grouped: Record<string, MeasurementItem[]> = { PAPS: [] };
@@ -188,21 +183,27 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
   }, [allStudents, allItems]);
 
   useEffect(() => {
-    // Initialize classSelection state based on available grades and classes
-    const initialSelection: ClassSelection = {};
-     grades.forEach((grade) => {
-      initialSelection[grade] = { all: false, classes: {} };
-      classNumsByGrade[grade]?.forEach(classNum => {
-        initialSelection[grade].classes[classNum] = false;
-      });
-    });
-    setClassSelection(initialSelection);
-    const initialClubSelection: Record<string, boolean> = {};
-    sportsClubs.forEach(club => {
-        initialClubSelection[club.id] = false;
-    })
-    setClubSelection(initialClubSelection);
-  }, [grades, classNumsByGrade, sportsClubs]);
+    if (Object.keys(classSelection).length === 0 && grades.length > 0) {
+        const initialSelection: ClassSelection = {};
+        grades.forEach((grade) => {
+            initialSelection[grade] = { all: false, classes: {} };
+            classNumsByGrade[grade]?.forEach(classNum => {
+                initialSelection[grade].classes[classNum] = false;
+            });
+        });
+        setClassSelection(initialSelection);
+    }
+  }, [grades, classNumsByGrade, classSelection]);
+
+  useEffect(() => {
+    if (Object.keys(clubSelection).length === 0 && sportsClubs.length > 0) {
+        const initialClubSelection: Record<string, boolean> = {};
+        sportsClubs.forEach(club => {
+            initialClubSelection[club.id] = false;
+        });
+        setClubSelection(initialClubSelection);
+    }
+  }, [sportsClubs, clubSelection]);
 
 
   const resetToNewTeam = () => {
@@ -245,7 +246,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         members: team.memberIds.map(id => studentMap.get(id)).filter((s): s is Student => !!s)
     }));
     
-    const allMemberIds = new Set(teamsWithMembers.flatMap(t => t.members.map(m => m.id)));
+    const allMemberIds = new Set(teamsWithMembers.flatMap(t => t.members?.map(m => m.id) || []));
 
     const newClassSelection: ClassSelection = {};
     grades.forEach(grade => {
@@ -409,18 +410,16 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
 
       setStudentScores(finalStudentScores);
 
-      const newSelection: Record<string, boolean> = {};
-      finalStudentScores.forEach((_, studentId) => {
-        newSelection[studentId] = true;
-      });
-      setBalancingSelection(newSelection);
+      if (Object.keys(balancingSelection).length === 0) {
+          const newSelection: Record<string, boolean> = {};
+          finalStudentScores.forEach((_, studentId) => {
+            newSelection[studentId] = true;
+          });
+          setBalancingSelection(newSelection);
+      }
     } else {
       setStudentScores(new Map());
       setBalancingSelection({});
-    }
-    if (!selectedTeamGroupId) { // Don't clear teams if a saved group is loaded
-      setTeams([]);
-      setLeftoverStudents([]);
     }
     setSelectedStudentId(null);
   }, [
@@ -467,7 +466,6 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
   }, [selectedStudentId]);
 
   useEffect(() => {
-    // Clear AI report when student selection changes
     setScoutingReport(null);
   }, [selectedStudentId]);
 
@@ -581,7 +579,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
       
       if (divideBy === "teams") {
         const newTeams: Student[][] = Array.from({ length: numTeamsForDivision }, () => []);
-        if (balanceStrategy === 'uniform') { // 균등 편성 (지그재그/snake draft)
+        if (balanceStrategy === 'uniform') {
             let direction = 1;
             let teamIndex = 0;
             studentsToDistribute.forEach(student => {
@@ -592,7 +590,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                     teamIndex += direction;
                 }
             });
-        } else { // 레벨별 편성 (실력 그룹화)
+        } else {
             const studentsPerTeam = Math.floor(studentsToDistribute.length / numTeamsForDivision);
             const remainingStudents = studentsToDistribute.length % numTeamsForDivision;
 
@@ -604,7 +602,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
             }
         }
         return { teams: newTeams.filter(t => t.length > 0), leftovers: [] };
-      } else { // divide by members
+      } else {
         const numTeamsForGroup = Math.floor(studentsToDistribute.length / membersPerTeam);
         if (numTeamsForGroup === 0) {
           return { teams: [], leftovers: studentsToDistribute };
@@ -613,7 +611,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         const newTeams: Student[][] = Array.from({ length: numTeamsForGroup }, () => []);
         const groupToDistribute = studentsToDistribute.splice(0, numTeamsForGroup * membersPerTeam);
 
-        if (balanceStrategy === 'uniform') { // 균등 편성 (지그재그)
+        if (balanceStrategy === 'uniform') {
             let direction = 1;
             let teamIndex = 0;
             groupToDistribute.forEach(student => {
@@ -624,7 +622,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                     teamIndex += direction;
                 }
             });
-        } else { // 레벨별 편성 (순서대로)
+        } else {
             for(let i = 0; i < numTeamsForGroup; i++) {
                 newTeams[i] = groupToDistribute.splice(0, membersPerTeam);
             }
@@ -791,7 +789,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
 
     const handleStudentClick = (studentId: string, teamIndex: number) => {
         if (movingStudent && movingStudent.studentId === studentId) {
-            setMovingStudent(null); // Deselect if clicking the same student
+            setMovingStudent(null);
         } else {
             setMovingStudent({ studentId, sourceTeamIndex: teamIndex });
         }
@@ -801,7 +799,6 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         if (movingStudent && movingStudent.sourceTeamIndex !== targetTeamIndex) {
             handleMoveStudent(movingStudent.studentId, movingStudent.sourceTeamIndex, targetTeamIndex);
         } else {
-            // Clicking outside or on the same team cancels the move
             setMovingStudent(null);
         }
     };
@@ -908,7 +905,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         divideBy,
         numTeams: divideBy === 'teams' ? numTeams : undefined,
         membersPerTeam: divideBy === 'members' ? membersPerTeam : undefined,
-        analysisScope: 'class', // Simplified for now
+        analysisScope: 'class',
       };
       
       let updatedGroup: TeamGroup;
@@ -1587,7 +1584,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                                 <div
                                     key={student.id}
                                     onClick={(e) => {
-                                        e.stopPropagation(); // Prevent card click when clicking on a student
+                                        e.stopPropagation();
                                         handleStudentClick(student.id, originalIndex);
                                     }}
                                     className={cn(

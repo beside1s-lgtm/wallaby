@@ -86,7 +86,6 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
   const [showVideo, setShowVideo] = useState(false);
   const [showGradeTable, setShowGradeTable] = useState(false);
 
-  // Only items that are NOT archived and NOT deactivated should be visible for recording
   const activeItems = useMemo(() => allItems.filter(item => !item.isArchived && !item.isDeactivated), [allItems]);
 
   const studentMap = useMemo(() => new Map(allStudents.map(s => [s.id, s])), [allStudents]);
@@ -174,23 +173,18 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
 
   useEffect(() => {
     if (activeItems.length > 0) {
-        const bmiItem = activeItems.find(i => i.isCompound);
-        if (bmiItem) {
-            setBatchRecordItem(bmiItem.name);
-            setSelectedItemName(bmiItem.name);
-        } else {
+        if (!selectedItemName) {
+            const bmiItem = activeItems.find(i => i.isCompound);
             const firstPapsItem = activeItems.find(i => i.isPaps);
-            if (firstPapsItem) {
-                setBatchRecordItem(firstPapsItem.name);
-                setSelectedItemName(firstPapsItem.name);
-            } else if (activeItems.length > 0) {
-                const firstItem = activeItems[0].name;
-                setSelectedItemName(firstItem);
-                setBatchRecordItem(firstItem);
-            }
+            setSelectedItemName(bmiItem?.name || firstPapsItem?.name || activeItems[0].name);
+        }
+        if (!batchRecordItem) {
+            const bmiItem = activeItems.find(i => i.isCompound);
+            const firstPapsItem = activeItems.find(i => i.isPaps);
+            setBatchRecordItem(bmiItem?.name || firstPapsItem?.name || activeItems[0].name);
         }
     }
-  }, [activeItems]);
+  }, [activeItems, selectedItemName, batchRecordItem]);
 
   const selectedItemForSingleAdd = useMemo(() => {
       return activeItems.find(item => item.name === selectedItemName);
@@ -557,7 +551,6 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                     </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    {/* PAPS Grade Standard Table Section */}
                     {selectedItemForBatchAdd?.isPaps && (
                         <div className="p-4 border rounded-lg bg-secondary/30 space-y-4">
                             <div className="flex items-center justify-between">
@@ -602,7 +595,6 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                         </div>
                     )}
 
-                    {/* YouTube Video Section - Item Specific */}
                     {selectedItemForBatchAdd?.videoUrl && getYouTubeEmbedUrl(selectedItemForBatchAdd.videoUrl) && (
                         <div className="p-4 border rounded-lg bg-primary/5 space-y-4">
                             <div className="flex items-center justify-between">
@@ -769,7 +761,6 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                 {selectedStudent ? (
                     <>
                         <CardContent className="space-y-4">
-                            {/* Individual Video Section - Item Specific */}
                             {selectedItemForSingleAdd?.videoUrl && getYouTubeEmbedUrl(selectedItemForSingleAdd.videoUrl) && (
                                 <div className="p-4 border rounded-lg bg-primary/5 space-y-4">
                                     <div className="flex items-center justify-between">

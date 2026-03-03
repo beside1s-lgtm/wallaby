@@ -59,7 +59,6 @@ export default function TeacherDashboardPage() {
   const loadData = useCallback(async (isSilent = false) => {
     if (isAuthLoading || !school) return;
     
-    // 초기 로딩 시에만 전체 스켈레톤 화면을 보여주어 UI 상태(필터 등)가 유지되도록 함
     if (!isSilent) setIsLoading(true);
     
     try {
@@ -83,7 +82,6 @@ export default function TeacherDashboardPage() {
   }, [school, isAuthLoading]);
 
   useEffect(() => {
-    // 첫 렌더링 시에는 스켈레톤을 보여줌
     loadData(false);
   }, [loadData]);
   
@@ -96,26 +94,21 @@ export default function TeacherDashboardPage() {
         data: 'data-bg',
     };
 
-    // Remove all possible background classes first
     Object.values(tabBackgrounds).forEach(bgClass => {
         body.classList.remove(bgClass);
     });
     body.classList.remove('watermark-bg');
     
-    // Add the correct class
     const bgClass = tabBackgrounds[activeTab] || 'watermark-bg';
     body.classList.add(bgClass);
 
     return () => {
-        // Cleanup on component unmount
         body.className = originalClasses;
     };
   }, [activeTab]);
 
 
   const handleDataUpdate = useCallback(async () => {
-    // 학생 정보 수정, 사진 등록 등의 업데이트는 'Silent' 모드로 진행하여
-    // 하위 컴포넌트가 언마운트되거나 필터 상태가 초기화되는 것을 방지함
     await loadData(true);
   }, [loadData]);
   
