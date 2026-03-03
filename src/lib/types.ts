@@ -159,6 +159,7 @@ export type Quiz = {
   title: string;
   content: string; // The source material
   questions: QuizQuestion[];
+  videoUrl?: string; // 참고 영상 URL
   createdAt: any;
 };
 
@@ -167,6 +168,7 @@ export type QuizAssignment = {
   quizId: string;
   quizTitle: string;
   questions?: QuizQuestion[]; // 문제를 배포 시점에 직접 포함
+  videoUrl?: string; // 배포된 퀴즈의 참고 영상 URL
   school: string;
   targetType: 'class' | 'club';
   targetGrade?: string;

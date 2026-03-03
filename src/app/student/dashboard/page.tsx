@@ -49,7 +49,7 @@ import { getStudentFeedback } from '@/ai/flows/student-ai-feedback';
 import { getScoutingReport } from '@/ai/flows/scouting-report-flow';
 import { getTeamAnalysis } from '@/ai/flows/team-analysis-flow';
 import type { ScoutingReportOutput } from '@/ai/flows/scouting-report-flow';
-import { Loader2, Wand2, Trash2, Users, User as UserIcon, Swords, Bot, Printer, Crown, Medal, Trophy, BookOpen, ChevronRight, CheckCircle2, AlertCircle, HelpCircle, Star, Frown, RotateCcw } from 'lucide-react';
+import { Loader2, Wand2, Trash2, Users, User as UserIcon, Swords, Bot, Printer, Crown, Medal, Trophy, BookOpen, ChevronRight, CheckCircle2, AlertCircle, HelpCircle, Star, Frown, RotateCcw, Youtube, Eye, EyeOff } from 'lucide-react';
 import type { Student, MeasurementRecord, MeasurementItem, TeamGroup, Tournament, Match, QuizAssignment } from '@/lib/types';
 import { getPapsGrade, getCustomItemGrade, normalizePapsRecord, normalizeCustomRecord } from '@/lib/paps';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -142,6 +142,7 @@ export default function StudentDashboardPage() {
   const [isQuizModalOpen, setIsQuizModalOpen] = useState(false);
   const [quizAnswers, setQuizAnswers] = useState<Record<number, string>>({});
   const [quizResult, setQuizResult] = useState<{ score: number, total: number, corrections: boolean[] } | null>(null);
+  const [showQuizVideo, setShowQuizVideo] = useState(false);
 
   useEffect(() => {
     const body = document.body;
@@ -655,6 +656,7 @@ export default function StudentDashboardPage() {
     setSelectedAssignment(assignment);
     setQuizAnswers({});
     setQuizResult(null);
+    setShowQuizVideo(false);
     setIsQuizModalOpen(true);
   };
 
@@ -705,6 +707,16 @@ export default function StudentDashboardPage() {
   const handleRestartQuiz = () => {
     setQuizAnswers({});
     setQuizResult(null);
+  };
+
+  const getYouTubeEmbedUrl = (url?: string) => {
+    if (!url) return null;
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    if (match && match[2].length === 11) {
+        return `https://www.youtube.com/embed/${match[2]}`;
+    }
+    return null;
   };
 
   const quizFeedback = useMemo(() => {
@@ -1282,6 +1294,38 @@ export default function StudentDashboardPage() {
                 </DialogHeader>
                 
                 <div className="space-y-8 py-4">
+                    {/* Reference Video for Quiz */}
+                    {selectedAssignment?.videoUrl && !quizResult && (
+                        <div className="p-4 border rounded-lg bg-primary/5 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <Youtube className="h-5 w-5 text-red-600" />
+                                    <h3 className="font-semibold">학습 참고 영상</h3>
+                                </div>
+                                <Button variant="ghost" size="sm" onClick={() => setShowQuizVideo(!showQuizVideo)}>
+                                    {showQuizVideo ? (
+                                        <><EyeOff className="mr-2 h-4 w-4" /> 영상 숨기기</>
+                                    ) : (
+                                        <><Eye className="mr-2 h-4 w-4" /> 영상 보기</>
+                                    )}
+                                </Button>
+                            </div>
+                            {showQuizVideo && (
+                                <div className="aspect-video w-full rounded-lg overflow-hidden border shadow-lg bg-black animate-in fade-in zoom-in-95 duration-200">
+                                    <iframe
+                                        width="100%"
+                                        height="100%"
+                                        src={getYouTubeEmbedUrl(selectedAssignment.videoUrl)!}
+                                        title="YouTube video player"
+                                        frameBorder="0"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                        allowFullScreen
+                                    ></iframe>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {quizResult ? (
                         <div className="text-center space-y-6 py-10 animate-in fade-in zoom-in-95">
                             {quizFeedback?.icon}

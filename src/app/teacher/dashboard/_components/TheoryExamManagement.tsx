@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BrainCircuit, FileText, Loader2, Sparkles, Printer, Copy, CheckCircle2, Save, Library, Trash2, Pencil, Send, History, ChevronRight, UserCircle2, CheckCircle, XCircle } from "lucide-react";
+import { BrainCircuit, FileText, Loader2, Sparkles, Printer, Copy, CheckCircle2, Save, Library, Trash2, Pencil, Send, History, ChevronRight, Youtube } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { generateQuiz, QuizOutput } from "@/ai/flows/quiz-generation-flow";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +55,7 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
     const { school } = useAuth();
     const { toast } = useToast();
     const [content, setContent] = useState('');
+    const [videoUrl, setVideoUrl] = useState('');
     const [questionCount, setQuestionCount] = useState('5');
     const [isGenerating, setIsGenerating] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -174,12 +175,14 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
                 school,
                 title: generatedQuiz.quizTitle,
                 content: content,
-                questions: generatedQuiz.questions
+                questions: generatedQuiz.questions,
+                videoUrl: videoUrl.trim()
             });
             toast({ title: '저장 완료', description: '문제지가 라이브러리에 저장되었습니다.' });
             fetchSavedQuizzes();
             setGeneratedQuiz(null);
             setContent('');
+            setVideoUrl('');
             setShowAnswers(false);
         } catch (error) {
             console.error("Failed to save quiz:", error);
@@ -215,6 +218,7 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
 
     const loadSavedQuiz = (quiz: Quiz) => {
         setContent(quiz.content);
+        setVideoUrl(quiz.videoUrl || '');
         setGeneratedQuiz({
             quizTitle: quiz.title,
             questions: quiz.questions
@@ -305,6 +309,17 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
                                         type="file" 
                                         accept=".txt"
                                         onChange={handleFileUpload}
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="video-url" className="flex items-center gap-1">
+                                        <Youtube className="h-4 w-4 text-red-600" /> 참고 영상 URL
+                                    </Label>
+                                    <Input 
+                                        id="video-url"
+                                        placeholder="학생들이 시청할 유튜브 링크 (선택)"
+                                        value={videoUrl}
+                                        onChange={(e) => setVideoUrl(e.target.value)}
                                     />
                                 </div>
                                 <div className="space-y-2">
@@ -462,6 +477,7 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
                                     <div className="flex gap-2 print:hidden flex-wrap justify-end">
                                         <DistributeQuizDialog 
                                             quiz={generatedQuiz}
+                                            videoUrl={videoUrl}
                                             allStudents={allStudents}
                                             sportsClubs={sportsClubs}
                                             onDistributed={fetchAssignments}
@@ -748,7 +764,7 @@ function EditQuestionDialog({ question, onSave }: { question: QuizQuestion, onSa
     );
 }
 
-function DistributeQuizDialog({ quiz, allStudents, sportsClubs, onDistributed }: { quiz: QuizOutput, allStudents: Student[], sportsClubs: SportsClub[], onDistributed: () => void }) {
+function DistributeQuizDialog({ quiz, videoUrl, allStudents, sportsClubs, onDistributed }: { quiz: QuizOutput, videoUrl: string, allStudents: Student[], sportsClubs: SportsClub[], onDistributed: () => void }) {
     const { school } = useAuth();
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
@@ -786,6 +802,7 @@ function DistributeQuizDialog({ quiz, allStudents, sportsClubs, onDistributed }:
                 quizId: 'temp-' + uuidv4(), 
                 quizTitle: quiz.quizTitle,
                 questions: quiz.questions,
+                videoUrl: videoUrl.trim(), // 영상 주소 포함
                 school,
                 targetType,
             };
@@ -799,7 +816,12 @@ function DistributeQuizDialog({ quiz, allStudents, sportsClubs, onDistributed }:
                 assignment.targetClubName = club?.name || '알 수 없는 클럽';
             }
 
-            await distributeQuiz(school, assignment);
+            // Remove undefined fields to prevent Firestore errors
+            const finalAssignment = Object.fromEntries(
+                Object.entries(assignment).filter(([_, v]) => v !== undefined)
+            );
+
+            await distributeQuiz(school, finalAssignment as any);
             toast({ title: '배포 완료', description: '학생들에게 퀴즈가 성공적으로 전달되었습니다.' });
             onDistributed();
             setIsOpen(false);
