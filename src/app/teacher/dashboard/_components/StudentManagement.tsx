@@ -82,6 +82,8 @@ import {
   Pencil,
   Camera,
   User as UserIcon,
+  Image as ImageIcon,
+  CheckCircle2,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -89,6 +91,53 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
+// 이미지 리사이징 헬퍼 함수
+const resizeAndCompressImage = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+      const img = document.createElement("img");
+      img.src = e.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const targetWidth = 300;
+        const targetHeight = 400;
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Canvas context is not available"));
+          return;
+        }
+
+        const sourceWidth = img.width;
+        const sourceHeight = img.height;
+        const sourceAspectRatio = sourceWidth / sourceHeight;
+        const targetAspectRatio = targetWidth / targetHeight;
+
+        let sx, sy, sWidth, sHeight;
+
+        if (sourceAspectRatio > targetAspectRatio) {
+          sHeight = sourceHeight;
+          sWidth = sHeight * targetAspectRatio;
+          sx = (sourceWidth - sWidth) / 2;
+          sy = 0;
+        } else {
+          sWidth = sourceWidth;
+          sHeight = sWidth / targetAspectRatio;
+          sx = 0;
+          sy = (sourceHeight - sHeight) / 2;
+        }
+
+        ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, targetWidth, targetHeight);
+        resolve(canvas.toDataURL("image/jpeg", 0.85)); // 85% 품질로 압축
+      };
+      img.onerror = reject;
+    };
+    reader.onerror = reject;
+  });
+};
 
 interface StudentManagementProps {
   students: Student[];
@@ -397,6 +446,13 @@ export function StudentManagement({
               onChange={handleStudentCsvUpload}
               style={{ display: "none" }}
             />
+            
+            <BatchPhotoUploadDialog 
+              students={sortedStudents} 
+              onComplete={onStudentsUpdate} 
+              school={school}
+            />
+
             <Button variant="link" onClick={handleDownloadStudentTemplate}>
               학생 템플릿
             </Button>
@@ -855,52 +911,7 @@ function PhotoEditDialog({
 
     setIsProcessing(true);
     try {
-      const resizedDataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(selectedFile);
-        reader.onload = (e) => {
-          const img = document.createElement("img");
-          img.src = e.target?.result as string;
-          img.onload = () => {
-            const canvas = document.createElement("canvas");
-            const targetWidth = 300;
-            const targetHeight = 400;
-            canvas.width = targetWidth;
-            canvas.height = targetHeight;
-            const ctx = canvas.getContext("2d");
-            if (!ctx) {
-              reject(new Error("Canvas context is not available"));
-              return;
-            }
-
-            const sourceWidth = img.width;
-            const sourceHeight = img.height;
-            const sourceAspectRatio = sourceWidth / sourceHeight;
-            const targetAspectRatio = targetWidth / targetHeight;
-
-            let sx, sy, sWidth, sHeight;
-
-            if (sourceAspectRatio > targetAspectRatio) {
-              sHeight = sourceHeight;
-              sWidth = sHeight * targetAspectRatio;
-              sx = (sourceWidth - sWidth) / 2;
-              sy = 0;
-            } else {
-              sWidth = sourceWidth;
-              sHeight = sWidth / targetAspectRatio;
-              sx = 0;
-              sy = (sourceHeight - sHeight) / 2;
-            }
-
-            ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, targetWidth, targetHeight);
-            
-            resolve(canvas.toDataURL("image/jpeg", 0.9));
-          };
-          img.onerror = reject;
-        };
-        reader.onerror = reject;
-      });
-      
+      const resizedDataUrl = await resizeAndCompressImage(selectedFile);
       await onUpdatePhoto(student.id, resizedDataUrl);
       setIsOpen(false);
     } catch (error) {
@@ -935,7 +946,7 @@ function PhotoEditDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{student.name} 학생 사진 관리</DialogTitle>
-          <DialogDescription>3:4 비율로 자동 조정되며, 100KB 미만으로 압축됩니다.</DialogDescription>
+          <DialogDescription>3:4 비율로 자동 조정되며, 약 50KB 미만으로 압축 저장됩니다.</DialogDescription>
         </DialogHeader>
         <div className="flex flex-col items-center gap-4 py-4">
            <div className="w-48 h-64 rounded-md border border-dashed flex items-center justify-center bg-muted overflow-hidden">
@@ -986,6 +997,172 @@ function PhotoEditDialog({
               저장
             </Button>
           </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function BatchPhotoUploadDialog({ students, onComplete, school }: { students: Student[], onComplete: () => void, school: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [pendingPhotos, setPendingPhotos] = useState<Record<string, string>>({}); // studentId -> dataUrl
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
+  const handleFilesSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    
+    setIsProcessing(true);
+    const files = Array.from(e.target.files);
+    const newPending: Record<string, string> = { ...pendingPhotos };
+    let matchCount = 0;
+
+    for (const file of files) {
+      if (!file.type.startsWith('image/jpeg')) continue;
+
+      // 파일 이름에서 이름 부분 추출 (예: "홍길동.jpg" -> "홍길동", "15_홍길동.jpg" -> "홍길동")
+      const fileName = file.name.replace(/\.[^/.]+$/, "");
+      
+      // 학생 목록에서 이름 매칭 (정규표현식으로 이름이 포함되어 있는지 확인)
+      const matchingStudent = students.find(s => fileName.includes(s.name));
+
+      if (matchingStudent) {
+        try {
+          const resized = await resizeAndCompressImage(file);
+          newPending[matchingStudent.id] = resized;
+          matchCount++;
+        } catch (err) {
+          console.error(`Failed to process ${file.name}`, err);
+        }
+      }
+    }
+
+    setPendingPhotos(newPending);
+    setIsProcessing(false);
+    toast({ title: "사진 배정 완료", description: `${matchCount}개의 사진이 학생 이름과 매칭되어 배정되었습니다.` });
+    e.target.value = "";
+  };
+
+  const handleSingleSelect = async (studentId: string, file: File) => {
+    if (!file.type.startsWith('image/jpeg')) {
+      toast({ variant: 'destructive', title: '형식 오류', description: 'JPEG/JPG 파일만 가능합니다.' });
+      return;
+    }
+    try {
+      const resized = await resizeAndCompressImage(file);
+      setPendingPhotos(prev => ({ ...prev, [studentId]: resized }));
+    } catch (err) {
+      toast({ variant: 'destructive', title: '처리 실패' });
+    }
+  };
+
+  const handleSaveAll = async () => {
+    const studentIds = Object.keys(pendingPhotos);
+    if (studentIds.length === 0) return;
+
+    setIsProcessing(true);
+    try {
+      for (const id of studentIds) {
+        await updateStudent(school, id, { photoUrl: pendingPhotos[id] });
+      }
+      toast({ title: "일괄 저장 완료", description: `${studentIds.length}명의 사진이 성공적으로 저장되었습니다.` });
+      onComplete();
+      setIsOpen(false);
+      setPendingPhotos({});
+    } catch (err) {
+      toast({ variant: 'destructive', title: '저장 실패', description: '일부 사진 저장 중 오류가 발생했습니다.' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline">
+          <ImageIcon className="mr-2 h-4 w-4" /> 사진 일괄 등록
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>학급 사진 일괄 등록</DialogTitle>
+          <DialogDescription>
+            여러 개의 사진 파일을 한 번에 선택하세요. 파일 이름에 학생 이름이 포함되어 있으면 자동으로 배정됩니다.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="flex justify-between items-center py-2 border-b">
+          <div className="flex gap-2">
+            <input 
+              type="file" 
+              multiple 
+              accept="image/jpeg,image/jpg" 
+              className="hidden" 
+              ref={fileInputRef} 
+              onChange={handleFilesSelect}
+            />
+            <Button onClick={() => fileInputRef.current?.click()} disabled={isProcessing}>
+              <FileUp className="mr-2 h-4 w-4" /> 사진 파일 다중 선택
+            </Button>
+            <Button variant="ghost" onClick={() => setPendingPhotos({})} disabled={Object.keys(pendingPhotos).length === 0}>
+              초기화
+            </Button>
+          </div>
+          <div className="text-sm font-medium text-primary">
+            배정된 사진: {Object.keys(pendingPhotos).length}개
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto py-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {students.map(student => (
+              <Card key={student.id} className={cn("relative overflow-hidden", pendingPhotos[student.id] ? "ring-2 ring-primary border-primary" : "")}>
+                <CardContent className="p-2 flex flex-col items-center gap-2">
+                  <div className="w-full aspect-[3/4] bg-muted rounded-md flex items-center justify-center overflow-hidden border">
+                    {pendingPhotos[student.id] ? (
+                      <img src={pendingPhotos[student.id]} className="w-full h-full object-cover" alt={student.name} />
+                    ) : student.photoUrl ? (
+                      <img src={student.photoUrl} className="w-full h-full object-cover opacity-50" alt={student.name} />
+                    ) : (
+                      <UserIcon className="w-12 h-12 text-muted-foreground/30" />
+                    )}
+                    {pendingPhotos[student.id] && (
+                      <div className="absolute top-1 right-1 bg-primary text-white rounded-full p-0.5 shadow-lg">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-center">
+                    <p className="font-bold text-sm">{student.name}</p>
+                    <p className="text-xs text-muted-foreground">{student.studentNum}번</p>
+                  </div>
+                  <Label className="cursor-pointer">
+                    <Input 
+                      type="file" 
+                      accept="image/jpeg,image/jpg" 
+                      className="hidden" 
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleSingleSelect(student.id, file);
+                      }}
+                    />
+                    <div className="text-[10px] px-2 py-1 bg-secondary rounded hover:bg-secondary/80">파일 선택</div>
+                  </Label>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        <DialogFooter className="border-t pt-4">
+          <DialogClose asChild>
+            <Button variant="outline">취소</Button>
+          </DialogClose>
+          <Button onClick={handleSaveAll} disabled={isProcessing || Object.keys(pendingPhotos).length === 0}>
+            {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            {Object.keys(pendingPhotos).length}개 사진 모두 저장
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1430,3 +1607,4 @@ export function DatabaseManagement({
     </Card>
   );
 }
+
