@@ -84,6 +84,7 @@ import {
   User as UserIcon,
   Image as ImageIcon,
   CheckCircle2,
+  Save,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -1193,7 +1194,7 @@ export function DatabaseManagement({
   const [studentSearch, setStudentSearch] = useState("");
   const [foundStudent, setFoundStudent] = useState<Student | null>(null);
   
-  const recordDates = useMemo(() => [...new Set(records.map(r => r.date))].sort((a,b) => new Date(b).getTime() - new Date(a).getTime()), [records]);
+  const recordDates = useMemo(() => [...new Set(records.map(r => r.date))].sort((a,b) => new Date(b.getTime()) - new Date(a.getTime())), [records]);
 
   const handleRecordCsvUpload = (
     event: React.ChangeEvent<HTMLInputElement>
@@ -1607,4 +1608,3 @@ export function DatabaseManagement({
     </Card>
   );
 }
-
