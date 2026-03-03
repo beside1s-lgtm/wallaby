@@ -35,6 +35,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 
 
 interface RecordBrowserProps {
@@ -114,7 +115,7 @@ export default function RecordBrowser({
         ),
       ].sort((a,b) => parseInt(a) - parseInt(b));
     });
-    const dates = [...new Set(allRecords.map(r => r.date))].sort((a, b) => new Date(b.getTime()) - new Date(a.getTime()));
+    const dates = [...new Set(allRecords.map(r => r.date))].sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
     return { grades, classNumsByGrade, availableDates: dates };
   }, [allStudents, allRecords]);
   
@@ -159,7 +160,7 @@ export default function RecordBrowser({
             });
 
             if (recordsForItem.length > 0) {
-              const currentLatest = recordsForItem.sort((a,b) => new Date(b.date).getTime() - new Date(a.getTime())[0]);
+              const currentLatest = recordsForItem.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
               if (!latestRecord || new Date(currentLatest.date) > new Date(latestRecord.date)) {
                   latestRecord = currentLatest;
                   latestItem = item;
@@ -290,7 +291,7 @@ export default function RecordBrowser({
                     ...student,
                     quizTitle: '-',
                     score: '-',
-                    recordGrade: null, // Add recordGrade field to prevent errors
+                    recordGrade: null,
                     passed: false,
                     latestDate: '-'
                 }];
@@ -301,7 +302,7 @@ export default function RecordBrowser({
                     ...student,
                     quizTitle: assignment?.quizTitle || '알 수 없는 퀴즈',
                     score: `${r.score} / ${r.total}`,
-                    recordGrade: null, // Theory exams don't have grades 1-5 like items
+                    recordGrade: null,
                     passed: r.passed,
                     latestDate: r.createdAt?.toDate ? format(r.createdAt.toDate(), 'yyyy-MM-dd') : '-'
                 };
@@ -377,7 +378,6 @@ export default function RecordBrowser({
             else { valA = (a as any)[column]; valB = (b as any)[column]; }
 
 
-            // Handle nulls and undefined to sort them at the end
             if (valA == null) return 1;
             if (valB == null) return -1;
             
@@ -391,7 +391,6 @@ export default function RecordBrowser({
                 comparison = numA - numB;
 
                  if (itemInfo?.recordType === 'time') {
-                    // For time records, lower is better. Reverse the comparison.
                     comparison = -comparison;
                 }
             } else if (column === 'latestDate') {
