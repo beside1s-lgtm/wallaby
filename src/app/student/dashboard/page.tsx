@@ -65,7 +65,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogClose,
-} from "@/dialog";
+} from "@/components/ui/dialog";
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
