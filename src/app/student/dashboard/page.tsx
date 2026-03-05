@@ -49,9 +49,9 @@ import { getStudentFeedback } from '@/ai/flows/student-ai-feedback';
 import { getScoutingReport } from '@/ai/flows/scouting-report-flow';
 import { getTeamAnalysis } from '@/ai/flows/team-analysis-flow';
 import type { ScoutingReportOutput } from '@/ai/flows/scouting-report-flow';
-import { Loader2, Wand2, Trash2, Users, User as UserIcon, Swords, Bot, Printer, Crown, Medal, Trophy, BookOpen, ChevronRight, CheckCircle2, AlertCircle, HelpCircle, Star, Frown, RotateCcw, Youtube, Eye, EyeOff, Award } from 'lucide-react';
+import { Loader2, Wand2, Trash2, Users, User as UserIcon, Swords, Bot, Printer, Crown, Medal, Trophy, BookOpen, ChevronRight, CheckCircle2, AlertCircle, HelpCircle, Star, Frown, RotateCcw, Youtube, Eye, EyeOff, Award, ClipboardList } from 'lucide-react';
 import type { Student, MeasurementRecord, MeasurementItem, TeamGroup, Tournament, Match, QuizAssignment, QuizResult } from '@/lib/types';
-import { getPapsGrade, getCustomItemGrade, normalizePapsRecord, normalizeCustomRecord } from '@/lib/paps';
+import { getPapsGrade, getCustomItemGrade, normalizePapsRecord, normalizeCustomRecord, papsGradeStandards } from '@/lib/paps';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { format } from 'date-fns';
@@ -145,6 +145,10 @@ export default function StudentDashboardPage() {
   const [quizAnswers, setQuizAnswers] = useState<Record<number, string>>({});
   const [quizResult, setQuizResult] = useState<{ score: number, total: number, corrections: boolean[] } | null>(null);
   const [showQuizVideo, setShowQuizVideo] = useState(false);
+
+  // New states for measurement instruction
+  const [showInputVideo, setShowInputVideo] = useState(false);
+  const [showInputGradeTable, setShowInputGradeTable] = useState(false);
 
   useEffect(() => {
     const body = document.body;
@@ -771,6 +775,34 @@ export default function StudentDashboardPage() {
     }
   }, [quizResult]);
 
+  const renderGradeRanges = (gender: 'male' | 'female', itemName: string, grade: string) => {
+    const itemKey = itemName === '무릎 대고 팔굽혀펴기' ? '팔굽혀펴기' : itemName;
+    const itemStandards = papsGradeStandards[grade]?.[itemKey];
+    
+    if (!itemStandards) return <TableCell colSpan={5} className="text-center text-muted-foreground">데이터 없음</TableCell>;
+
+    const ranges = itemStandards[gender];
+    const unit = measurementItems.find(i => i.name === itemName)?.unit || '';
+    const type = itemStandards.type;
+
+    return [1, 2, 3, 4, 5].map(g => {
+        const gradeRanges = ranges.filter(r => r.grade === g);
+        if (gradeRanges.length === 0) return <TableCell key={g} className="text-center">-</TableCell>;
+
+        const rangeTexts = gradeRanges.map(r => {
+            if (r.max === Infinity) return `${r.min}${unit} 이상`;
+            if (r.min === 1 || r.min === -Infinity || (type === 'time' && r.min === 0)) return `${r.max}${unit} 이하`;
+            return `${r.min}~${r.max}${unit}`;
+        });
+
+        return (
+            <TableCell key={g} className="text-center text-xs break-keep">
+                {rangeTexts.join(' 또는 ')}
+            </TableCell>
+        );
+    });
+  };
+
 
   if (isDataLoading || !fullStudent || !school) {
     return (
@@ -997,20 +1029,107 @@ export default function StudentDashboardPage() {
                         <CardTitle>측정 결과 입력</CardTitle>
                         <CardDescription>오늘의 측정 결과를 입력하세요. 같은 날짜에 다시 입력하면 덮어쓰기됩니다.</CardDescription>
                     </CardHeader>
-                    <CardContent className="flex-grow space-y-4">
-                        <Select onValueChange={setSelectedItemName} value={selectedItemName}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="측정 종목 선택" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {measurementItems
-                              .filter(item => !item.isArchived && !item.isDeactivated)
-                              .map(item => (
-                                <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
-                              ))
-                            }
-                        </SelectContent>
-                        </Select>
+                    <CardContent className="flex-grow space-y-6">
+                        <div className="space-y-4">
+                            <Select onValueChange={(val) => {
+                                setSelectedItemName(val);
+                                setShowInputVideo(false);
+                                setShowInputGradeTable(false);
+                            }} value={selectedItemName}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="측정 종목 선택" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {measurementItems
+                                .filter(item => !item.isArchived && !item.isDeactivated)
+                                .map(item => (
+                                    <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
+                                ))
+                                }
+                            </SelectContent>
+                            </Select>
+
+                            {selectedItem && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {selectedItem.isPaps && (
+                                        <Button 
+                                            variant="outline" 
+                                            size="sm" 
+                                            onClick={() => setShowInputGradeTable(!showInputGradeTable)}
+                                            className="w-full"
+                                        >
+                                            <ClipboardList className="mr-2 h-4 w-4 text-primary" />
+                                            {showInputGradeTable ? "등급 기준표 숨기기" : "등급 기준표 보기"}
+                                        </Button>
+                                    )}
+                                    {selectedItem.videoUrl && (
+                                        <Button 
+                                            variant="outline" 
+                                            size="sm" 
+                                            onClick={() => setShowInputVideo(!showInputVideo)}
+                                            className="w-full"
+                                        >
+                                            <Youtube className="mr-2 h-4 w-4 text-red-600" />
+                                            {showInputVideo ? "참고 영상 숨기기" : "참고 영상 보기"}
+                                        </Button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {selectedItem && showInputGradeTable && selectedItem.isPaps && (
+                            <div className="p-4 border rounded-lg bg-secondary/30 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                                <div className="flex items-center gap-2">
+                                    <ClipboardList className="h-5 w-5 text-primary" />
+                                    <h3 className="font-semibold">{selectedItem.name} 등급 기준표 ({fullStudent.grade}학년)</h3>
+                                </div>
+                                <div className="overflow-x-auto rounded-md border bg-background">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow className="bg-muted/50">
+                                                <TableHead className="text-center w-[100px]">성별</TableHead>
+                                                <TableHead className="text-center">1등급</TableHead>
+                                                <TableHead className="text-center">2등급</TableHead>
+                                                <TableHead className="text-center">3등급</TableHead>
+                                                <TableHead className="text-center">4등급</TableHead>
+                                                <TableHead className="text-center">5등급</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            <TableRow>
+                                                <TableCell className="text-center font-semibold bg-muted/20">남학생</TableCell>
+                                                {renderGradeRanges('male', selectedItem.name, fullStudent.grade)}
+                                            </TableRow>
+                                            <TableRow>
+                                                <TableCell className="text-center font-semibold bg-muted/20">여학생</TableCell>
+                                                {renderGradeRanges('female', selectedItem.name, fullStudent.grade)}
+                                            </TableRow>
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </div>
+                        )}
+
+                        {selectedItem && showInputVideo && selectedItem.videoUrl && (
+                            <div className="p-4 border rounded-lg bg-primary/5 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+                                <div className="flex items-center gap-2">
+                                    <Youtube className="h-5 w-5 text-red-600" />
+                                    <h3 className="font-semibold">{selectedItem.name} 측정 안내 영상</h3>
+                                </div>
+                                <div className="aspect-video w-full max-w-2xl mx-auto rounded-lg overflow-hidden border shadow-lg bg-black">
+                                    <iframe
+                                        width="100%"
+                                        height="100%"
+                                        src={getYouTubeEmbedUrl(selectedItem.videoUrl)!}
+                                        title="YouTube video player"
+                                        frameBorder="0"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                        allowFullScreen
+                                    ></iframe>
+                                </div>
+                            </div>
+                        )}
+
                         {selectedItem?.isCompound ? (
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
