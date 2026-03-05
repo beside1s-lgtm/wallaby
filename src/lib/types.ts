@@ -10,8 +10,8 @@ export type Student = {
   photoUrl?: string; // 학생 사진 URL (선택 사항)
 };
 
-export type StudentToAdd = Omit<Student, 'id' | 'accessCode' | 'photoUrl'>;
-export type StudentToUpdate = Omit<Student, 'id' | 'accessCode' | 'school'>;
+export type StudentToAdd = Omit<Student, 'id' | 'school' | 'accessCode' | 'photoUrl'>;
+export type StudentToUpdate = Partial<Omit<Student, 'id' | 'accessCode' | 'school'>>;
 
 export type RecordType = 'time' | 'count' | 'distance' | 'weight' | 'level' | 'compound';
 
