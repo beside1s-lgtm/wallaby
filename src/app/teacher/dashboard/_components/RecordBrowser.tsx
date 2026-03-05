@@ -80,14 +80,26 @@ export default function RecordBrowser({
   const [classNumFilter, setClassNumFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState<Date | 'latest' | undefined>('latest');
   const [viewType, setViewType] = useState<ViewType>('grade');
-  const [papsSort, setPapsSort] = useState<SortDescriptor[]>([{ column: '반', direction: 'ascending'}, { column: '번호', direction: 'ascending'}]);
+  
+  // 기본 정렬을 학년-반-번호 순으로 변경
+  const [papsSort, setPapsSort] = useState<SortDescriptor[]>([
+    { column: '학년', direction: 'ascending'},
+    { column: '반', direction: 'ascending'},
+    { column: '번호', direction: 'ascending'}
+  ]);
 
 
   // For "종목별 기록" tab
   const [selectedItem, setSelectedItem] = useState('');
   const [itemGradeFilter, setItemGradeFilter] = useState('all');
   const [itemClassNumFilter, setItemClassNumFilter] = useState('all');
-  const [itemSort, setItemSort] = useState<SortDescriptor[]>([{ column: 'name', direction: 'ascending' }]);
+  
+  // 종목별 정렬도 학년-반-번호 순으로 변경
+  const [itemSort, setItemSort] = useState<SortDescriptor[]>([
+    { column: 'grade', direction: 'ascending' },
+    { column: 'classNum', direction: 'ascending' },
+    { column: 'studentNum', direction: 'ascending' }
+  ]);
   
   // For Theory Exam Results
   const [quizResults, setQuizResults] = useState<QuizResult[]>([]);

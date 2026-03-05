@@ -42,7 +42,13 @@ export function BatchInput({ allStudents, activeItems, onRecordUpdate, allTeamGr
     } else if (selectedGrade) {
       list = allStudents.filter(s => s.grade === selectedGrade && (selectedClassNum === 'all' || s.classNum === selectedClassNum));
     }
-    return list.sort((a, b) => parseInt(a.studentNum) - parseInt(b.studentNum));
+    
+    // 정렬 로직 강화: 학년 -> 반 -> 번호 순
+    return list.sort((a, b) => {
+      if (a.grade !== b.grade) return parseInt(a.grade) - parseInt(b.grade);
+      if (a.classNum !== b.classNum) return parseInt(a.classNum) - parseInt(b.classNum);
+      return parseInt(a.studentNum) - parseInt(b.studentNum);
+    });
   }, [allStudents, selectedGrade, selectedClassNum, selectedGroupId, allTeamGroups, sportsClubs]);
 
   const handleSave = async () => {
@@ -65,8 +71,8 @@ export function BatchInput({ allStudents, activeItems, onRecordUpdate, allTeamGr
       <CardHeader>
         <CardTitle>학급/팀별 측정 기록</CardTitle>
         <div className="flex flex-wrap items-center gap-2 pt-4">
-          <Select value={selectedGrade} onValueChange={v => { setSelectedGrade(v); setSelectedGroupId(''); }}><SelectTrigger className="w-[120px]"><SelectValue placeholder="학년" /></SelectTrigger><SelectContent>{[...new Set(allStudents.map(s => s.grade))].sort().map(g => <SelectItem key={g} value={g}>{g}학년</SelectItem>)}</SelectContent></Select>
-          <Select value={selectedClassNum} onValueChange={setSelectedClassNum} disabled={!selectedGrade}><SelectTrigger className="w-[120px]"><SelectValue placeholder="반" /></SelectTrigger><SelectContent><SelectItem value="all">전체</SelectItem>{[...new Set(allStudents.filter(s => s.grade === selectedGrade).map(s => s.classNum))].sort().map(c => <SelectItem key={c} value={c}>{c}반</SelectItem>)}</SelectContent></Select>
+          <Select value={selectedGrade} onValueChange={v => { setSelectedGrade(v); setSelectedGroupId(''); }}><SelectTrigger className="w-[120px]"><SelectValue placeholder="학년" /></SelectTrigger><SelectContent>{[...new Set(allStudents.map(s => s.grade))].sort((a,b) => parseInt(a)-parseInt(b)).map(g => <SelectItem key={g} value={g}>{g}학년</SelectItem>)}</SelectContent></Select>
+          <Select value={selectedClassNum} onValueChange={setSelectedClassNum} disabled={!selectedGrade}><SelectTrigger className="w-[120px]"><SelectValue placeholder="반" /></SelectTrigger><SelectContent><SelectItem value="all">전체</SelectItem>{[...new Set(allStudents.filter(s => s.grade === selectedGrade).map(s => s.classNum))].sort((a,b) => parseInt(a)-parseInt(b)).map(c => <SelectItem key={c} value={c}>{c}반</SelectItem>)}</SelectContent></Select>
           <Select value={selectedGroupId} onValueChange={v => { setSelectedGroupId(v); setSelectedGrade(''); }}><SelectTrigger className="w-[180px]"><SelectValue placeholder="그룹 선택" /></SelectTrigger><SelectContent>{allTeamGroups.concat(sportsClubs as any).map((g: any) => <SelectItem key={g.id} value={g.id}>{g.description || g.name}</SelectItem>)}</SelectContent></Select>
           <Popover><PopoverTrigger asChild><Button variant="outline" className="w-[200px] justify-start"><CalendarIcon className="mr-2 h-4 w-4" />{date ? format(date, "PPP") : "날짜"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={date} onSelect={setDate} initialFocus /></PopoverContent></Popover>
           <Select value={batchItem} onValueChange={setBatchItem}><SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger><SelectContent>{activeItems.map(i => <SelectItem key={i.id} value={i.name}>{i.name}</SelectItem>)}</SelectContent></Select>
