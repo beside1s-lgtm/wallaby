@@ -1,3 +1,4 @@
+
 'use client';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/use-auth';
@@ -75,29 +76,6 @@ const chartConfig = {
   achievement: { label: "기록 성취도", color: "hsl(var(--chart-1))" },
 };
 
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    const scorePayload = payload.find(p => p.dataKey === 'score');
-    const achievementPayload = payload.find(p => p.dataKey === 'achievement');
-
-    return (
-      <div className="p-2 text-sm bg-background/90 border rounded-md shadow-lg">
-        <p className="font-bold">{label} ({data.itemName})</p>
-        {scorePayload && <p style={{ color: scorePayload.color }}>{`등급: ${data.grade}등급`}</p>}
-        {achievementPayload && <p style={{ color: achievementPayload.color }}>{`기록: ${data.value}${data.unit}`}</p>}
-        {data.rank && <p className="text-muted-foreground mt-1">{data.rank}</p>}
-      </div>
-    );
-  }
-  return null;
-};
-
-type AiReport = {
-  type: 'scouting' | 'team';
-  data: ScoutingReportOutput;
-}
-
 export default function StudentDashboardPage() {
   const { user, school, isLoading: isAuthLoading } = useAuth();
   const { toast } = useToast();
@@ -146,9 +124,26 @@ export default function StudentDashboardPage() {
   const [quizResult, setQuizResult] = useState<{ score: number, total: number, corrections: boolean[] } | null>(null);
   const [showQuizVideo, setShowQuizVideo] = useState(false);
 
-  // New states for measurement instruction
   const [showInputVideo, setShowInputVideo] = useState(false);
   const [showInputGradeTable, setShowInputGradeTable] = useState(false);
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      const scorePayload = payload.find(p => p.dataKey === 'score');
+      const achievementPayload = payload.find(p => p.dataKey === 'achievement');
+
+      return (
+        <div className="p-2 text-sm bg-background/90 border rounded-md shadow-lg">
+          <p className="font-bold">{chartItemFilter ? `${label} (${data.itemName})` : label}</p>
+          {scorePayload && <p style={{ color: scorePayload.color }}>{`등급: ${data.grade}등급`}</p>}
+          {achievementPayload && <p style={{ color: achievementPayload.color }}>{`기록: ${data.value}${data.unit} (${data.achievement}%)`}</p>}
+          {data.rank && <p className="text-muted-foreground mt-1">{data.rank}</p>}
+        </div>
+      );
+    }
+    return null;
+  };
 
   useEffect(() => {
     const body = document.body;
@@ -215,9 +210,7 @@ export default function StudentDashboardPage() {
             const results = allResults.filter(r => r.studentId === student.id);
             setStudentQuizResults(results);
             
-            // Auto-select initial tab based on priority
             if (!hasAutoSelectedTab.current) {
-                // Only auto-switch to theory if there's an active quiz NOT passed yet
                 const hasActiveUnpassedQuiz = studentAssignments.some(a => !results.find(r => r.assignmentId === a.id)?.passed);
                 
                 if (hasActiveUnpassedQuiz) {
@@ -562,56 +555,101 @@ export default function StudentDashboardPage() {
   }, [measurementItems, records, chartFilter, fullStudent, isAuthLoading]);
 
   const chartData = useMemo(() => {
-    if (!fullStudent || !school || !chartItemFilter || isAuthLoading) return [];
-
-    const itemInfo = measurementItems.find(i => i.name === chartItemFilter);
-    if (!itemInfo) return [];
-
-    const recordsForItem = records.filter(record => record.item === chartItemFilter);
-    if (recordsForItem.length === 0) return [];
+    if (!fullStudent || !school || isAuthLoading) return [];
 
     const allItemRanks = calculateRanks(school, measurementItems, allRecords, allStudents, fullStudent.grade);
-    const itemRanks = allItemRanks[chartItemFilter] || [];
 
-    return recordsForItem
-      .map(record => {
-        let grade: number | null = null;
-        let achievement: number | null = null;
-        if (itemInfo.isPaps) {
-            grade = getPapsGrade(record.item, fullStudent, record.value);
-            if (grade) achievement = normalizePapsRecord(grade, record.value, record.item, fullStudent);
-        } else {
-            grade = getCustomItemGrade(itemInfo, record.value);
-            if (grade) achievement = normalizeCustomRecord(itemInfo, record.value);
-        }
+    if (chartItemFilter) {
+        const itemInfo = measurementItems.find(i => i.name === chartItemFilter);
+        if (!itemInfo) return [];
 
-        if (grade === null) return null;
+        const recordsForItem = records.filter(record => record.item === chartItemFilter);
+        if (recordsForItem.length === 0) return [];
 
-        const rankInfo = itemRanks.find(r => r.studentId === fullStudent.id && r.value === record.value);
+        const itemRanks = allItemRanks[chartItemFilter] || [];
 
-        return {
-            date: record.date,
-            itemName: record.item,
-            grade: grade,
-            score: 6 - grade,
-            achievement: achievement,
-            value: record.value,
-            unit: itemInfo.unit,
-            rank: rankInfo ? `같은 학년 ${itemRanks.length}명 중 ${rankInfo.rank}등` : undefined
-        };
-    })
-    .filter((d): d is NonNullable<typeof d> => d !== null)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(a.date).getTime());
-  }, [records, chartItemFilter, measurementItems, fullStudent, school, allRecords, allStudents, isAuthLoading]);
+        return recordsForItem
+          .map(record => {
+            let grade: number | null = null;
+            let achievement: number | null = null;
+            if (itemInfo.isPaps) {
+                grade = getPapsGrade(record.item, fullStudent, record.value);
+                if (grade) achievement = normalizePapsRecord(grade, record.value, record.item, fullStudent);
+            } else {
+                grade = getCustomItemGrade(itemInfo, record.value);
+                if (grade) achievement = normalizeCustomRecord(itemInfo, record.value);
+            }
+
+            if (grade === null) return null;
+
+            const rankInfo = itemRanks.find(r => r.studentId === fullStudent.id && r.value === record.value);
+
+            return {
+                date: record.date,
+                itemName: record.item,
+                grade: grade,
+                score: 6 - grade,
+                achievement: achievement,
+                value: record.value,
+                unit: itemInfo.unit,
+                rank: rankInfo ? `같은 학년 ${itemRanks.length}명 중 ${rankInfo.rank}등` : undefined
+            };
+        })
+        .filter((d): d is NonNullable<typeof d> => d !== null)
+        .sort((a, b) => new Date(a.date).getTime() - new Date(a.date).getTime());
+    } else {
+        const studentMeasuredItemNames = [...new Set(records.map(r => r.item))];
+        const filteredItemNames = studentMeasuredItemNames.filter(name => {
+            const item = measurementItems.find(i => i.name === name);
+            if (!item) return false;
+            if (chartFilter === 'paps') return item.isPaps;
+            if (chartFilter === 'custom') return !item.isPaps;
+            return true;
+        });
+
+        return filteredItemNames.map(itemName => {
+            const itemInfo = measurementItems.find(i => i.name === itemName);
+            if (!itemInfo) return null;
+
+            const recordsForItem = records.filter(r => r.item === itemName);
+            const latestRecord = recordsForItem.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+            if (!latestRecord) return null;
+
+            let grade: number | null = null;
+            let achievement: number | null = null;
+            if (itemInfo.isPaps) {
+                grade = getPapsGrade(itemName, fullStudent, latestRecord.value);
+                if (grade) achievement = normalizePapsRecord(grade, latestRecord.value, itemName, fullStudent);
+            } else {
+                grade = getCustomItemGrade(itemInfo, latestRecord.value);
+                if (grade) achievement = normalizeCustomRecord(itemInfo, latestRecord.value);
+            }
+
+            const itemRanks = allItemRanks[itemName] || [];
+            const rankInfo = itemRanks.find(r => r.studentId === fullStudent.id && r.value === latestRecord.value);
+
+            return {
+                date: latestRecord.date,
+                itemName: itemName,
+                grade: grade,
+                score: grade ? 6 - grade : 0,
+                achievement: achievement,
+                value: latestRecord.value,
+                unit: itemInfo.unit,
+                rank: rankInfo ? `같은 학년 ${itemRanks.length}명 중 ${rankInfo.rank}등` : undefined
+            };
+        })
+        .filter((d): d is NonNullable<typeof d> => d !== null)
+        .sort((a, b) => a.itemName.localeCompare(b.itemName));
+    }
+  }, [records, chartItemFilter, chartFilter, measurementItems, fullStudent, school, allRecords, allStudents, isAuthLoading]);
 
   useEffect(() => {
-    if (availableItems.length > 0) {
+    if (chartItemFilter && availableItems.length > 0) {
         const isCurrentValid = availableItems.some(i => i.name === chartItemFilter);
         if (!isCurrentValid) {
-            setChartItemFilter(availableItems[0].name);
+            setChartItemFilter('');
         }
-    } else {
-        setChartItemFilter('');
     }
   }, [availableItems, chartItemFilter]);
 
@@ -674,7 +712,7 @@ export default function StudentDashboardPage() {
         setQuizResult({
             score: existingResult.score,
             total: existingResult.total,
-            corrections: [] // We don't store individual corrections in DB currently
+            corrections: []
         });
     } else {
         setQuizResult(null);
@@ -726,7 +764,6 @@ export default function StudentDashboardPage() {
             passed
         });
         
-        // Refresh local results
         const allResults = await getQuizResultsBySchool(school);
         setStudentQuizResults(allResults.filter(r => r.studentId === student.id));
     }
@@ -850,7 +887,11 @@ export default function StudentDashboardPage() {
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <div>
                             <CardTitle>나의 성장 기록</CardTitle>
-                            <CardDescription>측정 결과의 등급(막대)과 실제 기록의 성취도(선)를 함께 확인해보세요.</CardDescription>
+                            <CardDescription>
+                                {chartItemFilter 
+                                    ? `${chartItemFilter}의 회차별 기록 향상 추이를 확인하세요.` 
+                                    : "측정된 모든 종목의 최신 성취도를 비교해 보세요."}
+                            </CardDescription>
                         </div>
                         <div className='flex flex-col sm:flex-row gap-2 w-full sm:w-auto'>
                             <div className="grid grid-cols-3 gap-1 rounded-md bg-muted p-1 w-full sm:w-auto">
@@ -860,16 +901,13 @@ export default function StudentDashboardPage() {
                             </div>
                             <Select onValueChange={setChartItemFilter} value={chartItemFilter}>
                                 <SelectTrigger className="w-full sm:w-[200px]">
-                                <SelectValue placeholder={availableItems.length > 0 ? "종목 선택" : "측정 종목 없음"} />
+                                    <SelectValue placeholder="종합 현황" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                {availableItems.length > 0 ? (
-                                    availableItems.map(item => (
+                                    <SelectItem value="">종합 현황</SelectItem>
+                                    {availableItems.map(item => (
                                         <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
-                                    ))
-                                ) : (
-                                    <SelectItem value="none" disabled>측정 종목 없음</SelectItem>
-                                )}
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -877,23 +915,36 @@ export default function StudentDashboardPage() {
                     </CardHeader>
                     <CardContent>
                     {chartData.length > 0 ? (
-                        <ChartContainer config={chartConfig} className="h-[400px] w-full">
+                        <ChartContainer config={chartConfig} className="h-[450px] w-full">
                         <ResponsiveContainer>
-                            <ComposedChart data={chartData}>
+                            <ComposedChart data={chartData} margin={{ bottom: chartItemFilter ? 0 : 40 }}>
                             <CartesianGrid vertical={false} />
-                            <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
+                            <XAxis 
+                                dataKey={chartItemFilter ? "date" : "itemName"} 
+                                tickLine={false} 
+                                axisLine={false} 
+                                tickMargin={8}
+                                angle={chartItemFilter ? 0 : -45}
+                                textAnchor={chartItemFilter ? "middle" : "end"}
+                                height={chartItemFilter ? 30 : 80}
+                                interval={0}
+                            />
                             <YAxis yAxisId="left" orientation="left" stroke="hsl(var(--chart-2))" domain={[0, 5]} ticks={[1, 2, 3, 4, 5]} tickFormatter={(value) => `${6 - value}등급`} name="등급" />
                             <YAxis yAxisId="right" orientation="right" stroke="hsl(var(--chart-1))" domain={[0, 100]} unit="%" name="성취도" />
                             <Tooltip content={<CustomTooltip />} />
-                            <Legend />
+                            <Legend verticalAlign="top" height={36}/>
                             <Bar dataKey="score" yAxisId="left" fill="var(--color-score)" name="등급" radius={[4, 4, 0, 0]} barSize={20} />
-                            <Line dataKey="achievement" yAxisId="right" type="monotone" stroke="var(--color-achievement)" strokeWidth={2} dot={true} name="성취도" />
+                            {chartItemFilter ? (
+                                <Line dataKey="achievement" yAxisId="right" type="monotone" stroke="var(--color-achievement)" strokeWidth={2} dot={true} name="성취도" />
+                            ) : (
+                                <Bar dataKey="achievement" yAxisId="right" fill="var(--color-achievement)" name="성취도" radius={[4, 4, 0, 0]} barSize={15} opacity={0.7} />
+                            )}
                             </ComposedChart>
                         </ResponsiveContainer>
                         </ChartContainer>
                     ) : (
                         <div className="h-[400px] flex items-center justify-center text-muted-foreground">
-                        <p>{availableItems.length > 0 ? '그래프를 표시할 종목을 선택해주세요.' : '측정된 기록이 없습니다.'}</p>
+                        <p>{availableItems.length > 0 ? '측정된 기록이 없습니다.' : '해당 필터에 측정된 기록이 없습니다.'}</p>
                         </div>
                     )}
                     </CardContent>
@@ -1450,7 +1501,6 @@ export default function StudentDashboardPage() {
             </TabsContent>
         </Tabs>
 
-        {/* Quiz Modal */}
         <Dialog open={isQuizModalOpen} onOpenChange={setIsQuizModalOpen}>
             <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
@@ -1461,7 +1511,6 @@ export default function StudentDashboardPage() {
                 </DialogHeader>
                 
                 <div className="space-y-8 py-4">
-                    {/* Reference Video for Quiz */}
                     {selectedAssignment?.videoUrl && !quizResult && (
                         <div className="p-4 border rounded-lg bg-primary/5 space-y-4">
                             <div className="flex items-center justify-between">
@@ -1601,4 +1650,9 @@ export default function StudentDashboardPage() {
         </Dialog>
     </div>
   );
+}
+
+type AiReport = {
+  type: 'scouting' | 'team';
+  data: ScoutingReportOutput;
 }
