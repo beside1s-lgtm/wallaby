@@ -65,7 +65,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogClose,
-} from "@/components/ui/dialog";
+} from "@/dialog";
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
@@ -1003,9 +1003,12 @@ export default function StudentDashboardPage() {
                             <SelectValue placeholder="측정 종목 선택" />
                         </SelectTrigger>
                         <SelectContent>
-                            {measurementItems.map(item => (
-                            <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
-                            ))}
+                            {measurementItems
+                              .filter(item => !item.isArchived && !item.isDeactivated)
+                              .map(item => (
+                                <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
+                              ))
+                            }
                         </SelectContent>
                         </Select>
                         {selectedItem?.isCompound ? (
