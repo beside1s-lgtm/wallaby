@@ -1,4 +1,3 @@
-
 'use client';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/use-auth';
@@ -1132,7 +1131,7 @@ export default function StudentDashboardPage() {
                             <div className="p-4 border rounded-lg bg-secondary/30 space-y-4 animate-in fade-in zoom-in-95 duration-200">
                                 <div className="flex items-center gap-2">
                                     <ClipboardList className="h-5 w-5 text-primary" />
-                                    <h3 className="font-semibold">{selectedItem.name} 등급 기준표 ({fullStudent.grade}학년)</h3>
+                                    <h3 className="font-semibold">{selectedItem.name} 등급 기준표 ({fullStudent?.grade}학년)</h3>
                                 </div>
                                 <div className="overflow-x-auto rounded-md border bg-background">
                                     <Table>
@@ -1149,11 +1148,11 @@ export default function StudentDashboardPage() {
                                         <TableBody>
                                             <TableRow>
                                                 <TableCell className="text-center font-semibold bg-muted/20">남학생</TableCell>
-                                                {renderGradeRanges('male', selectedItem.name, fullStudent.grade)}
+                                                {fullStudent && renderGradeRanges('male', selectedItem.name, fullStudent.grade)}
                                             </TableRow>
                                             <TableRow>
                                                 <TableCell className="text-center font-semibold bg-muted/20">여학생</TableCell>
-                                                {renderGradeRanges('female', selectedItem.name, fullStudent.grade)}
+                                                {fullStudent && renderGradeRanges('female', selectedItem.name, fullStudent.grade)}
                                             </TableRow>
                                         </TableBody>
                                     </Table>

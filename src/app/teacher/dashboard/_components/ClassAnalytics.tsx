@@ -516,7 +516,7 @@ export default function ClassAnalytics({
         const latestRecord = allRecords
           .filter((r) => r.studentId === student.id && r.item === item.name)
           .sort(
-            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+            (a, b) => new Date(a.date).getTime() - new Date(a.date).getTime()
           )[0];
 
         if (latestRecord) {
@@ -1443,7 +1443,7 @@ function EditRecordDialog({
     if (selectedItem?.isCompound) {
       const h = parseFloat(height);
       const w = parseFloat(weight);
-      if (isNaN(h) || iNaN(w) || h <= 0 || w <= 0) {
+      if (isNaN(h) || isNaN(w) || h <= 0 || w <= 0) {
         toast({ variant: 'destructive', title: '입력 오류', description: '유효한 키와 몸무게를 입력해주세요.' });
         return;
       }
