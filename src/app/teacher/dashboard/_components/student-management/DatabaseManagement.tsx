@@ -42,6 +42,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { parseCsv, exportToZip } from "@/lib/utils";
 import { FileUp, FileDown, Loader2, Sparkles, KeyRound, Trash2, Search } from "lucide-react";
+import { format } from "date-fns";
 
 export function DatabaseManagement({ students, records, items, onUpdate }: { students: Student[], records: MeasurementRecord[], items: MeasurementItem[], onUpdate: () => void }) {
   const { school } = useAuth();
@@ -231,13 +232,21 @@ export function DatabaseManagement({ students, records, items, onUpdate }: { stu
         </div>
 
         {/* 4. 기타 유틸리티 */}
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={async () => { setIsProcessing(true); await cleanUpDuplicateRecords(school!); onUpdate(); setIsProcessing(false); }} disabled={isProcessing}>
-            <Sparkles className="mr-2 h-4 w-4" /> 중복 데이터 정리
-          </Button>
-          <Button variant="outline" onClick={async () => { setIsProcessing(true); await assignMissingAccessCodes(school!); onUpdate(); setIsProcessing(false); }} disabled={isProcessing}>
-            <KeyRound className="mr-2 h-4 w-4" /> 미할당 접속 코드 생성
-          </Button>
+        <div>
+          <h3 className="text-lg font-semibold mb-2">데이터 정리 및 복구</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            중복 기록을 정리하거나, 시스템 오류 등으로 누락된 학생의 접속 코드를 일괄 생성합니다.
+            <br />
+            <span className="text-xs text-blue-600 font-medium">* 새로 생성된 코드는 '학생 관리' 탭의 명단에서 확인하실 수 있습니다. (신규 등록 학생은 자동 생성되므로 보통은 사용하실 필요가 없습니다.)</span>
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={async () => { setIsProcessing(true); await cleanUpDuplicateRecords(school!); onUpdate(); setIsProcessing(false); }} disabled={isProcessing}>
+              <Sparkles className="mr-2 h-4 w-4" /> 중복 데이터 정리
+            </Button>
+            <Button variant="outline" onClick={async () => { setIsProcessing(true); await assignMissingAccessCodes(school!); onUpdate(); setIsProcessing(false); }} disabled={isProcessing}>
+              <KeyRound className="mr-2 h-4 w-4" /> 미할당 접속 코드 생성
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
