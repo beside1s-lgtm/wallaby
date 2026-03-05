@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -306,17 +305,57 @@ export default function TournamentManagement({ onTournamentUpdate, allTeamGroups
     }
   };
 
+  const handleDeleteTournament = async () => {
+    if (!school || !selectedTournamentId) return;
+    setIsLoading(true);
+    try {
+      await deleteTournament(school, selectedTournamentId);
+      setTournaments(prev => prev.filter(t => t.id !== selectedTournamentId));
+      setCurrentTournament(null);
+      setSelectedTournamentId('');
+      toast({ title: "대회 삭제 완료" });
+      onTournamentUpdate();
+    } catch (error) {
+      console.error("Failed to delete tournament:", error);
+      toast({ variant: 'destructive', title: "삭제 실패" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Card className="bg-transparent shadow-none border-none">
         <CardHeader><CardTitle>대회 관리</CardTitle></CardHeader>
         <CardContent className="space-y-6">
-          <div className="flex gap-2 items-center p-4 border rounded-md bg-muted/50">
+          <div className="flex flex-wrap gap-2 items-center p-4 border rounded-md bg-muted/50">
             <Select onValueChange={handleLoadTournament} value={selectedTournamentId}>
-              <SelectTrigger className="flex-1"><SelectValue placeholder="대회 선택" /></SelectTrigger>
+              <SelectTrigger className="flex-1 min-w-[200px]"><SelectValue placeholder="대회 선택" /></SelectTrigger>
               <SelectContent>{tournaments.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
             </Select>
             <Button variant="outline" onClick={() => { setCurrentTournament(null); setSelectedTournamentId(''); }}><RefreshCw className="mr-2 h-4 w-4" />새 대회</Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" disabled={!selectedTournamentId || isLoading}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  대회 삭제
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>정말로 이 대회를 삭제하시겠습니까?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    대회 정보와 모든 경기 기록이 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>취소</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteTournament} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    삭제
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
           <div className="space-y-4 p-4 border rounded-md">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
