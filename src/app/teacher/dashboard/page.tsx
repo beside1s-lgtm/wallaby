@@ -30,6 +30,8 @@ import {
   Target,
   Users2,
   BookOpen,
+  Trophy,
+  Search,
 } from "lucide-react";
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,7 +39,13 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 
 export default function TeacherDashboardPage() {
   const { school, isLoading: isAuthLoading } = useAuth();
-  const [data, setData] = useState<any>({ students: [], items: [], records: [], teams: [], clubs: [] });
+  const [data, setData] = useState<{
+    students: Student[];
+    items: MeasurementItem[];
+    records: MeasurementRecord[];
+    teams: TeamGroup[];
+    clubs: SportsClub[];
+  }>({ students: [], items: [], records: [], teams: [], clubs: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("measurement");
 
@@ -54,50 +62,174 @@ export default function TeacherDashboardPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  if (isLoading || isAuthLoading) return <div className="p-8 space-y-4"><Skeleton className="h-12 w-full" /><Skeleton className="h-64 w-full" /></div>;
+  if (isLoading || isAuthLoading) return (
+    <div className="container mx-auto p-4 space-y-4">
+      <Skeleton className="h-16 w-full" />
+      <Skeleton className="h-64 w-full" />
+      <Skeleton className="h-96 w-full" />
+    </div>
+  );
 
   return (
-    <div className="container mx-auto p-4 space-y-6">
+    <div className="container mx-auto p-4 space-y-6 pb-20">
       <DashboardHeader />
-      <Card>
-        <CardHeader><CardTitle className="flex items-center gap-2"><Bot />AI 브리핑</CardTitle></CardHeader>
-        <CardContent><AiWelcome title="전체 브리핑" allStudents={data.students} items={data.items} records={data.records} /></CardContent>
+      
+      <Card className="bg-primary/5 border-primary/20">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-primary">
+            <Bot className="h-5 w-5" />
+            AI 스마트 브리핑
+          </CardTitle>
+          <CardDescription>우리 학교 학생들의 체력 및 스포츠 활동 데이터를 AI가 분석합니다.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AiWelcome 
+            title="학교 전체 분석 리포트 확인" 
+            allStudents={data.students} 
+            items={data.items} 
+            records={data.records} 
+          />
+        </CardContent>
       </Card>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4 mb-6">
-          <TabsTrigger value="measurement"><LineChart className="mr-2 h-4 w-4" />측정 & 분석</TabsTrigger>
-          <TabsTrigger value="theory"><BookOpen className="mr-2 h-4 w-4" />이론 평가</TabsTrigger>
-          <TabsTrigger value="competition"><Swords className="mr-2 h-4 w-4" />대회 & 팀</TabsTrigger>
-          <TabsTrigger value="data"><Database className="mr-2 h-4 w-4" />데이터 관리</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-4 mb-8 h-12">
+          <TabsTrigger value="measurement" className="text-base font-bold">
+            <LineChart className="mr-2 h-5 w-5" />측정 & 분석
+          </TabsTrigger>
+          <TabsTrigger value="theory" className="text-base font-bold">
+            <BookOpen className="mr-2 h-5 w-5" />이론 평가
+          </TabsTrigger>
+          <TabsTrigger value="competition" className="text-base font-bold">
+            <Swords className="mr-2 h-5 w-5" />대회 & 팀
+          </TabsTrigger>
+          <TabsTrigger value="data" className="text-base font-bold">
+            <Database className="mr-2 h-5 w-5" />데이터 관리
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="measurement">
+        <TabsContent value="measurement" className="space-y-6">
           <Tabs defaultValue="input">
-            <TabsList className="mb-4"><TabsTrigger value="input">기록 입력</TabsTrigger><TabsTrigger value="analysis">학생 분석</TabsTrigger></TabsList>
-            <TabsContent value="input"><RecordInput allStudents={data.students} allItems={data.items} onRecordUpdate={() => load(true)} allTeamGroups={data.teams} sportsClubs={data.clubs} /></TabsContent>
-            <TabsContent value="analysis"><ClassAnalytics allStudents={data.students} allItems={data.items} allRecords={data.records} onRecordUpdate={() => load(true)} sportsClubs={data.clubs} /></TabsContent>
+            <TabsList className="mb-6 bg-muted/50">
+              <TabsTrigger value="input">기록 입력</TabsTrigger>
+              <TabsTrigger value="analysis">학생 개별 분석</TabsTrigger>
+              <TabsTrigger value="browser">전체 기록 조회/추출</TabsTrigger>
+              <TabsTrigger value="ranking">순위 및 명예의 전당</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="input" className="animate-in fade-in-50 duration-300">
+              <RecordInput 
+                allStudents={data.students} 
+                allItems={data.items} 
+                onRecordUpdate={() => load(true)} 
+                allTeamGroups={data.teams} 
+                sportsClubs={data.clubs} 
+              />
+            </TabsContent>
+            
+            <TabsContent value="analysis" className="animate-in fade-in-50 duration-300">
+              <ClassAnalytics 
+                allStudents={data.students} 
+                allItems={data.items} 
+                allRecords={data.records} 
+                onRecordUpdate={() => load(true)} 
+                sportsClubs={data.clubs} 
+              />
+            </TabsContent>
+
+            <TabsContent value="browser" className="animate-in fade-in-50 duration-300">
+              <RecordBrowser 
+                allStudents={data.students} 
+                allItems={data.items} 
+                allRecords={data.records} 
+              />
+            </TabsContent>
+
+            <TabsContent value="ranking" className="animate-in fade-in-50 duration-300">
+              <Ranking 
+                allStudents={data.students} 
+                allItems={data.items} 
+                allRecords={data.records} 
+              />
+            </TabsContent>
           </Tabs>
         </TabsContent>
 
-        <TabsContent value="theory">
-          <TheoryExamManagement allStudents={data.students} sportsClubs={data.clubs} />
+        <TabsContent value="theory" className="animate-in fade-in-50 duration-300">
+          <TheoryExamManagement 
+            allStudents={data.students} 
+            sportsClubs={data.clubs} 
+          />
         </TabsContent>
 
-        <TabsContent value="competition">
+        <TabsContent value="competition" className="space-y-6">
           <Tabs defaultValue="tournament">
-            <TabsList className="mb-4"><TabsTrigger value="tournament">대회 관리</TabsTrigger><TabsTrigger value="balancer">팀 편성</TabsTrigger></TabsList>
-            <TabsContent value="tournament"><TournamentManagement onTournamentUpdate={() => load(true)} allTeamGroups={data.teams} allStudents={data.students} /></TabsContent>
-            <TabsContent value="balancer"><TeamBalancer allStudents={data.students} allItems={data.items} allRecords={data.records} teamGroups={data.teams} onTeamGroupUpdate={() => load(true)} onTeamGroupDelete={() => load(true)} sportsClubs={data.clubs} /></TabsContent>
+            <TabsList className="mb-6 bg-muted/50">
+              <TabsTrigger value="tournament">대회 및 대진표 관리</TabsTrigger>
+              <TabsTrigger value="balancer">팀 자동 편성 (밸런스)</TabsTrigger>
+              <TabsTrigger value="clubs">스포츠 클럽 관리</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="tournament" className="animate-in fade-in-50 duration-300">
+              <TournamentManagement 
+                onTournamentUpdate={() => load(true)} 
+                allTeamGroups={data.teams} 
+                allStudents={data.students} 
+              />
+            </TabsContent>
+            
+            <TabsContent value="balancer" className="animate-in fade-in-50 duration-300">
+              <TeamBalancer 
+                allStudents={data.students} 
+                allItems={data.items} 
+                allRecords={data.records} 
+                teamGroups={data.teams} 
+                onTeamGroupUpdate={() => load(true)} 
+                onTeamGroupDelete={() => load(true)} 
+                sportsClubs={data.clubs} 
+              />
+            </TabsContent>
+
+            <TabsContent value="clubs" className="animate-in fade-in-50 duration-300">
+              <SportsClubManagement 
+                allStudents={data.students} 
+                sportsClubs={data.clubs} 
+                onClubUpdate={() => load(true)} 
+              />
+            </TabsContent>
           </Tabs>
         </TabsContent>
 
-        <TabsContent value="data">
+        <TabsContent value="data" className="space-y-6">
           <Tabs defaultValue="students">
-            <TabsList className="mb-4"><TabsTrigger value="students">학생 관리</TabsTrigger><TabsTrigger value="items">종목 관리</TabsTrigger><TabsTrigger value="db">DB 유틸리티</TabsTrigger></TabsList>
-            <TabsContent value="students"><StudentManagement students={data.students} onStudentsUpdate={() => load(true)} /></TabsContent>
-            <TabsContent value="items"><MeasurementManagement items={data.items} onItemsUpdate={() => load(true)} /></TabsContent>
-            <TabsContent value="db"><DatabaseManagement students={data.students} records={data.records} items={data.items} onUpdate={() => load(true)} /></TabsContent>
+            <TabsList className="mb-6 bg-muted/50">
+              <TabsTrigger value="students">학생 명부 관리</TabsTrigger>
+              <TabsTrigger value="items">측정 종목 관리</TabsTrigger>
+              <TabsTrigger value="db">DB 유틸리티 (진급/백업)</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="students" className="animate-in fade-in-50 duration-300">
+              <StudentManagement 
+                students={data.students} 
+                onStudentsUpdate={() => load(true)} 
+              />
+            </TabsContent>
+            
+            <TabsContent value="items" className="animate-in fade-in-50 duration-300">
+              <MeasurementManagement 
+                items={data.items} 
+                onItemsUpdate={(newItems) => setData(prev => ({...prev, items: newItems}))} 
+              />
+            </TabsContent>
+            
+            <TabsContent value="db" className="animate-in fade-in-50 duration-300">
+              <DatabaseManagement 
+                students={data.students} 
+                records={data.records} 
+                items={data.items} 
+                onUpdate={() => load(true)} 
+              />
+            </TabsContent>
           </Tabs>
         </TabsContent>
       </Tabs>
