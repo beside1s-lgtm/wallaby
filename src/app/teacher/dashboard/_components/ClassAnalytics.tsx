@@ -188,7 +188,7 @@ export default function ClassAnalytics({
   const [isAiButtonDisabled, setIsAiButtonDisabled] = useState(false);
 
   const [sortedStudents, setSortedStudents] = useState<
-    (Student & { sortValue?: string | number })[] | null
+    (Student & { sortValue?: string | number; _sortValue: number })[] | null
   >(null);
   const [sortItem, setSortItem] = useState("");
   const [sortType, setSortType] = useState<"record" | "averageGrade" | null>(
@@ -203,7 +203,6 @@ export default function ClassAnalytics({
 
   const studentDetailRef = useRef<HTMLDivElement>(null);
   
-  // Filter out items that are archived or deactivated for active analysis
   const activeItems = useMemo(() => allItems.filter(item => !item.isArchived && !item.isDeactivated), [allItems]);
 
 
@@ -620,7 +619,7 @@ export default function ClassAnalytics({
 
           if (percentage !== null) {
             const rankInfo = allItemRanks[item.name]?.find(
-              (r) => r.studentId === selectedStudent.id
+              (r) => r.studentId === (selectedStudent as Student).id
             );
             comparisonTargetData[item.name] = {
               percentage: percentage,
@@ -698,7 +697,7 @@ export default function ClassAnalytics({
         allItems,
         allRecords,
         allStudents,
-        selectedStudent.grade
+        (selectedStudent as Student).grade
       )[progressChartItem] || [];
 
     return studentRecords
@@ -708,13 +707,13 @@ export default function ClassAnalytics({
         let achievement: number | null = null;
 
         if (itemInfo.isPaps) {
-          grade = getPapsGrade(r.item, selectedStudent, r.value);
+          grade = getPapsGrade(r.item, selectedStudent as Student, r.value);
           if (grade)
             achievement = normalizePapsRecord(
               grade,
               r.value,
               r.item,
-              selectedStudent
+              selectedStudent as Student
             );
         } else {
           grade = getCustomItemGrade(itemInfo, r.value);
@@ -1180,7 +1179,7 @@ export default function ClassAnalytics({
                             <TableCell className="text-right space-x-1">
                               <EditRecordDialog 
                                 record={record}
-                                student={selectedStudent}
+                                student={selectedStudent as Student}
                                 allItems={activeItems}
                                 onRecordUpdate={onRecordUpdate}
                               />
@@ -1367,14 +1366,14 @@ export default function ClassAnalytics({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {((sortedStudents || filteredStudentsBySelection) as (Student & { sortValue?: any })[]).map(
+                      {((sortedStudents || (filteredStudentsBySelection as any[])) as (Student & { sortValue?: any })[]).map(
                         (student) => (
                           <TableRow key={student.id}>
                             <TableCell>{student.studentNum}</TableCell>
                             <TableCell>{student.name}</TableCell>
                             <TableCell>{student.gender}</TableCell>
-                            {student.sortValue !== undefined && (
-                              <TableCell>{student.sortValue}</TableCell>
+                            {(student as any).sortValue !== undefined && (
+                              <TableCell>{(student as any).sortValue}</TableCell>
                             )}
                             <TableCell>
                               <Button
@@ -1444,7 +1443,7 @@ function EditRecordDialog({
     if (selectedItem?.isCompound) {
       const h = parseFloat(height);
       const w = parseFloat(weight);
-      if (isNaN(h) || isNaN(w) || h <= 0 || w <= 0) {
+      if (isNaN(h) || iNaN(w) || h <= 0 || w <= 0) {
         toast({ variant: 'destructive', title: '입력 오류', description: '유효한 키와 몸무게를 입력해주세요.' });
         return;
       }

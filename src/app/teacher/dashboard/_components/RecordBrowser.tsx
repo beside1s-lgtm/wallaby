@@ -283,7 +283,6 @@ export default function RecordBrowser({
             }
         }
 
-        // Flatten assignments and results for display
         return filteredStudents.flatMap(student => {
             const results = quizResults.filter(r => r.studentId === student.id);
             if (results.length === 0) {
@@ -293,7 +292,10 @@ export default function RecordBrowser({
                     score: '-',
                     recordGrade: null,
                     passed: false,
-                    latestDate: '-'
+                    latestDate: '-',
+                    rank: null,
+                    value: null,
+                    totalRanked: 0
                 }];
             }
             return results.map(r => {
@@ -304,7 +306,10 @@ export default function RecordBrowser({
                     score: `${r.score} / ${r.total}`,
                     recordGrade: null,
                     passed: r.passed,
-                    latestDate: r.createdAt?.toDate ? format(r.createdAt.toDate(), 'yyyy-MM-dd') : '-'
+                    latestDate: r.createdAt?.toDate ? format(r.createdAt.toDate(), 'yyyy-MM-dd') : '-',
+                    rank: null,
+                    value: null,
+                    totalRanked: 0
                 };
             });
         });
@@ -352,6 +357,9 @@ export default function RecordBrowser({
         recordGrade, 
         rank: rankInfo ? rankInfo.rank : null,
         totalRanked: itemRanks.length,
+        quizTitle: null,
+        score: null,
+        passed: null
       };
     });
 
@@ -371,10 +379,10 @@ export default function RecordBrowser({
             else if(column === 'grade') { valA = a.grade; valB = b.grade }
             else if(column === 'classNum') { valA = a.classNum; valB = b.classNum }
             else if(column === 'studentNum') { valA = a.studentNum; valB = b.studentNum }
-            else if(column === 'latestDate'){ valA = a.latestDate; valB = b.latestDate }
+            else if(column === 'latestDate'){ valA = (a as any).latestDate; valB = (b as any).latestDate }
             else if(column === 'value'){ valA = (a as any).value || (a as any).score; valB = (b as any).value || (b as any).score }
-            else if(column === 'recordGrade'){ valA = a.recordGrade; valB = b.recordGrade }
-            else if(column === 'rank'){ valA = a.rank; valB = b.rank }
+            else if(column === 'recordGrade'){ valA = (a as any).recordGrade; valB = (b as any).recordGrade }
+            else if(column === 'rank'){ valA = (a as any).rank; valB = (b as any).rank }
             else { valA = (a as any)[column]; valB = (b as any)[column]; }
 
 
@@ -429,7 +437,7 @@ export default function RecordBrowser({
             '평가 제목': (s as any).quizTitle || '-',
             '점수': (s as any).score || '-',
             '통합 여부': (s as any).passed ? '통과' : '미통과',
-            '응시일': s.latestDate || '-',
+            '응시일': (s as any).latestDate || '-',
         }));
         const fileName = `이론평가_현황_${new Date().toISOString().split('T')[0]}.csv`;
         exportToCsv(fileName, dataToExport);
@@ -443,10 +451,10 @@ export default function RecordBrowser({
         '반': s.classNum,
         '번호': s.studentNum,
         '이름': s.name,
-        '최근 측정일': s.latestDate || '-',
-        '기록': s.value !== undefined ? `${s.value}${itemInfo?.unit || ''}` : '-',
-        '등급': s.recordGrade ? `${s.recordGrade}등급` : '-',
-        '순위': s.rank ? `${s.rank}등` : '-',
+        '최근 측정일': (s as any).latestDate || '-',
+        '기록': (s as any).value !== undefined ? `${(s as any).value}${itemInfo?.unit || ''}` : '-',
+        '등급': (s as any).recordGrade ? `${(s as any).recordGrade}등급` : '-',
+        '순위': (s as any).rank ? `${(s as any).rank}등` : '-',
     }));
      const fileName = `${selectedItem}_기록 현황_${new Date().toISOString().split('T')[0]}.csv`;
     exportToCsv(fileName, dataToExport);
@@ -689,7 +697,7 @@ export default function RecordBrowser({
                                       { key: 'name', label: '이름' },
                                       ...(selectedItem === 'theory-exam' ? [
                                         { key: 'quizTitle', label: '평가 제목' },
-                                        { key: 'value', label: '점수' },
+                                        { key: 'score', label: '점수' },
                                         { key: 'latestDate', label: '응시일' },
                                         { key: 'passed', label: '통과 여부' }
                                       ] : [
@@ -718,7 +726,7 @@ export default function RecordBrowser({
                                                 <>
                                                     <TableCell className="max-w-[200px] truncate">{(s as any).quizTitle}</TableCell>
                                                     <TableCell>{(s as any).score}</TableCell>
-                                                    <TableCell>{s.latestDate || '-'}</TableCell>
+                                                    <TableCell>{(s as any).latestDate || '-'}</TableCell>
                                                     <TableCell>
                                                         {(s as any).passed !== undefined ? (
                                                             (s as any).passed ? 
@@ -729,10 +737,10 @@ export default function RecordBrowser({
                                                 </>
                                             ) : (
                                                 <>
-                                                    <TableCell>{s.latestDate || '-'}</TableCell>
-                                                    <TableCell>{s.value !== undefined && s.value !== null ? `${s.value}${allItems.find(i => i.name === selectedItem)?.unit || ''}`: '-'}</TableCell>
-                                                    <TableCell>{s.recordGrade ? `${s.recordGrade}등급` : '-'}</TableCell>
-                                                    <TableCell>{s.rank ? `${s.rank} / ${s.totalRanked}` : '-'}</TableCell>
+                                                    <TableCell>{(s as any).latestDate || '-'}</TableCell>
+                                                    <TableCell>{(s as any).value !== undefined && (s as any).value !== null ? `${(s as any).value}${allItems.find(i => i.name === selectedItem)?.unit || ''}`: '-'}</TableCell>
+                                                    <TableCell>{(s as any).recordGrade ? `${(s as any).recordGrade}등급` : '-'}</TableCell>
+                                                    <TableCell>{(s as any).rank ? `${(s as any).rank} / ${(s as any).totalRanked}` : '-'}</TableCell>
                                                 </>
                                             )}
                                         </TableRow>
