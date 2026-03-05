@@ -1,6 +1,6 @@
 
 'use client';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { addOrUpdateRecord } from '@/lib/store';
 import { Student, MeasurementItem, MeasurementRecord } from '@/lib/types';
@@ -9,13 +9,15 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, Calendar as CalendarIcon, User } from 'lucide-react';
+import { Loader2, Search, Calendar as CalendarIcon, User, Youtube, ClipboardList } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { papsGradeStandards } from '@/lib/paps';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 export function IndividualInput({ allStudents, activeItems, onRecordUpdate }: { allStudents: Student[], activeItems: MeasurementItem[], onRecordUpdate: any }) {
   const { school } = useAuth();
@@ -26,11 +28,22 @@ export function IndividualInput({ allStudents, activeItems, onRecordUpdate }: { 
   const [val, setVal] = useState('');
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [showVideo, setShowVideo] = useState(false);
+  const [showGradeTable, setShowGradeTable] = useState(false);
+
+  const selectedItemInfo = useMemo(() => activeItems.find(i => i.name === itemName), [itemName, activeItems]);
 
   const handleSearch = () => {
     const found = allStudents.filter(s => s.name.includes(search));
-    if (found.length === 1) setStudent(found[0]);
-    else toast({ variant: "destructive", title: "학생을 정확히 검색해주세요." });
+    if (found.length === 1) {
+      setStudent(found[0]);
+      setSearch('');
+    } else if (found.length > 1) {
+      toast({ variant: "default", title: "검색 결과가 많습니다.", description: "더 정확한 이름을 입력해주세요." });
+    } else {
+      toast({ variant: "destructive", title: "학생을 찾을 수 없습니다." });
+    }
   };
 
   const handleSave = async () => {
@@ -41,8 +54,45 @@ export function IndividualInput({ allStudents, activeItems, onRecordUpdate }: { 
       onRecordUpdate([rec], 'update');
       toast({ title: "저장 완료" });
       setVal('');
-    } catch (e) { toast({ variant: "destructive", title: "실패" }); }
+    } catch (e) { toast({ variant: "destructive", title: "저장 실패" }); }
     finally { setIsSubmitting(false); }
+  };
+
+  const getYouTubeEmbedUrl = (url?: string) => {
+    if (!url) return null;
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    return match && match[2].length === 11 ? `https://www.youtube.com/embed/${match[2]}` : null;
+  };
+
+  const renderGradeRanges = () => {
+    if (!student || !selectedItemInfo) return null;
+    const gradeToUse = student.grade;
+    const itemKey = itemName === '무릎 대고 팔굽혀펴기' ? '팔굽혀펴기' : itemName;
+    const itemStandards = papsGradeStandards[gradeToUse]?.[itemKey];
+    
+    if (!itemStandards) return <TableCell colSpan={5} className="text-center text-muted-foreground">데이터 없음</TableCell>;
+
+    const ranges = student.gender === '남' ? itemStandards.male : itemStandards.female;
+    const unit = selectedItemInfo.unit;
+    const type = itemStandards.type;
+
+    return [1, 2, 3, 4, 5].map(g => {
+      const gradeRanges = ranges.filter(r => r.grade === g);
+      if (gradeRanges.length === 0) return <TableCell key={g} className="text-center">-</TableCell>;
+
+      const rangeTexts = gradeRanges.map(r => {
+        if (r.max === Infinity) return `${r.min}${unit} ↑`;
+        if (r.min === 1 || r.min === -Infinity || (type === 'time' && r.min === 0)) return `${r.max}${unit} ↓`;
+        return `${r.min}~${r.max}${unit}`;
+      });
+
+      return (
+        <TableCell key={g} className="text-center text-[10px] sm:text-xs break-keep px-1">
+          {rangeTexts.join(' / ')}
+        </TableCell>
+      );
+    });
   };
 
   return (
@@ -58,12 +108,97 @@ export function IndividualInput({ allStudents, activeItems, onRecordUpdate }: { 
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4 p-4 bg-secondary rounded-lg">
             <Avatar className="w-20 h-20"><AvatarImage src={student.photoUrl} /><AvatarFallback>{student.name[0]}</AvatarFallback></Avatar>
-            <div><p className="font-bold">{student.name}</p><p className="text-sm text-muted-foreground">{student.grade}-{student.classNum}</p></div>
+            <div>
+              <p className="font-bold text-lg">{student.name}</p>
+              <p className="text-sm text-muted-foreground">{student.grade}학년 {student.classNum}반 {student.studentNum}번 ({student.gender})</p>
+            </div>
+            <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setStudent(null)}>변경</Button>
           </div>
-          <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start"><CalendarIcon className="mr-2 h-4 w-4" />{date ? format(date, "PPP") : "날짜"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={date} onSelect={setDate} initialFocus /></PopoverContent></Popover>
-          <Select value={itemName} onValueChange={setItemName}><SelectTrigger><SelectValue placeholder="종목 선택" /></SelectTrigger><SelectContent>{activeItems.map(i => <SelectItem key={i.id} value={i.name}>{i.name}</SelectItem>)}</SelectContent></Select>
-          <div className="space-y-2"><Label>기록({activeItems.find(i=>i.name===itemName)?.unit})</Label><Input type="number" value={val} onChange={e => setVal(e.target.value)} /></div>
-          <Button className="w-full" onClick={handleSave} disabled={isSubmitting}>{isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}저장</Button>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-start">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {date ? format(date, "PPP") : "날짜 선택"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar mode="single" selected={date} onSelect={setDate} initialFocus />
+              </PopoverContent>
+            </Popover>
+
+            <Select value={itemName} onValueChange={v => { setItemName(v); setShowVideo(false); setShowGradeTable(false); }}>
+              <SelectTrigger>
+                <SelectValue placeholder="종목 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                {activeItems.map(i => <SelectItem key={i.id} value={i.name}>{i.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {selectedItemInfo && (
+            <div className="flex flex-wrap gap-2">
+              {selectedItemInfo.videoUrl && (
+                <Button variant="outline" size="sm" onClick={() => setShowVideo(!showVideo)}>
+                  <Youtube className="mr-2 h-4 w-4 text-red-600" />
+                  {showVideo ? '영상 닫기' : '참고 영상 보기'}
+                </Button>
+              )}
+              {selectedItemInfo.isPaps && (
+                <Button variant="outline" size="sm" onClick={() => setShowGradeTable(!showGradeTable)}>
+                  <ClipboardList className="mr-2 h-4 w-4 text-primary" />
+                  {showGradeTable ? '기준표 닫기' : '등급 기준표 보기'}
+                </Button>
+              )}
+            </div>
+          )}
+
+          {showVideo && selectedItemInfo?.videoUrl && (
+            <div className="aspect-video w-full rounded-lg overflow-hidden border bg-black animate-in fade-in zoom-in-95">
+              <iframe
+                width="100%" height="100%"
+                src={getYouTubeEmbedUrl(selectedItemInfo.videoUrl)!}
+                title="참고 영상"
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              ></iframe>
+            </div>
+          )}
+
+          {showGradeTable && selectedItemInfo?.isPaps && (
+            <div className="overflow-x-auto rounded-md border bg-muted/30 p-2 animate-in fade-in zoom-in-95">
+              <p className="text-xs font-bold mb-2 px-1 text-primary">{itemName} 등급 기준 ({student.gender}학생)</p>
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-background">
+                    <TableHead className="text-center h-8 text-[10px] p-1">1등급</TableHead>
+                    <TableHead className="text-center h-8 text-[10px] p-1">2등급</TableHead>
+                    <TableHead className="text-center h-8 text-[10px] p-1">3등급</TableHead>
+                    <TableHead className="text-center h-8 text-[10px] p-1">4등급</TableHead>
+                    <TableHead className="text-center h-8 text-[10px] p-1">5등급</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <TableRow className="bg-background">
+                    {renderGradeRanges()}
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label>기록 입력 ({selectedItemInfo?.unit || ''})</Label>
+            <Input type="number" placeholder="숫자만 입력하세요" value={val} onChange={e => setVal(e.target.value)} className="text-lg py-6" />
+          </div>
+
+          <Button className="w-full py-6 text-lg font-bold" onClick={handleSave} disabled={isSubmitting || !itemName || !val}>
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            기록 저장하기
+          </Button>
         </CardContent>
       )}
     </Card>

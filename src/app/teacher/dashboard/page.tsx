@@ -65,8 +65,9 @@ export default function TeacherDashboardPage() {
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3 mb-6">
+        <TabsList className="grid w-full grid-cols-4 mb-6">
           <TabsTrigger value="measurement"><LineChart className="mr-2 h-4 w-4" />측정 & 분석</TabsTrigger>
+          <TabsTrigger value="theory"><BookOpen className="mr-2 h-4 w-4" />이론 평가</TabsTrigger>
           <TabsTrigger value="competition"><Swords className="mr-2 h-4 w-4" />대회 & 팀</TabsTrigger>
           <TabsTrigger value="data"><Database className="mr-2 h-4 w-4" />데이터 관리</TabsTrigger>
         </TabsList>
@@ -77,6 +78,10 @@ export default function TeacherDashboardPage() {
             <TabsContent value="input"><RecordInput allStudents={data.students} allItems={data.items} onRecordUpdate={() => load(true)} allTeamGroups={data.teams} sportsClubs={data.clubs} /></TabsContent>
             <TabsContent value="analysis"><ClassAnalytics allStudents={data.students} allItems={data.items} allRecords={data.records} onRecordUpdate={() => load(true)} sportsClubs={data.clubs} /></TabsContent>
           </Tabs>
+        </TabsContent>
+
+        <TabsContent value="theory">
+          <TheoryExamManagement allStudents={data.students} sportsClubs={data.clubs} />
         </TabsContent>
 
         <TabsContent value="competition">
