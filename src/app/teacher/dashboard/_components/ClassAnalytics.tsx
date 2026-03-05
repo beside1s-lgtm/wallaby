@@ -1,3 +1,4 @@
+
 "use client";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
@@ -1290,13 +1291,13 @@ export default function ClassAnalytics({
                       <Legend />
                       <Bar
                         dataKey="target"
-                        name={comparisonChartConfig.target.label}
+                        name={comparisonData.targetLabel}
                         fill="var(--color-target)"
                         radius={[4, 4, 0, 0]}
                       />
                       <Bar
                         dataKey="average"
-                        name={comparisonChartConfig.average.label}
+                        name={`${selectedGrade || "전체"}학년 평균`}
                         fill="var(--color-average)"
                         radius={[4, 4, 0, 0]}
                       />
@@ -1372,8 +1373,8 @@ export default function ClassAnalytics({
                             <TableCell>{student.studentNum}</TableCell>
                             <TableCell>{student.name}</TableCell>
                             <TableCell>{student.gender}</TableCell>
-                            {(student as any).sortValue !== undefined && (
-                              <TableCell>{(student as any).sortValue}</TableCell>
+                            {student.sortValue !== undefined && (
+                              <TableCell>{student.sortValue}</TableCell>
                             )}
                             <TableCell>
                               <Button

@@ -239,6 +239,8 @@ export function StudentManagement({
   
   const handleUpdatePhoto = async (studentId: string, photoUrl: string) => {
     if (!school) return;
+    // StudentToUpdate expects name, grade etc. if they are not Partial. 
+    // Types.ts should have StudentToUpdate as Partial.
     await updateStudent(school, studentId, { photoUrl });
     onStudentsUpdate();
     toast({
@@ -323,10 +325,10 @@ export function StudentManagement({
 
               if (!studentExists) {
                 count++;
-                const { school: _s, ...studentData } = studentFromFile;
+                const { school: sSchool, ...studentData } = studentFromFile;
                 return addStudent(
-                  studentSchool,
-                  studentData,
+                  sSchool || studentSchool,
+                  { ...studentData, school: sSchool || studentSchool },
                   students
                 );
               }
@@ -418,7 +420,7 @@ export function StudentManagement({
       <CardContent>
         <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-2 mb-4">
           <div className="flex flex-wrap items-center gap-2">
-            <AddStudentDialog onAddStudent={handleAddStudent} />
+            <AddStudentDialog onAddStudent={handleAddStudent} school={school} />
             {selectedStudentForEdit && (
               <EditStudentDialog 
                 student={selectedStudentForEdit}
@@ -616,8 +618,10 @@ export function StudentManagement({
 
 function AddStudentDialog({
   onAddStudent,
+  school,
 }: {
   onAddStudent: (data: StudentToAdd) => Promise<void>;
+  school: string;
 }) {
   const [grade, setGrade] = useState("");
   const [classNum, setClassNum] = useState("");
@@ -637,7 +641,7 @@ function AddStudentDialog({
       return;
     }
     setIsSubmitting(true);
-    await onAddStudent({ grade, classNum, studentNum, name, gender });
+    await onAddStudent({ school, grade, classNum, studentNum, name, gender });
     setGrade("");
     setClassNum("");
     setStudentNum("");

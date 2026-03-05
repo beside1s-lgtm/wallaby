@@ -324,7 +324,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
   }, [classSelection, clubSelection, sportsClubs, selectedGender, allStudents]);
 
   useEffect(() => {
-    if (targetStudents.length > 0 && selectedItemNames.length > 0) {
+    if (school && targetStudents.length > 0 && selectedItemNames.length > 0) {
       const studentIdToRawScores = new Map<
         string,
         { totalScore: number; scores: { item: string; score: number }[] }
@@ -343,7 +343,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
       
       const uniqueGrades = [...new Set(studentsForAnalysis.map(s => s.grade))];
       uniqueGrades.forEach(grade => {
-         ranksByGrade.set(grade, calculateRanks(school, allItems, allRecords, allStudents, grade));
+         ranksByGrade.set(grade, calculateRanks(school!, allItems, allRecords, allStudents, grade));
       });
       
       selectedItemNames.forEach((itemName) => {
@@ -470,7 +470,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
   }, [selectedStudentId]);
 
   const handleAiReport = async () => {
-    if (!selectedStudentId || !selectedStudentData) {
+    if (!school || !selectedStudentId || !selectedStudentData) {
       toast({
         variant: "destructive",
         title: "AI 리포트 생성 불가",
@@ -488,7 +488,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
 
       const studentRanks: Record<string, string> = {};
       const ranksByItem = calculateRanks(
-        school,
+        school!,
         allItems,
         allRecords,
         allStudents,
@@ -893,7 +893,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     setIsSending(true);
     try {
       const teamData: TeamGroupInput = {
-        school,
+        school: school!,
         description: teamGroupName,
         teams: teams.map((team, index) => ({
           id: team[0]?.id ? `team-${team[0].id}-${index}`: `team-empty-${index}`,
@@ -1317,7 +1317,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                         return (
                           <TableRow
                             key={studentId}
-                            ref={(el) => studentRowRefs.current.set(studentId, el)}
+                            ref={(el) => { studentRowRefs.current.set(studentId, el); }}
                             onClick={() => setSelectedStudentId(studentId)}
                             className="cursor-pointer"
                             data-state={
