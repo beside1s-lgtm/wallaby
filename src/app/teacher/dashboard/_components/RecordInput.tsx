@@ -654,7 +654,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                             return (
                                 <TableRow key={student.id}>
                                 <TableCell>
-                                    <Avatar>
+                                    <Avatar className="w-20 h-20">
                                         <AvatarImage src={student.photoUrl || undefined} alt={student.name} />
                                         <AvatarFallback>{student.name.charAt(0)}</AvatarFallback>
                                     </Avatar>
@@ -744,7 +744,7 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
                         <Button type="button" onClick={handleSearch}><Search className="mr-2 h-4 w-4" /> 검색</Button>
                         {selectedStudent && (
                            <div className="flex items-center gap-4 text-sm ml-4 p-2 bg-secondary rounded-md">
-                                <Avatar>
+                                <Avatar className="w-20 h-20">
                                     <AvatarImage src={selectedStudent.photoUrl || undefined} />
                                     <AvatarFallback>
                                         {selectedStudent.name ? selectedStudent.name.charAt(0) : <User />}

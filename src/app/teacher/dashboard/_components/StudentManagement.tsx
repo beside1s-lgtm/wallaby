@@ -1,3 +1,4 @@
+
 "use client";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
@@ -575,7 +576,7 @@ export function StudentManagement({
                       />
                     </TableCell>
                      <TableCell>
-                      <Avatar>
+                      <Avatar className="w-20 h-20">
                         <AvatarImage src={student.photoUrl || undefined} alt={student.name} />
                         <AvatarFallback>
                           {student.name ? student.name.charAt(0) : <UserIcon />}
@@ -1506,7 +1507,7 @@ export function DatabaseManagement({
                 <Input placeholder="학생 이름 검색..." value={studentSearch} onChange={e => setStudentSearch(e.target.value)} className="w-full sm:w-auto" onKeyDown={e => e.key === 'Enter' && handleSearchStudent()} />
                 <Button onClick={handleSearchStudent}>검색</Button>
                  <Button variant="outline" onClick={handleDownloadStudentRecords} disabled={!foundStudent}><FileDown className="mr-2 h-4 w-4" />{foundStudent ? `${foundStudent.name} 기록` : '학생 기록'}</Button>
-                 <Button variant="outline" onClick={() => exportToCsv(`${school}_전체_학생_기록.csv`, records.map(r => { const s = students.find(st => st.id === r.studentId); return { 학교: s?.school, 학년: s?.grade, 반: s?.classNum, 번호: s?.studentNum, 이름: s?.name, 성별: s?.gender, 측정종목: r.item, 기록: r.value, 측정일: r.date } }))}><FileDown className="mr-2 h-4 w-4" />전체 기록</Button>
+                 <Button variant="outline" onClick={() => exportToCsv(`${school}_전체_학생_기록.csv`, records.map(r => { const s = students.find(st => st.id === r.studentId); return { 학교: s?.school, 학년: s?.grade, 반: s?.classNum, 번호: s?.studentNum, 이름: s?.name, 성별: s?.gender, 측정종목: record.item, 기록: record.value, 측정일: record.date } }))}><FileDown className="mr-2 h-4 w-4" />전체 기록</Button>
             </div>
           </div>
         </div>
