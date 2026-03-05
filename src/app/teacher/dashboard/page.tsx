@@ -20,18 +20,11 @@ import TeamBalancer from "./_components/TeamBalancer";
 import SportsClubManagement from "./_components/SportsClubManagement";
 import TheoryExamManagement from "./_components/TheoryExamManagement";
 import {
-  Users,
-  BarChart3,
-  Bot,
-  Database,
-  Edit,
-  Swords,
   LineChart,
-  Target,
-  Users2,
   BookOpen,
-  Trophy,
-  Search,
+  Swords,
+  Database,
+  Bot,
 } from "lucide-react";
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -184,8 +177,8 @@ export default function TeacherDashboardPage() {
                 allItems={data.items} 
                 allRecords={data.records} 
                 teamGroups={data.teams} 
-                onTeamGroupUpdate={() => load(true)} 
-                onTeamGroupDelete={() => load(true)} 
+                onTeamGroupUpdate={(newGroup) => { load(true); }} 
+                onTeamGroupDelete={(id) => { load(true); }} 
                 sportsClubs={data.clubs} 
               />
             </TabsContent>

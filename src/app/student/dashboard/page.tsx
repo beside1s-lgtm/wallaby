@@ -158,7 +158,7 @@ export default function StudentDashboardPage() {
         </TabsList>
         
         <div className="mt-8 transition-all duration-500">
-            <TabsContent value="growth-record" className="animate-in fade-in slide-in-from-bottom-4">
+            <TabsContent value="growth-record" className="animate-in fade-in-50 duration-300">
               <GrowthRecordTab 
                 records={data.records} 
                 activeItems={data.items.filter((i:any)=>!i.isDeactivated && !i.isArchived)} 
@@ -172,18 +172,18 @@ export default function StudentDashboardPage() {
               />
             </TabsContent>
             
-            <TabsContent value="measurement-input" className="animate-in fade-in slide-in-from-bottom-4">
+            <TabsContent value="measurement-input" className="animate-in fade-in-50 duration-300">
               <MeasurementInputTab 
                 items={data.items.filter((i:any)=>!i.isDeactivated && !i.isArchived)} 
                 student={data.student} 
               />
             </TabsContent>
             
-            <TabsContent value="my-competition" className="animate-in fade-in slide-in-from-bottom-4">
+            <TabsContent value="my-competition" className="animate-in fade-in-50 duration-300">
               <CompetitionTab tournament={data.tournament} />
             </TabsContent>
             
-            <TabsContent value="physical-knowledge" className="animate-in fade-in slide-in-from-bottom-4">
+            <TabsContent value="physical-knowledge" className="animate-in fade-in-50 duration-300">
               <KnowledgeTab 
                 quizzes={data.quizzes} 
                 results={data.results} 
