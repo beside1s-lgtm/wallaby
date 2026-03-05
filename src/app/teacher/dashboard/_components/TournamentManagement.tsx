@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -37,7 +38,7 @@ import {
   Pencil,
   Plus,
   Send,
-  Calendar,
+  Calendar as CalendarIcon,
   UserPlus,
   Crown,
   Medal,
@@ -109,13 +110,6 @@ import { getScoutingReport } from "@/ai/flows/scouting-report-flow";
 import type { ScoutingReportOutput } from "@/ai/flows/scouting-report-flow";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import TeamBalancer from "./TeamBalancer";
-import BasketballMatchPage from "../../match/basketball/[id]/page";
-import VolleyballMatchPage from "../../match/volleyball/[id]/page";
-import SoccerMatchPage from "../../match/soccer/[id]/page";
-import BaseballMatchPage from "../../match/baseball/[id]/page";
-import DodgeballMatchPage from "../../match/dodgeball/[id]/page";
-import GenericMatchPage from "../../match/[id]/page";
 
 /* -------------------------------------------------------
  * Utils
@@ -202,7 +196,6 @@ function generateTournamentBracket(teams: Team[], format: 'single-elimination' |
 
   let currentRoundEntrants = distributedEntrants;
   let currentRound = 2;
-  let roundMatches = round1Matches;
 
   while (currentRoundEntrants.length > 1) {
     const nextRoundMatches: Match[] = [];
@@ -262,18 +255,14 @@ function generateTournamentBracket(teams: Team[], format: 'single-elimination' |
       type: 'winner',
       matchId: m.id,
     }));
-    roundMatches = nextRoundMatches;
     currentRound++;
   }
-
-  // Double elimination logic would go here, modifying `allMatches`
-  // This is a complex feature and is stubbed for now.
 
   return { matches: allMatches };
 }
 
-function generateRoundRobinMatches(teams: Team[]): Match[] {
-    if (teams.length < 2) return [];
+function generateRoundRobinMatches(teams: Team[]): { matches: Match[] } {
+    if (teams.length < 2) return { matches: [] };
 
     let matchPairs: [Team, Team][] = [];
     for (let i = 0; i < teams.length; i++) {
@@ -282,12 +271,9 @@ function generateRoundRobinMatches(teams: Team[]): Match[] {
         }
     }
     
-    // For a single round-robin, this generates one match for each pair.
-    if (matchPairs.length === 0) return [];
-    
-    return matchPairs.map((pair, index) => ({
+    const allMatches: Match[] = matchPairs.map((pair, index) => ({
         id: uuidv4(),
-        round: 1, // All in a single logical round for the league
+        round: 1,
         matchNumber: index + 1,
         teamAId: pair[0].id,
         teamBId: pair[1].id,
@@ -298,6 +284,8 @@ function generateRoundRobinMatches(teams: Team[]): Match[] {
         nextMatchId: null,
         nextMatchSlot: null,
     }));
+
+    return { matches: allMatches };
 }
 
 
@@ -347,7 +335,6 @@ export default function TournamentManagement({
     Record<string, { scoresA: string[]; scoresB: string[] }>
   >({});
   
-  // For Individual League
   const [pointsPerWin, setPointsPerWin] = useState(3);
   const [membersPerTeam, setMembersPerTeam] = useState(2);
 
@@ -390,12 +377,12 @@ export default function TournamentManagement({
     };
     setTeamList((prev) => [...prev, newTeam]);
     setNewTeamName('');
-    setCurrentTournament(null); // Reset bracket if teams change
+    setCurrentTournament(null);
   };
 
   const handleRemoveTeam = (teamId: string) => {
     setTeamList((prev) => prev.filter((team) => team.id !== teamId));
-    setCurrentTournament(null); // Reset bracket if teams change
+    setCurrentTournament(null);
   };
    const handleParticipantToggle = (studentId: string, checked: boolean) => {
     setParticipantIds(prev => {
@@ -571,7 +558,7 @@ export default function TournamentManagement({
             tournamentData = {
                 ...tournamentData,
                 participants: participantsForLeague,
-                teams: [], // 팀은 동적으로 생성됨
+                teams: [],
                 pointsPerWin,
                 membersPerTeam,
                 currentRound: 0,
@@ -752,23 +739,10 @@ export default function TournamentManagement({
   const handleUpdateMatch = async (matchId: string) => {
     if (!school || !currentTournament) return;
     
-    // Detailed page scores take precedence
-    const detailedMatch = currentTournament.matches.find(m => m.id === matchId);
-    const hasDetailedScores = (detailedMatch?.scoresA?.length || 0) > 0 || (detailedMatch?.scoresB?.length || 0) > 0;
-    
-    let scoresA: number[] = [];
-    let scoresB: number[] = [];
-
-    if (hasDetailedScores) {
-        scoresA = detailedMatch?.scoresA || [];
-        scoresB = detailedMatch?.scoresB || [];
-    } else {
-        const results = matchResults[matchId];
-        if (!results) return;
-        scoresA = results.scoresA.map(s => parseInt(s, 10)).filter(s => !isNaN(s));
-        scoresB = results.scoresB.map(s => parseInt(s, 10)).filter(s => !isNaN(s));
-    }
-
+    const results = matchResults[matchId];
+    if (!results) return;
+    const scoresA = results.scoresA.map(s => parseInt(s, 10)).filter(s => !isNaN(s));
+    const scoresB = results.scoresB.map(s => parseInt(s, 10)).filter(s => !isNaN(s));
 
     setIsLoading(true);
     try {
@@ -796,14 +770,11 @@ export default function TournamentManagement({
             matchToUpdate.status = 'completed';
             matchToUpdate.winnerId = winsA > winsB ? matchToUpdate.teamAId : matchToUpdate.teamBId;
         } else {
-          // If no one has won yet, but scores are entered, it's still 'scheduled' until a winner is clear.
-          // Or you could have an 'in_progress' status. For now, we'll keep it simple.
             matchToUpdate.status = 'scheduled';
             matchToUpdate.winnerId = null;
         }
 
 
-        // For tournaments, propagate winner to the next match
         if (tournamentType === 'tournament') {
           let currentMatch = matchToUpdate;
           while (currentMatch && currentMatch.winnerId && currentMatch.nextMatchId) {
@@ -882,7 +853,6 @@ export default function TournamentManagement({
         matchToReset.scoresA = [];
         matchToReset.scoresB = [];
         if (matchToReset.teamBId !== null) {
-          // Don't change bye status on original byes
           matchToReset.winnerId = null;
           matchToReset.status = 'scheduled';
         } else {
@@ -990,7 +960,6 @@ export default function TournamentManagement({
           teamA.losses++;
           teamB.points += 3;
         } else {
-          // This logic might need adjustment based on specific league rules for draws
           teamA.draws++;
           teamB.draws++;
           teamA.points += 1;
@@ -1099,7 +1068,7 @@ export default function TournamentManagement({
                         !tournamentDate && 'text-muted-foreground'
                       )}
                     >
-                      <Calendar className="mr-2 h-4 w-4" />
+                      <CalendarIcon className="mr-2 h-4 w-4" />
                       {tournamentDate ? (
                         format(tournamentDate, 'PPP')
                       ) : (
@@ -1592,27 +1561,6 @@ const EditableScore = ({ value, onChange, disabled }: { value: string; onChange:
     );
 };
 
-const MatchPageContent = ({ sport, matchId, gameIndex }: { matchId: string, sport: string, gameIndex: number }) => {
-    // This component now acts as a router for different sport pages.
-    // The actual page components will be rendered inside the dialog.
-    // We pass props down to them. For now, this is simplified.
-    switch (sport) {
-        case 'basketball':
-            return <BasketballMatchPage />;
-        case 'volleyball':
-            return <VolleyballMatchPage />;
-        case 'soccer':
-            return <SoccerMatchPage />;
-        case 'baseball':
-            return <BaseballMatchPage />;
-        case 'dodgeball':
-            return <DodgeballMatchPage />;
-        default:
-            return <GenericMatchPage />;
-    }
-}
-
-
 const MatchResultInput = ({
   gameIndex,
   match,
@@ -1630,22 +1578,12 @@ const MatchResultInput = ({
   isMatchOver: boolean;
   matchResults: Record<string, { scoresA: string[], scoresB: string[] }>;
 }) => {
-  const sport = getSportFromTournamentName(tournament.name || '');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  
   const simpleScores = matchResults[match.id] || { scoresA: [], scoresB: [] };
   const scoreA = simpleScores.scoresA[gameIndex] ?? '';
   const scoreB = simpleScores.scoresB[gameIndex] ?? '';
 
   const hasDetailedScores = (match.scoresA && match.scoresA.length > gameIndex) || (match.scoresB && match.scoresB.length > gameIndex);
   
-  const handleOpenDialog = () => {
-    if (isMatchOver && !hasResult) {
-      return;
-    }
-    setIsDialogOpen(true);
-  }
-
   const hasResult = scoreA !== '' || scoreB !== '';
 
   return (
@@ -1674,25 +1612,6 @@ const MatchResultInput = ({
               disabled={hasDetailedScores}
             />
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-            <Button size="sm" variant="ghost" className="h-6 mt-1 text-xs text-muted-foreground" onClick={(e) => {e.stopPropagation(); handleOpenDialog();}}>
-                <ClipboardList className="mr-2 h-3 w-3" />상세 기록
-            </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
-               <DialogHeader className="p-6 pb-0">
-                  <DialogTitle>경기 기록</DialogTitle>
-                </DialogHeader>
-                <div className="flex-1 overflow-y-auto">
-                    <MatchPageContent
-                        matchId={match.id}
-                        sport={sport}
-                        gameIndex={gameIndex}
-                    />
-                </div>
-            </DialogContent>
-        </Dialog>
     </div>
   );
 };
@@ -1981,7 +1900,6 @@ const IndividualLeagueSetup = ({ allStudents, participantIds, onParticipantToggl
     );
 };
 
-// Helper function to get all possible combinations
 const getCombinations = <T,>(array: T[], size: number): T[][] => {
     if (size > array.length) return [];
     if (size === 0) return [[]];
@@ -1997,12 +1915,10 @@ const getCombinations = <T,>(array: T[], size: number): T[][] => {
         
         if (startIndex === array.length) return;
         
-        // Include array[startIndex]
         currentCombination.push(array[startIndex]);
         backtrack(startIndex + 1, currentCombination);
         currentCombination.pop();
         
-        // Exclude array[startIndex]
         backtrack(startIndex + 1, currentCombination);
     }
     
@@ -2096,7 +2012,7 @@ const IndividualLeagueInterface = ({ tournament, onUpdateTournament }: {
                 });
             }
 
-            const matches = generateRoundRobinMatches(teams);
+            const { matches } = generateRoundRobinMatches(teams);
             
             const updatedTournament: Tournament = {
                 ...tournament,
@@ -2250,8 +2166,8 @@ const IndividualLeagueInterface = ({ tournament, onUpdateTournament }: {
                                     teamNameMap={teamNameMap}
                                     onResultChange={handleMatchResultChange}
                                     onUpdateMatch={handleUpdateLeagueMatch}
-                                    onResetMatch={() => { /* Not implemented for league */ }}
-                                    onUpdateTeamName={() => { /* Not implemented for league */ }}
+                                    onResetMatch={() => { }}
+                                    onUpdateTeamName={() => { }}
                                     matchResults={matchResults}
                                 />
                            )) : (

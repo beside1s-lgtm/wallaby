@@ -172,7 +172,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
       grouped[category].push(item);
     });
     const orderedGroups: Record<string, MeasurementItem[]> = {
-      PAPS: grouped["PAPS"],
+      PAPS: grouped["PAPS"] || [],
     };
     Object.keys(grouped).forEach((key) => {
       if (key !== "PAPS" && key !== "기타") orderedGroups[key] = grouped[key];
@@ -442,7 +442,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
   };
 
   const handleToggleCategory = (category: string, checked: boolean) => {
-    const categoryItems = groupedItems[category].map((item) => item.name);
+    const categoryItems = groupedItems[category]?.map((item) => item.name) || [];
     if (checked) {
       setSelectedItemNames((prev) => [...new Set([...prev, ...categoryItems])]);
     } else {
