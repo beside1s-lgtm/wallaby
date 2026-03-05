@@ -94,7 +94,7 @@ export default function StudentDashboardPage() {
   const [isAiButtonDisabled, setIsAiButtonDisabled] = useState(false);
 
   const [chartFilter, setChartFilter] = useState<'all' | 'paps' | 'custom'>('all');
-  const [chartItemFilter, setChartItemFilter] = useState('');
+  const [chartItemFilter, setChartItemFilter] = useState('all');
   
   const [fullStudent, setFullStudent] = useState<Student | null>(null);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
@@ -135,7 +135,7 @@ export default function StudentDashboardPage() {
 
       return (
         <div className="p-2 text-sm bg-background/90 border rounded-md shadow-lg">
-          <p className="font-bold">{chartItemFilter ? `${label} (${data.itemName})` : label}</p>
+          <p className="font-bold">{chartItemFilter !== 'all' ? `${label} (${data.itemName})` : label}</p>
           {scorePayload && <p style={{ color: scorePayload.color }}>{`등급: ${data.grade}등급`}</p>}
           {achievementPayload && <p style={{ color: achievementPayload.color }}>{`기록: ${data.value}${data.unit} (${data.achievement}%)`}</p>}
           {data.rank && <p className="text-muted-foreground mt-1">{data.rank}</p>}
@@ -559,7 +559,7 @@ export default function StudentDashboardPage() {
 
     const allItemRanks = calculateRanks(school, measurementItems, allRecords, allStudents, fullStudent.grade);
 
-    if (chartItemFilter) {
+    if (chartItemFilter !== 'all') {
         const itemInfo = measurementItems.find(i => i.name === chartItemFilter);
         if (!itemInfo) return [];
 
@@ -645,10 +645,10 @@ export default function StudentDashboardPage() {
   }, [records, chartItemFilter, chartFilter, measurementItems, fullStudent, school, allRecords, allStudents, isAuthLoading]);
 
   useEffect(() => {
-    if (chartItemFilter && availableItems.length > 0) {
+    if (chartItemFilter !== 'all' && availableItems.length > 0) {
         const isCurrentValid = availableItems.some(i => i.name === chartItemFilter);
         if (!isCurrentValid) {
-            setChartItemFilter('');
+            setChartItemFilter('all');
         }
     }
   }, [availableItems, chartItemFilter]);
@@ -888,7 +888,7 @@ export default function StudentDashboardPage() {
                         <div>
                             <CardTitle>나의 성장 기록</CardTitle>
                             <CardDescription>
-                                {chartItemFilter 
+                                {chartItemFilter !== 'all'
                                     ? `${chartItemFilter}의 회차별 기록 향상 추이를 확인하세요.` 
                                     : "측정된 모든 종목의 최신 성취도를 비교해 보세요."}
                             </CardDescription>
@@ -904,7 +904,7 @@ export default function StudentDashboardPage() {
                                     <SelectValue placeholder="종합 현황" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="">종합 현황</SelectItem>
+                                    <SelectItem value="all">종합 현황</SelectItem>
                                     {availableItems.map(item => (
                                         <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
                                     ))}
@@ -917,16 +917,16 @@ export default function StudentDashboardPage() {
                     {chartData.length > 0 ? (
                         <ChartContainer config={chartConfig} className="h-[450px] w-full">
                         <ResponsiveContainer>
-                            <ComposedChart data={chartData} margin={{ bottom: chartItemFilter ? 0 : 40 }}>
+                            <ComposedChart data={chartData} margin={{ bottom: chartItemFilter !== 'all' ? 0 : 40 }}>
                             <CartesianGrid vertical={false} />
                             <XAxis 
-                                dataKey={chartItemFilter ? "date" : "itemName"} 
+                                dataKey={chartItemFilter !== 'all' ? "date" : "itemName"} 
                                 tickLine={false} 
                                 axisLine={false} 
                                 tickMargin={8}
-                                angle={chartItemFilter ? 0 : -45}
-                                textAnchor={chartItemFilter ? "middle" : "end"}
-                                height={chartItemFilter ? 30 : 80}
+                                angle={chartItemFilter !== 'all' ? 0 : -45}
+                                textAnchor={chartItemFilter !== 'all' ? "middle" : "end"}
+                                height={chartItemFilter !== 'all' ? 30 : 80}
                                 interval={0}
                             />
                             <YAxis yAxisId="left" orientation="left" stroke="hsl(var(--chart-2))" domain={[0, 5]} ticks={[1, 2, 3, 4, 5]} tickFormatter={(value) => `${6 - value}등급`} name="등급" />
@@ -934,7 +934,7 @@ export default function StudentDashboardPage() {
                             <Tooltip content={<CustomTooltip />} />
                             <Legend verticalAlign="top" height={36}/>
                             <Bar dataKey="score" yAxisId="left" fill="var(--color-score)" name="등급" radius={[4, 4, 0, 0]} barSize={20} />
-                            {chartItemFilter ? (
+                            {chartItemFilter !== 'all' ? (
                                 <Line dataKey="achievement" yAxisId="right" type="monotone" stroke="var(--color-achievement)" strokeWidth={2} dot={true} name="성취도" />
                             ) : (
                                 <Bar dataKey="achievement" yAxisId="right" fill="var(--color-achievement)" name="성취도" radius={[4, 4, 0, 0]} barSize={15} opacity={0.7} />
@@ -1167,7 +1167,7 @@ export default function StudentDashboardPage() {
                                     <Youtube className="h-5 w-5 text-red-600" />
                                     <h3 className="font-semibold">{selectedItem.name} 측정 안내 영상</h3>
                                 </div>
-                                <div className="aspect-video w-full max-w-2xl mx-auto rounded-lg overflow-hidden border shadow-lg bg-black">
+                                <div className="aspect-video w-full max-w-2xl mx-auto rounded-lg overflow-hidden border shadow-lg bg-black animate-in fade-in zoom-in-95 duration-200">
                                     <iframe
                                         width="100%"
                                         height="100%"
