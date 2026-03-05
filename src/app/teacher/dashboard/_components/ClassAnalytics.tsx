@@ -112,9 +112,9 @@ const chartConfig = {
 const CustomTooltipContent = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
-    const scorePayload = payload.find((p) => p.dataKey === "score");
+    const scorePayload = payload.find((p: any) => p.dataKey === "score");
     const achievementPayload = payload.find(
-      (p) => p.dataKey === "achievement"
+      (p: any) => p.dataKey === "achievement"
     );
 
     return (
@@ -1367,7 +1367,7 @@ export default function ClassAnalytics({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {(sortedStudents || filteredStudentsBySelection).map(
+                      {((sortedStudents || filteredStudentsBySelection) as (Student & { sortValue?: any })[]).map(
                         (student) => (
                           <TableRow key={student.id}>
                             <TableCell>{student.studentNum}</TableCell>
