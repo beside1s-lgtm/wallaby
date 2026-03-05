@@ -51,7 +51,7 @@ import { getScoutingReport } from '@/ai/flows/scouting-report-flow';
 import { getTeamAnalysis } from '@/ai/flows/team-analysis-flow';
 import type { ScoutingReportOutput } from '@/ai/flows/scouting-report-flow';
 import { Loader2, Wand2, Trash2, Users, User as UserIcon, Swords, Bot, Printer, Crown, Medal, Trophy, BookOpen, ChevronRight, CheckCircle2, AlertCircle, HelpCircle, Star, Frown, RotateCcw, Youtube, Eye, EyeOff, Award, ClipboardList } from 'lucide-react';
-import type { Student, MeasurementRecord, MeasurementItem, TeamGroup, Tournament, Match, QuizAssignment, QuizResult } from '@/lib/types';
+import type { Student, MeasurementRecord, MeasurementItem, TeamGroup, Tournament, Match, QuizAssignment, QuizResult, Team } from '@/lib/types';
 import { getPapsGrade, getCustomItemGrade, normalizePapsRecord, normalizeCustomRecord, papsGradeStandards } from '@/lib/paps';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -101,7 +101,7 @@ export default function StudentDashboardPage() {
   const [allRecords, setAllRecords] = useState<MeasurementRecord[]>([]);
 
   const [teamGroup, setTeamGroup] = useState<TeamGroup | null>(null);
-  const [myTeam, setMyTeam] = useState<{ teamIndex: number, members: Student[] } | null>(null);
+  const [myTeam, setMyTeam] = useState<Team | null>(null);
   const [selectedTeamIndex, setSelectedTeamIndex] = useState<number | null>(null);
   const [isDataLoading, setIsDataLoading] = useState(true);
   
@@ -130,8 +130,8 @@ export default function StudentDashboardPage() {
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
-      const scorePayload = payload.find(p => p.dataKey === 'score');
-      const achievementPayload = payload.find(p => p.dataKey === 'achievement');
+      const scorePayload = payload.find((p: any) => p.dataKey === 'score');
+      const achievementPayload = payload.find((p: any) => p.dataKey === 'achievement');
 
       return (
         <div className="p-2 text-sm bg-background/90 border rounded-md shadow-lg">
