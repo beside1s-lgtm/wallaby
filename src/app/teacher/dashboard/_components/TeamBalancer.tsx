@@ -55,6 +55,8 @@ import {
   Pencil,
   BarChart2,
   Info,
+  CheckCircle2,
+  Trophy,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { getScoutingReport } from "@/ai/flows/scouting-report-flow";
@@ -269,6 +271,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     if (!school) return;
     setAnalyzingStudent(student);
     setIsReportLoading(true);
+    setScoutingReport(null);
     try {
       const allItemRanks = calculateRanks(school, allItems, allRecords, allStudents, student.grade);
       const studentRanks: Record<string, string> = {};
@@ -706,50 +709,106 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
       </Card>
 
       <Dialog open={!!analyzingStudent} onOpenChange={(open) => !open && setAnalyzingStudent(null)}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
               <DialogHeader>
                   <DialogTitle className="flex items-center gap-2 text-xl">
                       <Wand2 className="h-5 w-5 text-primary" />
-                      {analyzingStudent?.name} 학생 AI 스카우팅 리포트
+                      {analyzingStudent?.name} 학생 실력 분석 및 AI 리포트
                   </DialogTitle>
-                  <DialogDescription>기존 측정 기록과 학년 내 등수를 분석한 정밀 리포트입니다.</DialogDescription>
+                  <DialogDescription>선택된 기준 종목들의 학년 내 백분위 점수와 AI 분석 결과입니다.</DialogDescription>
               </DialogHeader>
-              {isReportLoading ? (
-                  <div className="flex flex-col items-center justify-center py-12 gap-4">
-                      <Loader2 className="h-10 w-10 animate-spin text-primary opacity-50" />
-                      <p className="font-bold text-muted-foreground animate-pulse">AI가 실력을 정밀 분석 중입니다...</p>
-                  </div>
-              ) : scoutingReport ? (
-                  <div className="space-y-4 py-2">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="p-3 bg-green-50 rounded-xl border border-green-100">
-                              <h4 className="font-bold text-green-700 text-sm mb-1">핵심 강점</h4>
-                              <p className="text-xs text-green-900 leading-relaxed">{scoutingReport.strengths}</p>
-                          </div>
-                          <div className="p-3 bg-red-50 rounded-xl border border-red-100">
-                              <h4 className="font-bold text-red-700 text-sm mb-1">보완점</h4>
-                              <p className="text-xs text-red-900 leading-relaxed">{scoutingReport.weaknesses}</p>
-                          </div>
-                      </div>
-                      <div className="p-4 bg-primary/5 rounded-xl border border-primary/10">
-                          <h4 className="font-bold text-primary text-sm mb-1">종합 평가 (선수 유형)</h4>
-                          <p className="text-sm font-medium italic">{scoutingReport.assessment}</p>
-                      </div>
-                      <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
-                          <h4 className="font-bold text-amber-700 text-sm mb-1">추천 포지션</h4>
-                          <p className="text-sm font-bold">{scoutingReport.position}</p>
-                      </div>
-                      <div className="p-4 bg-muted/50 rounded-xl border">
-                          <h4 className="font-bold text-muted-foreground text-sm mb-1">추천 훈련 방법</h4>
-                          <p className="text-xs leading-relaxed">{scoutingReport.suggestedTrainingMethods}</p>
-                      </div>
-                  </div>
-              ) : (
-                  <div className="py-8 text-center text-muted-foreground">분석 데이터를 불러오지 못했습니다.</div>
-              )}
-              <div className="flex justify-end">
-                  <Button onClick={() => setAnalyzingStudent(null)}>닫기</Button>
+              
+              <div className="flex-1 overflow-y-auto pr-2 py-4">
+                {isReportLoading ? (
+                    <div className="flex flex-col items-center justify-center py-20 gap-4">
+                        <Loader2 className="h-12 w-12 animate-spin text-primary opacity-50" />
+                        <p className="font-bold text-muted-foreground animate-pulse text-lg">데이터를 분석하고 리포트를 생성 중입니다...</p>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                        {/* Left: Radar Chart */}
+                        <div className="lg:col-span-2 space-y-4">
+                            <Card className="border-primary/10 shadow-sm bg-muted/5">
+                                <CardHeader className="p-4 border-b">
+                                    <CardTitle className="text-sm font-bold flex items-center gap-2">
+                                        <BarChart2 className="h-4 w-4 text-primary" /> 능력치 스파이더웹
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="p-4 pt-6 h-[300px]">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <RadarChart cx="50%" cy="50%" outerRadius="80%" data={studentScores.get(analyzingStudent?.id || '')?.scores || []}>
+                                            <PolarGrid strokeOpacity={0.3} />
+                                            <PolarAngleAxis dataKey="item" tick={{fontSize: 10, fontWeight: 700}} />
+                                            <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                                            <Radar
+                                                name="능력치"
+                                                dataKey="score"
+                                                stroke="hsl(var(--primary))"
+                                                fill="hsl(var(--primary))"
+                                                fillOpacity={0.5}
+                                            />
+                                            <RechartsTooltip contentStyle={{ borderRadius: '12px', border: '1px solid hsl(var(--border))' }} />
+                                        </RadarChart>
+                                    </ResponsiveContainer>
+                                </CardContent>
+                                <div className="p-3 bg-primary/5 text-center border-t">
+                                    <p className="text-xs font-bold text-muted-foreground uppercase">평균 능력치 점수</p>
+                                    <p className="text-2xl font-black text-primary">{studentScores.get(analyzingStudent?.id || '')?.totalScore}점</p>
+                                </div>
+                            </Card>
+                        </div>
+
+                        {/* Right: AI Scouting Report */}
+                        <div className="lg:col-span-3 space-y-4">
+                            {scoutingReport ? (
+                                <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-500">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="p-4 bg-green-50 rounded-2xl border border-green-100 shadow-sm">
+                                            <h4 className="font-black text-green-700 text-sm flex items-center gap-1.5 mb-2">
+                                                <CheckCircle2 className="h-4 w-4" /> 핵심 강점
+                                            </h4>
+                                            <p className="text-xs font-medium text-green-900 leading-relaxed whitespace-pre-wrap">{scoutingReport.strengths}</p>
+                                        </div>
+                                        <div className="p-4 bg-red-50 rounded-2xl border border-red-100 shadow-sm">
+                                            <h4 className="font-black text-red-700 text-sm flex items-center gap-1.5 mb-2">
+                                                <Info className="h-4 w-4" /> 보완점
+                                            </h4>
+                                            <p className="text-xs font-medium text-red-900 leading-relaxed whitespace-pre-wrap">{scoutingReport.weaknesses}</p>
+                                        </div>
+                                    </div>
+                                    <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10 shadow-sm">
+                                        <h4 className="font-black text-primary text-sm flex items-center gap-1.5 mb-2">
+                                            <Trophy className="h-4 w-4" /> 종합 평가
+                                        </h4>
+                                        <p className="text-sm font-bold text-foreground leading-relaxed italic">{scoutingReport.assessment}</p>
+                                    </div>
+                                    <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 shadow-sm">
+                                        <h4 className="font-black text-amber-700 text-sm flex items-center gap-1.5 mb-2">
+                                            <Wand2 className="h-4 w-4" /> 추천 포지션
+                                        </h4>
+                                        <p className="text-sm font-black text-amber-900">{scoutingReport.position}</p>
+                                    </div>
+                                    <div className="p-4 bg-muted/30 rounded-2xl border border-dashed">
+                                        <h4 className="font-black text-muted-foreground text-sm flex items-center gap-1.5 mb-2">
+                                            <BarChart2 className="h-4 w-4" /> 맞춤 훈련법
+                                        </h4>
+                                        <p className="text-xs font-medium text-foreground/80 leading-relaxed whitespace-pre-wrap">{scoutingReport.suggestedTrainingMethods}</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center h-full text-muted-foreground border-2 border-dashed rounded-3xl p-8">
+                                    <Wand2 className="h-12 w-12 mb-4 opacity-20" />
+                                    <p className="font-bold">분석 데이터가 로드되지 않았습니다.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
               </div>
+
+              <DialogFooter className="border-t pt-4">
+                  <Button onClick={() => setAnalyzingStudent(null)} className="font-bold">확인 완료</Button>
+              </DialogFooter>
           </DialogContent>
       </Dialog>
     </div>
