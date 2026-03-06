@@ -1,4 +1,3 @@
-
 "use client";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
@@ -114,6 +113,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
   const [numTeams, setNumTeams] = useState(2);
   const [membersPerTeam, setMembersPerTeam] = useState(4);
   const [divideBy, setDivideBy] = useState<"teams" | "members" | "single">("teams");
+  const [balancingStrategy, setBalancingStrategy] = useState<'balanced' | 'by-ability' | 'random'>('balanced');
   const [teams, setTeams] = useState<Team[]>([]);
   const [leftoverStudents, setLeftoverStudents] = useState<Student[]>([]);
   
@@ -187,6 +187,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     setDivideBy(group.divideBy || 'teams');
     setNumTeams(group.numTeams || 2);
     setMembersPerTeam(group.membersPerTeam || 4);
+    setBalancingStrategy(group.balancingStrategy || 'balanced');
     setLeftoverStudents([]);
     toast({ title: "팀 편성 로드 완료" });
   };
@@ -301,30 +302,69 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     if (!ids.length) { toast({ variant: "destructive", title: "학생을 선택하세요" }); return; }
     
     const studentsToBalance = allStudents.filter(s => ids.includes(s.id));
-    const sorted = studentsToBalance.map(s => ({ s, score: studentScores.get(s.id)?.totalScore || 0 })).sort((a,b) => b.score - a.score).map(x => x.s);
+    let baseList = [...studentsToBalance];
+    
+    if (balancingStrategy === 'random') {
+        baseList.sort(() => Math.random() - 0.5);
+    } else {
+        baseList = baseList.map(s => ({ s, score: studentScores.get(s.id)?.totalScore || 0 }))
+                   .sort((a,b) => b.score - a.score)
+                   .map(x => x.s);
+    }
     
     let balancedArrays: Student[][] = [];
+    
     if (divideBy === 'teams') {
-        balancedArrays = Array.from({ length: numTeams }, () => []);
-        let dir = 1, idx = 0;
-        sorted.forEach(s => {
-            balancedArrays[idx].push(s);
-            idx += dir;
-            if (idx < 0 || idx >= numTeams) { dir *= -1; idx += dir; }
-        });
-    } else if (divideBy === 'members') {
-        const count = Math.floor(sorted.length / membersPerTeam);
+        const count = numTeams;
         balancedArrays = Array.from({ length: count }, () => []);
-        const toDist = sorted.slice(0, count * membersPerTeam);
-        let dir = 1, idx = 0;
-        toDist.forEach(s => {
-            balancedArrays[idx].push(s);
-            idx += dir;
-            if (idx < 0 || idx >= count) { dir *= -1; idx += dir; }
-        });
-        setLeftoverStudents(sorted.slice(count * membersPerTeam));
+        
+        if (balancingStrategy === 'balanced') {
+            let dir = 1, idx = 0;
+            baseList.forEach(s => {
+                balancedArrays[idx].push(s);
+                idx += dir;
+                if (idx < 0 || idx >= count) { dir *= -1; idx += dir; }
+            });
+        } else if (balancingStrategy === 'by-ability') {
+            const perTeam = baseList.length / count;
+            baseList.forEach((s, i) => {
+                const tIdx = Math.min(count - 1, Math.floor(i / perTeam));
+                balancedArrays[tIdx].push(s);
+            });
+        } else {
+            baseList.forEach((s, i) => {
+                balancedArrays[i % count].push(s);
+            });
+        }
+        setLeftoverStudents([]);
+    } else if (divideBy === 'members') {
+        const teamCount = Math.floor(baseList.length / membersPerTeam);
+        if (teamCount === 0) { toast({ variant: "destructive", title: "인원이 너무 적습니다" }); return; }
+        balancedArrays = Array.from({ length: teamCount }, () => []);
+        const toDist = baseList.slice(0, teamCount * membersPerTeam);
+        const leftovers = baseList.slice(teamCount * membersPerTeam);
+        
+        if (balancingStrategy === 'balanced') {
+            let dir = 1, idx = 0;
+            toDist.forEach(s => {
+                balancedArrays[idx].push(s);
+                idx += dir;
+                if (idx < 0 || idx >= teamCount) { dir *= -1; idx += dir; }
+            });
+        } else if (balancingStrategy === 'by-ability') {
+            toDist.forEach((s, i) => {
+                const tIdx = Math.floor(i / membersPerTeam);
+                balancedArrays[tIdx].push(s);
+            });
+        } else {
+            toDist.forEach((s, i) => {
+                balancedArrays[i % teamCount].push(s);
+            });
+        }
+        setLeftoverStudents(leftovers);
     } else {
-        balancedArrays = [studentsToBalance];
+        balancedArrays = [baseList];
+        setLeftoverStudents([]);
     }
 
     setTeams(balancedArrays.map((arr, i) => ({
@@ -386,12 +426,12 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     setIsSending(true);
     try {
       const input: TeamGroupInput = {
-        school, description: teamGroupName, analysisScope: 'class', gender: selectedGender, divideBy, numTeams, membersPerTeam, itemNamesForBalancing: selectedItemNames,
+        school, description: teamGroupName, analysisScope: 'class', gender: selectedGender, divideBy, numTeams, membersPerTeam, balancingStrategy, itemNamesForBalancing: selectedItemNames,
         teams: teams.map(t => ({ id: t.id, teamIndex: t.teamIndex, memberIds: t.memberIds, name: t.name }))
       };
       const res = selectedTeamGroupId ? await updateTeamGroup(selectedTeamGroupId, input) : await saveTeamGroup(input);
       onTeamGroupUpdate(res);
-      toast({ title: res.id === selectedTeamGroupId ? "업데이트 완료" : "학생들에게 전달 완료" });
+      toast({ title: res.id === selectedTeamGroupId ? "업데이트 완료" : "학생들에게 팀 정보 전달 완료" });
     } finally { setIsSending(false); }
   };
 
@@ -501,6 +541,17 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                               <Checkbox id="ex" checked={excludeNonParticipants} onCheckedChange={c=>setExcludeNonParticipants(!!c)}/>
                               <Label htmlFor="ex" className="text-xs font-medium">기록 없는 학생 제외</Label>
                           </div>
+                      </div>
+                      <div className="space-y-2">
+                          <Label className="text-xs font-bold text-muted-foreground uppercase">편성 기준</Label>
+                          <Select value={balancingStrategy} onValueChange={v => setBalancingStrategy(v as any)}>
+                              <SelectTrigger className="w-full bg-background"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                  <SelectItem value="balanced">능력치 균등 편성 (팀별 실력 비슷)</SelectItem>
+                                  <SelectItem value="by-ability">능력별 편성 (실력순 팀 구성)</SelectItem>
+                                  <SelectItem value="random">랜덤 편성 (무작위 섞기)</SelectItem>
+                              </SelectContent>
+                          </Select>
                       </div>
                       <div className="space-y-2">
                           <Label className="text-xs font-bold text-muted-foreground uppercase">편성 방식</Label>
@@ -648,7 +699,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
           )}
           {!teams.length && targetStudents.length > 0 && selectedItemNames.length > 0 && (
               <Button onClick={handleBalanceTeams} className="w-full h-14 text-lg font-black shadow-xl hover:scale-[1.01] transition-transform">
-                  능력치 밸런스 맞춰 팀 편성하기
+                  조건에 맞춰 팀 편성하기
               </Button>
           )}
         </CardContent>

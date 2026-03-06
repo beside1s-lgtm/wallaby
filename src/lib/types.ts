@@ -85,6 +85,7 @@ export type TeamGroup = {
   divideBy?: 'teams' | 'members' | 'single';
   numTeams?: number;
   membersPerTeam?: number;
+  balancingStrategy?: 'balanced' | 'by-ability' | 'random';
 };
 
 export type TeamGroupInput = Omit<TeamGroup, 'id' | 'createdAt' | 'teams'> & {
