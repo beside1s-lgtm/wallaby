@@ -55,6 +55,17 @@ export default function TeacherDashboardPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // URL 탭 파라미터 처리
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tab = params.get('tab');
+      if (tab) {
+        setActiveTab(tab);
+      }
+    }
+  }, []);
+
   if (isLoading || isAuthLoading) return (
     <div className="container mx-auto p-4 space-y-4">
       <Skeleton className="h-16 w-full" />

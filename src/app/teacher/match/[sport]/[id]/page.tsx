@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
@@ -45,15 +46,19 @@ export default function GenericMatchPage() {
     load();
   }, [school, id]);
 
+  const handleGoBack = () => {
+    router.push('/teacher/dashboard?tab=competition');
+  };
+
   if (isLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-12 w-12 text-primary" /></div>;
 
   return (
     <div className="container mx-auto p-4 md:p-8 max-w-4xl">
       <div className="flex items-center gap-4 mb-8">
-        <Button variant="ghost" onClick={() => router.back()} size="icon"><ArrowLeft /></Button>
+        <Button variant="ghost" onClick={handleGoBack} size="icon"><ArrowLeft /></Button>
         <div>
           <h1 className="text-3xl font-bold">경기 상세 기록</h1>
-          <p className="text-muted-foreground">{sport.toUpperCase()} 종목 기록지</p>
+          <p className="text-muted-foreground">{sport?.toUpperCase() || '일반'} 종목 기록지</p>
         </div>
       </div>
 
@@ -70,7 +75,7 @@ export default function GenericMatchPage() {
             <p className="font-bold">현재 축구, 농구, 배구, 야구, 피구 종목의 전용 기록지가 활성화되어 있습니다.</p>
             <p className="text-sm text-muted-foreground">이 종목은 일반적인 경기 결과(승패 및 점수)를 대회 관리 화면에서 직접 입력해주시기 바랍니다.</p>
           </div>
-          <Button onClick={() => router.back()} className="mt-4">대회 관리로 돌아가기</Button>
+          <Button onClick={handleGoBack} className="mt-4">대회 관리로 돌아가기</Button>
         </CardContent>
       </Card>
     </div>

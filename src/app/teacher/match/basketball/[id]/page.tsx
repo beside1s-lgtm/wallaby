@@ -1,8 +1,9 @@
+
 'use client';
 import * as React from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { GripVertical, Save, Shuffle, Printer } from 'lucide-react';
+import { GripVertical, Save, Shuffle, Printer, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useState, useEffect, useMemo } from 'react';
 import { getTournaments, getStudents, addOrUpdateRecords } from '@/lib/store';
@@ -24,6 +25,7 @@ type MatchStats = Record<string, QuarterStats>; // Key: quarterNumber ('1', '2',
 
 export default function BasketballMatchPage() {
   const params = useParams();
+  const router = useRouter();
   const { school } = useAuth();
   const { toast } = useToast();
   const matchId = params.id as string;
@@ -99,13 +101,7 @@ export default function BasketballMatchPage() {
   }, [school, matchId, toast]);
   
   const currentRoster = useMemo(() => rosters[selectedTeamId] || [], [rosters, selectedTeamId]);
-  const selectedTeam = useMemo(() => {
-      if (!selectedTeamId) return null;
-      if (selectedTeamId === teamA?.id) return teamA;
-      if (selectedTeamId === teamB?.id) return teamB;
-      return null;
-  }, [selectedTeamId, teamA, teamB]);
-
+  
   useEffect(() => {
     setMatchStats(prevStats => {
         const newStats = { ...prevStats };
@@ -188,7 +184,7 @@ export default function BasketballMatchPage() {
     }
     setIsSubmitting(true);
 
-    const recordsToSave: Omit<MeasurementRecord, 'id'>[] = [];
+    const recordsToSave: any[] = [];
     const recordDate = tournament.date ? format(new Date(tournament.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
     const categoryToItemName: Record<StatCategory, string> = {
         shot: '슛',
@@ -197,7 +193,7 @@ export default function BasketballMatchPage() {
         steal: '스틸',
     };
     const categoryToScoreMultiplier: Record<StatCategory, number> = {
-        shot: 2, // 슛 1개당 2점
+        shot: 2, 
         assist: 1,
         rebound: 1,
         steal: 1,
@@ -217,7 +213,6 @@ export default function BasketballMatchPage() {
             const count = playerStats[cat];
             if (count > 0) {
               const score = count * categoryToScoreMultiplier[cat];
-
               recordsToSave.push({
                   studentId: player.id,
                   school: school,
@@ -235,7 +230,6 @@ export default function BasketballMatchPage() {
              await addOrUpdateRecords(school, currentRoster, recordsToSave);
         }
         toast({ title: '기록 저장 완료', description: `${selectedQuarter}쿼터 기록이 학생들의 개별 데이터에 반영되었습니다.`});
-
     } catch (error) {
         console.error("Failed to save records", error);
         toast({ variant: 'destructive', title: '기록 저장 실패' });
@@ -244,56 +238,20 @@ export default function BasketballMatchPage() {
     }
   };
   
-  const handleDragStart = (e: React.DragEvent<HTMLTableRowElement>, student: Student) => {
-    setDraggedItem(student);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-  
-  const handleDragOver = (e: React.DragEvent<HTMLTableRowElement>) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent<HTMLTableRowElement>, targetItem: Student) => {
-    e.preventDefault();
-    if (!draggedItem || draggedItem.id === targetItem.id) {
-      setDraggedItem(null);
-      return;
-    }
-
-    const rosterToUpdate = rosters[selectedTeamId] || [];
-    const currentIndex = rosterToUpdate.findIndex(item => item.id === draggedItem.id);
-    const targetIndex = rosterToUpdate.findIndex(item => item.id === targetItem.id);
-    
-    let newRoster = [...rosterToUpdate];
-    newRoster.splice(currentIndex, 1);
-    newRoster.splice(targetIndex, 0, draggedItem);
-    
-    setRosters(prev => ({...prev, [selectedTeamId]: newRoster }));
-    setDraggedItem(null);
-  };
-  
-  const randomizeRoster = () => {
-    setRosters(prev => {
-        const rosterToUpdate = prev[selectedTeamId] || [];
-        return {
-            ...prev,
-            [selectedTeamId]: [...rosterToUpdate].sort(() => Math.random() - 0.5)
-        }
-    });
+  const handleGoBack = () => {
+    router.push('/teacher/dashboard?tab=competition');
   };
 
   const handlePrint = () => {
     window.print();
   };
 
-  const teamForPrint = selectedTeamId === teamA?.id ? teamA : teamB;
-
   if (isLoading) {
-    return <div className="flex justify-center items-center h-full"><Loader2 className="w-12 h-12 animate-spin" /></div>;
+    return <div className="flex justify-center items-center h-screen"><Loader2 className="w-12 h-12 animate-spin text-primary" /></div>;
   }
 
   if (!tournament || !match) {
-    return <div className="container mx-auto p-4 md:p-6 lg:p-8"><p>경기 정보를 찾을 수 없습니다.</p></div>;
+    return <div className="container mx-auto p-8"><Button variant="outline" onClick={handleGoBack} className="mb-4"><ArrowLeft className="mr-2 h-4 w-4" /> 뒤로 가기</Button><p>경기 정보를 찾을 수 없습니다.</p></div>;
   }
   
   const statCategories: { key: StatCategory, name: string }[] = [
@@ -305,32 +263,20 @@ export default function BasketballMatchPage() {
 
   return (
     <>
-      <style>
-        {`
-          @media print {
-            body, html {
-              width: 100%;
-              height: auto;
-              margin: 0 !important;
-              padding: 0 !important;
-            }
-            .print-hidden {
-              display: none !important;
-            }
-            .print-only {
-              display: block !important;
-            }
-            #print-area {
-              zoom: 0.8;
-            }
-          }
-        `}
-      </style>
+      <style jsx global>{`
+        @media print {
+          body, html { width: 100%; height: auto; margin: 0 !important; padding: 0 !important; }
+          .print-hidden { display: none !important; }
+          .print-only { display: block !important; }
+          #print-area { zoom: 0.8; }
+        }
+      `}</style>
       <div className="container mx-auto p-4 md:p-6 lg:p-8 max-w-7xl">
         <div className="flex items-center gap-4 mb-4 print-hidden">
+          <Button variant="ghost" onClick={handleGoBack} size="icon"><ArrowLeft /></Button>
           <div>
-            <h1 className="text-3xl font-bold">농구 경기 기록 페이지</h1>
-            <p className="text-muted-foreground">기록할 팀과 쿼터를 선택하고, 선수별 성적을 입력하세요.</p>
+            <h1 className="text-3xl font-bold">농구 경기 기록지</h1>
+            <p className="text-muted-foreground">{tournament.name} - {match.matchNumber}번 경기</p>
           </div>
         </div>
 
@@ -357,11 +303,10 @@ export default function BasketballMatchPage() {
                   <SelectItem value="4">4쿼터</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" onClick={randomizeRoster}><Shuffle className="w-4 h-4 mr-2" />순서 섞기</Button>
               <div className="flex items-center gap-2 sm:ml-auto">
                 <Select value={printView} onValueChange={setPrintView}>
                   <SelectTrigger className="w-full sm:w-[150px]">
-                    <SelectValue placeholder="인쇄 보기 선택" />
+                    <SelectValue placeholder="보기 설정" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="final">최종 합계</SelectItem>
@@ -379,61 +324,49 @@ export default function BasketballMatchPage() {
         <div id="print-area">
             <div className="print-only mb-4 hidden">
                 <h2 className="text-2xl font-bold">{tournament.name}</h2>
-                <h3 className="text-xl">{(teamForPrint?.name)} 팀 기록지 - {printView === 'final' ? '최종 합계' : `${printView}쿼터`}</h3>
+                <h3 className="text-xl">팀 기록지 - {printView === 'final' ? '최종 합계' : `${printView}쿼터`}</h3>
             </div>
             <Card>
                 <CardContent className="overflow-x-auto pt-6">
-                    <div className="overflow-x-auto">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="w-[50px] print-hidden"></TableHead>
-                                    <TableHead className="w-[120px] whitespace-nowrap">선수</TableHead>
-                                    {statCategories.map(cat => (
-                                        <TableHead key={cat.key} className="text-center border-l">{cat.name}</TableHead>
-                                    ))}
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {currentRoster.map(player => {
-                                    const playerStats = (matchStats[selectedQuarter] || {})[player.id];
-                                    const displayPlayerStats = displayedStats[player.id] || { shot: 0, assist: 0, rebound: 0, steal: 0 };
-                                    
-                                    if (!playerStats) return null;
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="w-[120px] whitespace-nowrap">선수명</TableHead>
+                                {statCategories.map(cat => (
+                                    <TableHead key={cat.key} className="text-center border-l">{cat.name}</TableHead>
+                                ))}
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {currentRoster.map(player => {
+                                const playerStats = (matchStats[selectedQuarter] || {})[player.id];
+                                const displayPlayerStats = displayedStats[player.id] || { shot: 0, assist: 0, rebound: 0, steal: 0 };
+                                
+                                if (!playerStats) return null;
 
-                                    return (
-                                        <TableRow 
-                                            key={player.id} 
-                                            draggable 
-                                            onDragStart={(e) => handleDragStart(e, player)}
-                                            onDragOver={handleDragOver}
-                                            onDrop={(e) => handleDrop(e, player)}
-                                            className={draggedItem?.id === player.id ? 'opacity-50' : 'cursor-move'}
-                                        >
-                                            <TableCell className="text-center print-hidden"><GripVertical className="h-5 w-5 text-muted-foreground" /></TableCell>
-                                            <TableCell className="font-semibold">{player.name}</TableCell>
-                                            {statCategories.map(cat => (
-                                                <TableCell key={`${player.id}-${cat.key}`} className="border-l">
-                                                    <Input type="number" min="0" className="h-8 text-center print-hidden" value={playerStats[cat.key] || ''} onChange={e => handleStatChange(player.id, cat.key, e.target.value)} />
-                                                    <span className="print-only hidden">{displayPlayerStats[cat.key]}</span>
-                                                </TableCell>
-                                            ))}
-                                        </TableRow>
-                                    )
-                                })}
-                                <TableRow className="bg-muted hover:bg-muted font-bold">
-                                    <TableCell colSpan={2} className="text-center whitespace-nowrap">팀 합계</TableCell>
-
-                                    {statCategories.map(cat => (
-                                        <TableCell key={`total-${cat.key}`} className="text-center border-l">{tableTotals[cat.key]}</TableCell>
-                                    ))}
-                                </TableRow>
-                            </TableBody>
-                        </Table>
-                    </div>
+                                return (
+                                    <TableRow key={player.id} className="hover:bg-muted/50">
+                                        <TableCell className="font-semibold">{player.name}</TableCell>
+                                        {statCategories.map(cat => (
+                                            <TableCell key={`${player.id}-${cat.key}`} className="border-l">
+                                                <Input type="number" min="0" className="h-8 text-center print-hidden" value={playerStats[cat.key] || ''} onChange={e => handleStatChange(player.id, cat.key, e.target.value)} />
+                                                <span className="print-only hidden">{displayPlayerStats[cat.key]}</span>
+                                            </TableCell>
+                                        ))}
+                                    </TableRow>
+                                )
+                            })}
+                            <TableRow className="bg-muted hover:bg-muted font-bold">
+                                <TableCell className="text-center whitespace-nowrap">팀 전체 합계</TableCell>
+                                {statCategories.map(cat => (
+                                    <TableCell key={`total-${cat.key}`} className="text-center border-l">{tableTotals[cat.key]}</TableCell>
+                                ))}
+                            </TableRow>
+                        </TableBody>
+                    </Table>
                     <div className="flex justify-end mt-6 print-hidden">
                         <Button onClick={handleSave} disabled={isSubmitting}>
-                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                             기록 저장
                         </Button>
                     </div>

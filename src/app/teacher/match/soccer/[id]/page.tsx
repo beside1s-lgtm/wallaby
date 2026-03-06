@@ -1,3 +1,4 @@
+
 'use client';
 import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -288,6 +289,10 @@ export default function SoccerMatchPage() {
     window.print();
   };
 
+  const handleGoBack = () => {
+    router.push('/teacher/dashboard?tab=competition');
+  };
+
   const teamForPrint = selectedTeamId === teamA?.id ? teamA : teamB;
 
   if (isLoading) {
@@ -297,7 +302,7 @@ export default function SoccerMatchPage() {
   if (!tournament || !match) {
     return (
       <div className="container mx-auto p-8">
-        <Button variant="outline" onClick={() => router.back()} className="mb-4"><ArrowLeft className="mr-2 h-4 w-4" /> 뒤로 가기</Button>
+        <Button variant="outline" onClick={handleGoBack} className="mb-4"><ArrowLeft className="mr-2 h-4 w-4" /> 뒤로 가기</Button>
         <p>경기 정보를 찾을 수 없습니다.</p>
       </div>
     );
@@ -322,7 +327,7 @@ export default function SoccerMatchPage() {
       `}</style>
       <div className="container mx-auto p-4 md:p-6 lg:p-8 max-w-7xl">
         <div className="flex items-center gap-4 mb-4 print-hidden">
-          <Button variant="ghost" onClick={() => router.back()} size="icon"><ArrowLeft /></Button>
+          <Button variant="ghost" onClick={handleGoBack} size="icon"><ArrowLeft /></Button>
           <div>
             <h1 className="text-3xl font-bold">축구 경기 기록지</h1>
             <p className="text-muted-foreground">{tournament.name} - {match.matchNumber}번 경기</p>
