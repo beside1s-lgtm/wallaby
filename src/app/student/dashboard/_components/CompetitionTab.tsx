@@ -52,8 +52,8 @@ export function CompetitionTab({ tournament, studentId }: CompetitionTabProps) {
       teamA.matchesPlayed += 1;
       teamB.matchesPlayed += 1;
 
-      const scoreA = m.scoresA.reduce((a, b) => a + b, 0);
-      const scoreB = m.scoresB.reduce((a, b) => a + b, 0);
+      const scoreA = (m.scoresA || []).reduce((a, b) => a + b, 0);
+      const scoreB = (m.scoresB || []).reduce((a, b) => a + b, 0);
 
       if (scoreA > scoreB) {
         teamA.wins += 1;
@@ -93,8 +93,8 @@ export function CompetitionTab({ tournament, studentId }: CompetitionTabProps) {
     if (match.status === 'scheduled') return <Badge variant="outline" className="bg-muted/50">예정</Badge>;
     if (match.status === 'bye') return <Badge variant="secondary">부전승</Badge>;
     
-    const scoreA = match.scoresA.reduce((a, b) => a + b, 0);
-    const scoreB = match.scoresB.reduce((a, b) => a + b, 0);
+    const scoreA = (match.scoresA || []).reduce((a, b) => a + b, 0);
+    const scoreB = (match.scoresB || []).reduce((a, b) => a + b, 0);
     return (
       <div className="flex items-center gap-2 font-black text-lg">
         <span className={cn(match.winnerId === match.teamAId ? "text-primary" : "text-muted-foreground")}>{scoreA}</span>
@@ -231,7 +231,7 @@ export function CompetitionTab({ tournament, studentId }: CompetitionTabProps) {
                             {m.status === 'completed' ? '경기 종료' : '경기 예정'}
                           </span>
                           <span className="font-black text-primary">
-                            {m.status === 'completed' ? `${m.scoresA.reduce((a,b)=>a+b,0)} : ${m.scoresB.reduce((a,b)=>a+b,0)}` : 'VS'}
+                            {m.status === 'completed' ? `${(m.scoresA || []).reduce((a,b)=>a+b,0)} : ${(m.scoresB || []).reduce((a,b)=>a+b,0)}` : 'VS'}
                           </span>
                         </div>
                         <span className={cn("flex-1 text-left truncate", m.winnerId === m.teamBId && "font-black")}>{getTeamName(m.teamBId)}</span>
