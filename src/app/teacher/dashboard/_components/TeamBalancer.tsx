@@ -1,10 +1,8 @@
-
 "use client";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import {
   calculateRanks,
-  exportToCsv,
   saveTeamGroup,
   deleteTeamGroup,
   updateTeamGroup,
@@ -72,9 +70,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { cn } from "@/lib/utils";
+import { cn, exportToCsv } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-
+import { v4 as uuidv4 } from 'uuid';
 
 interface TeamBalancerProps {
   allStudents: Student[];
@@ -97,89 +95,54 @@ type ClassSelection = {
 
 type MovingStudentState = {
   studentId: string;
-  sourceTeamIndex: number;
+  sourceTeamId: string;
 } | null;
 
 export default function TeamBalancer({ allStudents, allItems, allRecords, teamGroups, onTeamGroupUpdate, onTeamGroupDelete, sportsClubs }: TeamBalancerProps) {
   const { school } = useAuth();
   const { toast } = useToast();
 
-  const [savedTeamGroups, setSavedTeamGroups] = useState<TeamGroup[]>([]);
   const [selectedTeamGroupId, setSelectedTeamGroupId] = useState<string>('');
-
   const [classSelection, setClassSelection] = useState<ClassSelection>({});
   const [clubSelection, setClubSelection] = useState<Record<string, boolean>>({});
-
-  const [selectedGender, setSelectedGender] = useState<"all" | "남" | "여" | "separate">(
-    "all"
-  );
+  const [selectedGender, setSelectedGender] = useState<"all" | "남" | "여" | "separate">("all");
   const [excludeNonParticipants, setExcludeNonParticipants] = useState(true);
-
   const [selectedItemNames, setSelectedItemNames] = useState<string[]>([]);
   const [numTeams, setNumTeams] = useState(2);
   const [membersPerTeam, setMembersPerTeam] = useState(4);
   const [divideBy, setDivideBy] = useState<"teams" | "members" | "single">("teams");
-
-  const [teams, setTeams] = useState<Student[][]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [leftoverStudents, setLeftoverStudents] = useState<Student[]>([]);
-  const [studentScores, setStudentScores] = useState<
-    Map<string, { totalScore: number; scores: { item: string; score: number }[] }>
-  >(new Map());
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(
-    null
-  );
-  const [balanceStrategy, setBalanceStrategy] = useState<"uniform" | "level">(
-    "uniform"
-  );
-  const [balancingSelection, setBalancingSelection] = useState<
-    Record<string, boolean>
-  >({});
-  
+  const [studentScores, setStudentScores] = useState<Map<string, { totalScore: number; scores: { item: string; score: number }[] }>>(new Map());
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [balanceStrategy, setBalanceStrategy] = useState<"uniform" | "level">("uniform");
+  const [balancingSelection, setBalancingSelection] = useState<Record<string, boolean>>({});
   const [teamGroupName, setTeamGroupName] = useState("");
   const [movingStudent, setMovingStudent] = useState<MovingStudentState>(null);
-
-  const [scoutingReport, setScoutingReport] =
-    useState<ScoutingReportOutput | null>(null);
+  const [scoutingReport, setScoutingReport] = useState<ScoutingReportOutput | null>(null);
   const [isReportLoading, setIsReportLoading] = useState(false);
   const [isAiButtonDisabled, setIsAiButtonDisabled] = useState(false);
   const [isSending, setIsSending] = useState(false);
-
   const [studentSearchTerm, setStudentSearchTerm] = useState("");
   const [foundStudentsForSelection, setFoundStudentsForSelection] = useState<Student[]>([]);
   const [isStudentSelectionDialogOpen, setIsStudentSelectionDialogOpen] = useState(false);
 
   const studentRowRefs = useRef<Map<string, HTMLTableRowElement | null>>(new Map());
-  
-  useEffect(() => {
-    setSavedTeamGroups(teamGroups);
-  }, [teamGroups]);
 
   const { grades, classNumsByGrade, groupedItems } = useMemo(() => {
     const grades = [...new Set(allStudents.map((s) => s.grade))].sort((a,b) => parseInt(a) - parseInt(b));
     const classNumsByGrade: Record<string, string[]> = {};
-    
     grades.forEach((grade) => {
-      const classes = [...new Set(
-        allStudents.filter((s) => s.grade === grade).map((s) => s.classNum)
-      )].sort((a,b) => parseInt(a) - parseInt(b));
+      const classes = [...new Set(allStudents.filter((s) => s.grade === grade).map((s) => s.classNum))].sort((a,b) => parseInt(a) - parseInt(b));
       classNumsByGrade[grade] = classes;
     });
-
     const grouped: Record<string, MeasurementItem[]> = { PAPS: [] };
     allItems.forEach((item) => {
       const category = item.category || (item.isPaps ? "PAPS" : "기타");
       if (!grouped[category]) grouped[category] = [];
       grouped[category].push(item);
     });
-    const orderedGroups: Record<string, MeasurementItem[]> = {
-      PAPS: grouped["PAPS"] || [],
-    };
-    Object.keys(grouped).forEach((key) => {
-      if (key !== "PAPS" && key !== "기타") orderedGroups[key] = grouped[key];
-    });
-    if (grouped["기타"]?.length > 0) orderedGroups["기타"] = grouped["기타"];
-
-    return { grades, classNumsByGrade, groupedItems: orderedGroups };
+    return { grades, classNumsByGrade, groupedItems: grouped };
   }, [allStudents, allItems]);
 
   useEffect(() => {
@@ -195,36 +158,9 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     }
   }, [grades, classNumsByGrade, classSelection]);
 
-  useEffect(() => {
-    if (Object.keys(clubSelection).length === 0 && sportsClubs.length > 0) {
-        const initialClubSelection: Record<string, boolean> = {};
-        sportsClubs.forEach(club => {
-            initialClubSelection[club.id] = false;
-        });
-        setClubSelection(initialClubSelection);
-    }
-  }, [sportsClubs, clubSelection]);
-
-
   const resetToNewTeam = () => {
     setSelectedTeamGroupId('');
     setTeamGroupName('');
-    const newSelection: ClassSelection = {};
-    Object.keys(classSelection).forEach(grade => {
-      newSelection[grade] = { all: false, classes: {} };
-      Object.keys(classSelection[grade].classes).forEach(classNum => {
-        newSelection[grade].classes[classNum] = false;
-      });
-    });
-    setClassSelection(newSelection);
-    setClubSelection({});
-    setSelectedGender('all');
-    setExcludeNonParticipants(true);
-    setSelectedItemNames([]);
-    setNumTeams(2);
-    setMembersPerTeam(4);
-    setDivideBy('teams');
-    setBalanceStrategy('uniform');
     setTeams([]);
     setLeftoverStudents([]);
     setStudentScores(new Map());
@@ -232,1383 +168,269 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     setSelectedStudentId(null);
   };
   
- const handleLoadTeamGroup = (groupId: string) => {
-    setSelectedTeamGroupId(groupId);
-    const group = savedTeamGroups.find(g => g.id === groupId);
+  const handleLoadTeamGroup = (groupId: string) => {
+    const group = teamGroups.find(g => g.id === groupId);
     if (!group) return;
-
+    setSelectedTeamGroupId(groupId);
     setTeamGroupName(group.description);
-
     const studentMap = new Map(allStudents.map(s => [s.id, s]));
-
-    const teamsWithMembers: Team[] = group.teams.map(team => ({
+    const teamsWithMembers = group.teams.map(team => ({
         ...team,
         members: team.memberIds.map(id => studentMap.get(id)).filter((s): s is Student => !!s)
     }));
-    
-    const allMemberIds = new Set(teamsWithMembers.flatMap(t => t.members?.map(m => m.id) || []));
-
-    const newClassSelection: ClassSelection = {};
-    grades.forEach(grade => {
-        newClassSelection[grade] = { all: false, classes: {} };
-        classNumsByGrade[grade]?.forEach(classNum => {
-            const isSelected = teamsWithMembers.some(team => team.members && team.members.some(member => member.grade === grade && member.classNum === classNum));
-            newClassSelection[grade].classes[classNum] = isSelected;
-        });
-        const allSelected = classNumsByGrade[grade]?.every(cn => newClassSelection[grade].classes[cn]);
-        newClassSelection[grade].all = !!allSelected;
-    });
-    setClassSelection(newClassSelection);
-    
-    const newClubSelection: Record<string, boolean> = {};
-    sportsClubs.forEach(club => {
-        newClubSelection[club.id] = club.memberIds.some(id => allMemberIds.has(id));
-    })
-    setClubSelection(newClubSelection);
-    
+    setTeams(teamsWithMembers);
     setSelectedGender(group.gender || 'all');
     setSelectedItemNames(group.itemNamesForBalancing || []);
     setDivideBy(group.divideBy || 'teams');
     setNumTeams(group.numTeams || 2);
     setMembersPerTeam(group.membersPerTeam || 4);
-    
-    setTeams(teamsWithMembers.map(t => t.members || []));
     setLeftoverStudents([]);
-    
-    toast({ title: "팀 편성 로드 완료", description: `'${group.description}' 정보를 불러왔습니다.`});
+    toast({ title: "팀 편성 로드 완료" });
   };
-
 
   const handleDeleteTeamGroup = async () => {
     if (!school || !selectedTeamGroupId) return;
-    try {
-      await deleteTeamGroup(school, selectedTeamGroupId);
-      onTeamGroupDelete(selectedTeamGroupId);
-      resetToNewTeam();
-      toast({ title: "삭제 완료", description: "선택한 팀 편성을 삭제했습니다." });
-    } catch (error) {
-      console.error("Failed to delete team group:", error);
-      toast({ variant: 'destructive', title: "삭제 실패" });
-    }
+    await deleteTeamGroup(school, selectedTeamGroupId);
+    onTeamGroupDelete(selectedTeamGroupId);
+    resetToNewTeam();
+    toast({ title: "팀 편성 삭제 완료" });
   };
 
   const targetStudents = useMemo(() => {
     const selectedStudentIds = new Set<string>();
-
     Object.entries(classSelection).forEach(([grade, selection]) => {
       Object.entries(selection.classes).forEach(([classNum, isSelected]) => {
-        if (isSelected) {
-          allStudents.forEach(s => {
-            if (s.grade === grade && s.classNum === classNum) {
-              selectedStudentIds.add(s.id);
-            }
-          });
-        }
+        if (isSelected) allStudents.forEach(s => { if (s.grade === grade && s.classNum === classNum) selectedStudentIds.add(s.id); });
       });
     });
-
     Object.entries(clubSelection).forEach(([clubId, isSelected]) => {
-        if (isSelected) {
-            const club = sportsClubs.find(c => c.id === clubId);
-            club?.memberIds.forEach(id => selectedStudentIds.add(id));
-        }
+        if (isSelected) sportsClubs.find(c => c.id === clubId)?.memberIds.forEach(id => selectedStudentIds.add(id));
     });
-
     let students = Array.from(selectedStudentIds).map(id => allStudents.find(s => s.id === id)).filter((s): s is Student => !!s);
-
-    if (selectedGender !== "all" && selectedGender !== "separate") {
-      students = students.filter((s) => s.gender === selectedGender);
-    }
-
+    if (selectedGender !== "all" && selectedGender !== "separate") students = students.filter((s) => s.gender === selectedGender);
     return students;
   }, [classSelection, clubSelection, sportsClubs, selectedGender, allStudents]);
 
   useEffect(() => {
     if (school && targetStudents.length > 0 && selectedItemNames.length > 0) {
-      const studentIdToRawScores = new Map<
-        string,
-        { totalScore: number; scores: { item: string; score: number }[] }
-      >();
-
-      const studentsForAnalysis = targetStudents.filter((student) => {
-        if (!excludeNonParticipants) return true;
-        return selectedItemNames.some((itemName) =>
-          allRecords.some(
-            (r) => r.studentId === student.id && r.item === itemName
-          )
-        );
-      });
-
-      const ranksByGrade = new Map<string, Record<string, { studentId: string; value: number; rank: number; }[]>>();
+      const studentIdToRawScores = new Map<string, { totalScore: number; scores: { item: string; score: number }[] }>();
+      const studentsForAnalysis = targetStudents.filter(s => !excludeNonParticipants || selectedItemNames.some(name => allRecords.some(r => r.studentId === s.id && r.item === name)));
+      const ranksByGrade = new Map();
+      [...new Set(studentsForAnalysis.map(s => s.grade))].forEach(g => ranksByGrade.set(g, calculateRanks(school, allItems, allRecords, allStudents, g)));
       
-      const uniqueGrades = [...new Set(studentsForAnalysis.map(s => s.grade))];
-      uniqueGrades.forEach(grade => {
-         ranksByGrade.set(grade, calculateRanks(school!, allItems, allRecords, allStudents, grade));
-      });
-      
-      selectedItemNames.forEach((itemName) => {
-        const itemInfo = allItems.find((i) => i.name === itemName);
-        if (!itemInfo) return;
-        
+      selectedItemNames.forEach(name => {
         studentsForAnalysis.forEach(student => {
-            const studentRanks = ranksByGrade.get(student.grade);
-            const itemRanks = studentRanks ? studentRanks[itemName] : undefined;
-
+            const gradeRanks = ranksByGrade.get(student.grade);
+            const itemRanks = gradeRanks?.[name];
             let score = 0;
             if (itemRanks) {
-                const rankInfo = itemRanks.find(r => r.studentId === student.id);
-                if (rankInfo) {
-                    const totalInRank = itemRanks.length;
-                    score = Math.round((1 - (rankInfo.rank - 1) / totalInRank) * 100);
-                }
+                const rankInfo = itemRanks.find((r: any) => r.studentId === student.id);
+                if (rankInfo) score = Math.round((1 - (rankInfo.rank - 1) / itemRanks.length) * 100);
             }
-
-            if (!studentIdToRawScores.has(student.id)) {
-                studentIdToRawScores.set(student.id, { totalScore: 0, scores: [] });
-            }
-            const studentData = studentIdToRawScores.get(student.id)!;
-            studentData.scores.push({ item: itemName, score: score });
+            if (!studentIdToRawScores.has(student.id)) studentIdToRawScores.set(student.id, { totalScore: 0, scores: [] });
+            studentIdToRawScores.get(student.id)!.scores.push({ item: name, score });
         });
       });
 
-      studentsForAnalysis.forEach((student) => {
-        const studentData = studentIdToRawScores.get(student.id) || {
-          totalScore: 0,
-          scores: [],
-        };
-
-        selectedItemNames.forEach((itemName) => {
-          if (!studentData.scores.some((s) => s.item === itemName)) {
-            studentData.scores.push({ item: itemName, score: 0 });
-          }
-        });
-
-        studentData.totalScore = studentData.scores.reduce(
-          (acc, s) => acc + s.score,
-          0
-        );
-        studentIdToRawScores.set(student.id, studentData);
-      });
-
-      const finalStudentScores = new Map<
-        string,
-        { totalScore: number; scores: { item: string; score: number }[] }
-      >();
-      
-      const studentsToScore = Array.from(studentIdToRawScores.keys());
-      if (studentsToScore.length > 0) {
-        const maxRawTotalScore = Math.max(...studentsToScore.map(id => studentIdToRawScores.get(id)!.totalScore));
-
-        studentIdToRawScores.forEach((data, studentId) => {
-          const finalScore =
-            maxRawTotalScore > 0
-              ? Math.round((data.totalScore / maxRawTotalScore) * 100)
-              : 0;
-          finalStudentScores.set(studentId, { ...data, totalScore: finalScore });
-        });
+      studentIdToRawScores.forEach(data => { data.totalScore = data.scores.reduce((acc, s) => acc + s.score, 0); });
+      const finalScores = new Map();
+      const maxRaw = studentIdToRawScores.size > 0 ? Math.max(...Array.from(studentIdToRawScores.values()).map(d => d.totalScore)) : 0;
+      studentIdToRawScores.forEach((data, id) => finalScores.set(id, { ...data, totalScore: maxRaw > 0 ? Math.round((data.totalScore / maxRaw) * 100) : 0 }));
+      setStudentScores(finalScores);
+      if (!Object.keys(balancingSelection).length) {
+          const newSel: Record<string, boolean> = {};
+          finalScores.forEach((_, id) => newSel[id] = true);
+          setBalancingSelection(newSel);
       }
-
-      setStudentScores(finalStudentScores);
-
-      if (Object.keys(balancingSelection).length === 0) {
-          const newSelection: Record<string, boolean> = {};
-          finalStudentScores.forEach((_, studentId) => {
-            newSelection[studentId] = true;
-          });
-          setBalancingSelection(newSelection);
-      }
-    } else {
-      setStudentScores(new Map());
-      setBalancingSelection({});
     }
-    setSelectedStudentId(null);
-  }, [
-    targetStudents,
-    selectedItemNames,
-    excludeNonParticipants,
-    allRecords,
-    allItems,
-    school,
-    allStudents,
-    selectedTeamGroupId,
-  ]);
-
-  const handleToggleItem = (itemName: string) => {
-    setSelectedItemNames((prev) =>
-      prev.includes(itemName)
-        ? prev.filter((name) => name !== itemName)
-        : [...prev, itemName]
-    );
-  };
-
-  const handleToggleCategory = (category: string, checked: boolean) => {
-    const categoryItems = groupedItems[category]?.map((item) => item.name) || [];
-    if (checked) {
-      setSelectedItemNames((prev) => [...new Set([...prev, ...categoryItems])]);
-    } else {
-      setSelectedItemNames((prev) =>
-        prev.filter((name) => !categoryItems.includes(name))
-      );
-    }
-  };
-
-  const selectedStudentData = useMemo(() => {
-    if (!selectedStudentId) return null;
-    const scores = studentScores.get(selectedStudentId);
-    return scores ? scores.scores : null;
-  }, [selectedStudentId, studentScores]);
-
-  useEffect(() => {
-    if (selectedStudentId) {
-      const studentRow = studentRowRefs.current.get(selectedStudentId);
-      studentRow?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-  }, [selectedStudentId]);
-
-  useEffect(() => {
-    setScoutingReport(null);
-  }, [selectedStudentId]);
-
-  const handleAiReport = async () => {
-    if (!school || !selectedStudentId || !selectedStudentData) {
-      toast({
-        variant: "destructive",
-        title: "AI 리포트 생성 불가",
-        description: "학생을 먼저 선택해주세요.",
-      });
-      return;
-    }
-    setIsReportLoading(true);
-    setIsAiButtonDisabled(true);
-    setTimeout(() => setIsAiButtonDisabled(false), 10000);
-    setScoutingReport(null);
-    try {
-      const student = allStudents.find((s) => s.id === selectedStudentId);
-      if (!student) return;
-
-      const studentRanks: Record<string, string> = {};
-      const ranksByItem = calculateRanks(
-        school!,
-        allItems,
-        allRecords,
-        allStudents,
-        student.grade
-      );
-
-      selectedItemNames.forEach((item) => {
-        const rankInfo = ranksByItem[item]?.find(
-          (r) => r.studentId === student.id
-        );
-        if (rankInfo) {
-          studentRanks[item] = `${ranksByItem[item].length}명 중 ${
-            rankInfo.rank
-          }등`;
-        }
-      });
-
-      const input = {
-        studentName: student.name,
-        abilityScores: selectedStudentData.map((s) => {
-          const itemInfo = allItems.find((i) => i.name === s.item);
-          return {
-            item: s.item,
-            score: s.score,
-            category: itemInfo?.category || (itemInfo?.isPaps ? "PAPS" : "기타"),
-          };
-        }),
-        ranks: studentRanks,
-        allItems,
-      };
-      const result = await getScoutingReport(input);
-      setScoutingReport(result);
-    } catch (error) {
-      console.error("Failed to get AI Scouting Report:", error);
-      toast({ variant: "destructive", title: "AI 리포트 생성 실패" });
-    } finally {
-      setIsReportLoading(false);
-    }
-  };
+  }, [targetStudents, selectedItemNames, excludeNonParticipants, allRecords, allItems, school, allStudents]);
 
   const handleBalanceTeams = () => {
-    const selectedStudentIds = Object.entries(balancingSelection)
-      .filter(([, isSelected]) => isSelected)
-      .map(([studentId]) => studentId);
-
-    if (
-      selectedStudentIds.length === 0 ||
-      (divideBy === "teams" && numTeams < 1) || 
-      (divideBy === "members" && membersPerTeam < 1)
-    ) {
-      toast({
-        variant: "destructive",
-        title: "팀 편성 불가",
-        description:
-          "분석/편성 대상 학생, 종목, 팀 나누기 기준을 올바르게 설정해주세요.",
-      });
-      return;
-    }
-
-    const studentsToBalance = allStudents.filter((s) => selectedStudentIds.includes(s.id));
+    const ids = Object.entries(balancingSelection).filter(([, s]) => s).map(([id]) => id);
+    if (!ids.length) { toast({ variant: "destructive", title: "학생을 선택하세요" }); return; }
     
-    const isClubSelected = Object.values(clubSelection).some(Boolean);
-
-    const studentGroups = new Map<string, Student[]>();
-
-    if (isClubSelected) {
-        studentGroups.set("club", studentsToBalance);
-    } else {
-        studentsToBalance.forEach(student => {
-            const classKey = `${student.grade}-${student.classNum}`;
-            if (!studentGroups.has(classKey)) {
-                studentGroups.set(classKey, []);
-            }
-            studentGroups.get(classKey)!.push(student);
-        });
-    }
-
-    let finalTeams: Student[][] = [];
-    let finalLeftovers: Student[] = [];
-
-    const createTeamsForGroup = (studentGroup: Student[], numTeamsForDivision: number) => {
-      const sortedStudents = studentGroup
-        .map((s) => ({ student: s, score: studentScores.get(s.id)?.totalScore || 0 }))
-        .sort((a, b) => b.score - a.score)
-        .map(item => item.student);
-      
-      let studentsToDistribute = [...sortedStudents];
-      
-      if (divideBy === "teams") {
-        const newTeams: Student[][] = Array.from({ length: numTeamsForDivision }, () => []);
-        if (balanceStrategy === 'uniform') {
-            let direction = 1;
-            let teamIndex = 0;
-            studentsToDistribute.forEach(student => {
-                newTeams[teamIndex].push(student);
-                teamIndex += direction;
-                if (teamIndex < 0 || teamIndex >= numTeamsForDivision) {
-                    direction *= -1;
-                    teamIndex += direction;
-                }
-            });
-        } else {
-            const studentsPerTeam = Math.floor(studentsToDistribute.length / numTeamsForDivision);
-            const remainingStudents = studentsToDistribute.length % numTeamsForDivision;
-
-            let currentIndex = 0;
-            for (let i = 0; i < numTeamsForDivision; i++) {
-                const teamSize = studentsPerTeam + (i < remainingStudents ? 1 : 0);
-                newTeams[i] = studentsToDistribute.slice(currentIndex, currentIndex + teamSize);
-                currentIndex += teamSize;
-            }
-        }
-        return { teams: newTeams.filter(t => t.length > 0), leftovers: [] };
-      } else {
-        const numTeamsForGroup = Math.floor(studentsToDistribute.length / membersPerTeam);
-        if (numTeamsForGroup === 0) {
-          return { teams: [], leftovers: studentsToDistribute };
-        }
-
-        const newTeams: Student[][] = Array.from({ length: numTeamsForGroup }, () => []);
-        const groupToDistribute = studentsToDistribute.splice(0, numTeamsForGroup * membersPerTeam);
-
-        if (balanceStrategy === 'uniform') {
-            let direction = 1;
-            let teamIndex = 0;
-            groupToDistribute.forEach(student => {
-                newTeams[teamIndex].push(student);
-                teamIndex += direction;
-                if (teamIndex < 0 || teamIndex >= numTeamsForGroup) {
-                    direction *= -1;
-                    teamIndex += direction;
-                }
-            });
-        } else {
-            for(let i = 0; i < numTeamsForGroup; i++) {
-                newTeams[i] = groupToDistribute.splice(0, membersPerTeam);
-            }
-        }
-        
-        return { teams: newTeams, leftovers: studentsToDistribute };
-      }
-    };
+    const studentsToBalance = allStudents.filter(s => ids.includes(s.id));
+    const sorted = studentsToBalance.map(s => ({ s, score: studentScores.get(s.id)?.totalScore || 0 })).sort((a,b) => b.score - a.score).map(x => x.s);
     
-    if (divideBy === 'single') {
-        finalTeams.push(studentsToBalance);
+    let balancedArrays: Student[][] = [];
+    if (divideBy === 'teams') {
+        balancedArrays = Array.from({ length: numTeams }, () => []);
+        let dir = 1, idx = 0;
+        sorted.forEach(s => {
+            balancedArrays[idx].push(s);
+            idx += dir;
+            if (idx < 0 || idx >= numTeams) { dir *= -1; idx += dir; }
+        });
+    } else if (divideBy === 'members') {
+        const count = Math.floor(sorted.length / membersPerTeam);
+        balancedArrays = Array.from({ length: count }, () => []);
+        const toDist = sorted.slice(0, count * membersPerTeam);
+        let dir = 1, idx = 0;
+        toDist.forEach(s => {
+            balancedArrays[idx].push(s);
+            idx += dir;
+            if (idx < 0 || idx >= count) { dir *= -1; idx += dir; }
+        });
+        setLeftoverStudents(sorted.slice(count * membersPerTeam));
     } else {
-      studentGroups.forEach(studentGroup => {
-          const effectiveNumTeams = divideBy === 'teams' ? numTeams : Math.max(1, Math.floor(studentGroup.length / membersPerTeam));
-          if (effectiveNumTeams === 0) {
-              finalLeftovers.push(...studentGroup);
-              return;
-          }
-
-          if (selectedGender === 'separate') {
-              const maleStudents = studentGroup.filter(s => s.gender === '남');
-              const femaleStudents = studentGroup.filter(s => s.gender === '여');
-
-              const { teams: maleTeams, leftovers: maleLeftovers } = createTeamsForGroup(maleStudents, effectiveNumTeams);
-              const { teams: femaleTeams, leftovers: femaleLeftovers } = createTeamsForGroup(femaleStudents, effectiveNumTeams);
-
-              finalTeams.push(...maleTeams, ...femaleTeams);
-              finalLeftovers.push(...maleLeftovers, ...femaleLeftovers);
-          } else {
-              const { teams: newTeams, leftovers } = createTeamsForGroup(studentGroup, effectiveNumTeams);
-              finalTeams.push(...newTeams);
-              finalLeftovers.push(...leftovers);
-          }
-      });
+        balancedArrays = [studentsToBalance];
     }
 
-    setTeams(finalTeams);
-    setLeftoverStudents(finalLeftovers);
-
-    toast({
-      title: "팀 편성 완료",
-      description:
-        "팀이 자동으로 편성되었습니다. 남은 학생이 있는 경우 수동으로 배정해주세요.",
-    });
+    setTeams(balancedArrays.map((arr, i) => ({
+        id: uuidv4(),
+        name: `${arr[0]?.grade || ''}-${arr[0]?.classNum || ''} 팀 ${i+1}`,
+        teamIndex: i,
+        memberIds: arr.map(s => s.id),
+        members: arr
+    })));
+    toast({ title: "팀 편성 완료" });
   };
 
-  const handleClassSelectionChange = (grade: string, classNum: string, checked: boolean) => {
-    setClassSelection(prev => {
-      const newSelection = { ...prev };
-      newSelection[grade].classes[classNum] = checked;
-      const allChecked = Object.values(newSelection[grade].classes).every(Boolean);
-      newSelection[grade].all = allChecked;
-      return newSelection;
-    });
+  const handleRenameTeam = (id: string, name: string) => {
+    setTeams(prev => prev.map(t => t.id === id ? { ...t, name } : t));
   };
 
-  const handleGradeSelectionChange = (grade: string, checked: boolean) => {
-    setClassSelection(prev => {
-      const newSelection = { ...prev };
-      newSelection[grade].all = checked;
-      Object.keys(newSelection[grade].classes).forEach(classNum => {
-        newSelection[grade].classes[classNum] = checked;
-      });
-      return newSelection;
-    });
-  };
-
-
-  const sortedTeams = useMemo(() => {
-    return [...teams].sort((teamA, teamB) => {
-      const studentA = teamA[0];
-      const studentB = teamB[0];
-      if (!studentA || !studentB) return 0;
-      
-      const genderOrder = {'남': 1, '여': 2};
-      const genderA = genderOrder[studentA.gender] || 3;
-      const genderB = genderOrder[studentB.gender] || 3;
-      if (genderA !== genderB) return genderA - genderB;
-
-      const gradeA = parseInt(studentA.grade);
-      const gradeB = parseInt(studentB.grade);
-      if (gradeA !== gradeB) return gradeA - gradeB;
-
-      const classA = parseInt(studentA.classNum);
-      const classB = parseInt(studentB.classNum);
-      if (classA !== classB) return classA - classB;
-
-      const teamAIndex = teams.indexOf(teamA);
-      const teamBIndex = teams.indexOf(teamB);
-      
-      return teamAIndex - teamBIndex;
-    });
-  }, [teams]);
-
-  const teamAverageScores = useMemo(() => {
-    const averages = new Map<number, { item: string; score: number }[]>();
-    if (selectedItemNames.length === 0) return averages;
-
-    sortedTeams.forEach((team, index) => {
-        const originalIndex = teams.indexOf(team);
-        const teamScores: { [key: string]: number[] } = {};
-        selectedItemNames.forEach(name => { teamScores[name] = []; });
-
-        team.forEach(member => {
-            const memberScores = studentScores.get(member.id);
-            memberScores?.scores.forEach(({ item, score }) => {
-                if(teamScores[item]) {
-                    teamScores[item].push(score);
-                }
-            });
-        });
-
-        const avgScores = selectedItemNames.map(itemName => {
-            const scores = teamScores[itemName];
-            const average = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
-            return { item: itemName, score: Math.round(average) };
-        });
-        averages.set(originalIndex, avgScores);
-    });
-
-    return averages;
-}, [sortedTeams, studentScores, selectedItemNames, teams]);
-
-
-  const handleAssignLeftover = (studentId: string, teamIndex: number) => {
-    const studentToMove = leftoverStudents.find((s) => s.id === studentId);
-    if (!studentToMove) return;
-
-    setTeams((prevTeams) => {
-      const newTeams = [...prevTeams];
-      newTeams[teamIndex] = [...newTeams[teamIndex], studentToMove];
-      return newTeams;
-    });
-
-    setLeftoverStudents((prevLeftovers) =>
-      prevLeftovers.filter((s) => s.id !== studentId)
-    );
-  };
-  
-    const handleMoveStudent = (studentId: string, fromTeamIndex: number, toTeamIndex: number) => {
-        let studentToMove: Student | undefined;
-
-        const newFromTeam = teams[fromTeamIndex].filter(s => {
-            if (s.id === studentId) {
-                studentToMove = s;
-                return false;
+  const handleMoveStudent = (studentId: string, fromId: string, toId: string) => {
+    setTeams(prev => {
+        let student: Student | undefined;
+        const next = prev.map(t => {
+            if (t.id === fromId) {
+                student = t.members?.find(s => s.id === studentId);
+                return { ...t, members: t.members?.filter(s => s.id !== studentId), memberIds: t.memberIds.filter(id => id !== studentId) };
             }
-            return true;
+            return t;
         });
-
-        if (!studentToMove) return;
-
-        const newToTeam = [...teams[toTeamIndex], studentToMove];
-
-        setTeams(prevTeams => {
-            const newTeams = [...prevTeams];
-            newTeams[fromTeamIndex] = newFromTeam;
-            newTeams[toTeamIndex] = newToTeam;
-            return newTeams.filter(team => team.length > 0);
-        });
-
-        setMovingStudent(null);
-    };
-
-    const handleStudentClick = (studentId: string, teamIndex: number) => {
-        if (movingStudent && movingStudent.studentId === studentId) {
-            setMovingStudent(null);
-        } else {
-            setMovingStudent({ studentId, sourceTeamIndex: teamIndex });
-        }
-    };
-
-    const handleTeamCardClick = (targetTeamIndex: number) => {
-        if (movingStudent && movingStudent.sourceTeamIndex !== targetTeamIndex) {
-            handleMoveStudent(movingStudent.studentId, movingStudent.sourceTeamIndex, targetTeamIndex);
-        } else {
-            setMovingStudent(null);
-        }
-    };
-
-    const handleSearchStudentForReport = () => {
-        if (!studentSearchTerm) {
-            toast({ variant: 'destructive', title: '검색어 필요', description: '학생 이름을 입력해주세요.' });
-            return;
-        }
-
-        const found = [...studentScores.keys()]
-            .map(id => allStudents.find(s => s.id === id))
-            .filter((s): s is Student => !!s)
-            .filter(s => s.name.toLowerCase().includes(studentSearchTerm.toLowerCase()));
-
-        if (found.length === 0) {
-            toast({ variant: 'destructive', title: '검색 결과 없음', description: '분석 대상 목록에 해당 학생이 없습니다.' });
-        } else if (found.length === 1) {
-            setSelectedStudentId(found[0].id);
-        } else {
-            setFoundStudentsForSelection(found);
-            setIsStudentSelectionDialogOpen(true);
-        }
-    };
-
-    const handleSelectStudentFromDialog = (studentId: string) => {
-        setSelectedStudentId(studentId);
-        setIsStudentSelectionDialogOpen(false);
-    };
-
-
-  const handleDownloadTeams = () => {
-    if (teams.length === 0) {
-      toast({
-        variant: "destructive",
-        title: "다운로드 실패",
-        description: "먼저 팀을 편성해주세요.",
-      });
-      return;
-    }
-
-    let fileName = `${school}_자동편성팀.csv`;
-    const selectedGrades = Object.keys(classSelection).filter(grade => classSelection[grade].all || Object.values(classSelection[grade].classes).some(Boolean));
-    if (selectedGrades.length === 1) {
-        fileName = `${school}_${selectedGrades[0]}학년_자동편성팀.csv`;
-    }
-
-    const dataToExport = sortedTeams.flatMap((team, index) => {
-      const firstStudent = team[0];
-       const teamsInClass = sortedTeams.filter(t => t.length > 0 && t[0].grade === firstStudent.grade && t[0].classNum === firstStudent.classNum);
-      const relativeIndex = teamsInClass.findIndex(t => t === team);
-      const teamName = firstStudent
-        ? `${firstStudent.grade}-${firstStudent.classNum}반 ${relativeIndex + 1}팀`
-        : `${index + 1}팀`;
-      return team.map((student) => ({
-        "팀명": teamName,
-        이름: student.name,
-        학년: student.grade,
-        반: student.classNum,
-        번호: student.studentNum,
-      }));
+        if (!student) return prev;
+        return next.map(t => t.id === toId ? { ...t, members: [...(t.members || []), student!], memberIds: [...t.memberIds, studentId] } : t);
     });
-
-    exportToCsv(fileName, dataToExport);
+    setMovingStudent(null);
   };
 
   const handleSendTeams = async () => {
-    if (!school || teams.length === 0) {
-      toast({
-        variant: "destructive",
-        title: "전달 실패",
-        description: "먼저 팀을 편성해야 합니다.",
-      });
-      return;
-    }
-     if (!teamGroupName) {
-      toast({
-        variant: "destructive",
-        title: "전달 실패",
-        description: "팀 편성 이름을 입력해주세요.",
-      });
-      return;
-    }
-    if (leftoverStudents.length > 0) {
-      toast({
-        variant: "destructive",
-        title: "전달 실패",
-        description: "남은 학생을 모두 팀에 배정한 후 전달해주세요.",
-      });
-      return;
-    }
+    if (!school || !teams.length || !teamGroupName) { toast({ variant: "destructive", title: "정보 부족" }); return; }
     setIsSending(true);
     try {
-      const teamData: TeamGroupInput = {
-        school: school!,
-        description: teamGroupName,
-        teams: teams.map((team, index) => ({
-          id: team[0]?.id ? `team-${team[0].id}-${index}`: `team-empty-${index}`,
-          teamIndex: index,
-          memberIds: team.map((student) => student.id),
-        })),
-        itemNamesForBalancing: selectedItemNames,
-        gender: selectedGender,
-        divideBy,
-        numTeams: divideBy === 'teams' ? numTeams : undefined,
-        membersPerTeam: divideBy === 'members' ? membersPerTeam : undefined,
-        analysisScope: 'class',
+      const input: TeamGroupInput = {
+        school, description: teamGroupName, analysisScope: 'class', gender: selectedGender, divideBy, numTeams, membersPerTeam, itemNamesForBalancing: selectedItemNames,
+        teams: teams.map(t => ({ id: t.id, teamIndex: t.teamIndex, memberIds: t.memberIds, name: t.name }))
       };
-      
-      let updatedGroup: TeamGroup;
-
-      if(selectedTeamGroupId) {
-        updatedGroup = await updateTeamGroup(selectedTeamGroupId, teamData);
-         toast({
-          title: "업데이트 완료",
-          description: "수정된 팀 명단이 학생들에게 업데이트되었습니다.",
-        });
-      } else {
-        updatedGroup = await saveTeamGroup(teamData);
-        toast({
-          title: "전달 완료",
-          description: "편성된 팀 명단이 학생들에게 전달되었습니다.",
-        });
-      }
-
-      onTeamGroupUpdate(updatedGroup);
-
-    } catch (error) {
-      console.error("Failed to send teams:", error);
-      toast({
-        variant: "destructive",
-        title: "전달 실패",
-        description: "오류가 발생했습니다. 다시 시도해주세요.",
-      });
-    } finally {
-      setIsSending(false);
-    }
+      const res = selectedTeamGroupId ? await updateTeamGroup(selectedTeamGroupId, input) : await saveTeamGroup(input);
+      onTeamGroupUpdate(res);
+      toast({ title: res.id === selectedTeamGroupId ? "업데이트 완료" : "전달 완료" });
+    } finally { setIsSending(false); }
   };
 
-  const handleSelectAllForBalancing = (checked: boolean) => {
-    const newSelection: Record<string, boolean> = {};
-    if (checked) {
-      studentScores.forEach((_, studentId) => {
-        newSelection[studentId] = true;
-      });
-    }
-    setBalancingSelection(newSelection);
-  };
+  const teamAverages = useMemo(() => {
+    const map = new Map();
+    teams.forEach(t => {
+        const avgScores = selectedItemNames.map(name => {
+            const scores = t.members?.map(m => studentScores.get(m.id)?.scores.find(s => s.item === name)?.score || 0) || [];
+            return { item: name, score: scores.length ? Math.round(scores.reduce((a,b)=>a+b,0)/scores.length) : 0 };
+        });
+        map.set(t.id, avgScores);
+    });
+    return map;
+  }, [teams, studentScores, selectedItemNames]);
 
   return (
-    <>
-     <Dialog open={isStudentSelectionDialogOpen} onOpenChange={setIsStudentSelectionDialogOpen}>
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>동명이인 학생 선택</DialogTitle>
-                <DialogDescription>'{studentSearchTerm}'(으)로 검색된 학생 중 한 명을 선택해주세요.</DialogDescription>
-            </DialogHeader>
-            <div className="max-h-[60vh] overflow-y-auto">
-                 <Table>
-                      <TableHeader>
-                          <TableRow>
-                              <TableHead>이름</TableHead>
-                              <TableHead>학년</TableHead>
-                              <TableHead>반</TableHead>
-                              <TableHead>번호</TableHead>
-                              <TableHead></TableHead>
-                          </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {foundStudentsForSelection.map(student => (
-                            <TableRow key={student.id}>
-                                <TableCell>{student.name}</TableCell>
-                                <TableCell>{student.grade}</TableCell>
-                                <TableCell>{student.classNum}</TableCell>
-                                <TableCell>{student.studentNum}</TableCell>
-                                <TableCell className="text-right">
-                                    <Button size="sm" onClick={() => handleSelectStudentFromDialog(student.id)}>
-                                        선택
-                                    </Button>
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                      </TableBody>
-                  </Table>
-            </div>
-        </DialogContent>
-    </Dialog>
     <Card className="bg-transparent shadow-none border-none">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Shuffle /> 팀 자동 편성
-        </CardTitle>
-        <CardDescription>
-          선택한 종목의 기록을 바탕으로 학생별 능력치를 분석하고, 균형잡힌 팀을
-          자동으로 편성합니다.
-        </CardDescription>
+        <CardTitle className="flex items-center gap-2"><Shuffle /> 팀 자동 편성</CardTitle>
+        <div className="flex flex-wrap gap-2 pt-4 p-4 border rounded-md bg-muted/50">
+            <Select onValueChange={handleLoadTeamGroup} value={selectedTeamGroupId}>
+                <SelectTrigger className="flex-1"><SelectValue placeholder="저장된 편성 불러오기..." /></SelectTrigger>
+                <SelectContent>{teamGroups.map(g => <SelectItem key={g.id} value={g.id}>{g.description}</SelectItem>)}</SelectContent>
+            </Select>
+            <Button variant="outline" onClick={resetToNewTeam}><RefreshCw className="mr-2 h-4 w-4"/>새 편성</Button>
+            <Button variant="destructive" disabled={!selectedTeamGroupId} onClick={handleDeleteTeamGroup}><Trash2 className="h-4 w-4"/></Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="space-y-4 p-4 border rounded-md bg-muted/50">
-            <h3 className="font-semibold">저장된 팀 편성 불러오기</h3>
-             <div className="flex flex-wrap gap-2 items-center">
-                <Select onValueChange={handleLoadTeamGroup} value={selectedTeamGroupId}>
-                    <SelectTrigger className="flex-1 min-w-[200px]">
-                        <SelectValue placeholder="저장된 팀 편성을 선택하세요..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {teamGroups.length > 0 ? (
-                           teamGroups.map(group => (
-                             <SelectItem key={group.id} value={group.id}>{group.description}</SelectItem>
-                           ))
-                        ) : (
-                            <SelectItem value="none" disabled>저장된 편성이 없습니다.</SelectItem>
-                        )}
-                    </SelectContent>
-                </Select>
-                <Button variant="outline" onClick={resetToNewTeam}><RefreshCw className="mr-2 h-4 w-4"/>새 팀 편성</Button>
-                <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                         <Button variant="destructive" disabled={!selectedTeamGroupId}>
-                            <Trash2 className="mr-2 h-4 w-4"/>
-                            편성 삭제
-                        </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                이 작업은 되돌릴 수 없습니다. 이 팀 편성 정보가 영구적으로 삭제됩니다.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel>취소</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleDeleteTeamGroup}>삭제</AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            </div>
-        </div>
-
-        <div className="space-y-4 p-4 border rounded-md">
-          <h3 className="font-semibold">1. 분석 대상 설정</h3>
-          <div className="flex flex-wrap items-end gap-4">
-             <div className="space-y-2">
-                <Label>편성 대상</Label>
+        <div className="p-4 border rounded-md space-y-4">
+            <h3 className="font-bold">1. 편성 대상 및 기준</h3>
+            <div className="flex flex-wrap gap-4">
                 <Accordion type="multiple" className="w-full sm:w-[400px] border rounded-md p-2 bg-background">
-                    {sportsClubs.length > 0 && (
-                        <AccordionItem value="clubs">
-                           <AccordionTrigger className="font-semibold">스포츠 클럽</AccordionTrigger>
-                           <AccordionContent className="pt-2 pl-2">
-                                <div className="grid grid-cols-2 gap-2">
-                                  {sportsClubs.map(club => (
-                                    <div key={club.id} className="flex items-center gap-2">
-                                      <Checkbox 
-                                        id={`club-${club.id}`}
-                                        checked={clubSelection[club.id] || false}
-                                        onCheckedChange={(checked) => setClubSelection(prev => ({...prev, [club.id]: !!checked}))}
-                                        disabled={!!selectedTeamGroupId}
-                                      />
-                                      <Label htmlFor={`club-${club.id}`}>{club.name}</Label>
-                                    </div>
-                                  ))}
-                                </div>
-                           </AccordionContent>
-                        </AccordionItem>
-                    )}
-                  {grades.map(grade => (
-                    <AccordionItem value={grade} key={grade}>
-                      <div className="flex items-center space-x-2 py-2">
-                        <div className="flex items-center space-x-2">
-                            <Checkbox 
-                                id={`grade-all-${grade}`}
-                                checked={classSelection[grade]?.all || false}
-                                onCheckedChange={(checked) => handleGradeSelectionChange(grade, !!checked)}
-                                disabled={!!selectedTeamGroupId}
-                            />
-                            <Label htmlFor={`grade-all-${grade}`} className="font-semibold cursor-pointer text-left">
-                                {grade}학년 전체
-                            </Label>
-                        </div>
-                        <AccordionTrigger />
-                      </div>
-                      <AccordionContent className="pt-2 pl-6">
-                        <div className="grid grid-cols-3 gap-2">
-                          {classNumsByGrade[grade]?.map(classNum => (
-                            <div key={classNum} className="flex items-center gap-2">
-                              <Checkbox 
-                                id={`class-${grade}-${classNum}`}
-                                checked={classSelection[grade]?.classes[classNum] || false}
-                                onCheckedChange={(checked) => handleClassSelectionChange(grade, classNum, !!checked)}
-                                disabled={!!selectedTeamGroupId}
-                              />
-                              <Label htmlFor={`class-${grade}-${classNum}`}>{classNum}반</Label>
+                    {grades.map(g => (
+                        <AccordionItem key={g} value={g}>
+                            <div className="flex items-center gap-2 p-2">
+                                <Checkbox checked={classSelection[g]?.all || false} onCheckedChange={c => {
+                                    const next = { ...classSelection };
+                                    next[g].all = !!c;
+                                    Object.keys(next[g].classes).forEach(cn => next[g].classes[cn] = !!c);
+                                    setClassSelection(next);
+                                }} />
+                                <Label>{g}학년</Label><AccordionTrigger className="ml-auto" />
                             </div>
-                          ))}
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  ))}
+                            <AccordionContent className="grid grid-cols-3 gap-2 pl-8">
+                                {classNumsByGrade[g]?.map(cn => (
+                                    <div key={cn} className="flex items-center gap-2">
+                                        <Checkbox checked={classSelection[g]?.classes[cn] || false} onCheckedChange={c => {
+                                            const next = { ...classSelection };
+                                            next[g].classes[cn] = !!c;
+                                            next[g].all = Object.values(next[g].classes).every(Boolean);
+                                            setClassSelection(next);
+                                        }} />
+                                        <Label>{cn}반</Label>
+                                    </div>
+                                ))}
+                            </AccordionContent>
+                        </AccordionItem>
+                    ))}
                 </Accordion>
+                <div className="space-y-4">
+                    <Select value={selectedGender} onValueChange={v=>setSelectedGender(v as any)}><SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">전체(혼성)</SelectItem><SelectItem value="separate">성별 분리</SelectItem><SelectItem value="남">남학생만</SelectItem><SelectItem value="여">여학생만</SelectItem></SelectContent></Select>
+                    <div className="flex items-center gap-2"><Checkbox id="ex" checked={excludeNonParticipants} onCheckedChange={c=>setExcludeNonParticipants(!!c)}/><Label htmlFor="ex">기록 없는 학생 제외</Label></div>
+                </div>
             </div>
-            <div>
-              <Label>성별</Label>
-              <Select
-                value={selectedGender}
-                onValueChange={(v) => setSelectedGender(v as any)}
-                disabled={!!selectedTeamGroupId}
-              >
-                <SelectTrigger className="w-full sm:w-[150px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체(혼성)</SelectItem>
-                  <SelectItem value="separate">성별 분리 편성</SelectItem>
-                  <SelectItem value="남">남</SelectItem>
-                  <SelectItem value="여">여</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="exclude"
-                checked={excludeNonParticipants}
-                onCheckedChange={(c) => setExcludeNonParticipants(!!c)}
-                disabled={!!selectedTeamGroupId}
-              />
-              <Label htmlFor="exclude">기록 없는 학생 제외</Label>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>종목 선택</Label>
-            <div className="space-y-2 p-2 border rounded-md mt-1">
-              {Object.entries(groupedItems).map(([category, items]) => {
-                if (items.length === 0) return null;
-                const categoryItems = items.map((item) => item.name);
-                const isAllSelected = categoryItems.every((name) =>
-                  selectedItemNames.includes(name)
-                );
-                const isIndeterminate =
-                  categoryItems.some((name) =>
-                    selectedItemNames.includes(name)
-                  ) && !isAllSelected;
-
-                return (
-                  <div key={category}>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`category-${category}`}
-                        checked={isAllSelected}
-                        onCheckedChange={(c) =>
-                          handleToggleCategory(category, !!c)
-                        }
-                        aria-checked={isIndeterminate ? "mixed" : isAllSelected}
-                        disabled={targetStudents.length === 0 || !!selectedTeamGroupId}
-                      />
-                      <Label
-                        htmlFor={`category-${category}`}
-                        className="font-semibold"
-                      >
-                        {category}
-                      </Label>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 p-2 pl-6">
-                      {items.map((item) => (
-                        <div key={item.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`item-${item.id}`}
-                            checked={selectedItemNames.includes(item.name)}
-                            onCheckedChange={() => handleToggleItem(item.name)}
-                            disabled={targetStudents.length === 0 || !!selectedTeamGroupId}
-                          />
-                          <Label
-                            htmlFor={`item-${item.id}`}
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                          >
-                            {item.name}
-                          </Label>
+            <div className="space-y-2">
+                <Label className="font-bold">밸런스 기준 종목</Label>
+                <div className="flex flex-wrap gap-2 p-2 border rounded-md">
+                    {allItems.filter(i=>!i.isArchived && !i.isDeactivated).map(i => (
+                        <div key={i.id} className="flex items-center gap-2 bg-secondary/50 p-1 px-2 rounded-full">
+                            <Checkbox checked={selectedItemNames.includes(i.name)} onCheckedChange={c => setSelectedItemNames(prev => c ? [...prev, i.name] : prev.filter(n=>n!==i.name))} />
+                            <Label className="text-xs">{i.name}</Label>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
+                    ))}
+                </div>
             </div>
-          </div>
         </div>
 
-        {studentScores.size > 0 && (
-          <div className="space-y-4 p-4 border rounded-md">
-            <h3 className="font-semibold">
-              2. 학생별 능력치 확인 및 AI 스카우팅 리포트
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <Label>학생 선택</Label>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="학생 이름으로 검색..."
-                    value={studentSearchTerm}
-                    onChange={(e) => setStudentSearchTerm(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSearchStudentForReport()}
-                  />
-                   <Button onClick={handleSearchStudentForReport}>
-                    <Search className="mr-2 h-4 w-4" /> 검색
-                   </Button>
-                  <Button
-                    onClick={handleAiReport}
-                    disabled={!selectedStudentId || isReportLoading || isAiButtonDisabled}
-                  >
-                    <Wand2 className="mr-2 h-4 w-4" />
-                    {isReportLoading ? "분석 중..." : isAiButtonDisabled ? "10초 후에 다시 시도하세요" : "AI 리포트"}
-                  </Button>
+        {teams.length > 0 && (
+            <div className="p-4 border rounded-md space-y-4" onClick={() => setMovingStudent(null)}>
+                <div className="flex flex-wrap gap-4 items-end border-b pb-4">
+                    <div className="space-y-2"><Label>팀 편성 이름</Label><Input value={teamGroupName} onChange={e=>setTeamGroupName(e.target.value)} placeholder="예: 5학년 축구 리그" className="w-[200px]" /></div>
+                    <Button onClick={handleBalanceTeams} variant="secondary"><Shuffle className="mr-2 h-4 w-4" />다시 편성</Button>
+                    <Button onClick={handleSendTeams} disabled={isSending} className="ml-auto">{isSending ? <Loader2 className="animate-spin h-4 w-4" /> : <Send className="mr-2 h-4 w-4" />}전달하기</Button>
                 </div>
-                {selectedStudentData && (
-                  <div className="mt-4 h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <RadarChart
-                        cx="50%"
-                        cy="50%"
-                        outerRadius="80%"
-                        data={selectedStudentData}
-                      >
-                        <PolarGrid />
-                        <PolarAngleAxis dataKey="item" />
-                        <PolarRadiusAxis angle={30} domain={[0, 100]} />
-                        <Radar
-                          name="능력치"
-                          dataKey="score"
-                          stroke="hsl(var(--chart-1))"
-                          fill="hsl(var(--chart-1))"
-                          fillOpacity={0.6}
-                        />
-                        <Tooltip
-                          contentStyle={{
-                            background: "hsl(var(--background))",
-                            border: "1px solid hsl(var(--border))",
-                          }}
-                        />
-                      </RadarChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-                {isReportLoading && (
-                  <div className="flex justify-center items-center h-48">
-                    <Loader2 className="animate-spin" />
-                  </div>
-                )}
-                {scoutingReport && (
-                  <Card className="mt-4">
-                    <CardHeader>
-                      <CardTitle className="text-lg">
-                        AI 스카우팅 리포트
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4 text-sm">
-                      <div>
-                        <h4 className="font-bold">핵심 강점</h4>
-                        <p className="whitespace-pre-wrap">
-                          {scoutingReport.strengths}
-                        </p>
-                      </div>
-                      <div>
-                        <h4 className="font-bold">보완점</h4>
-                        <p className="whitespace-pre-wrap">
-                          {scoutingReport.weaknesses}
-                        </p>
-                      </div>
-                      <div>
-                        <h4 className="font-bold">종합 평가</h4>
-                        <p className="whitespace-pre-wrap">
-                          {scoutingReport.assessment}
-                        </p>
-                      </div>
-                      <div>
-                        <h4 className="font-bold">추천 포지션</h4>
-                        <p className="whitespace-pre-wrap">
-                          {scoutingReport.position}
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-              <div className="max-h-[450px] overflow-y-auto border rounded-md">
-                <Table>
-                  <TableHeader className="sticky top-0 bg-muted">
-                    <TableRow>
-                      <TableHead className="w-[50px]">
-                        <Checkbox
-                          checked={
-                            studentScores.size > 0 &&
-                            Object.keys(balancingSelection).length ===
-                              studentScores.size &&
-                            Object.values(balancingSelection).every(Boolean)
-                          }
-                          onCheckedChange={(c) =>
-                            handleSelectAllForBalancing(!!c)
-                          }
-                          disabled={!!selectedTeamGroupId}
-                        />
-                      </TableHead>
-                      <TableHead>이름</TableHead>
-                      <TableHead>총점</TableHead>
-                      {selectedItemNames.slice(0, 2).map((name) => (
-                        <TableHead key={name}>{name}</TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {[...studentScores.entries()]
-                      .sort((a, b) => b[1].totalScore - a[1].totalScore)
-                      .map(([studentId, data]) => {
-                        const student = allStudents.find(
-                          (s) => s.id === studentId
-                        );
-                        if (!student) return null;
-                        return (
-                          <TableRow
-                            key={studentId}
-                            ref={(el) => { studentRowRefs.current.set(studentId, el); }}
-                            onClick={() => setSelectedStudentId(studentId)}
-                            className="cursor-pointer"
-                            data-state={
-                              selectedStudentId === studentId ? "selected" : ""
-                            }
-                          >
-                            <TableCell>
-                              <Checkbox
-                                checked={balancingSelection[studentId] || false}
-                                onCheckedChange={(c) =>
-                                  setBalancingSelection((prev) => ({
-                                    ...prev,
-                                    [studentId]: !!c,
-                                  }))
-                                }
-                                onClick={(e) => e.stopPropagation()}
-                                disabled={!!selectedTeamGroupId}
-                              />
-                            </TableCell>
-                            <TableCell>{student.name}</TableCell>
-                            <TableCell className="font-bold">
-                              {data.totalScore}
-                            </TableCell>
-                            {selectedItemNames.slice(0, 2).map((itemName) => (
-                              <TableCell key={itemName}>
-                                {data.scores.find((s) => s.item === itemName)
-                                  ?.score || 0}
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        );
-                      })}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {(studentScores.size > 0 || teams.length > 0) && (
-          <div className="space-y-4 p-4 border rounded-md" onClick={(e) => { if (e.target === e.currentTarget) setMovingStudent(null); }}>
-            <h3 className="font-semibold">3. 팀 편성</h3>
-            <div className="flex flex-wrap items-end gap-4">
-              <div>
-                <Label htmlFor="team-group-name">팀 편성 이름</Label>
-                 <Input
-                    id="team-group-name"
-                    value={teamGroupName}
-                    onChange={(e) => setTeamGroupName(e.target.value)}
-                    placeholder="예: 5학년 배구 리그"
-                    className="w-full sm:w-[200px]"
-                    disabled={!!selectedTeamGroupId}
-                  />
-              </div>
-               <div>
-                <Label>팀 나누기 기준</Label>
-                <RadioGroup
-                  value={divideBy}
-                  onValueChange={(v) => setDivideBy(v as any)}
-                  className="flex items-center gap-4 mt-2"
-                  disabled={!!selectedTeamGroupId}
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="teams" id="teams" />
-                    <Label htmlFor="teams">팀 수로 나누기</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="members" id="members" />
-                    <Label htmlFor="members">팀원 수로 나누기</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="single" id="single" />
-                    <Label htmlFor="single">선택 그룹을 한 팀으로</Label>
-                  </div>
-                </RadioGroup>
-              </div>
-
-              {divideBy === "teams" ? (
-                <div>
-                  <Label htmlFor="num-teams">팀 수</Label>
-                  <Input
-                    id="num-teams"
-                    type="number"
-                    value={numTeams}
-                    onChange={(e) =>
-                      setNumTeams(Math.max(1, parseInt(e.target.value) || 1))
-                    }
-                    min="1"
-                    className="w-[100px]"
-                    disabled={!!selectedTeamGroupId}
-                  />
-                </div>
-              ) : divideBy === "members" ? (
-                <div>
-                  <Label htmlFor="members-per-team">팀원 수</Label>
-                  <Input
-                    id="members-per-team"
-                    type="number"
-                    value={membersPerTeam}
-                    onChange={(e) =>
-                      setMembersPerTeam(
-                        Math.max(1, parseInt(e.target.value) || 1)
-                      )
-                    }
-                    min="1"
-                    className="w-[100px]"
-                    disabled={!!selectedTeamGroupId}
-                  />
-                </div>
-              ) : null}
-
-              {divideBy !== 'single' && (
-                <div>
-                  <Label>편성 방식</Label>
-                  <RadioGroup
-                    value={balanceStrategy}
-                    onValueChange={
-                      (value) =>
-                        setBalanceStrategy(value as "uniform" | "level")
-                    }
-                    className="flex items-center gap-4 mt-2"
-                    disabled={!!selectedTeamGroupId}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="uniform" id="uniform" />
-                      <Label htmlFor="uniform">균등 편성 (실력 평준화)</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="level" id="level" />
-                      <Label htmlFor="level">레벨별 편성 (실력 그룹화)</Label>
-                    </div>
-                  </RadioGroup>
-                </div>
-              )}
-            </div>
-             <div className="flex flex-wrap items-end gap-2 pt-2 border-t mt-4">
-              <Button onClick={handleBalanceTeams} disabled={!!selectedTeamGroupId}>
-                <Shuffle className="mr-2 h-4 w-4" /> 
-                {divideBy === 'single' ? '팀 만들기' : '팀 나누기'}
-              </Button>
-              <Button
-                onClick={handleDownloadTeams}
-                variant="outline"
-                disabled={teams.length === 0}
-              >
-                <FileDown /> 팀 명단 다운로드
-              </Button>
-              <Button
-                onClick={handleSendTeams}
-                disabled={
-                  teams.length === 0 || isSending || leftoverStudents.length > 0
-                }
-              >
-                {isSending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="mr-2 h-4 w-4" />
-                )}
-                {selectedTeamGroupId ? "수정 내용 전달" : "학생들에게 전달"}
-              </Button>
-            </div>
-
-            {leftoverStudents.length > 0 && (
-              <div className="pt-4 space-y-2">
-                <h4 className="font-semibold text-orange-600">남은 학생 배정</h4>
-                <div className="flex flex-wrap gap-2 p-2 border border-dashed border-orange-400 rounded-md">
-                  {leftoverStudents.map((student) => {
-                    const studentClassTeams = sortedTeams
-                      .map((team, index) => ({ team, originalIndex: teams.indexOf(team) }))
-                      .filter(({ team }) => 
-                        team.length > 0 &&
-                        team[0].grade === student.grade &&
-                        team[0].classNum === student.classNum
-                      )
-                      .sort((a,b) => a.team.length - b.team.length);
-
-                    return (
-                      <div
-                        key={student.id}
-                        className="flex items-center gap-2 p-2 bg-secondary rounded"
-                      >
-                        <span className="font-medium">{student.name}</span>
-                        {studentClassTeams.map(({ team, originalIndex }) => {
-                          const firstStudent = team[0];
-                          const teamsInClass = sortedTeams.filter(t => t.length > 0 && t[0].grade === firstStudent.grade && t[0].classNum === firstStudent.classNum);
-                          const relativeIndex = teamsInClass.findIndex(t => t === team);
-                          const teamName = firstStudent
-                            ? `${firstStudent.grade}-${firstStudent.classNum}반 ${relativeIndex + 1}팀`
-                            : `${originalIndex + 1}팀`;
-                          return (
-                            <Button
-                              key={originalIndex}
-                              size="sm"
-                              variant="outline"
-                              onClick={() =>
-                                handleAssignLeftover(student.id, originalIndex)
-                              }
-                            >
-                              + {teamName}
-                            </Button>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {sortedTeams.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
-                {sortedTeams.map((team, index) => {
-                  const originalIndex = teams.indexOf(team);
-                  if (originalIndex === -1) return null;
-                  
-                  const firstStudent = team[0];
-                  if (!firstStudent) return null;
-                  
-                  const genderDisplay = selectedGender === 'separate' ? (firstStudent.gender === '남' ? '(남)' : '(여)') : '';
-                  
-                  const teamsInClass = sortedTeams.filter(t => t.length > 0 && t[0].grade === firstStudent.grade && t[0].classNum === firstStudent.classNum && (selectedGender !== 'separate' || t[0].gender === firstStudent.gender));
-                  const relativeIndex = teamsInClass.findIndex(t => t === team);
-
-                  const teamName = `${firstStudent.grade}-${firstStudent.classNum}반 ${genderDisplay} 팀 ${relativeIndex + 1}`;
-
-                  const avgData = teamAverageScores.get(originalIndex);
-
-                  const teamTotalScores = team.map(member => studentScores.get(member.id)?.totalScore || 0);
-                  const teamAverageTotalScore = teamTotalScores.length > 0 ? Math.round(teamTotalScores.reduce((a, b) => a + b, 0) / teamTotalScores.length) : 0;
-
-                  return (
-                    <div
-                      key={`${originalIndex}-${team[0]?.id || index}`}
-                      className={cn(
-                          "border rounded-md p-4 space-y-2 cursor-pointer transition-all",
-                          movingStudent && movingStudent.sourceTeamIndex !== originalIndex ? "border-dashed border-primary hover:bg-primary/10" : "hover:bg-muted/50",
-                      )}
-                      onClick={() => handleTeamCardClick(originalIndex)}
-                    >
-                      <h4 className="font-bold text-center border-b pb-2">
-                        {teamName}
-                        <span className="font-normal text-sm text-muted-foreground ml-2">({teamAverageTotalScore}점)</span>
-                      </h4>
-                      {avgData && avgData.length > 0 ? (
-                        <div className="h-[150px]">
-                             <ResponsiveContainer width="100%" height="100%">
-                                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={avgData}>
-                                    <PolarGrid />
-                                    <PolarAngleAxis dataKey="item" tick={{fontSize: 10}} />
-                                    <PolarRadiusAxis axisLine={false} tick={false} domain={[0, 100]} />
-                                    <Radar name="팀 평균" dataKey="score" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.6} />
-                                    <Tooltip contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))", fontSize: '12px' }}/>
-                                </RadarChart>
-                            </ResponsiveContainer>
-                        </div>
-                      ) : (
-                        <div className="h-[150px] flex items-center justify-center text-xs text-muted-foreground">
-                            팀 평균 능력치 데이터가 없습니다.
-                        </div>
-                      )}
-                      <div className="text-sm pt-2 border-t">
-                          <div className="flex flex-col gap-1">
-                              {team.map((student) => (
-                                <div
-                                    key={student.id}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleStudentClick(student.id, originalIndex);
-                                    }}
-                                    className={cn(
-                                        "flex items-center p-1 rounded-md cursor-pointer hover:bg-secondary",
-                                        movingStudent?.studentId === student.id && "bg-primary/20 ring-2 ring-primary"
-                                    )}
-                                >
-                                    <span>{student.name}</span>
-                                    {movingStudent?.studentId === student.id && (
-                                        <Move className="h-4 w-4 ml-auto text-primary" />
-                                    )}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {teams.map((t, idx) => (
+                        <Card key={t.id} className={cn("cursor-pointer transition-all", movingStudent && movingStudent.sourceTeamId !== t.id ? "ring-2 ring-dashed ring-primary" : "hover:border-primary")} onClick={() => movingStudent && movingStudent.sourceTeamId !== t.id ? handleMoveStudent(movingStudent.studentId, movingStudent.sourceTeamId, t.id) : null}>
+                            <CardHeader className="p-3 border-b">
+                                <Input value={t.name} onChange={e => handleRenameTeam(t.id, e.target.value)} className="h-7 text-center font-bold border-none bg-transparent hover:bg-muted" />
+                            </CardHeader>
+                            <CardContent className="p-3 space-y-3">
+                                <div className="h-[120px]">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <RadarChart data={teamAverages.get(t.id)}><PolarGrid /><PolarAngleAxis dataKey="item" tick={{fontSize: 8}} /><Radar dataKey="score" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.5} /></RadarChart>
+                                    </ResponsiveContainer>
                                 </div>
-                              ))}
-                          </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                                <div className="space-y-1">
+                                    {t.members?.map(m => (
+                                        <div key={m.id} className={cn("flex items-center gap-2 p-1 px-2 rounded text-sm", movingStudent?.studentId === m.id ? "bg-primary text-white" : "hover:bg-muted")} onClick={(e) => { e.stopPropagation(); setMovingStudent({ studentId: m.id, sourceTeamId: t.id }); }}>
+                                            <span className="font-medium">{m.name}</span>
+                                            <span className="text-[10px] opacity-70 ml-auto">{studentScores.get(m.id)?.totalScore}점</span>
+                                            {movingStudent?.studentId === m.id && <Move className="h-3 w-3" />}
+                                        </div>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+            </div>
         )}
+        {!teams.length && targetStudents.length > 0 && <Button onClick={handleBalanceTeams} className="w-full h-12 text-lg">팀 편성 시작하기</Button>}
       </CardContent>
     </Card>
-    </>
   );
 }

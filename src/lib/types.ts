@@ -88,7 +88,7 @@ export type TeamGroup = {
 };
 
 export type TeamGroupInput = Omit<TeamGroup, 'id' | 'createdAt' | 'teams'> & {
-  teams: (Omit<Team, 'id' | 'name'> & { id?: string })[];
+  teams: (Omit<Team, 'id'> & { id?: string })[];
 };
 
 

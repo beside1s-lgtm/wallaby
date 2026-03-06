@@ -852,16 +852,19 @@ export const saveTeamGroup = async (teamGroupData: TeamGroupInput): Promise<Team
     await signIn();
     const teamGroupsRef = collection(db, 'schools', teamGroupData.school, 'teamGroups');
     
-    // Add unique ID to each team before saving
-    const teamsWithIds: Omit<Team, 'name'>[] = teamGroupData.teams.map(team => ({
+    // Assign a unique ID and ensure name is respected
+    const teamsWithIds: Team[] = teamGroupData.teams.map((team, i) => ({
         ...team,
-        id: uuidv4(), // Assign a unique ID to each team
+        id: team.id || uuidv4(),
+        name: (team as any).name || `팀 ${i+1}`,
+        teamIndex: team.teamIndex ?? i,
+        memberIds: team.memberIds || [],
     }));
 
     const newTeamGroupRef = doc(teamGroupsRef);
     const dataToSave: Omit<TeamGroup, 'createdAt'> = {
         ...teamGroupData,
-        teams: teamsWithIds.map((t, i) => ({ ...t, name: `팀 ${i+1}`})), // Default name, can be edited later
+        teams: teamsWithIds,
         id: newTeamGroupRef.id,
     };
     
@@ -888,14 +891,17 @@ export const updateTeamGroup = async (teamGroupId: string, teamGroupData: TeamGr
     await signIn();
     const teamGroupRef = doc(db, 'schools', teamGroupData.school, 'teamGroups', teamGroupId);
     
-    const teamsWithIds: Omit<Team, 'name'>[] = teamGroupData.teams.map(team => ({
+    const teamsWithIds: Team[] = teamGroupData.teams.map((team, i) => ({
         ...team,
         id: team.id || uuidv4(),
+        name: (team as any).name || `팀 ${i+1}`,
+        teamIndex: team.teamIndex ?? i,
+        memberIds: team.memberIds || [],
     }));
 
     const dataToUpdate: Omit<TeamGroup, 'id' | 'createdAt'> & { [key: string]: any } = {
         ...teamGroupData,
-        teams: teamsWithIds.map((t, i) => ({ ...t, name: `팀 ${i+1}`})),
+        teams: teamsWithIds,
     };
 
     if (dataToUpdate.numTeams === undefined) delete dataToUpdate.numTeams;
