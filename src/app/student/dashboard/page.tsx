@@ -193,7 +193,13 @@ export default function StudentDashboardPage() {
             </TabsContent>
             
             <TabsContent value="my-competition" className="animate-in fade-in-50 duration-300">
-              <CompetitionTab tournament={data.tournament} studentId={user?.id || ''} />
+              <CompetitionTab 
+                tournament={data.tournament} 
+                student={data.student}
+                allStudents={data.allStudents}
+                allRecords={data.allRecords}
+                allItems={data.items}
+              />
             </TabsContent>
             
             <TabsContent value="physical-knowledge" className="animate-in fade-in-50 duration-300">

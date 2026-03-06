@@ -1,23 +1,32 @@
 'use client';
-import { useMemo } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useMemo, useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Swords, Users, Trophy, Calendar, CheckCircle2, ListOrdered } from 'lucide-react';
+import { Swords, Users, Trophy, Calendar, CheckCircle2, ListOrdered, Wand2, Loader2, Brain, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { Tournament, Match, Team } from '@/lib/types';
+import type { Tournament, Match, Team, Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
+import { calculateRanks } from '@/lib/store';
+import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Tooltip, Legend } from 'recharts';
+import { getTeamAnalysis, type TeamAnalysisOutput } from '@/ai/flows/team-analysis-flow';
 
 interface CompetitionTabProps {
   tournament: Tournament | null;
-  studentId: string;
+  student: Student | null;
+  allStudents: Student[];
+  allRecords: MeasurementRecord[];
+  allItems: MeasurementItem[];
 }
 
-export function CompetitionTab({ tournament, studentId }: CompetitionTabProps) {
+export function CompetitionTab({ tournament, student, allStudents, allRecords, allItems }: CompetitionTabProps) {
+  const [aiReport, setAiReport] = useState<TeamAnalysisOutput | null>(null);
+  const [isReportLoading, setIsReportLoading] = useState(false);
+
   // 1. 학생이 속한 팀 찾기
   const myTeam = useMemo(() => {
-    if (!tournament || !studentId) return null;
-    return tournament.teams.find(t => t.memberIds.includes(studentId));
-  }, [tournament, studentId]);
+    if (!tournament || !student) return null;
+    return tournament.teams.find(t => t.memberIds.includes(student.id));
+  }, [tournament, student]);
 
   // 2. 라운드별 경기 그룹화 (토너먼트용)
   const rounds = useMemo(() => {
@@ -74,6 +83,76 @@ export function CompetitionTab({ tournament, studentId }: CompetitionTabProps) {
     return Object.values(stats).sort((a, b) => b.points - a.points || b.wins - a.wins);
   }, [tournament]);
 
+  // 4. 팀 능력치 비교 데이터 계산
+  const abilityAnalysis = useMemo(() => {
+    if (!myTeam || !student || !allStudents.length || !allRecords.length) return null;
+
+    // 대회의 기반이 되는 종목들 (팀 편성 시 사용된 종목 등)
+    // 여기서는 대회 정보에 종목 정보가 없으므로 PAPS 또는 관련 있는 최신 종목들을 추정
+    const selectedItemNames = allItems
+      .filter(i => !i.isArchived && !i.isDeactivated)
+      .slice(0, 5) // 최대 5개 종목 선정
+      .map(i => i.name);
+
+    const ranks = calculateRanks(student.school, allItems, allRecords, allStudents, student.grade);
+    
+    // 나의 점수 계산 (백분위 기반 0~100)
+    const myScores = selectedItemNames.map(name => {
+      const itemRanks = ranks[name] || [];
+      const rankInfo = itemRanks.find(r => r.studentId === student.id);
+      let score = 0;
+      if (rankInfo && itemRanks.length > 0) {
+        score = Math.round((1 - (rankInfo.rank - 1) / itemRanks.length) * 100);
+      }
+      return { item: name, score };
+    });
+
+    // 팀 평균 점수 계산
+    const teamAverageScores = selectedItemNames.map(name => {
+      const itemRanks = ranks[name] || [];
+      const teamMemberIds = new Set(myTeam.memberIds);
+      const teamMemberRanks = itemRanks.filter(r => teamMemberIds.has(r.studentId));
+      
+      let averageScore = 0;
+      if (teamMemberRanks.length > 0) {
+        const totalScore = teamMemberRanks.reduce((acc, r) => {
+          const s = Math.round((1 - (r.rank - 1) / itemRanks.length) * 100);
+          return acc + s;
+        }, 0);
+        averageScore = Math.round(totalScore / teamMemberRanks.length);
+      }
+      return { item: name, score: averageScore };
+    });
+
+    const radarData = selectedItemNames.map((name, idx) => ({
+      subject: name,
+      me: myScores[idx].score,
+      team: teamAverageScores[idx].score,
+    }));
+
+    return { radarData, teamAverageScores };
+  }, [myTeam, student, allStudents, allRecords, allItems]);
+
+  // 5. AI 팀 분석 리포트 가져오기
+  useEffect(() => {
+    async function fetchAnalysis() {
+      if (!abilityAnalysis || !myTeam || aiReport) return;
+      setIsReportLoading(true);
+      try {
+        const result = await getTeamAnalysis({
+          teamName: myTeam.name,
+          abilityScores: abilityAnalysis.teamAverageScores
+        });
+        setAiReport(result);
+      } catch (e) {
+        console.error("Team analysis failed", e);
+      } finally {
+        setIsReportLoading(false);
+      }
+    }
+    fetchAnalysis();
+  }, [abilityAnalysis, myTeam, aiReport]);
+
   if (!tournament) {
     return (
       <div className="mt-6 flex flex-col items-center justify-center py-20 text-muted-foreground border-2 border-dashed rounded-3xl bg-muted/5 animate-in fade-in duration-500">
@@ -106,7 +185,7 @@ export function CompetitionTab({ tournament, studentId }: CompetitionTabProps) {
 
   return (
     <div className="space-y-8 mt-6 pb-10">
-      {/* 대회 개요 카드 */}
+      {/* 대회 대진표/순위 카드 */}
       <Card className="border-2 border-primary/10 shadow-sm overflow-hidden">
         <CardHeader className="bg-primary/5 flex flex-row items-center justify-between pb-4">
           <div className="space-y-1">
@@ -130,7 +209,6 @@ export function CompetitionTab({ tournament, studentId }: CompetitionTabProps) {
         
         <CardContent className="pt-6">
           {tournament.type === 'tournament' ? (
-            /* 토너먼트 대진표 뷰 */
             <div className="flex gap-6 overflow-x-auto pb-4 scrollbar-hide">
               {rounds.map((r) => (
                 <div key={r.round} className="flex-1 min-w-[240px] space-y-4">
@@ -180,7 +258,6 @@ export function CompetitionTab({ tournament, studentId }: CompetitionTabProps) {
               ))}
             </div>
           ) : (
-            /* 리그 대진표 뷰 */
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2 space-y-4">
                 <div className="flex items-center gap-2 mb-2">
@@ -245,34 +322,121 @@ export function CompetitionTab({ tournament, studentId }: CompetitionTabProps) {
         </CardContent>
       </Card>
 
-      {/* 나의 팀 상세 정보 */}
+      {/* 나의 팀 전력 분석 섹션 */}
+      {myTeam && abilityAnalysis && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* 능력치 비교 그래프 */}
+          <Card className="border-2 border-primary/10 shadow-sm overflow-hidden">
+            <CardHeader className="bg-primary/5 pb-4 border-b">
+              <CardTitle className="flex items-center gap-2 text-primary font-black">
+                <TrendingUp className="h-6 w-6" /> 팀 전력 분석 (나 vs 팀 평균)
+              </CardTitle>
+              <CardDescription className="font-bold">팀원들과의 능력치 밸런스를 확인하세요.</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6 h-[350px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={abilityAnalysis.radarData}>
+                  <PolarGrid strokeOpacity={0.3} />
+                  <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fontWeight: 700 }} />
+                  <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                  <Radar
+                    name="나의 점수"
+                    dataKey="me"
+                    stroke="hsl(var(--primary))"
+                    fill="hsl(var(--primary))"
+                    fillOpacity={0.5}
+                  />
+                  <Radar
+                    name="팀 평균"
+                    dataKey="team"
+                    stroke="hsl(var(--chart-2))"
+                    fill="hsl(var(--chart-2))"
+                    fillOpacity={0.3}
+                  />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '12px', border: '1px solid hsl(var(--border))' }}
+                  />
+                  <Legend verticalAlign="bottom" />
+                </RadarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* AI 팀 전략 분석 */}
+          <Card className="border-2 border-primary/10 shadow-sm overflow-hidden flex flex-col">
+            <CardHeader className="bg-primary/5 pb-4 border-b">
+              <CardTitle className="flex items-center gap-2 text-primary font-black">
+                <Brain className="h-6 w-6" /> AI 팀 컬러 및 전략 분석
+              </CardTitle>
+              <CardDescription className="font-bold">우리 팀의 시너지를 극대화할 수 있는 AI 코칭입니다.</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6 flex-1">
+              {isReportLoading ? (
+                <div className="flex flex-col items-center justify-center h-full py-12 gap-4">
+                  <Loader2 className="h-10 w-10 animate-spin text-primary opacity-50" />
+                  <p className="text-sm font-bold text-muted-foreground animate-pulse">우리 팀의 전력을 분석하는 중입니다...</p>
+                </div>
+              ) : aiReport ? (
+                <div className="space-y-4 text-sm">
+                  <div className="p-3 bg-green-50 rounded-xl border border-green-100">
+                    <h4 className="font-black text-green-700 flex items-center gap-1.5 mb-1.5"><CheckCircle2 className="h-4 w-4" /> 핵심 강점</h4>
+                    <p className="font-medium text-green-900 leading-relaxed whitespace-pre-wrap">{aiReport.strengths}</p>
+                  </div>
+                  <div className="p-3 bg-red-50 rounded-xl border border-red-100">
+                    <h4 className="font-black text-red-700 flex items-center gap-1.5 mb-1.5"><CheckCircle2 className="h-4 w-4" /> 보완점</h4>
+                    <p className="font-medium text-red-900 leading-relaxed whitespace-pre-wrap">{aiReport.weaknesses}</p>
+                  </div>
+                  <div className="p-3 bg-primary/5 rounded-xl border border-primary/10">
+                    <h4 className="font-black text-primary flex items-center gap-1.5 mb-1.5"><Trophy className="h-4 w-4" /> 종합 평가</h4>
+                    <p className="font-black text-foreground leading-relaxed italic">{aiReport.assessment}</p>
+                  </div>
+                  <div className="p-3 bg-amber-50 rounded-xl border border-amber-100">
+                    <h4 className="font-black text-amber-700 flex items-center gap-1.5 mb-1.5"><Wand2 className="h-4 w-4" /> 추천 전략</h4>
+                    <p className="font-medium text-amber-900 leading-relaxed whitespace-pre-wrap">{aiReport.strategy}</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground py-12">
+                  <p className="font-bold italic">분석 데이터를 불러올 수 없습니다.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* 나의 팀 선수단 리스트 */}
       <Card className="border-2 border-primary/10 shadow-sm overflow-hidden">
         <CardHeader className="pb-4 border-b bg-card">
           <CardTitle className="flex items-center gap-2 text-primary font-black">
-            <Users className="h-6 w-6" /> 나의 팀 선수단
+            <Users className="h-6 w-6" /> 우리 팀 선수단 ({myTeam?.name || '미정'})
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-6">
           {myTeam ? (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {myTeam.memberIds.map(id => {
-                  const member = tournament.teams.flatMap(t => t.members || []).find(m => m.id === id);
-                  return (
-                    <div key={id} className={cn(
-                      "flex flex-col items-center p-4 rounded-2xl border transition-all",
-                      id === studentId ? "bg-primary/10 border-primary ring-2 ring-primary/20" : "bg-card hover:bg-muted/30"
-                    )}>
-                      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-3 text-xl font-black text-muted-foreground overflow-hidden">
-                        {member?.photoUrl ? <img src={member.photoUrl} className="w-full h-full object-cover" /> : member?.name[0] || '?'}
-                      </div>
-                      <span className="font-black text-sm">{member?.name || '알 수 없음'}</span>
-                      <span className="text-[10px] font-bold text-muted-foreground">{member?.studentNum}번</span>
-                      {id === studentId && <Badge className="mt-2 text-[8px] h-3 px-1">나</Badge>}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {myTeam.memberIds.map(id => {
+                const member = allStudents.find(s => s.id === id);
+                return (
+                  <div key={id} className={cn(
+                    "flex flex-col items-center p-4 rounded-2xl border transition-all",
+                    id === student?.id ? "bg-primary/10 border-primary ring-2 ring-primary/20" : "bg-card hover:bg-muted/30"
+                  )}>
+                    <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-3 text-xl font-black text-muted-foreground overflow-hidden border">
+                      {member?.photoUrl ? (
+                        <img src={member.photoUrl} className="w-full h-full object-cover" alt={member.name} />
+                      ) : (
+                        member?.name[0] || '?'
+                      )}
                     </div>
-                  );
-                })}
-              </div>
+                    <span className="font-black text-sm">{member?.name || '알 수 없음'}</span>
+                    <span className="text-[10px] font-bold text-muted-foreground">
+                      {member ? `${member.grade}-${member.classNum} ${member.studentNum}번` : '정보 없음'}
+                    </span>
+                    {id === student?.id && <Badge className="mt-2 text-[8px] h-3 px-1">나</Badge>}
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-3xl">
