@@ -1,3 +1,4 @@
+
 'use client';
 import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -189,7 +190,7 @@ export default function SoccerMatchPage() {
     }
     setIsSubmitting(true);
 
-    const recordsToSave: Omit<MeasurementRecord, 'id'>[] = [];
+    const recordsToSave: any[] = [];
     const recordDate = tournament.date ? format(new Date(tournament.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
     
     const categoryToItemName: Record<StatCategory, string> = {

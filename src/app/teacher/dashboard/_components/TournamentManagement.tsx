@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -5,7 +6,6 @@ import { useAuth } from '@/hooks/use-auth';
 import {
   getTournaments,
   updateTournament,
-  getStudents,
   saveTournament,
   deleteTournament,
 } from '@/lib/store';
