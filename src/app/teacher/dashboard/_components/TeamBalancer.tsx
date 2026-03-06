@@ -1,3 +1,4 @@
+
 "use client";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
@@ -53,6 +54,7 @@ import {
   RefreshCw,
   Move,
   Search,
+  Pencil,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -405,8 +407,16 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {teams.map((t, idx) => (
                         <Card key={t.id} className={cn("cursor-pointer transition-all", movingStudent && movingStudent.sourceTeamId !== t.id ? "ring-2 ring-dashed ring-primary" : "hover:border-primary")} onClick={() => movingStudent && movingStudent.sourceTeamId !== t.id ? handleMoveStudent(movingStudent.studentId, movingStudent.sourceTeamId, t.id) : null}>
-                            <CardHeader className="p-3 border-b">
-                                <Input value={t.name} onChange={e => handleRenameTeam(t.id, e.target.value)} className="h-7 text-center font-bold border-none bg-transparent hover:bg-muted" />
+                            <CardHeader className="p-3 border-b bg-muted/30">
+                                <div className="flex items-center gap-2 px-2">
+                                    <Pencil className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                                    <Input 
+                                        value={t.name} 
+                                        onChange={e => handleRenameTeam(t.id, e.target.value)} 
+                                        className="h-8 text-center font-bold bg-background border-primary/20 focus:border-primary shadow-sm" 
+                                        placeholder="팀 이름 입력"
+                                    />
+                                </div>
                             </CardHeader>
                             <CardContent className="p-3 space-y-3">
                                 <div className="h-[120px]">
