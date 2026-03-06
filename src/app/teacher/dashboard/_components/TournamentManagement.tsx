@@ -31,6 +31,8 @@ import {
   FileSpreadsheet,
   Trophy as TrophyIcon,
   Calendar as CalendarIcon,
+  Pencil,
+  Save,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -43,6 +45,16 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+  DialogDescription,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { v4 as uuidv4 } from 'uuid';
 import {
   Select,
@@ -492,9 +504,20 @@ export default function TournamentManagement({ onTournamentUpdate, allTeamGroups
           <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
             <div>
               <Badge variant="outline" className="mb-1">{sportDisplayMap[currentTournament.sport || 'etc']}</Badge>
-              <h2 className="text-2xl font-black text-primary flex items-center gap-2">
-                <TrophyIcon className="h-6 w-6 text-yellow-500" /> {currentTournament.name} 경기 관리
-              </h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-2xl font-black text-primary flex items-center gap-2">
+                  <TrophyIcon className="h-6 w-6 text-yellow-500" /> {currentTournament.name} 경기 관리
+                </h2>
+                <EditTournamentTeamsDialog 
+                  tournament={currentTournament} 
+                  onUpdate={(updatedTeams) => {
+                    if (school) {
+                      updateTournament(school, currentTournament.id, { teams: updatedTeams });
+                      setCurrentTournament({ ...currentTournament, teams: updatedTeams });
+                    }
+                  }} 
+                />
+              </div>
               <p className="text-sm text-muted-foreground font-medium">경기 점수를 입력하고 결과를 확정하세요. 각 경기의 [기록지] 버튼을 통해 상세 데이터를 기록할 수 있습니다.</p>
             </div>
             <div className="flex gap-2">
@@ -562,5 +585,66 @@ export default function TournamentManagement({ onTournamentUpdate, allTeamGroups
         </Card>
       )}
     </div>
+  );
+}
+
+function EditTournamentTeamsDialog({ tournament, onUpdate }: { tournament: Tournament, onUpdate: (updatedTeams: Team[]) => void }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [editedTeams, setEditedTeams] = useState<Team[]>([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setEditedTeams(JSON.parse(JSON.stringify(tournament.teams)));
+    }
+  }, [isOpen, tournament]);
+
+  const handleNameChange = (teamId: string, newName: string) => {
+    setEditedTeams(prev => prev.map(t => t.id === teamId ? { ...t, name: newName } : t));
+  };
+
+  const handleSave = () => {
+    onUpdate(editedTeams);
+    setIsOpen(false);
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8 gap-1.5 font-bold">
+          <Pencil className="h-3.5 w-3.5" />
+          팀 이름 수정
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>참가 팀 이름 수정</DialogTitle>
+          <DialogDescription>
+            대진표와 기록지에 표시될 팀 이름을 자유롭게 수정하세요.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4 max-h-[400px] overflow-y-auto pr-2">
+          {editedTeams.map((team, idx) => (
+            <div key={team.id} className="flex items-center gap-3">
+              <Badge variant="secondary" className="shrink-0 w-12 justify-center">팀 {idx + 1}</Badge>
+              <Input 
+                value={team.name} 
+                onChange={(e) => handleNameChange(team.id, e.target.value)}
+                placeholder="팀 이름 입력"
+                className="font-bold"
+              />
+            </div>
+          ))}
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline">취소</Button>
+          </DialogClose>
+          <Button onClick={handleSave} className="gap-2">
+            <Save className="h-4 w-4" />
+            저장하기
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
