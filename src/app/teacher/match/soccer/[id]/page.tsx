@@ -1,4 +1,3 @@
-
 'use client';
 import * as React from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -15,6 +14,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 type StatCategory = 'goal' | 'pass' | 'dribble' | 'defense';
 type PlayerStats = {
