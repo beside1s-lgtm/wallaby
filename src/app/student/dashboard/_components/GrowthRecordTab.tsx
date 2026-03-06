@@ -4,8 +4,8 @@ import { useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Wand2, Trophy, Loader2, Info } from 'lucide-react';
+import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell, BarChart } from 'recharts';
+import { Wand2, Trophy, Loader2, Info, LayoutDashboard } from 'lucide-react';
 import type { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -33,6 +33,7 @@ export function GrowthRecordTab({
   student
 }: GrowthRecordTabProps) {
   
+  // 개별 종목 선택 시: 시간 순 변화 기록
   const filteredRecords = useMemo(() => {
     if (!itemFilter || itemFilter === 'all') return [];
     
@@ -40,6 +41,44 @@ export function GrowthRecordTab({
       .filter(r => r.item === itemFilter)
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [records, itemFilter]);
+
+  // 종목 미선택 시: 각 종목별 최신 기록 요약 (PAPS 우선, 최대 6개)
+  const summaryData = useMemo(() => {
+    if (itemFilter !== 'all') return [];
+
+    // 1. 각 종목별 최신 기록 하나씩만 추출
+    const latestMap = new Map<string, MeasurementRecord>();
+    records.forEach(r => {
+      const existing = latestMap.get(r.item);
+      if (!existing || new Date(r.date) > new Date(existing.date)) {
+        latestMap.set(r.item, r);
+      }
+    });
+
+    // 2. 활성 종목 중 기록이 있는 것들 필터링 및 우선순위 부여
+    const itemsWithLatest = activeItems
+      .filter(item => latestMap.has(item.name))
+      .map(item => {
+        const latest = latestMap.get(item.name)!;
+        let priority = 3; // 기본 기타
+        if (item.isPaps) priority = 1;
+        else if (item.category && item.category !== '기타' && item.category !== 'PAPS') priority = 2;
+
+        return {
+          name: item.name,
+          value: latest.value,
+          unit: item.unit,
+          priority,
+          date: latest.date,
+          category: item.category || (item.isPaps ? 'PAPS' : '기타')
+        };
+      });
+
+    // 3. 우선순위 순 정렬 후 상위 6개만 선택
+    return itemsWithLatest
+      .sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name))
+      .slice(0, 6);
+  }, [records, activeItems, itemFilter]);
 
   const selectedItemInfo = useMemo(() => {
     return activeItems.find(i => i.name === itemFilter);
@@ -51,11 +90,11 @@ export function GrowthRecordTab({
         <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2">
           <div>
             <CardTitle className="text-2xl font-black text-primary flex items-center gap-2">
-              나의 성장 기록
+              {itemFilter === 'all' ? <><LayoutDashboard className="h-6 w-6" /> 나의 체력 요약</> : "나의 성장 기록"}
             </CardTitle>
             <CardDescription className="text-base font-medium">
               {itemFilter === 'all' 
-                ? "종목을 선택하여 기록의 변화를 확인하세요." 
+                ? "최근 측정한 주요 종목들의 기록 현황입니다." 
                 : <span className="text-foreground"><strong className="text-primary">{itemFilter}</strong> 기록의 변화 추이입니다.</span>}
             </CardDescription>
           </div>
@@ -66,7 +105,7 @@ export function GrowthRecordTab({
                 <SelectValue placeholder="종목 선택" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">종목을 선택하세요</SelectItem>
+                <SelectItem value="all">나의 체력 요약 (전체)</SelectItem>
                 {activeItems.map((i) => (
                   <SelectItem key={i.id} value={i.name}>{i.name}</SelectItem>
                 ))}
@@ -76,11 +115,63 @@ export function GrowthRecordTab({
         </CardHeader>
         <CardContent className="h-[400px] pt-6">
           {itemFilter === 'all' ? (
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground border-2 border-dashed rounded-2xl bg-muted/5 animate-in fade-in duration-500">
-              <Info className="h-12 w-12 mb-3 opacity-20 text-primary" />
-              <p className="font-bold text-lg">성장 그래프를 확인하려면</p>
-              <p className="text-sm opacity-70">우측 상단에서 종목을 먼저 선택해주세요.</p>
-            </div>
+            summaryData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={summaryData} margin={{ top: 20, right: 10, left: -20, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.3} />
+                  <XAxis 
+                    dataKey="name" 
+                    fontSize={11} 
+                    fontWeight="700"
+                    tickLine={false} 
+                    axisLine={false} 
+                    tickMargin={12}
+                    angle={-15}
+                    textAnchor="end"
+                  />
+                  <YAxis 
+                    fontSize={11} 
+                    fontWeight="600"
+                    tickLine={false} 
+                    axisLine={false} 
+                    tickMargin={8}
+                  />
+                  <Tooltip 
+                    cursor={{ fill: 'hsl(var(--primary) / 0.05)' }}
+                    contentStyle={{ 
+                      borderRadius: '12px', 
+                      border: '1px solid hsl(var(--border))', 
+                      boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
+                      padding: '12px'
+                    }}
+                    formatter={(value: number, name: string, props: any) => [
+                      `${value}${props.payload.unit}`, 
+                      '최신 기록'
+                    ]}
+                    labelFormatter={(label) => `${label} 현황`}
+                  />
+                  <Bar 
+                    dataKey="value" 
+                    radius={[6, 6, 0, 0]} 
+                    barSize={40}
+                    animationDuration={1500}
+                  >
+                    {summaryData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={entry.priority === 1 ? 'hsl(var(--primary))' : entry.priority === 2 ? 'hsl(var(--chart-2))' : 'hsl(var(--chart-3))'} 
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-muted-foreground border-2 border-dashed rounded-2xl bg-muted/5 animate-in fade-in duration-500">
+                <Info className="h-12 w-12 mb-3 opacity-20 text-primary" />
+                <p className="font-bold text-lg">기록 데이터가 부족합니다.</p>
+                <p className="text-sm opacity-70">측정 입력 탭에서 첫 기록을 저장해보세요!</p>
+              </div>
+            )
           ) : filteredRecords.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={filteredRecords} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -140,13 +231,13 @@ export function GrowthRecordTab({
             </div>
           )}
         </CardContent>
-        {itemFilter !== 'all' && filteredRecords.length > 0 && (
-          <CardFooter className="bg-muted/20 px-6 py-3 border-t">
-            <p className="text-xs text-muted-foreground font-medium">
-              * 최근 {filteredRecords.length}회의 측정 결과가 표시되고 있습니다.
-            </p>
-          </CardFooter>
-        )}
+        <CardFooter className="bg-muted/20 px-6 py-3 border-t">
+          <p className="text-xs text-muted-foreground font-medium">
+            {itemFilter === 'all' 
+              ? "* 종목별 가장 최근에 측정한 기록들을 보여줍니다 (최대 6개)." 
+              : `* 최근 ${filteredRecords.length}회의 측정 결과가 표시되고 있습니다.`}
+          </p>
+        </CardFooter>
       </Card>
       
       {hallOfFame.length > 0 && (
