@@ -6,4 +6,6 @@ runConfig:
   # more instances in response to increased traffic.
   maxInstances: 1
   cpu: 1
-  memoryMiB: 512
+  # Next.js build process typically requires more than 512MiB. 
+  # Increasing to 1024MiB to ensure successful deployment.
+  memoryMiB: 1024
