@@ -6,6 +6,7 @@ import {
   deleteStudentAndAssociatedRecords,
   addStudent,
   updateStudent,
+  exportToCsv,
 } from "@/lib/store";
 import type {
   Student,
@@ -48,7 +49,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { parseCsv, exportToCsv } from "@/lib/utils";
+import { parseCsv } from "@/lib/utils";
 import {
   UserPlus,
   Trash2,
@@ -170,6 +171,37 @@ export function StudentManagement({
     }
   };
 
+  const handleDownloadList = () => {
+    if (!school) return;
+    
+    let label = "";
+    if (selectedGrade === "all") {
+      label = "전체_학생";
+    } else {
+      label = `${selectedGrade}학년`;
+      if (selectedClassNum !== "all") {
+        label += `_${selectedClassNum}반`;
+      } else {
+        label += "_전체";
+      }
+    }
+
+    const dataToExport = sortedStudents.map((s) => ({
+      '학년': s.grade,
+      '반': s.classNum,
+      '번호': s.studentNum,
+      '이름': s.name,
+      '성별': s.gender,
+      '접속코드': s.accessCode,
+    }));
+    
+    exportToCsv(`${school}_${label}_명단.csv`, dataToExport);
+    toast({
+      title: "다운로드 시작",
+      description: `${label.replace(/_/g, ' ')} 명단을 다운로드합니다.`,
+    });
+  };
+
   const handleStudentCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && school) {
@@ -219,32 +251,39 @@ export function StudentManagement({
           </div>
 
           <div className="ml-0 sm:ml-auto flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full sm:w-auto">
-            <Select value={selectedGrade} onValueChange={(v) => { setSelectedGrade(v); setSelectedClassNum("all"); }}>
-              <SelectTrigger className="w-full sm:w-[120px]"><SelectValue placeholder="학년 선택" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">전체 학년</SelectItem>
-                {grades.map(g => <SelectItem key={g} value={g}>{g}학년</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={selectedClassNum} onValueChange={setSelectedClassNum} disabled={selectedGrade === "all"}>
-              <SelectTrigger className="w-full sm:w-[120px]"><SelectValue placeholder="반 선택" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">전체 반</SelectItem>
-                {selectedGrade !== "all" && classNumsByGrade[selectedGrade]?.map(c => <SelectItem key={c} value={c}>{c}반</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" disabled={selectedIds.length === 0 || isProcessing}>
-                  {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                  선택 삭제 ({selectedIds.length})
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader><AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle><AlertDialogDescription>선택한 학생들과 관련 기록이 영구 삭제됩니다.</AlertDialogDescription></AlertDialogHeader>
-                <AlertDialogFooter><AlertDialogCancel>취소</AlertDialogCancel><AlertDialogAction onClick={handleDeleteSelected}>삭제</AlertDialogAction></AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <div className="flex items-center gap-2">
+              <Select value={selectedGrade} onValueChange={(v) => { setSelectedGrade(v); setSelectedClassNum("all"); }}>
+                <SelectTrigger className="w-full sm:w-[120px]"><SelectValue placeholder="학년 선택" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">전체 학년</SelectItem>
+                  {grades.map(g => <SelectItem key={g} value={g}>{g}학년</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={selectedClassNum} onValueChange={setSelectedClassNum} disabled={selectedGrade === "all"}>
+                <SelectTrigger className="w-full sm:w-[120px]"><SelectValue placeholder="반 선택" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">전체 반</SelectItem>
+                  {selectedGrade !== "all" && classNumsByGrade[selectedGrade]?.map(c => <SelectItem key={c} value={c}>{c}반</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={handleDownloadList} className="flex-1 sm:flex-none">
+                <FileDown className="mr-2 h-4 w-4" /> 명단 다운로드
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" disabled={selectedIds.length === 0 || isProcessing}>
+                    {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+                    선택 삭제 ({selectedIds.length})
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader><AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle><AlertDialogDescription>선택한 학생들과 관련 기록이 영구 삭제됩니다.</AlertDialogDescription></AlertDialogHeader>
+                  <AlertDialogFooter><AlertDialogCancel>취소</AlertDialogCancel><AlertDialogAction onClick={handleDeleteSelected}>삭제</AlertDialogAction></AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </div>
         </div>
         <div className="border rounded-md overflow-x-auto">
