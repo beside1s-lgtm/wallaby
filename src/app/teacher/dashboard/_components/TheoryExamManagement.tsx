@@ -1,3 +1,4 @@
+
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -6,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { BrainCircuit, FileText, Loader2, Sparkles, Printer, Copy, CheckCircle2, Save, Library, Trash2, Pencil, Send, History, ChevronRight, Youtube } from "lucide-react";
+import { BrainCircuit, FileText, Loader2, Sparkles, Printer, Copy, CheckCircle2, Save, Library, Trash2, Pencil, Send, History, ChevronRight, Youtube, PlusCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { generateQuiz, QuizOutput } from "@/ai/flows/quiz-generation-flow";
 import { Badge } from "@/components/ui/badge";
@@ -167,30 +168,36 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
         });
     };
 
-    const handleSaveQuiz = async () => {
+    const handleSaveQuiz = async (silent = false) => {
         if (!school || !generatedQuiz) return;
         
         setIsSaving(true);
         try {
-            await saveQuizToDb(school, {
+            const saved = await saveQuizToDb(school, {
                 school,
                 title: generatedQuiz.quizTitle,
                 content: content,
                 questions: generatedQuiz.questions,
                 videoUrl: videoUrl.trim()
             });
-            toast({ title: '저장 완료', description: '문제지가 라이브러리에 저장되었습니다.' });
+            if (!silent) {
+                toast({ title: '저장 완료', description: '문제지가 라이브러리에 저장되었습니다.' });
+            }
             fetchSavedQuizzes();
-            setGeneratedQuiz(null);
-            setContent('');
-            setVideoUrl('');
-            setShowAnswers(false);
+            return saved;
         } catch (error) {
             console.error("Failed to save quiz:", error);
-            toast({ variant: 'destructive', title: '저장 실패' });
+            if (!silent) toast({ variant: 'destructive', title: '저장 실패' });
         } finally {
             setIsSaving(false);
         }
+    };
+
+    const handleNewQuiz = () => {
+        setGeneratedQuiz(null);
+        setContent('');
+        setVideoUrl('');
+        setShowAnswers(false);
     };
 
     const handleDeleteQuiz = async (id: string) => {
@@ -280,13 +287,20 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
     return (
         <Card className="bg-transparent shadow-none border-none">
             <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-2xl font-bold">
-                    <BrainCircuit className="h-6 w-6 text-primary" />
-                    AI 이론 평가 문제 생성기
-                </CardTitle>
-                <CardDescription>
-                    체육 학습 자료를 입력하면 AI가 자동으로 퀴즈를 만들어줍니다. 생성 후 개별 문항을 수정할 수 있습니다.
-                </CardDescription>
+                <div className="flex justify-between items-start">
+                    <div>
+                        <CardTitle className="flex items-center gap-2 text-2xl font-bold">
+                            <BrainCircuit className="h-6 w-6 text-primary" />
+                            AI 이론 평가 문제 생성기
+                        </CardTitle>
+                        <CardDescription>
+                            체육 학습 자료를 입력하면 AI가 자동으로 퀴즈를 만들어줍니다. 생성 후 개별 문항을 수정할 수 있습니다.
+                        </CardDescription>
+                    </div>
+                    <Button variant="outline" onClick={handleNewQuiz} className="font-bold">
+                        <PlusCircle className="mr-2 h-4 w-4" /> 새 퀴즈 작성
+                    </Button>
+                </div>
             </CardHeader>
             <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -490,8 +504,10 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
                                             allStudents={allStudents}
                                             sportsClubs={sportsClubs}
                                             onDistributed={fetchAssignments}
+                                            onSaveBeforeDistribute={() => handleSaveQuiz(true)}
+                                            savedQuizzes={savedQuizzes}
                                         />
-                                        <Button variant="outline" size="sm" onClick={handleSaveQuiz} disabled={isSaving}>
+                                        <Button variant="outline" size="sm" onClick={() => handleSaveQuiz(false)} disabled={isSaving}>
                                             {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
                                             저장
                                         </Button>
@@ -788,7 +804,23 @@ function EditQuestionDialog({ question, onSave }: { question: QuizQuestion, onSa
     );
 }
 
-function DistributeQuizDialog({ quiz, videoUrl, allStudents, sportsClubs, onDistributed }: { quiz: QuizOutput, videoUrl: string, allStudents: Student[], sportsClubs: SportsClub[], onDistributed: () => void }) {
+function DistributeQuizDialog({ 
+    quiz, 
+    videoUrl, 
+    allStudents, 
+    sportsClubs, 
+    onDistributed, 
+    onSaveBeforeDistribute,
+    savedQuizzes 
+}: { 
+    quiz: QuizOutput, 
+    videoUrl: string, 
+    allStudents: Student[], 
+    sportsClubs: SportsClub[], 
+    onDistributed: () => void, 
+    onSaveBeforeDistribute: () => Promise<any>,
+    savedQuizzes: Quiz[]
+}) {
     const { school } = useAuth();
     const { toast } = useToast();
     const [isOpen, setIsOpen] = useState(false);
@@ -797,7 +829,7 @@ function DistributeQuizDialog({ quiz, videoUrl, allStudents, sportsClubs, onDist
     const [targetType, setTargetType] = useState<'class' | 'grade' | 'school' | 'club'>('class');
     const [selectedGrade, setSelectedGrade] = useState('');
     const [selectedClassNum, setSelectedClassNum] = useState('');
-    const [selectedGrades, setSelectedGrades] = useState<string[]>([]); // For multiple grade selection
+    const [selectedGrades, setSelectedGrades] = useState<string[]>([]); 
     const [selectedClubId, setSelectedClubId] = useState('');
 
     const { grades, classNumsByGrade } = useMemo(() => {
@@ -814,8 +846,17 @@ function DistributeQuizDialog({ quiz, videoUrl, allStudents, sportsClubs, onDist
         
         setIsSubmitting(true);
         try {
+            // 1. 배포 전 라이브러리에 저장되어 있는지 확인하고 없으면 자동 저장
+            const isAlreadySaved = savedQuizzes.some(q => q.title === quiz.quizTitle);
+            let quizIdToUse = 'temp-' + uuidv4();
+            
+            if (!isAlreadySaved) {
+                const saved = await onSaveBeforeDistribute();
+                if (saved && saved.id) quizIdToUse = saved.id;
+            }
+
             const baseAssignment: any = {
-                quizId: 'temp-' + uuidv4(), 
+                quizId: quizIdToUse, 
                 quizTitle: quiz.quizTitle,
                 questions: quiz.questions,
                 videoUrl: videoUrl.trim(),
@@ -851,7 +892,7 @@ function DistributeQuizDialog({ quiz, videoUrl, allStudents, sportsClubs, onDist
                 await distributeQuiz(school, { ...baseAssignment, targetClubId: selectedClubId, targetClubName: club?.name || '알 수 없는 클럽' });
             }
 
-            toast({ title: '배포 완료', description: '학생들에게 퀴즈가 성공적으로 전달되었습니다.' });
+            toast({ title: '배포 및 저장 완료', description: '학생들에게 퀴즈가 전달되었으며, 라이브러리에 자동 저장되었습니다.' });
             onDistributed();
             setIsOpen(false);
         } catch (error) {
@@ -872,7 +913,7 @@ function DistributeQuizDialog({ quiz, videoUrl, allStudents, sportsClubs, onDist
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>퀴즈 배포 설정</DialogTitle>
-                    <DialogDescription>문제를 풀 대상을 선택해주세요. 배포 즉시 해당 학생들의 대시보드에 나타납니다.</DialogDescription>
+                    <DialogDescription>문제를 풀 대상을 선택해주세요. 배포 시 자동으로 라이브러리에 저장됩니다.</DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                     <div className="space-y-2">
