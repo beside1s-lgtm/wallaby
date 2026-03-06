@@ -20,6 +20,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import {
   Loader2,
@@ -38,6 +39,7 @@ import {
   Trophy as TrophyIcon,
   CheckCircle2,
   FileSpreadsheet,
+  Printer,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -413,7 +415,6 @@ export default function TournamentManagement({ onTournamentUpdate, allTeamGroups
               if (m.id === matchId) {
                   return { ...m, winnerId: null, status: 'scheduled' as const, scoresA: [0], scoresB: [0] };
               }
-              // 만약 이 경기의 승자가 다음 경기에 이미 배정되어 있다면 그것도 취소해야 할 수도 있음 (고도화 필요)
               return m;
           });
           await updateTournament(school, currentTournament.id, { matches: newMatches });
