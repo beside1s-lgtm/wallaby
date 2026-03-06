@@ -384,6 +384,15 @@ export default function TournamentManagement({ onTournamentUpdate, allTeamGroups
     return currentTournament?.teams.find(t => t.id === teamId)?.name || '알 수 없음';
   };
 
+  const sportDisplayMap: Record<string, string> = {
+    soccer: '축구',
+    basketball: '농구',
+    volleyball: '배구',
+    baseball: '야구',
+    dodgeball: '피구',
+    etc: '일반'
+  };
+
   return (
     <div className="space-y-6">
       <Card className="bg-transparent shadow-none border-none">
@@ -482,7 +491,7 @@ export default function TournamentManagement({ onTournamentUpdate, allTeamGroups
         <Card className="p-6 border-2 border-primary/10 shadow-lg">
           <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
             <div>
-              <Badge variant="outline" className="mb-1">{currentTournament.sport === 'soccer' ? '축구' : currentTournament.sport === 'basketball' ? '농구' : currentTournament.sport === 'volleyball' ? '배구' : currentTournament.sport === 'baseball' ? '야구' : currentTournament.sport === 'dodgeball' ? '피구' : '일반'}</Badge>
+              <Badge variant="outline" className="mb-1">{sportDisplayMap[currentTournament.sport || 'etc']}</Badge>
               <h2 className="text-2xl font-black text-primary flex items-center gap-2">
                 <TrophyIcon className="h-6 w-6 text-yellow-500" /> {currentTournament.name} 경기 관리
               </h2>
@@ -541,7 +550,7 @@ export default function TournamentManagement({ onTournamentUpdate, allTeamGroups
                       <Button variant="default" size="sm" className="flex-1 text-xs font-bold" onClick={() => handleCompleteMatch(m.id)} disabled={isUpdatingMatch || !m.teamAId || !m.teamBId}>경기 종료</Button>
                     )}
                     <Button variant="outline" size="sm" asChild className="px-2">
-                      <Link href={`/teacher/match/${currentTournament.sport || 'etc'}/${m.id}`} title="상세 기록지 입력">
+                      <Link href={`/teacher/match/${(currentTournament.sport || 'etc').toLowerCase()}/${m.id}`} title="상세 기록지 입력">
                         <FileSpreadsheet className="h-4 w-4" />
                       </Link>
                     </Button>
