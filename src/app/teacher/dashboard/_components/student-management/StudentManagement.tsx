@@ -239,28 +239,30 @@ export function StudentManagement({
         <CardDescription>학생을 개별 또는 일괄 등록하고 관리합니다.</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-2 mb-4">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+          {/* Action Group */}
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
             <AddStudentDialog onAddStudent={handleAddStudent} school={school || ''} />
             {selectedStudentForEdit && <EditStudentDialog student={selectedStudentForEdit} onUpdateStudent={handleUpdateStudent} />}
-            <Button variant="outline" onClick={() => document.getElementById("student-csv-upload")?.click()} disabled={isUploading}>
-              {isUploading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> 등록 중...</> : <><FileUp className="mr-2 h-4 w-4" /> 학생 일괄 등록</>}
+            <Button variant="outline" size="sm" className="h-9" onClick={() => document.getElementById("student-csv-upload")?.click()} disabled={isUploading}>
+              {isUploading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> 등록 중...</> : <><FileUp className="mr-2 h-4 w-4" /> 일괄 등록</>}
             </Button>
             <input type="file" id="student-csv-upload" accept=".csv" onChange={handleStudentCsvUpload} style={{ display: "none" }} />
             <BatchPhotoUploadDialog students={sortedStudents} onComplete={onStudentsUpdate} school={school || ''} />
           </div>
 
-          <div className="ml-0 sm:ml-auto flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 w-full sm:w-auto">
+          {/* Filter & Utility Group */}
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-start lg:justify-end">
             <div className="flex items-center gap-2">
               <Select value={selectedGrade} onValueChange={(v) => { setSelectedGrade(v); setSelectedClassNum("all"); }}>
-                <SelectTrigger className="w-full sm:w-[120px]"><SelectValue placeholder="학년 선택" /></SelectTrigger>
+                <SelectTrigger className="w-[100px] h-9"><SelectValue placeholder="학년" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">전체 학년</SelectItem>
                   {grades.map(g => <SelectItem key={g} value={g}>{g}학년</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={selectedClassNum} onValueChange={setSelectedClassNum} disabled={selectedGrade === "all"}>
-                <SelectTrigger className="w-full sm:w-[120px]"><SelectValue placeholder="반 선택" /></SelectTrigger>
+                <SelectTrigger className="w-[100px] h-9"><SelectValue placeholder="반" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">전체 반</SelectItem>
                   {selectedGrade !== "all" && classNumsByGrade[selectedGrade]?.map(c => <SelectItem key={c} value={c}>{c}반</SelectItem>)}
@@ -268,14 +270,19 @@ export function StudentManagement({
               </Select>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={handleDownloadList} className="flex-1 sm:flex-none">
-                <FileDown className="mr-2 h-4 w-4" /> 명단 다운로드
+              <Button variant="secondary" size="sm" className="h-9 px-3" onClick={handleDownloadList}>
+                <FileDown className="mr-2 h-4 w-4" /> 명단 받기
               </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="destructive" disabled={selectedIds.length === 0 || isProcessing}>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-9 px-3"
+                    disabled={selectedIds.length === 0 || isProcessing}
+                  >
                     {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                    선택 삭제 ({selectedIds.length})
+                    삭제 ({selectedIds.length})
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -286,6 +293,7 @@ export function StudentManagement({
             </div>
           </div>
         </div>
+
         <div className="border rounded-md overflow-x-auto">
           <Table>
             <TableHeader>
