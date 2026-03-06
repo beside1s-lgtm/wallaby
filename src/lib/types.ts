@@ -123,6 +123,7 @@ export type Tournament = {
   id: string;
   school: string;
   name: string;
+  sport?: 'soccer' | 'basketball' | 'volleyball' | 'baseball' | 'dodgeball' | 'etc';
   type: 'tournament' | 'league' | 'individual-league';
   tournamentFormat?: 'single-elimination' | 'double-elimination';
   bestOf?: 1 | 3 | 5 | 7;
