@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Wand2, Trophy, Loader2, Info } from 'lucide-react';
 import type { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
+import { cn } from '@/lib/utils';
 
 interface GrowthRecordTabProps {
   records: MeasurementRecord[];
