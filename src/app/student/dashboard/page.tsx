@@ -1,8 +1,7 @@
-
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { getItems, getRecordsByStudent, getStudentById, getLatestTournamentForStudent, getStudents, getTeamGroups, getQuizAssignments, getQuizResultsBySchool, calculateRanks, getRecords } from '@/lib/store';
+import { getItems, getRecordsByStudent, getStudentById, getLatestTournamentForStudent, getStudents, getTeamGroups, getQuizAssignments, getQuizResultsBySchool, calculateRanks, getRecords, getSportsClubs } from '@/lib/store';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Printer } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -40,7 +39,7 @@ export default function StudentDashboardPage() {
     async function load() {
       if (!user || !school) return;
       try {
-        const [items, records, stud, allStuds, allTeams, quizzes, results, allRecords] = await Promise.all([
+        const [items, records, stud, allStuds, allTeams, quizzes, results, allRecords, sportsClubs] = await Promise.all([
           getItems(school), 
           getRecordsByStudent(school, user.id), 
           getStudentById(school, user.id),
@@ -48,17 +47,31 @@ export default function StudentDashboardPage() {
           getTeamGroups(school), 
           getQuizAssignments(school), 
           getQuizResultsBySchool(school),
-          getRecords(school)
+          getRecords(school),
+          getSportsClubs(school)
         ]);
         
         const tournament = await getLatestTournamentForStudent(school, user.id, allStuds, allTeams);
         
+        // Filter quizzes based on student's context
+        const filteredQuizzes = quizzes.filter(q => {
+          if (!stud) return false;
+          if (q.targetType === 'school') return true;
+          if (q.targetType === 'grade') return q.targetGrade === stud.grade;
+          if (q.targetType === 'class') return q.targetGrade === stud.grade && q.targetClassNum === stud.classNum;
+          if (q.targetType === 'club') {
+            const club = sportsClubs.find(c => c.id === q.targetClubId);
+            return club?.memberIds.includes(stud.id);
+          }
+          return false;
+        });
+
         setData({ 
           items, 
           records, 
           student: stud, 
           tournament, 
-          quizzes, 
+          quizzes: filteredQuizzes, 
           results: results.filter(r => r.studentId === user.id),
           allStudents: allStuds,
           allRecords: allRecords

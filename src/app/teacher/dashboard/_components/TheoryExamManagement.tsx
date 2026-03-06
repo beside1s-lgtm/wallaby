@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from '@/hooks/use-auth';
 import { saveQuiz as saveQuizToDb, getQuizzes, deleteQuiz, distributeQuiz, getQuizAssignments, deleteQuizAssignment, getQuizResultsBySchool } from '@/lib/store';
 import { Quiz, QuizQuestion, Student, SportsClub, QuizAssignment, QuizResult } from '@/lib/types';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -259,6 +260,10 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
         let totalCount = 0;
         if (assignment.targetType === 'class') {
             totalCount = allStudents.filter(s => s.grade === assignment.targetGrade && s.classNum === assignment.targetClassNum).length;
+        } else if (assignment.targetType === 'grade') {
+            totalCount = allStudents.filter(s => s.grade === assignment.targetGrade).length;
+        } else if (assignment.targetType === 'school') {
+            totalCount = allStudents.length;
         } else {
             const club = sportsClubs.find(c => c.id === assignment.targetClubId);
             totalCount = club?.memberIds.length || 0;
@@ -412,15 +417,19 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
                                     <div className="space-y-3">
                                         {assignments.map((assignment) => {
                                             const { passCount, totalCount } = getAssignmentStats(assignment);
+                                            const targetLabel = assignment.targetType === 'class' ? 
+                                                `${assignment.targetGrade}학년 ${assignment.targetClassNum}반` : 
+                                                assignment.targetType === 'grade' ? `${assignment.targetGrade}학년 전체` :
+                                                assignment.targetType === 'school' ? '학교 전체' :
+                                                `${assignment.targetClubName}`;
+
                                             return (
                                                 <div key={assignment.id} className="p-3 rounded-lg border bg-background/50 space-y-2 relative group hover:border-primary/50 cursor-pointer transition-all" onClick={() => openDetail(assignment)}>
                                                     <div className="flex justify-between items-start">
                                                         <div className="pr-8">
                                                             <h5 className="font-bold text-sm truncate">{assignment.quizTitle}</h5>
                                                             <p className="text-xs text-muted-foreground">
-                                                                {assignment.targetType === 'class' ? 
-                                                                    `${assignment.targetGrade}학년 ${assignment.targetClassNum}반` : 
-                                                                    `${assignment.targetClubName}`}
+                                                                {targetLabel}
                                                             </p>
                                                         </div>
                                                         <AlertDialog>
@@ -567,6 +576,8 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
                         <DialogDescription>
                             {selectedDetailAssignment?.targetType === 'class' ? 
                                 `${selectedDetailAssignment.targetGrade}학년 ${selectedDetailAssignment.targetClassNum}반` : 
+                                selectedDetailAssignment?.targetType === 'grade' ? `${selectedDetailAssignment.targetGrade}학년 전체` :
+                                selectedDetailAssignment?.targetType === 'school' ? '학교 전체' :
                                 `${selectedDetailAssignment?.targetClubName}`}
                             의 평가 응시 및 통과 현황입니다.
                         </DialogDescription>
@@ -601,6 +612,7 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
+                                                <TableHead>학년-반</TableHead>
                                                 <TableHead>번호</TableHead>
                                                 <TableHead>이름</TableHead>
                                                 <TableHead>상태</TableHead>
@@ -611,14 +623,26 @@ export default function TheoryExamManagement({ allStudents = [], sportsClubs = [
                                         <TableBody>
                                             {(() => {
                                                 const { results } = getAssignmentStats(selectedDetailAssignment);
-                                                const targetStudents = selectedDetailAssignment.targetType === 'class' ?
-                                                    allStudents.filter(s => s.grade === selectedDetailAssignment.targetGrade && s.classNum === selectedDetailAssignment.targetClassNum) :
-                                                    allStudents.filter(s => sportsClubs.find(c => c.id === selectedDetailAssignment.targetClubId)?.memberIds.includes(s.id));
+                                                let targetStudentsList = [];
+                                                if (selectedDetailAssignment.targetType === 'class') {
+                                                    targetStudentsList = allStudents.filter(s => s.grade === selectedDetailAssignment.targetGrade && s.classNum === selectedDetailAssignment.targetClassNum);
+                                                } else if (selectedDetailAssignment.targetType === 'grade') {
+                                                    targetStudentsList = allStudents.filter(s => s.grade === selectedDetailAssignment.targetGrade);
+                                                } else if (selectedDetailAssignment.targetType === 'school') {
+                                                    targetStudentsList = allStudents;
+                                                } else {
+                                                    targetStudentsList = allStudents.filter(s => sportsClubs.find(c => c.id === selectedDetailAssignment.targetClubId)?.memberIds.includes(s.id));
+                                                }
                                                 
-                                                return targetStudents.sort((a, b) => parseInt(a.studentNum) - parseInt(b.studentNum)).map(student => {
+                                                return targetStudentsList.sort((a, b) => {
+                                                    if (a.grade !== b.grade) return parseInt(a.grade) - parseInt(b.grade);
+                                                    if (a.classNum !== b.classNum) return parseInt(a.classNum) - parseInt(b.classNum);
+                                                    return parseInt(a.studentNum) - parseInt(b.studentNum);
+                                                }).map(student => {
                                                     const result = results.find(r => r.studentId === student.id);
                                                     return (
                                                         <TableRow key={student.id}>
+                                                            <TableCell>{student.grade}-{student.classNum}</TableCell>
                                                             <TableCell>{student.studentNum}</TableCell>
                                                             <TableCell className="font-medium">{student.name}</TableCell>
                                                             <TableCell>
@@ -770,9 +794,10 @@ function DistributeQuizDialog({ quiz, videoUrl, allStudents, sportsClubs, onDist
     const [isOpen, setIsOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     
-    const [targetType, setTargetType] = useState<'class' | 'club'>('class');
+    const [targetType, setTargetType] = useState<'class' | 'grade' | 'school' | 'club'>('class');
     const [selectedGrade, setSelectedGrade] = useState('');
     const [selectedClassNum, setSelectedClassNum] = useState('');
+    const [selectedGrades, setSelectedGrades] = useState<string[]>([]); // For multiple grade selection
     const [selectedClubId, setSelectedClubId] = useState('');
 
     const { grades, classNumsByGrade } = useMemo(() => {
@@ -787,41 +812,45 @@ function DistributeQuizDialog({ quiz, videoUrl, allStudents, sportsClubs, onDist
     const handleDistribute = async () => {
         if (!school || !quiz) return;
         
-        if (targetType === 'class' && (!selectedGrade || !selectedClassNum)) {
-            toast({ variant: 'destructive', title: '대상 미선택', description: '배포할 학년과 반을 선택해주세요.' });
-            return;
-        }
-        if (targetType === 'club' && !selectedClubId) {
-            toast({ variant: 'destructive', title: '대상 미선택', description: '배포할 스포츠 클럽을 선택해주세요.' });
-            return;
-        }
-
         setIsSubmitting(true);
         try {
-            const assignment: any = {
+            const baseAssignment: any = {
                 quizId: 'temp-' + uuidv4(), 
                 quizTitle: quiz.quizTitle,
                 questions: quiz.questions,
-                videoUrl: videoUrl.trim(), // 영상 주소 포함
+                videoUrl: videoUrl.trim(),
                 school,
                 targetType,
             };
 
             if (targetType === 'class') {
-                assignment.targetGrade = selectedGrade;
-                assignment.targetClassNum = selectedClassNum;
+                if (!selectedGrade || !selectedClassNum) {
+                    toast({ variant: 'destructive', title: '대상 미선택', description: '배포할 학년과 반을 선택해주세요.' });
+                    setIsSubmitting(false);
+                    return;
+                }
+                await distributeQuiz(school, { ...baseAssignment, targetGrade: selectedGrade, targetClassNum: selectedClassNum });
+            } else if (targetType === 'grade') {
+                if (selectedGrades.length === 0) {
+                    toast({ variant: 'destructive', title: '대상 미선택', description: '배포할 학년을 선택해주세요.' });
+                    setIsSubmitting(false);
+                    return;
+                }
+                for (const grade of selectedGrades) {
+                    await distributeQuiz(school, { ...baseAssignment, targetGrade: grade });
+                }
+            } else if (targetType === 'school') {
+                await distributeQuiz(school, baseAssignment);
             } else if (targetType === 'club') {
-                assignment.targetClubId = selectedClubId;
+                if (!selectedClubId) {
+                    toast({ variant: 'destructive', title: '대상 미선택', description: '배포할 스포츠 클럽을 선택해주세요.' });
+                    setIsSubmitting(false);
+                    return;
+                }
                 const club = sportsClubs.find(c => c.id === selectedClubId);
-                assignment.targetClubName = club?.name || '알 수 없는 클럽';
+                await distributeQuiz(school, { ...baseAssignment, targetClubId: selectedClubId, targetClubName: club?.name || '알 수 없는 클럽' });
             }
 
-            // Remove undefined fields to prevent Firestore errors
-            const finalAssignment = Object.fromEntries(
-                Object.entries(assignment).filter(([_, v]) => v !== undefined)
-            );
-
-            await distributeQuiz(school, finalAssignment as any);
             toast({ title: '배포 완료', description: '학생들에게 퀴즈가 성공적으로 전달되었습니다.' });
             onDistributed();
             setIsOpen(false);
@@ -851,13 +880,15 @@ function DistributeQuizDialog({ quiz, videoUrl, allStudents, sportsClubs, onDist
                         <Select value={targetType} onValueChange={(v) => setTargetType(v as any)}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="class">학급 (학년/반)</SelectItem>
+                                <SelectItem value="class">특정 학급 (학년/반)</SelectItem>
+                                <SelectItem value="grade">학년 전체 (다중 선택)</SelectItem>
+                                <SelectItem value="school">학교 전체</SelectItem>
                                 <SelectItem value="club">스포츠 클럽</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
 
-                    {targetType === 'class' ? (
+                    {targetType === 'class' && (
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label>학년</Label>
@@ -878,7 +909,30 @@ function DistributeQuizDialog({ quiz, videoUrl, allStudents, sportsClubs, onDist
                                 </Select>
                             </div>
                         </div>
-                    ) : (
+                    )}
+
+                    {targetType === 'grade' && (
+                        <div className="space-y-2">
+                            <Label>배포 학년 선택 (다중 선택 가능)</Label>
+                            <div className="grid grid-cols-3 gap-2 p-2 border rounded-md">
+                                {grades.map(g => (
+                                    <div key={g} className="flex items-center gap-2">
+                                        <Checkbox 
+                                            id={`grade-${g}`} 
+                                            checked={selectedGrades.includes(g)}
+                                            onCheckedChange={(checked) => {
+                                                if (checked) setSelectedGrades([...selectedGrades, g]);
+                                                else setSelectedGrades(selectedGrades.filter(sg => sg !== g));
+                                            }}
+                                        />
+                                        <Label htmlFor={`grade-${g}`} className="cursor-pointer">{g}학년</Label>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {targetType === 'club' && (
                         <div className="space-y-2">
                             <Label>스포츠 클럽 선택</Label>
                             <Select value={selectedClubId} onValueChange={setSelectedClubId}>
@@ -887,6 +941,12 @@ function DistributeQuizDialog({ quiz, videoUrl, allStudents, sportsClubs, onDist
                                     {sportsClubs.map(club => <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>)}
                                 </SelectContent>
                             </Select>
+                        </div>
+                    )}
+
+                    {targetType === 'school' && (
+                        <div className="p-4 bg-primary/5 border rounded-md text-sm text-primary font-medium text-center">
+                            우리 학교 전체 학생에게 퀴즈가 배포됩니다.
                         </div>
                     )}
                 </div>

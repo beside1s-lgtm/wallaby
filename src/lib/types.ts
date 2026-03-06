@@ -170,7 +170,7 @@ export type QuizAssignment = {
   questions?: QuizQuestion[]; // 문제를 배포 시점에 직접 포함
   videoUrl?: string; // 배포된 퀴즈의 참고 영상 URL
   school: string;
-  targetType: 'class' | 'club';
+  targetType: 'class' | 'grade' | 'school' | 'club';
   targetGrade?: string;
   targetClassNum?: string;
   targetClubId?: string;
