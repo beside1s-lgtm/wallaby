@@ -150,17 +150,17 @@ export function GrowthRecordTab({
       </Card>
       
       {hallOfFame.length > 0 && (
-        <Card className="bg-yellow-50/50 border-2 border-yellow-200 shadow-sm overflow-hidden">
-          <CardHeader className="bg-yellow-500/10 pb-4 border-b border-yellow-200">
-            <CardTitle className="flex items-center gap-2 text-yellow-700 font-black">
-              <Trophy className="h-6 w-6" /> 우리 학교 명예의 전당
+        <Card className="bg-amber-50/50 border-2 border-amber-200 shadow-sm overflow-hidden">
+          <CardHeader className="bg-amber-100 pb-4 border-b border-amber-200">
+            <CardTitle className="flex items-center gap-2 text-amber-900 font-black">
+              <Trophy className="h-6 w-6 text-amber-600" /> 우리 학교 명예의 전당
             </CardTitle>
-            <CardDescription className="text-yellow-600 font-bold">현재 측정 주간인 종목의 상위 기록자입니다.</CardDescription>
+            <CardDescription className="text-amber-800 font-bold opacity-90">현재 측정 주간인 종목의 상위 기록자입니다.</CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6">
             {hallOfFame.map((h: any) => (
-              <div key={h.itemName} className="p-4 bg-background rounded-xl shadow-sm border border-yellow-100 flex flex-col gap-3">
-                <div className="bg-yellow-500/10 self-center px-3 py-1 rounded-full text-yellow-700 font-black text-sm">
+              <div key={h.itemName} className="p-4 bg-background rounded-xl shadow-sm border border-amber-100 flex flex-col gap-3">
+                <div className="bg-amber-100 self-center px-3 py-1 rounded-full text-amber-900 font-black text-sm">
                   {h.itemName}
                 </div>
                 <div className="space-y-2">

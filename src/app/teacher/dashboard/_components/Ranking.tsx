@@ -1,3 +1,4 @@
+
 "use client";
 import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
@@ -72,9 +73,9 @@ function HallOfFame({ allItems, allRecords, allStudents }: RankingProps) {
 
   if (hallOfFameData.length === 0) {
     return (
-      <Card className="bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800">
+      <Card className="bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
+          <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
             <Trophy />
             명예의 전당
           </CardTitle>
@@ -89,34 +90,36 @@ function HallOfFame({ allItems, allRecords, allStudents }: RankingProps) {
   }
 
   return (
-    <Card className="bg-yellow-50/80 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 backdrop-blur-sm">
-       <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-yellow-600 dark:text-yellow-400">
-            <Trophy />
-            명예의 전당
+    <Card className="bg-amber-50/80 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800 backdrop-blur-sm shadow-sm overflow-hidden">
+       <CardHeader className="bg-amber-100/50 pb-4 border-b border-amber-200">
+          <CardTitle className="flex items-center gap-2 text-amber-900 dark:text-amber-400 font-black">
+            <Trophy className="text-amber-600" />
+            우리 학교 명예의 전당
           </CardTitle>
-          <CardDescription>현재 측정 주간으로 설정된 종목의 전체 학년 1-3위 학생입니다.</CardDescription>
+          <CardDescription className="text-amber-800 font-bold opacity-90">현재 측정 주간으로 설정된 종목의 전체 학년 1-3위 학생입니다.</CardDescription>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-6">
             {hallOfFameData.map(({ itemName, topStudents }) => (
-                <div key={itemName} className="p-4 rounded-lg bg-background/80 shadow">
-                    <h3 className="font-bold text-lg text-center mb-3">{itemName}</h3>
+                <div key={itemName} className="p-4 rounded-lg bg-background border border-amber-100 shadow-sm flex flex-col gap-3">
+                    <div className="bg-amber-100 self-center px-3 py-1 rounded-full text-amber-900 font-black text-sm">
+                      {itemName}
+                    </div>
                     {topStudents.length > 0 ? (
                         <ul className="space-y-2">
                             {topStudents.map((student, index) => (
-                                <li key={index} className="flex items-center justify-between text-sm">
-                                    <span className="flex items-center font-semibold">
-                                        {index === 0 && <Crown className="w-5 h-5 text-yellow-500 mr-1"/>}
-                                        {index === 1 && <Medal className="w-5 h-5 text-gray-400 mr-1"/>}
-                                        {index === 2 && <Trophy className="w-5 h-5 text-orange-400 mr-1"/>}
-                                        {student.rank}위: {student.name}
+                                <li key={index} className="flex items-center justify-between text-sm p-1.5 rounded-md hover:bg-muted/50 transition-colors">
+                                    <span className="flex items-center font-bold">
+                                        {index === 0 && <Crown className="w-4 h-4 text-yellow-500 mr-1.5"/>}
+                                        {index === 1 && <Medal className="w-4 h-4 text-slate-400 mr-1.5"/>}
+                                        {index === 2 && <Trophy className="w-4 h-4 text-amber-600 mr-1.5"/>}
+                                        {student.rank}위 {student.name}
                                     </span>
-                                    <span className="text-muted-foreground">{student.value}</span>
+                                    <span className="font-black text-primary">{student.value}</span>
                                 </li>
                             ))}
                         </ul>
                     ) : (
-                       <p className="text-sm text-center text-muted-foreground py-4">기록이 없습니다.</p>
+                       <p className="text-xs text-center text-muted-foreground py-4">기록이 없습니다.</p>
                     )}
                 </div>
             ))}
@@ -137,7 +140,7 @@ export default function Ranking({
   const [rankedStudents, setRankedStudents] = useState<RankedStudent[]>([]);
 
   const grades = useMemo(
-    () => [...new Set(allStudents.map((s) => s.grade))].sort(),
+    () => [...new Set(allStudents.map((s) => s.grade))].sort((a,b) => parseInt(a)-parseInt(b)),
     [allStudents]
   );
   
