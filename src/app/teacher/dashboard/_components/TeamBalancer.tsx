@@ -158,7 +158,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         });
         setClassSelection(initialSelection);
     }
-  }, [grades, classNumsByGrade, classSelection]);
+  }, [grades, classNumsByGrade]);
 
   const resetToNewTeam = () => {
     setSelectedTeamGroupId('');
@@ -225,7 +225,6 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
             if (itemRanks) {
                 const rankInfo = itemRanks.find((r: any) => r.studentId === student.id);
                 if (rankInfo && itemRanks.length > 0) {
-                    // 백분위 기반 점수 (최상위 100점 ~ 최하위 0점 가깝게)
                     score = Math.round((1 - (rankInfo.rank - 1) / itemRanks.length) * 100);
                 }
             }
@@ -338,6 +337,50 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     toast({ title: "팀 편성 완료" });
   };
 
+  const handleRenameTeam = (teamId: string, newName: string) => {
+    setTeams(prev => prev.map(t => t.id === teamId ? { ...t, name: newName } : t));
+  };
+
+  const handleMoveStudent = (studentId: string, sourceTeamId: string, targetTeamId: string) => {
+    const student = allStudents.find(s => s.id === studentId);
+    if (!student) return;
+
+    setTeams(prev => {
+      return prev.map(t => {
+        if (t.id === sourceTeamId) {
+          return {
+            ...t,
+            memberIds: t.memberIds.filter(id => id !== studentId),
+            members: t.members?.filter(m => m.id !== studentId)
+          };
+        }
+        if (t.id === targetTeamId) {
+          return {
+            ...t,
+            memberIds: [...t.memberIds, studentId],
+            members: [...(t.members || []), student]
+          };
+        }
+        return t;
+      });
+    });
+    setMovingStudent(null);
+    toast({ title: `${student.name} 학생 이동 완료` });
+  };
+
+  const handleDeleteTeamGroup = async () => {
+    if (!school || !selectedTeamGroupId) return;
+    try {
+      await deleteTeamGroup(school, selectedTeamGroupId);
+      onTeamGroupDelete(selectedTeamGroupId);
+      resetToNewTeam();
+      toast({ title: "팀 편성 삭제 완료" });
+    } catch (error) {
+      console.error("Failed to delete team group", error);
+      toast({ variant: "destructive", title: "삭제 실패" });
+    }
+  };
+
   const handleSendTeams = async () => {
     if (!school || !teams.length || !teamGroupName) { toast({ variant: "destructive", title: "정보 부족" }); return; }
     setIsSending(true);
@@ -393,7 +436,6 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* 1. 편성 설정 */}
           <div className="p-4 border rounded-md space-y-4 bg-card/50">
               <h3 className="font-bold flex items-center gap-2 text-primary"><Info className="h-4 w-4" /> 1. 편성 대상 및 기준 설정</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -496,7 +538,6 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
               </div>
           </div>
 
-          {/* 2. 대상 학생 명단 및 능력치 분석 */}
           {candidateList.length > 0 && (
               <div className="p-4 border rounded-md space-y-4 bg-card/50 animate-in fade-in slide-in-from-bottom-2">
                   <div className="flex justify-between items-center border-b pb-2">
@@ -547,7 +588,6 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
               </div>
           )}
 
-          {/* 3. 팀 편성 결과 */}
           {teams.length > 0 && (
               <div className="p-4 border rounded-md space-y-4 bg-primary/5 animate-in zoom-in-95 duration-300" onClick={() => setMovingStudent(null)}>
                   <div className="flex flex-wrap gap-4 items-end border-b pb-4">
@@ -614,7 +654,6 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
         </CardContent>
       </Card>
 
-      {/* AI Scouting Report Dialog */}
       <Dialog open={!!analyzingStudent} onOpenChange={(open) => !open && setAnalyzingStudent(null)}>
           <DialogContent className="max-w-2xl">
               <DialogHeader>
