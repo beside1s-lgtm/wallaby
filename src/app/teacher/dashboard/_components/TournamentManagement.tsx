@@ -27,19 +27,10 @@ import {
   Trash2,
   RefreshCw,
   Swords,
-  Save,
-  RotateCcw,
-  Shuffle,
-  Pencil,
-  Plus,
-  Send,
-  Calendar as CalendarIcon,
-  Crown,
-  Medal,
-  Trophy as TrophyIcon,
-  CheckCircle2,
-  FileSpreadsheet,
   Printer,
+  FileSpreadsheet,
+  Trophy as TrophyIcon,
+  Calendar as CalendarIcon,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -52,16 +43,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogClose,
-} from '@/components/ui/dialog';
 import { v4 as uuidv4 } from 'uuid';
 import {
   Select,
@@ -71,14 +52,6 @@ import {
   SelectItem,
 } from '@/components/ui/select';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
   Popover,
   PopoverTrigger,
   PopoverContent,
@@ -86,12 +59,8 @@ import {
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 
-/* -------------------------------------------------------
- * Utils
- * ----------------------------------------------------- */
 const nextPowerOfTwo = (n: number): number => {
   if (n <= 0) return 1;
   let power = 1;
@@ -101,10 +70,7 @@ const nextPowerOfTwo = (n: number): number => {
   return power;
 };
 
-/* -------------------------------------------------------
- * Bracket/League Generation
- * ----------------------------------------------------- */
-function generateTournamentBracket(teams: Team[], format: 'single-elimination' | 'double-elimination' = 'single-elimination'): { matches: Match[] } {
+function generateTournamentBracket(teams: Team[]): { matches: Match[] } {
   const shuffledTeams = [...teams].sort(() => Math.random() - 0.5);
   const numTeams = shuffledTeams.length;
   let allMatches: Match[] = [];
@@ -137,16 +103,9 @@ function generateTournamentBracket(teams: Team[], format: 'single-elimination' |
   }
   allMatches.push(...round1Matches);
 
-  let round2Entrants: (
-    | { type: 'winner'; matchId: string }
-    | { type: 'bye'; teamId: string }
-  )[] = [];
-  round1Matches.forEach((match) =>
-    round2Entrants.push({ type: 'winner', matchId: match.id })
-  );
-  byeTeams.forEach((team) =>
-    round2Entrants.push({ type: 'bye', teamId: team.id })
-  );
+  let round2Entrants: ({ type: 'winner'; matchId: string } | { type: 'bye'; teamId: string })[] = [];
+  round1Matches.forEach((match) => round2Entrants.push({ type: 'winner', matchId: match.id }));
+  byeTeams.forEach((team) => round2Entrants.push({ type: 'bye', teamId: team.id }));
 
   const distributedEntrants = [];
   let byeIndex = 0;
@@ -155,10 +114,8 @@ function generateTournamentBracket(teams: Team[], format: 'single-elimination' |
   const winnerEntrants = round2Entrants.filter((e) => e.type === 'winner');
 
   while (byeIndex < byeEntrants.length || winnerIndex < winnerEntrants.length) {
-    if (winnerIndex < winnerEntrants.length)
-      distributedEntrants.push(winnerEntrants[winnerIndex++]);
-    if (byeIndex < byeEntrants.length)
-      distributedEntrants.push(byeEntrants[byeIndex++]);
+    if (winnerIndex < winnerEntrants.length) distributedEntrants.push(winnerEntrants[winnerIndex++]);
+    if (byeIndex < byeEntrants.length) distributedEntrants.push(byeEntrants[byeIndex++]);
   }
 
   let currentRoundEntrants = distributedEntrants;
@@ -215,27 +172,27 @@ function generateTournamentBracket(teams: Team[], format: 'single-elimination' |
 }
 
 function generateRoundRobinMatches(teams: Team[]): { matches: Match[] } {
-    if (teams.length < 2) return { matches: [] };
-    let matchPairs: [Team, Team][] = [];
-    for (let i = 0; i < teams.length; i++) {
-        for (let j = i + 1; j < teams.length; j++) {
-            matchPairs.push([teams[i], teams[j]]);
-        }
+  if (teams.length < 2) return { matches: [] };
+  let matchPairs: [Team, Team][] = [];
+  for (let i = 0; i < teams.length; i++) {
+    for (let j = i + 1; j < teams.length; j++) {
+      matchPairs.push([teams[i], teams[j]]);
     }
-    const allMatches: Match[] = matchPairs.map((pair, index) => ({
-        id: uuidv4(),
-        round: 1,
-        matchNumber: index + 1,
-        teamAId: pair[0].id,
-        teamBId: pair[1].id,
-        scoresA: [0],
-        scoresB: [0],
-        winnerId: null,
-        status: 'scheduled',
-        nextMatchId: null,
-        nextMatchSlot: null,
-    }));
-    return { matches: allMatches };
+  }
+  const allMatches: Match[] = matchPairs.map((pair, index) => ({
+    id: uuidv4(),
+    round: 1,
+    matchNumber: index + 1,
+    teamAId: pair[0].id,
+    teamBId: pair[1].id,
+    scoresA: [0],
+    scoresB: [0],
+    winnerId: null,
+    status: 'scheduled',
+    nextMatchId: null,
+    nextMatchSlot: null,
+  }));
+  return { matches: allMatches };
 }
 
 interface TournamentManagementProps {
@@ -253,7 +210,6 @@ export default function TournamentManagement({ onTournamentUpdate, allTeamGroups
   const [tournamentName, setTournamentName] = useState('');
   const [selectedSport, setSelectedSport] = useState<Tournament['sport']>('soccer');
   const [tournamentType, setTournamentType] = useState<'tournament' | 'league'>('tournament');
-  const [tournamentFormat, setTournamentFormat] = useState<'single-elimination' | 'double-elimination'>('single-elimination');
   const [tournamentDate, setTournamentDate] = useState<Date | undefined>(new Date());
   const [selectedTeamGroupId, setSelectedTeamGroupId] = useState('');
   const [currentTournament, setCurrentTournament] = useState<Tournament | null>(null);
@@ -274,8 +230,8 @@ export default function TournamentManagement({ onTournamentUpdate, allTeamGroups
 
   const handleCreateTournament = async () => {
     if (!school || !tournamentName || !selectedTeamGroupId) {
-        toast({ variant: 'destructive', title: '입력 부족', description: '이름, 종목, 팀 그룹을 모두 선택해주세요.' });
-        return;
+      toast({ variant: 'destructive', title: '입력 부족', description: '이름, 종목, 팀 그룹을 모두 선택해주세요.' });
+      return;
     }
     
     setIsLoading(true);
@@ -290,7 +246,7 @@ export default function TournamentManagement({ onTournamentUpdate, allTeamGroups
       }));
 
       const { matches } = tournamentType === 'tournament' 
-        ? generateTournamentBracket(teamsForBracket, tournamentFormat)
+        ? generateTournamentBracket(teamsForBracket)
         : generateRoundRobinMatches(teamsForBracket);
 
       const newT = await saveTournament({
@@ -302,7 +258,6 @@ export default function TournamentManagement({ onTournamentUpdate, allTeamGroups
         matches,
         teamGroupId: selectedTeamGroupId,
         date: tournamentDate ? format(tournamentDate, 'yyyy-MM-dd') : undefined,
-        tournamentFormat,
       });
       
       setTournaments([newT, ...tournaments]);
@@ -311,8 +266,8 @@ export default function TournamentManagement({ onTournamentUpdate, allTeamGroups
       toast({ title: "대회 생성 완료" });
       onTournamentUpdate();
     } catch (e) {
-        console.error(e);
-        toast({ variant: 'destructive', title: '대회 생성 실패' });
+      console.error(e);
+      toast({ variant: 'destructive', title: '대회 생성 실패' });
     } finally { setIsLoading(false); }
   };
 
@@ -349,13 +304,13 @@ export default function TournamentManagement({ onTournamentUpdate, allTeamGroups
     if (!currentTournament) return;
     const score = parseInt(value) || 0;
     const updatedMatches = currentTournament.matches.map(m => {
-        if (m.id === matchId) {
-            return {
-                ...m,
-                [team === 'A' ? 'scoresA' : 'scoresB']: [score]
-            };
-        }
-        return m;
+      if (m.id === matchId) {
+        return {
+          ...m,
+          [team === 'A' ? 'scoresA' : 'scoresB']: [score]
+        };
+      }
+      return m;
     });
     setCurrentTournament({ ...currentTournament, matches: updatedMatches });
   };
@@ -365,64 +320,63 @@ export default function TournamentManagement({ onTournamentUpdate, allTeamGroups
     setIsUpdatingMatch(true);
     
     try {
-        const matchIndex = currentTournament.matches.findIndex(m => m.id === matchId);
-        const match = currentTournament.matches[matchIndex];
-        
-        const scoreA = (match.scoresA || [0]).reduce((a, b) => a + b, 0);
-        const scoreB = (match.scoresB || [0]).reduce((a, b) => a + b, 0);
-        
-        if (scoreA === scoreB && currentTournament.type === 'tournament') {
-            toast({ variant: 'destructive', title: '무승부 불가', description: '토너먼트에서는 반드시 승자가 결정되어야 합니다.' });
-            setIsUpdatingMatch(false);
-            return;
-        }
-
-        const winnerId = scoreA > scoreB ? match.teamAId : match.teamBId;
-        const updatedMatch: Match = { ...match, winnerId, status: 'completed' };
-        
-        let newMatches = [...currentTournament.matches];
-        newMatches[matchIndex] = updatedMatch;
-
-        // 토너먼트일 경우 다음 경기 대진표 업데이트
-        if (currentTournament.type === 'tournament' && updatedMatch.nextMatchId) {
-            const nextMatchIndex = newMatches.findIndex(m => m.id === updatedMatch.nextMatchId);
-            if (nextMatchIndex !== -1) {
-                const nextMatch = { ...newMatches[nextMatchIndex] };
-                if (updatedMatch.nextMatchSlot === 'A') {
-                    nextMatch.teamAId = winnerId;
-                } else {
-                    nextMatch.teamBId = winnerId;
-                }
-                newMatches[nextMatchIndex] = nextMatch;
-            }
-        }
-
-        await updateTournament(school, currentTournament.id, { matches: newMatches });
-        setCurrentTournament({ ...currentTournament, matches: newMatches });
-        toast({ title: '경기 결과 저장 완료' });
-    } catch (e) {
-        toast({ variant: 'destructive', title: '저장 실패' });
-    } finally {
+      const matchIndex = currentTournament.matches.findIndex(m => m.id === matchId);
+      const match = currentTournament.matches[matchIndex];
+      
+      const scoreA = (match.scoresA || [0]).reduce((a, b) => a + b, 0);
+      const scoreB = (match.scoresB || [0]).reduce((a, b) => a + b, 0);
+      
+      if (scoreA === scoreB && currentTournament.type === 'tournament') {
+        toast({ variant: 'destructive', title: '무승부 불가', description: '토너먼트에서는 반드시 승자가 결정되어야 합니다.' });
         setIsUpdatingMatch(false);
+        return;
+      }
+
+      const winnerId = scoreA > scoreB ? match.teamAId : match.teamBId;
+      const updatedMatch: Match = { ...match, winnerId, status: 'completed' };
+      
+      let newMatches = [...currentTournament.matches];
+      newMatches[matchIndex] = updatedMatch;
+
+      if (currentTournament.type === 'tournament' && updatedMatch.nextMatchId) {
+        const nextMatchIndex = newMatches.findIndex(m => m.id === updatedMatch.nextMatchId);
+        if (nextMatchIndex !== -1) {
+          const nextMatch = { ...newMatches[nextMatchIndex] };
+          if (updatedMatch.nextMatchSlot === 'A') {
+            nextMatch.teamAId = winnerId;
+          } else {
+            nextMatch.teamBId = winnerId;
+          }
+          newMatches[nextMatchIndex] = nextMatch;
+        }
+      }
+
+      await updateTournament(school, currentTournament.id, { matches: newMatches });
+      setCurrentTournament({ ...currentTournament, matches: newMatches });
+      toast({ title: '경기 결과 저장 완료' });
+    } catch (e) {
+      toast({ variant: 'destructive', title: '저장 실패' });
+    } finally {
+      setIsUpdatingMatch(false);
     }
   };
 
   const handleResetMatch = async (matchId: string) => {
-      if (!currentTournament || !school) return;
-      setIsUpdatingMatch(true);
-      try {
-          const newMatches = currentTournament.matches.map(m => {
-              if (m.id === matchId) {
-                  return { ...m, winnerId: null, status: 'scheduled' as const, scoresA: [0], scoresB: [0] };
-              }
-              return m;
-          });
-          await updateTournament(school, currentTournament.id, { matches: newMatches });
-          setCurrentTournament({ ...currentTournament, matches: newMatches });
-          toast({ title: '경기 정보 초기화 완료' });
-      } finally {
-          setIsUpdatingMatch(false);
-      }
+    if (!currentTournament || !school) return;
+    setIsUpdatingMatch(true);
+    try {
+      const newMatches = currentTournament.matches.map(m => {
+        if (m.id === matchId) {
+          return { ...m, winnerId: null, status: 'scheduled' as const, scoresA: [0], scoresB: [0] };
+        }
+        return m;
+      });
+      await updateTournament(school, currentTournament.id, { matches: newMatches });
+      setCurrentTournament({ ...currentTournament, matches: newMatches });
+      toast({ title: '경기 정보 초기화 완료' });
+    } finally {
+      setIsUpdatingMatch(false);
+    }
   };
 
   const getTeamName = (teamId: string | null) => {
@@ -434,8 +388,8 @@ export default function TournamentManagement({ onTournamentUpdate, allTeamGroups
     <div className="space-y-6">
       <Card className="bg-transparent shadow-none border-none">
         <CardHeader>
-            <CardTitle>대회 관리 및 실시간 기록</CardTitle>
-            <CardDescription>종목별 대회를 생성하고, 경기 현장에서 바로 결과를 입력하여 대진표를 관리합니다.</CardDescription>
+          <CardTitle>대회 관리 및 실시간 기록</CardTitle>
+          <CardDescription>종목별 대회를 생성하고, 경기 현장에서 바로 결과를 입력하여 대진표를 관리합니다.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex flex-wrap gap-2 items-center p-4 border rounded-md bg-muted/50">
@@ -470,55 +424,55 @@ export default function TournamentManagement({ onTournamentUpdate, allTeamGroups
 
           {!currentTournament && (
             <div className="space-y-4 p-4 border rounded-md bg-card animate-in fade-in slide-in-from-top-2">
-                <h3 className="font-bold text-lg">새로운 대회 만들기</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="space-y-2">
-                        <Label>대회 이름</Label>
-                        <Input value={tournamentName} onChange={e => setTournamentName(e.target.value)} placeholder="예: 5학년 배구 리그" />
-                    </div>
-                    <div className="space-y-2">
-                        <Label>종목 선택</Label>
-                        <Select value={selectedSport} onValueChange={v => setSelectedSport(v as any)}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="soccer">축구</SelectItem>
-                                <SelectItem value="basketball">농구</SelectItem>
-                                <SelectItem value="volleyball">배구</SelectItem>
-                                <SelectItem value="baseball">야구</SelectItem>
-                                <SelectItem value="dodgeball">피구</SelectItem>
-                                <SelectItem value="etc">기타</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-2">
-                        <Label>대회 방식</Label>
-                        <Select value={tournamentType} onValueChange={v => setTournamentType(v as any)}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="tournament">토너먼트 (승자진출)</SelectItem>
-                                <SelectItem value="league">리그 (풀리그)</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-2">
-                        <Label>참가 팀 그룹</Label>
-                        <Select value={selectedTeamGroupId} onValueChange={setSelectedTeamGroupId}>
-                            <SelectTrigger><SelectValue placeholder="팀 그룹 선택" /></SelectTrigger>
-                            <SelectContent>
-                                {allTeamGroups.map(g => <SelectItem key={g.id} value={g.id}>{g.description}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                    </div>
+              <h3 className="font-bold text-lg">새로운 대회 만들기</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Label>대회 이름</Label>
+                  <Input value={tournamentName} onChange={e => setTournamentName(e.target.value)} placeholder="예: 5학년 배구 리그" />
                 </div>
-                <div className="flex justify-end gap-2 pt-2 border-t">
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button variant="outline"><CalendarIcon className="mr-2 h-4 w-4" />{tournamentDate ? format(tournamentDate, 'yyyy-MM-dd') : '날짜 선택'}</Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0"><CalendarComponent mode="single" selected={tournamentDate} onSelect={setTournamentDate} initialFocus /></PopoverContent>
-                    </Popover>
-                    <Button onClick={handleCreateTournament} disabled={isLoading} className="px-8">대회 생성 및 대진표 확정</Button>
+                <div className="space-y-2">
+                  <Label>종목 선택</Label>
+                  <Select value={selectedSport} onValueChange={v => setSelectedSport(v as any)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="soccer">축구</SelectItem>
+                      <SelectItem value="basketball">농구</SelectItem>
+                      <SelectItem value="volleyball">배구</SelectItem>
+                      <SelectItem value="baseball">야구</SelectItem>
+                      <SelectItem value="dodgeball">피구</SelectItem>
+                      <SelectItem value="etc">기타</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label>대회 방식</Label>
+                  <Select value={tournamentType} onValueChange={v => setTournamentType(v as any)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="tournament">토너먼트 (승자진출)</SelectItem>
+                      <SelectItem value="league">리그 (풀리그)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>참가 팀 그룹</Label>
+                  <Select value={selectedTeamGroupId} onValueChange={setSelectedTeamGroupId}>
+                    <SelectTrigger><SelectValue placeholder="팀 그룹 선택" /></SelectTrigger>
+                    <SelectContent>
+                      {allTeamGroups.map(g => <SelectItem key={g.id} value={g.id}>{g.description}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline"><CalendarIcon className="mr-2 h-4 w-4" />{tournamentDate ? format(tournamentDate, 'yyyy-MM-dd') : '날짜 선택'}</Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0"><CalendarComponent mode="single" selected={tournamentDate} onSelect={setTournamentDate} initialFocus /></PopoverContent>
+                </Popover>
+                <Button onClick={handleCreateTournament} disabled={isLoading} className="px-8">대회 생성 및 대진표 확정</Button>
+              </div>
             </div>
           )}
         </CardContent>
@@ -528,14 +482,14 @@ export default function TournamentManagement({ onTournamentUpdate, allTeamGroups
         <Card className="p-6 border-2 border-primary/10 shadow-lg">
           <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
             <div>
-                <Badge variant="outline" className="mb-1">{currentTournament.sport === 'soccer' ? '축구' : currentTournament.sport === 'basketball' ? '농구' : currentTournament.sport === 'volleyball' ? '배구' : currentTournament.sport === 'baseball' ? '야구' : currentTournament.sport === 'dodgeball' ? '피구' : '일반'}</Badge>
-                <h2 className="text-2xl font-black text-primary flex items-center gap-2">
-                    <TrophyIcon className="h-6 w-6 text-yellow-500" /> {currentTournament.name} 경기 관리
-                </h2>
-                <p className="text-sm text-muted-foreground font-medium">경기 점수를 입력하고 결과를 확정하세요. 각 경기의 [기록지] 버튼을 통해 상세 데이터를 기록할 수 있습니다.</p>
+              <Badge variant="outline" className="mb-1">{currentTournament.sport === 'soccer' ? '축구' : currentTournament.sport === 'basketball' ? '농구' : currentTournament.sport === 'volleyball' ? '배구' : currentTournament.sport === 'baseball' ? '야구' : currentTournament.sport === 'dodgeball' ? '피구' : '일반'}</Badge>
+              <h2 className="text-2xl font-black text-primary flex items-center gap-2">
+                <TrophyIcon className="h-6 w-6 text-yellow-500" /> {currentTournament.name} 경기 관리
+              </h2>
+              <p className="text-sm text-muted-foreground font-medium">경기 점수를 입력하고 결과를 확정하세요. 각 경기의 [기록지] 버튼을 통해 상세 데이터를 기록할 수 있습니다.</p>
             </div>
             <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => window.print()}><Printer className="mr-2 h-4 w-4" />대진표 인쇄</Button>
+              <Button variant="outline" size="sm" onClick={() => window.print()}><Printer className="mr-2 h-4 w-4" />대진표 인쇄</Button>
             </div>
           </div>
 
@@ -582,14 +536,14 @@ export default function TournamentManagement({ onTournamentUpdate, allTeamGroups
 
                   <div className="flex gap-2 pt-2 border-t mt-4">
                     {m.status === 'completed' ? (
-                        <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => handleResetMatch(m.id)} disabled={isUpdatingMatch}>수정하기</Button>
+                      <Button variant="ghost" size="sm" className="flex-1 text-xs" onClick={() => handleResetMatch(m.id)} disabled={isUpdatingMatch}>수정하기</Button>
                     ) : (
-                        <Button variant="default" size="sm" className="flex-1 text-xs font-bold" onClick={() => handleCompleteMatch(m.id)} disabled={isUpdatingMatch || !m.teamAId || !m.teamBId}>경기 종료</Button>
+                      <Button variant="default" size="sm" className="flex-1 text-xs font-bold" onClick={() => handleCompleteMatch(m.id)} disabled={isUpdatingMatch || !m.teamAId || !m.teamBId}>경기 종료</Button>
                     )}
                     <Button variant="outline" size="sm" asChild className="px-2">
-                        <Link href={`/teacher/match/${currentTournament.sport || 'default'}/${m.id}`} title="기록지 입력">
-                            <FileSpreadsheet className="h-4 w-4" />
-                        </Link>
+                      <Link href={`/teacher/match/${currentTournament.sport || 'etc'}/${m.id}`} title="상세 기록지 입력">
+                        <FileSpreadsheet className="h-4 w-4" />
+                      </Link>
                     </Button>
                   </div>
                 </CardContent>
