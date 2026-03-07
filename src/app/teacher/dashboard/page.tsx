@@ -75,7 +75,7 @@ export default function TeacherDashboardPage() {
   );
 
   return (
-    <div className="container mx-auto p-4 space-y-6 pb-20">
+    <div className="container mx-auto p-2 sm:p-4 space-y-6 pb-20">
       <DashboardHeader />
       
       <Card className="bg-primary/5 border-primary/20">
@@ -98,27 +98,47 @@ export default function TeacherDashboardPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4 mb-8 h-12">
-          <TabsTrigger value="measurement" className="text-base font-bold">
-            <LineChart className="mr-2 h-5 w-5" />측정 & 분석
+          <TabsTrigger value="measurement" className="text-sm sm:text-base font-bold px-1">
+            <LineChart className="mr-1 sm:mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="hidden sm:inline">측정 & 분석</span>
+            <span className="sm:hidden">측정</span>
           </TabsTrigger>
-          <TabsTrigger value="theory" className="text-base font-bold">
-            <BookOpen className="mr-2 h-5 w-5" />이론 평가
+          <TabsTrigger value="theory" className="text-sm sm:text-base font-bold px-1">
+            <BookOpen className="mr-1 sm:mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="hidden sm:inline">이론 평가</span>
+            <span className="sm:hidden">이론</span>
           </TabsTrigger>
-          <TabsTrigger value="competition" className="text-base font-bold">
-            <Swords className="mr-2 h-5 w-5" />대회 & 팀
+          <TabsTrigger value="competition" className="text-sm sm:text-base font-bold px-1">
+            <Swords className="mr-1 sm:mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="hidden sm:inline">대회 & 팀</span>
+            <span className="sm:hidden">대회</span>
           </TabsTrigger>
-          <TabsTrigger value="data" className="text-base font-bold">
-            <Database className="mr-2 h-5 w-5" />데이터 관리
+          <TabsTrigger value="data" className="text-sm sm:text-base font-bold px-1">
+            <Database className="mr-1 sm:mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+            <span className="hidden sm:inline">데이터 관리</span>
+            <span className="sm:hidden">데이터</span>
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="measurement" className="space-y-6">
           <Tabs defaultValue="input">
-            <TabsList className="mb-6 bg-muted/50">
-              <TabsTrigger value="input">기록 입력</TabsTrigger>
-              <TabsTrigger value="analysis">학생 개별 분석</TabsTrigger>
-              <TabsTrigger value="browser">전체 기록 조회/추출</TabsTrigger>
-              <TabsTrigger value="ranking">순위 및 명예의 전당</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-4 mb-6 bg-muted/50 h-auto sm:h-10">
+              <TabsTrigger value="input" className="text-xs sm:text-sm py-2">
+                <span className="hidden sm:inline">기록 입력</span>
+                <span className="sm:hidden">입력</span>
+              </TabsTrigger>
+              <TabsTrigger value="analysis" className="text-xs sm:text-sm py-2">
+                <span className="hidden sm:inline">학생 개별 분석</span>
+                <span className="sm:hidden">분석</span>
+              </TabsTrigger>
+              <TabsTrigger value="browser" className="text-xs sm:text-sm py-2">
+                <span className="hidden sm:inline">전체 기록 조회/추출</span>
+                <span className="sm:hidden">조회</span>
+              </TabsTrigger>
+              <TabsTrigger value="ranking" className="text-xs sm:text-sm py-2">
+                <span className="hidden sm:inline">순위 및 명예의 전당</span>
+                <span className="sm:hidden">순위</span>
+              </TabsTrigger>
             </TabsList>
             
             <TabsContent value="input" className="animate-in fade-in-50 duration-300">
@@ -168,10 +188,19 @@ export default function TeacherDashboardPage() {
 
         <TabsContent value="competition" className="space-y-6">
           <Tabs defaultValue="tournament">
-            <TabsList className="mb-6 bg-muted/50">
-              <TabsTrigger value="tournament">대회 및 대진표 관리</TabsTrigger>
-              <TabsTrigger value="balancer">팀 자동 편성 (밸런스)</TabsTrigger>
-              <TabsTrigger value="clubs">스포츠 클럽 관리</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3 mb-6 bg-muted/50 h-auto sm:h-10">
+              <TabsTrigger value="tournament" className="text-xs sm:text-sm py-2">
+                <span className="hidden sm:inline">대회 및 대진표 관리</span>
+                <span className="sm:hidden">대회 관리</span>
+              </TabsTrigger>
+              <TabsTrigger value="balancer" className="text-xs sm:text-sm py-2">
+                <span className="hidden sm:inline">팀 자동 편성 (밸런스)</span>
+                <span className="sm:hidden">팀 편성</span>
+              </TabsTrigger>
+              <TabsTrigger value="clubs" className="text-xs sm:text-sm py-2">
+                <span className="hidden sm:inline">스포츠 클럽 관리</span>
+                <span className="sm:hidden">클럽 관리</span>
+              </TabsTrigger>
             </TabsList>
             
             <TabsContent value="tournament" className="animate-in fade-in-50 duration-300">
@@ -206,10 +235,19 @@ export default function TeacherDashboardPage() {
 
         <TabsContent value="data" className="space-y-6">
           <Tabs defaultValue="students">
-            <TabsList className="mb-6 bg-muted/50">
-              <TabsTrigger value="students">학생 명부 관리</TabsTrigger>
-              <TabsTrigger value="items">측정 종목 관리</TabsTrigger>
-              <TabsTrigger value="db">DB 유틸리티 (진급/백업)</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3 mb-6 bg-muted/50 h-auto sm:h-10">
+              <TabsTrigger value="students" className="text-xs sm:text-sm py-2">
+                <span className="hidden sm:inline">학생 명부 관리</span>
+                <span className="sm:hidden">명부 관리</span>
+              </TabsTrigger>
+              <TabsTrigger value="items" className="text-xs sm:text-sm py-2">
+                <span className="hidden sm:inline">측정 종목 관리</span>
+                <span className="sm:hidden">종목 관리</span>
+              </TabsTrigger>
+              <TabsTrigger value="db" className="text-xs sm:text-sm py-2">
+                <span className="hidden sm:inline">DB 유틸리티 (진급/백업)</span>
+                <span className="sm:hidden">DB 관리</span>
+              </TabsTrigger>
             </TabsList>
             
             <TabsContent value="students" className="animate-in fade-in-50 duration-300">
