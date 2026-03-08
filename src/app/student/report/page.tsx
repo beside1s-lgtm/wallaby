@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, User as UserIcon, Printer, Wand2, CheckCircle2, TrendingUp, Info } from 'lucide-react';
-import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Tooltip, BarChart, XAxis, YAxis, CartesianGrid, Legend, Bar } from 'recharts';
+import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Tooltip, BarChart, XAxis, YAxis, CartesianGrid, Legend, Bar, Cell } from 'recharts';
 import { getPapsGrade, calculatePapsScore, normalizePapsRecord, normalizeCustomRecord } from '@/lib/paps';
 import { getReportBriefing } from '@/ai/flows/report-briefing-flow';
 import { getScoutingReport } from '@/ai/flows/scouting-report-flow';
@@ -372,7 +372,15 @@ export default function ReportCardPage() {
                                                 <XAxis dataKey="date" hide />
                                                 <YAxis hide domain={['auto', 'auto']} />
                                                 <Tooltip labelClassName="text-[8px]" contentStyle={{fontSize: '8px', borderRadius: '6px'}} formatter={(v) => [`${v}${item.unit}`, '기록']} />
-                                                <Bar dataKey="value" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} />
+                                                <Bar dataKey="value" radius={[3, 3, 0, 0]}>
+                                                    {records.map((entry, index) => (
+                                                        <Cell 
+                                                            key={`cell-${index}`} 
+                                                            fill="hsl(var(--primary))" 
+                                                            fillOpacity={records.length > 1 ? (0.4 + (index / (records.length - 1)) * 0.6) : 1} 
+                                                        />
+                                                    ))}
+                                                </Bar>
                                             </BarChart>
                                         </ResponsiveContainer>
                                     </div>
@@ -476,7 +484,15 @@ export default function ReportCardPage() {
                                                     <XAxis dataKey="date" hide />
                                                     <YAxis hide domain={[0, 100]} />
                                                     <Tooltip labelClassName="text-[8px]" contentStyle={{fontSize: '8px', borderRadius: '6px'}} formatter={(v) => [`${v}%`, '목표 달성률']} />
-                                                    <Bar dataKey="achievement" fill="hsl(var(--chart-3))" radius={[3, 3, 0, 0]} />
+                                                    <Bar dataKey="achievement" radius={[3, 3, 0, 0]}>
+                                                        {records.map((entry, index) => (
+                                                            <Cell 
+                                                                key={`cell-${index}`} 
+                                                                fill="hsl(var(--chart-3))" 
+                                                                fillOpacity={records.length > 1 ? (0.4 + (index / (records.length - 1)) * 0.6) : 1} 
+                                                            />
+                                                        ))}
+                                                    </Bar>
                                                 </BarChart>
                                             </ResponsiveContainer>
                                         </div>
