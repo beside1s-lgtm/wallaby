@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -40,6 +41,9 @@ const studentLoginSchema = z.object({
 
 type StudentLoginValues = z.infer<typeof studentLoginSchema>;
 
+/**
+ * @fileOverview 학생용 로그인 페이지입니다.
+ */
 export default function StudentLoginPage() {
   const router = useRouter();
   const { login } = useAuth();
@@ -71,7 +75,7 @@ export default function StudentLoginPage() {
         toast({
           variant: 'destructive',
           title: '로그인 실패',
-          description: '학생 정보가 존재하지 않거나 접속 코드가 틀렸습니다. 교사에게 문의하세요.',
+          description: '학생 정보가 존재하지 않거나 접속 코드가 틀렸습니다.',
         });
       }
     } catch (error) {
@@ -79,7 +83,7 @@ export default function StudentLoginPage() {
       toast({
         variant: 'destructive',
         title: '로그인 실패',
-        description: '데이터베이스 연결 중 오류가 발생했습니다. 다시 시도해주세요.',
+        description: '데이터베이스 연결 중 오류가 발생했습니다.',
       });
     } finally {
       setIsSubmitting(false);
@@ -92,7 +96,7 @@ export default function StudentLoginPage() {
         <Image src="/200x200.png" alt="Logo" width={48} height={48} className="rounded-xl shadow-sm" />
         <h1 className="font-headline">체육 성장 기록 시스템</h1>
       </div>
-       <Card className="w-full max-w-md bg-card/90 backdrop-blur-sm">
+       <Card className="w-full max-w-md bg-card/90 backdrop-blur-sm shadow-xl">
         <CardHeader>
           <CardTitle>학생 로그인</CardTitle>
           <CardDescription>
@@ -185,7 +189,7 @@ export default function StudentLoginPage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={isSubmitting}>
+              <Button type="submit" className="w-full bg-primary hover:bg-primary/90 h-12 text-lg font-bold" disabled={isSubmitting}>
                 {isSubmitting ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
