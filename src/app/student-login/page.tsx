@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,7 +24,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Loader2, Rocket } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getStudent } from '@/lib/store';
 import { signIn } from '@/lib/firebase';
@@ -84,27 +85,11 @@ export default function StudentLoginPage() {
       setIsSubmitting(false);
     }
   };
-  
-  const handleIconClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    e.preventDefault();
-    const svgElement = e.currentTarget.outerHTML;
-    const blob = new Blob([svgElement], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'rocket-icon.svg';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-transparent p-4">
       <div className="flex items-center gap-4 mb-8 text-4xl font-bold text-primary">
-        <a href="#" title="Download Rocket Icon">
-          <Rocket className="w-12 h-12 cursor-pointer" onClick={handleIconClick} />
-        </a>
+        <Image src="/200x200.png" alt="Logo" width={48} height={48} className="rounded-xl shadow-sm" />
         <h1 className="font-headline">체육 성장 기록 시스템</h1>
       </div>
        <Card className="w-full max-w-md bg-card/90 backdrop-blur-sm">

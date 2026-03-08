@@ -2,11 +2,12 @@
 
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { LogOut, Rocket, UserCircle } from "lucide-react";
+import { LogOut, UserCircle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
+import Image from 'next/image';
 
 export function DashboardHeaderContents() {
   const { school } = useAuth();
@@ -33,7 +34,7 @@ export function DashboardHeader() {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-card/80 px-2 sm:px-6 backdrop-blur-sm">
       <div className="flex items-center gap-2">
-        <Rocket className="h-6 w-6 text-primary" />
+        <Image src="/200x200.png" alt="Logo" width={24} height={24} className="rounded-md" />
         <h1 className="hidden sm:block text-lg font-bold text-primary font-headline">
           체육 성장 기록 시스템
         </h1>

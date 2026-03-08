@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -34,7 +35,7 @@ import {
   DialogClose,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Loader2, Rocket, Settings } from 'lucide-react';
+import { Loader2, Settings } from 'lucide-react';
 import { initializeData, getSchoolByName } from '@/lib/store';
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
@@ -164,7 +165,7 @@ export default function LoginPage() {
     <div className="relative min-h-screen">
         <main className="flex min-h-screen flex-col items-center justify-center bg-transparent p-4">
         <div className="flex items-center gap-4 mb-8 text-4xl font-bold text-primary">
-            <Rocket className="w-12 h-12" />
+            <Image src="/200x200.png" alt="Logo" width={48} height={48} className="rounded-xl shadow-sm" />
             <h1 className="font-headline">체육 성장 기록 시스템</h1>
         </div>
         <Card className="w-full max-w-md bg-card/90 backdrop-blur-sm">
