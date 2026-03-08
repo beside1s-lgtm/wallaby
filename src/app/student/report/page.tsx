@@ -15,6 +15,7 @@ import { getReportBriefing } from '@/ai/flows/report-briefing-flow';
 import { getScoutingReport } from '@/ai/flows/scouting-report-flow';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 
 const papsFactors: Record<string, string> = {
     '왕복오래달리기': '심폐지구력', '오래달리기': '심폐지구력',
@@ -380,7 +381,7 @@ export default function ReportCardPage() {
                     </section>
                 </div>
                 <footer className="bg-muted/30 p-4 text-center border-t">
-                    <p className="text-[10px] font-black text-muted-foreground tracking-tighter">1 / 2 - 체육 성장 기록 시스템 (PAPS REPORT)</p>
+                    <p className="text-[10px] font-black text-muted-foreground tracking-tighter">{format(new Date(), 'yyyy.MM.dd')} - 1 / 2 - 체육 성장 기록 시스템 (PAPS REPORT)</p>
                 </footer>
             </div>
 
@@ -398,7 +399,7 @@ export default function ReportCardPage() {
                     {/* Athlete Potential Section */}
                     {abilityScores.length > 0 && (
                         <section className="space-y-6">
-                            <h2 className="text-base font-black text-chart-2 flex items-center gap-2 uppercase tracking-tighter"><div className="w-1.5 h-5 bg-chart-2 rounded-full" /> 운동선수 잠재력 (AI AI 스카우팅 리포트)</h2>
+                            <h2 className="text-base font-black text-chart-2 flex items-center gap-2 uppercase tracking-tighter"><div className="w-1.5 h-5 bg-chart-2 rounded-full" /> 운동선수 잠재력 (AI 스카우팅 리포트)</h2>
                             <div className="grid grid-cols-1 md:grid-cols-5 gap-8 items-start">
                                 <Card className="md:col-span-2 border-2 border-chart-2/20 bg-chart-2/5 shadow-sm p-4">
                                     <div className="h-[260px] w-full">
@@ -490,7 +491,7 @@ export default function ReportCardPage() {
                 </div>
                 
                 <footer className="bg-muted/30 p-4 text-center border-t mt-auto">
-                    <p className="text-[10px] font-black text-muted-foreground tracking-tighter">2 / 2 - 체육 성장 기록 시스템 (SPORTS REPORT)</p>
+                    <p className="text-[10px] font-black text-muted-foreground tracking-tighter">{format(new Date(), 'yyyy.MM.dd')} - 2 / 2 - 체육 성장 기록 시스템 (SPORTS REPORT)</p>
                 </footer>
             </div>
 
@@ -511,7 +512,7 @@ export default function ReportCardPage() {
                     }
                     .report-page {
                         page-break-after: always;
-                        min-height: 277mm; /* Approx A4 height minus margins */
+                        min-height: 277mm;
                         padding: 0 !important;
                         margin: 0 !important;
                         border: none !important;
@@ -528,7 +529,7 @@ export default function ReportCardPage() {
                         border: 1px solid #e2e8f0 !important;
                         background: white !important;
                     }
-                    .bg-primary\/5, .bg-muted\/5, .bg-muted\/30 {
+                    .bg-primary\/5, .bg-muted\/5, .bg-muted\/30, .bg-chart-2\/5 {
                         background-color: transparent !important;
                         border: 1px solid #f1f5f9 !important;
                     }
