@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -334,15 +335,15 @@ export default function ReportCardPage() {
                         </Card>
                     </div>
 
-                    {/* AI Briefing Section */}
+                    {/* AI Briefing Section - Fixed Height for visual balance */}
                     <section className="space-y-2">
                         <h2 className="text-xs font-black text-primary flex items-center gap-1.5 uppercase"><CheckCircle2 className="h-4 w-4" /> AI 체력 종합 진단 리포트</h2>
                         <div className={cn(
-                            "p-4 rounded-xl border-2 border-dashed transition-all",
+                            "p-4 rounded-xl border-2 border-dashed transition-all h-[140px] flex items-center justify-center",
                             aiBriefing ? "bg-primary/5 border-primary/20" : "bg-muted/30 border-muted"
                         )}>
                             {aiBriefing ? (
-                                <p className="text-xs md:text-sm font-medium leading-relaxed italic text-foreground/80 whitespace-pre-wrap">{aiBriefing}</p>
+                                <p className="text-xs md:text-sm font-medium leading-relaxed italic text-foreground/80 whitespace-pre-wrap text-center">{aiBriefing}</p>
                             ) : (
                                 <div className="text-center py-2 print-hidden">
                                     <p className="text-[10px] text-muted-foreground mb-2">PAPS 데이터를 바탕으로 AI 코치의 상세 분석을 받아보세요.</p>
@@ -355,7 +356,7 @@ export default function ReportCardPage() {
                         </div>
                     </section>
                     
-                    {/* PAPS Growth Records Section */}
+                    {/* PAPS Growth Records Section - Increased Height for impact */}
                     <section className="space-y-2">
                         <h2 className="text-xs font-black text-primary flex items-center gap-1.5 uppercase"><TrendingUp className="h-4 w-4" /> PAPS 종목별 성장 추이</h2>
                         <div className="grid grid-cols-3 gap-2 print:grid-cols-3">
@@ -364,7 +365,7 @@ export default function ReportCardPage() {
                                     <div className="bg-primary/10 py-1 px-2 text-center border-b">
                                         <p className="text-[9px] font-black text-primary truncate">{item.name}</p>
                                     </div>
-                                    <div className="p-2 h-[90px]">
+                                    <div className="p-2 h-[140px]">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <BarChart data={records}>
                                                 <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
@@ -426,15 +427,15 @@ export default function ReportCardPage() {
                                         </div>
                                     ) : scoutingReport ? (
                                         <div className="grid grid-cols-1 gap-3 animate-in fade-in slide-in-from-right-4 duration-500">
-                                            <div className="p-3 bg-green-50 dark:bg-green-900/10 rounded-xl border border-green-100 dark:border-green-900/20 shadow-sm">
+                                            <div className="p-3 bg-green-50 dark:bg-green-900/10 rounded-xl border border-green-100 dark:border-green-900/20 shadow-sm min-h-[60px]">
                                                 <h4 className="text-[9px] font-black text-green-700 dark:text-green-400 uppercase mb-1 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> 핵심 강점</h4>
                                                 <p className="text-[11px] font-medium leading-tight">{scoutingReport.strengths}</p>
                                             </div>
-                                            <div className="p-3 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-100 dark:border-red-900/20 shadow-sm">
+                                            <div className="p-3 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-100 dark:border-red-900/20 shadow-sm min-h-[60px]">
                                                 <h4 className="text-[9px] font-black text-red-700 dark:text-red-400 uppercase mb-1 flex items-center gap-1"><Info className="h-3 w-3" /> 보완점</h4>
                                                 <p className="text-[11px] font-medium leading-tight">{scoutingReport.weaknesses}</p>
                                             </div>
-                                            <div className="p-4 bg-primary/5 rounded-xl border-2 border-primary/10 shadow-sm">
+                                            <div className="p-4 bg-primary/5 rounded-xl border-2 border-primary/10 shadow-sm min-h-[100px]">
                                                 <div className="flex justify-between items-start mb-1">
                                                     <h4 className="text-[9px] font-black text-primary uppercase flex items-center gap-1"><Wand2 className="h-3 w-3" /> 종합 평가 & 추천 포지션</h4>
                                                 </div>
@@ -445,7 +446,7 @@ export default function ReportCardPage() {
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="text-center p-6 border-4 border-dashed rounded-2xl h-full flex flex-col justify-center items-center print-hidden bg-muted/10">
+                                        <div className="text-center p-6 border-4 border-dashed rounded-2xl h-full flex flex-col justify-center items-center print-hidden bg-muted/10 h-[240px]">
                                             <Wand2 className="h-12 w-12 text-chart-2 mb-2 opacity-20" />
                                             <p className="text-[11px] text-muted-foreground mb-4 font-bold">측정 데이터를 기반으로<br/>AI 스카우팅 리포트를 생성할 수 있습니다.</p>
                                             <Button size="sm" onClick={handleGetScoutingReport} className="bg-chart-2 hover:bg-chart-2/90 font-black shadow-xl">
@@ -458,7 +459,7 @@ export default function ReportCardPage() {
                         </section>
                     )}
 
-                    {/* Custom Items Section */}
+                    {/* Custom Items Section - Also increased height for consistency */}
                     <section className="space-y-4">
                         <h2 className="text-xs font-black text-chart-3 flex items-center gap-1.5 uppercase tracking-tighter"><div className="w-1 h-4 bg-chart-3 rounded-full" /> 스포츠 및 기타 종목 성장 추이</h2>
                         {customGrowthData.length > 0 ? (
@@ -468,7 +469,7 @@ export default function ReportCardPage() {
                                         <div className="bg-chart-3/10 py-1 px-2 text-center border-b">
                                             <p className="text-[9px] font-black text-chart-3 truncate">{item.name}</p>
                                         </div>
-                                        <div className="p-2 h-[90px]">
+                                        <div className="p-2 h-[140px]">
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <BarChart data={records}>
                                                     <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
