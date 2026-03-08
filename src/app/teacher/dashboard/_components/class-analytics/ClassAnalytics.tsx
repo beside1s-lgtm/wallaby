@@ -1,4 +1,3 @@
-
 'use client';
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
@@ -18,6 +17,7 @@ import AiWelcome from "../AiWelcome";
 import { getScoutingReport } from "@/ai/flows/scouting-report-flow";
 import { EditRecordDialog } from "./EditRecordDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
 
 const chartConfig = {
   target: { label: "선택 대상", color: "hsl(var(--chart-1))" },
