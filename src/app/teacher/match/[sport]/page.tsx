@@ -4,6 +4,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
+import { Card } from '@/components/ui/card';
 
 /**
  * @fileOverview 매치 ID만 전달된 경우를 위한 폴백 페이지입니다.

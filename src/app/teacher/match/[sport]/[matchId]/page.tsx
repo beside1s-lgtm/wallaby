@@ -10,16 +10,11 @@ import { getTournaments } from '@/lib/store';
 import { Tournament } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 
-/**
- * @fileOverview 종목별 전용 기록지가 없는 경우를 위한 범용 경기 상세 기록 페이지입니다.
- * [sport] segment는 종목명(sport)을, [matchId] segment는 경기 ID를 나타냅니다.
- */
 export default function GenericMatchDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { school } = useAuth();
   
-  // 라우팅 구조 변경에 따라 params 추출 (기존 [sport]/[id] -> 현재 [sport]/[matchId])
   const sport = params.sport as string;
   const matchId = params.matchId as string;
 

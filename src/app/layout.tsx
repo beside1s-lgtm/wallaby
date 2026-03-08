@@ -17,7 +17,7 @@ export default function RootLayout({
   return (
     <html lang="ko" suppressHydrationWarning>
       <head>
-        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+        <link rel="icon" href="/200x200.png" type="image/png" />
         <meta name="theme-color" content="#4a55a2" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
