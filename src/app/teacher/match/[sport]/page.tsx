@@ -11,7 +11,7 @@ import { ArrowLeft } from 'lucide-react';
 export default function GenericMatchFallbackPage() {
   const params = useParams();
   const router = useRouter();
-  const id = params.id as string;
+  const sport = params.sport as string;
 
   return (
     <div className="container mx-auto p-4 md:p-6 lg:p-8">
@@ -22,7 +22,7 @@ export default function GenericMatchFallbackPage() {
         <h1 className="text-3xl font-bold">경기 상세 정보</h1>
       </div>
       <Card className="p-6">
-        <p className="text-muted-foreground mb-4">경기 ID: {id}</p>
+        <p className="text-muted-foreground mb-4">경기 ID: {sport}</p>
         <p>상세 기록을 확인하시려면 종목 정보가 포함된 링크를 이용해 주세요.</p>
         <Button className="mt-4" onClick={() => router.push('/teacher/dashboard?tab=competition')}>
           대회 목록으로 돌아가기
