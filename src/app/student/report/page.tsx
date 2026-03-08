@@ -249,48 +249,48 @@ export default function ReportCardPage() {
     }
 
     return (
-        <div id="print-area" className="report-container mx-auto max-w-5xl px-4 py-6 md:px-8 md:py-10">
+        <div id="print-area" className="report-container mx-auto max-w-5xl px-4 py-4 md:px-8 md:py-6">
             {/* --- PAGE 1: PAPS 리포트 --- */}
-            <div className="report-page bg-card border shadow-xl rounded-2xl overflow-hidden mb-10 print:shadow-none print:border-none print:rounded-none">
-                <header className="bg-primary/5 p-6 flex items-center justify-between border-b print:bg-white print:p-0 print:mb-6">
-                    <div className="flex items-center gap-4">
-                        <img src="/200x200.png" alt="Logo" className="w-12 h-12 rounded-xl shadow-sm" />
+            <div className="report-page bg-card border shadow-xl rounded-2xl overflow-hidden mb-8 print:shadow-none print:border-none print:rounded-none">
+                <header className="bg-primary/5 p-4 flex items-center justify-between border-b print:bg-white print:p-0 print:mb-4">
+                    <div className="flex items-center gap-3">
+                        <img src="/200x200.png" alt="Logo" className="w-10 h-10 rounded-xl shadow-sm" />
                         <div>
-                            <h1 className="text-3xl font-black text-primary leading-tight">체육 성장 리포트 (PAPS)</h1>
-                            <p className="text-sm font-bold text-muted-foreground">{school}</p>
+                            <h1 className="text-2xl font-black text-primary leading-tight">체육 성장 리포트 (PAPS)</h1>
+                            <p className="text-[10px] font-bold text-muted-foreground">{school}</p>
                         </div>
                     </div>
                     <div className="print-hidden">
-                        <Button variant="default" size="lg" onClick={() => window.print()} className="font-bold shadow-lg"><Printer className="mr-2 h-5 w-5" /> 리포트 출력하기</Button>
+                        <Button variant="default" size="sm" onClick={() => window.print()} className="font-bold shadow-lg"><Printer className="mr-2 h-4 w-4" /> 리포트 출력하기</Button>
                     </div>
                 </header>
 
-                <div className="p-6 md:p-8 space-y-8 print:p-0">
+                <div className="p-4 md:p-6 space-y-4 print:p-0">
                     {/* Top Row: Student Info & Comprehensive Analysis */}
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-6 print-grid-header">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 print-grid-header">
                         {/* 1. Student Profile Card (40%) */}
                         <Card className="md:col-span-2 border-2 border-primary/10 shadow-sm bg-muted/5 print-col-2">
-                            <CardContent className="p-6 flex flex-col items-center">
-                                <Avatar className="h-40 w-32 rounded-2xl border-4 border-background shadow-md overflow-hidden mb-6">
+                            <CardContent className="p-4 flex flex-col items-center">
+                                <Avatar className="h-32 w-24 rounded-xl border-4 border-background shadow-md overflow-hidden mb-4">
                                     <AvatarImage src={fullStudent?.photoUrl || ''} className="object-cover" />
-                                    <AvatarFallback className="rounded-2xl text-4xl bg-primary/10"><UserIcon className="w-12 h-12 text-primary/40" /></AvatarFallback>
+                                    <AvatarFallback className="rounded-xl text-3xl bg-primary/10"><UserIcon className="w-10 h-10 text-primary/40" /></AvatarFallback>
                                 </Avatar>
-                                <div className="w-full grid grid-cols-2 gap-y-4 gap-x-2 text-center border-t pt-6">
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">이름</p>
-                                        <p className="text-xl font-bold">{fullStudent?.name}</p>
+                                <div className="w-full grid grid-cols-2 gap-y-2 gap-x-2 text-center border-t pt-4">
+                                    <div className="space-y-0.5">
+                                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">이름</p>
+                                        <p className="text-base font-bold">{fullStudent?.name}</p>
                                     </div>
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">학년/반/번호</p>
-                                        <p className="text-xl font-bold">{fullStudent?.grade}-{fullStudent?.classNum} {fullStudent?.studentNum}번</p>
+                                    <div className="space-y-0.5">
+                                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">학년/반/번호</p>
+                                        <p className="text-base font-bold">{fullStudent?.grade}-{fullStudent?.classNum} {fullStudent?.studentNum}번</p>
                                     </div>
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">성별</p>
-                                        <p className="text-xl font-bold">{fullStudent?.gender}</p>
+                                    <div className="space-y-0.5">
+                                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">성별</p>
+                                        <p className="text-base font-bold">{fullStudent?.gender}</p>
                                     </div>
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">출력 일자</p>
-                                        <p className="text-sm font-bold text-muted-foreground mt-1.5">{format(new Date(), 'yyyy.MM.dd')}</p>
+                                    <div className="space-y-0.5">
+                                        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">출력 일자</p>
+                                        <p className="text-xs font-bold text-muted-foreground mt-0.5">{format(new Date(), 'yyyy.MM.dd')}</p>
                                     </div>
                                 </div>
                             </CardContent>
@@ -298,35 +298,35 @@ export default function ReportCardPage() {
 
                         {/* 2. Comprehensive Analysis Card (60%) */}
                         <Card className="md:col-span-3 border-2 border-primary/10 shadow-sm overflow-hidden flex flex-col print-col-3">
-                            <CardHeader className="bg-primary/5 py-3 border-b text-center">
-                                <CardTitle className="text-sm font-black text-primary uppercase tracking-tighter">PAPS 요인별 종합 분석 및 등급</CardTitle>
+                            <CardHeader className="bg-primary/5 py-2 border-b text-center">
+                                <CardTitle className="text-[10px] font-black text-primary uppercase tracking-tighter">PAPS 요인별 종합 분석 및 등급</CardTitle>
                             </CardHeader>
-                            <CardContent className="flex-1 flex flex-col items-center justify-center p-6 gap-6">
-                                <div className="h-[220px] w-full">
+                            <CardContent className="flex-1 flex flex-col items-center justify-center p-4 gap-4">
+                                <div className="h-[160px] w-full">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <RadarChart cx="50%" cy="50%" outerRadius="80%" data={papsRadarChartData}>
                                             <PolarGrid strokeOpacity={0.2} />
-                                            <PolarAngleAxis dataKey="subject" tick={{fontSize: 11, fontWeight: 800, fill: 'currentColor'}} />
+                                            <PolarAngleAxis dataKey="subject" tick={{fontSize: 9, fontWeight: 800, fill: 'currentColor'}} />
                                             <PolarRadiusAxis angle={30} domain={[0, 20]} tick={false} axisLine={false} />
                                             <Radar name="점수" dataKey="score" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.5} />
-                                            <Tooltip contentStyle={{fontSize: '12px', borderRadius: '12px'}} />
+                                            <Tooltip contentStyle={{fontSize: '10px', borderRadius: '10px'}} />
                                         </RadarChart>
                                     </ResponsiveContainer>
                                 </div>
-                                <div className="w-full flex items-center justify-around border-t pt-6 bg-primary/5 rounded-2xl p-4">
+                                <div className="w-full flex items-center justify-around border-t pt-4 bg-primary/5 rounded-xl p-2">
                                     <div className="text-center">
-                                        <p className="text-[10px] font-black text-primary uppercase mb-1">종합 체력 등급</p>
-                                        <div className="flex items-center justify-center gap-1">
-                                            <span className="text-6xl font-black text-primary">{overallGrade.charAt(0)}</span>
-                                            <span className="text-xl font-bold text-primary mt-4">등급</span>
+                                        <p className="text-[8px] font-black text-primary uppercase mb-0.5">종합 체력 등급</p>
+                                        <div className="flex items-center justify-center gap-0.5">
+                                            <span className="text-4xl font-black text-primary">{overallGrade.charAt(0)}</span>
+                                            <span className="text-sm font-bold text-primary mt-3">등급</span>
                                         </div>
                                     </div>
-                                    <div className="w-px h-16 bg-primary/10" />
+                                    <div className="w-px h-10 bg-primary/10" />
                                     <div className="text-center">
-                                        <p className="text-[10px] font-black text-muted-foreground uppercase mb-1">종합 환산 점수</p>
-                                        <div className="flex items-baseline justify-center gap-1">
-                                            <span className="text-4xl font-black">{overallScore}</span>
-                                            <span className="text-sm font-bold text-muted-foreground">/ 100</span>
+                                        <p className="text-[8px] font-black text-muted-foreground uppercase mb-0.5">종합 환산 점수</p>
+                                        <div className="flex items-baseline justify-center gap-0.5">
+                                            <span className="text-2xl font-black">{overallScore}</span>
+                                            <span className="text-[10px] font-bold text-muted-foreground">/ 100</span>
                                         </div>
                                     </div>
                                 </div>
@@ -335,19 +335,19 @@ export default function ReportCardPage() {
                     </div>
 
                     {/* AI Briefing Section */}
-                    <section className="space-y-3">
-                        <h2 className="text-base font-black text-primary flex items-center gap-2 uppercase"><CheckCircle2 className="h-5 w-5" /> AI 체력 종합 진단 리포트</h2>
+                    <section className="space-y-2">
+                        <h2 className="text-xs font-black text-primary flex items-center gap-1.5 uppercase"><CheckCircle2 className="h-4 w-4" /> AI 체력 종합 진단 리포트</h2>
                         <div className={cn(
-                            "p-6 rounded-2xl border-2 border-dashed transition-all",
+                            "p-4 rounded-xl border-2 border-dashed transition-all",
                             aiBriefing ? "bg-primary/5 border-primary/20" : "bg-muted/30 border-muted"
                         )}>
                             {aiBriefing ? (
-                                <p className="text-sm md:text-base font-medium leading-relaxed italic text-foreground/80 whitespace-pre-wrap">{aiBriefing}</p>
+                                <p className="text-xs md:text-sm font-medium leading-relaxed italic text-foreground/80 whitespace-pre-wrap">{aiBriefing}</p>
                             ) : (
-                                <div className="text-center py-4 print-hidden">
-                                    <p className="text-sm text-muted-foreground mb-4">PAPS 데이터를 바탕으로 AI 코치의 상세 분석을 받아보세요.</p>
-                                    <Button size="sm" variant="outline" onClick={handleGetBriefing} disabled={isBriefingLoading} className="font-bold border-primary text-primary hover:bg-primary/10">
-                                        {isBriefingLoading ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Wand2 className="h-4 w-4 mr-2" />}
+                                <div className="text-center py-2 print-hidden">
+                                    <p className="text-[10px] text-muted-foreground mb-2">PAPS 데이터를 바탕으로 AI 코치의 상세 분석을 받아보세요.</p>
+                                    <Button size="xs" variant="outline" onClick={handleGetBriefing} disabled={isBriefingLoading} className="h-8 font-bold border-primary text-primary hover:bg-primary/10">
+                                        {isBriefingLoading ? <Loader2 className="animate-spin h-3 w-3 mr-1.5" /> : <Wand2 className="h-3 w-3 mr-1.5" />}
                                         AI 분석 리포트 생성하기
                                     </Button>
                                 </div>
@@ -356,22 +356,22 @@ export default function ReportCardPage() {
                     </section>
                     
                     {/* PAPS Growth Records Section */}
-                    <section className="space-y-4">
-                        <h2 className="text-base font-black text-primary flex items-center gap-2 uppercase"><TrendingUp className="h-5 w-5" /> PAPS 종목별 성장 추이</h2>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <section className="space-y-2">
+                        <h2 className="text-xs font-black text-primary flex items-center gap-1.5 uppercase"><TrendingUp className="h-4 w-4" /> PAPS 종목별 성장 추이</h2>
+                        <div className="grid grid-cols-3 gap-2 print:grid-cols-3">
                             {papsGrowthData.map(({ item, records }) => (
                                 <Card key={item.id} className="border-2 border-primary/10 shadow-sm overflow-hidden bg-card">
-                                    <div className="bg-primary/10 py-2 px-3 text-center border-b">
-                                        <p className="text-xs font-black text-primary">{item.name}</p>
+                                    <div className="bg-primary/10 py-1 px-2 text-center border-b">
+                                        <p className="text-[9px] font-black text-primary truncate">{item.name}</p>
                                     </div>
-                                    <div className="p-4 h-[140px]">
+                                    <div className="p-2 h-[90px]">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <BarChart data={records}>
                                                 <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
                                                 <XAxis dataKey="date" hide />
                                                 <YAxis hide domain={['auto', 'auto']} />
-                                                <Tooltip labelClassName="text-xs" contentStyle={{fontSize: '11px', borderRadius: '8px'}} formatter={(v) => [`${v}${item.unit}`, '기록']} />
-                                                <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                                                <Tooltip labelClassName="text-[8px]" contentStyle={{fontSize: '8px', borderRadius: '6px'}} formatter={(v) => [`${v}${item.unit}`, '기록']} />
+                                                <Bar dataKey="value" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} />
                                             </BarChart>
                                         </ResponsiveContainer>
                                     </div>
@@ -380,75 +380,75 @@ export default function ReportCardPage() {
                         </div>
                     </section>
                 </div>
-                <footer className="bg-muted/30 p-4 text-center border-t">
-                    <p className="text-[10px] font-black text-muted-foreground tracking-tighter">{format(new Date(), 'yyyy.MM.dd')} - 1 / 2 - 체육 성장 기록 시스템 (PAPS REPORT)</p>
+                <footer className="bg-muted/30 p-2 text-center border-t">
+                    <p className="text-[8px] font-black text-muted-foreground tracking-tighter">{format(new Date(), 'yyyy.MM.dd')} - 1 / 2 - 체육 성장 기록 시스템 (PAPS REPORT)</p>
                 </footer>
             </div>
 
             {/* --- PAGE 2: 스포츠 리포트 --- */}
             <div className="report-page bg-card border shadow-xl rounded-2xl overflow-hidden print:shadow-none print:border-none print:rounded-none">
-                <header className="bg-chart-2/5 p-6 flex items-center gap-4 border-b print:bg-white print:p-0 print:mb-6">
-                    <img src="/200x200.png" alt="Logo" className="w-12 h-12 rounded-xl shadow-sm" />
+                <header className="bg-chart-2/5 p-4 flex items-center gap-3 border-b print:bg-white print:p-0 print:mb-4">
+                    <img src="/200x200.png" alt="Logo" className="w-10 h-10 rounded-xl shadow-sm" />
                     <div>
-                        <h1 className="text-3xl font-black text-chart-2 leading-tight">체육 성장 리포트 (스포츠 잠재력)</h1>
-                        <p className="text-sm font-bold text-muted-foreground">{school}</p>
+                        <h1 className="text-2xl font-black text-chart-2 leading-tight">체육 성장 리포트 (스포츠 잠재력)</h1>
+                        <p className="text-[10px] font-bold text-muted-foreground">{school}</p>
                     </div>
                 </header>
 
-                <div className="p-6 md:p-8 space-y-10 print:p-0">
+                <div className="p-4 md:p-6 space-y-6 print:p-0">
                     {/* Athlete Potential Section */}
                     {abilityScores.length > 0 && (
-                        <section className="space-y-6">
-                            <h2 className="text-base font-black text-chart-2 flex items-center gap-2 uppercase tracking-tighter"><div className="w-1.5 h-5 bg-chart-2 rounded-full" /> 운동선수 잠재력 (AI 스카우팅 리포트)</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-5 gap-8 items-start print-grid-header">
-                                <Card className="md:col-span-2 border-2 border-chart-2/20 bg-chart-2/5 shadow-sm p-4 print-col-2">
-                                    <div className="h-[260px] w-full">
+                        <section className="space-y-4">
+                            <h2 className="text-xs font-black text-chart-2 flex items-center gap-1.5 uppercase tracking-tighter"><div className="w-1 h-4 bg-chart-2 rounded-full" /> 운동선수 잠재력 (AI 스카우팅 리포트)</h2>
+                            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-start print-grid-header">
+                                <Card className="md:col-span-2 border-2 border-chart-2/20 bg-chart-2/5 shadow-sm p-3 print-col-2">
+                                    <div className="h-[200px] w-full">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <RadarChart cx="50%" cy="50%" outerRadius="80%" data={abilityScores}>
                                                 <PolarGrid strokeOpacity={0.2} />
-                                                <PolarAngleAxis dataKey="item" tick={{fontSize: 10, fontWeight: 800, fill: 'currentColor'}} />
+                                                <PolarAngleAxis dataKey="item" tick={{fontSize: 8, fontWeight: 800, fill: 'currentColor'}} />
                                                 <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
                                                 <Radar name="능력치" dataKey="score" stroke="hsl(var(--chart-2))" fill="hsl(var(--chart-2))" fillOpacity={0.5} />
-                                                <Tooltip contentStyle={{fontSize: '12px', borderRadius: '12px'}} />
+                                                <Tooltip contentStyle={{fontSize: '10px', borderRadius: '10px'}} />
                                             </RadarChart>
                                         </ResponsiveContainer>
                                     </div>
-                                    <div className="mt-4 p-3 bg-white/50 dark:bg-black/20 rounded-xl text-center">
-                                        <p className="text-[10px] font-black text-chart-2 uppercase mb-1">평균 잠재력 점수</p>
-                                        <p className="text-3xl font-black">{Math.round(abilityScores.reduce((acc,s)=>acc+s.score,0)/abilityScores.length)}점</p>
+                                    <div className="mt-2 p-2 bg-white/50 dark:bg-black/20 rounded-lg text-center">
+                                        <p className="text-[8px] font-black text-chart-2 uppercase mb-0.5">평균 잠재력 점수</p>
+                                        <p className="text-2xl font-black">{Math.round(abilityScores.reduce((acc,s)=>acc+s.score,0)/abilityScores.length)}점</p>
                                     </div>
                                 </Card>
-                                <div className="md:col-span-3 space-y-4 print-col-3">
+                                <div className="md:col-span-3 space-y-3 print-col-3">
                                     {isReportLoading ? (
-                                        <div className="flex flex-col items-center justify-center h-[300px] gap-4">
-                                            <Loader2 className="h-10 w-10 animate-spin text-chart-2 opacity-50" />
-                                            <p className="text-sm font-bold text-muted-foreground animate-pulse">잠재력을 분석하는 중입니다...</p>
+                                        <div className="flex flex-col items-center justify-center h-[240px] gap-3">
+                                            <Loader2 className="h-8 w-8 animate-spin text-chart-2 opacity-50" />
+                                            <p className="text-xs font-bold text-muted-foreground animate-pulse">잠재력을 분석하는 중입니다...</p>
                                         </div>
                                     ) : scoutingReport ? (
-                                        <div className="grid grid-cols-1 gap-4 animate-in fade-in slide-in-from-right-4 duration-500">
-                                            <div className="p-4 bg-green-50 dark:bg-green-900/10 rounded-2xl border border-green-100 dark:border-green-900/20 shadow-sm">
-                                                <h4 className="text-xs font-black text-green-700 dark:text-green-400 uppercase mb-2 flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4" /> 핵심 강점</h4>
-                                                <p className="text-sm font-medium leading-relaxed">{scoutingReport.strengths}</p>
+                                        <div className="grid grid-cols-1 gap-3 animate-in fade-in slide-in-from-right-4 duration-500">
+                                            <div className="p-3 bg-green-50 dark:bg-green-900/10 rounded-xl border border-green-100 dark:border-green-900/20 shadow-sm">
+                                                <h4 className="text-[9px] font-black text-green-700 dark:text-green-400 uppercase mb-1 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> 핵심 강점</h4>
+                                                <p className="text-[11px] font-medium leading-tight">{scoutingReport.strengths}</p>
                                             </div>
-                                            <div className="p-4 bg-red-50 dark:bg-red-900/10 rounded-2xl border border-red-100 dark:border-red-900/20 shadow-sm">
-                                                <h4 className="text-xs font-black text-red-700 dark:text-red-400 uppercase mb-2 flex items-center gap-1.5"><Info className="h-4 w-4" /> 보완점</h4>
-                                                <p className="text-sm font-medium leading-relaxed">{scoutingReport.weaknesses}</p>
+                                            <div className="p-3 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-100 dark:border-red-900/20 shadow-sm">
+                                                <h4 className="text-[9px] font-black text-red-700 dark:text-red-400 uppercase mb-1 flex items-center gap-1"><Info className="h-3 w-3" /> 보완점</h4>
+                                                <p className="text-[11px] font-medium leading-tight">{scoutingReport.weaknesses}</p>
                                             </div>
-                                            <div className="p-5 bg-primary/5 rounded-2xl border-2 border-primary/10 shadow-sm">
-                                                <div className="flex justify-between items-start mb-2">
-                                                    <h4 className="text-xs font-black text-primary uppercase flex items-center gap-1.5"><Wand2 className="h-4 w-4" /> 종합 평가 & 추천 포지션</h4>
+                                            <div className="p-4 bg-primary/5 rounded-xl border-2 border-primary/10 shadow-sm">
+                                                <div className="flex justify-between items-start mb-1">
+                                                    <h4 className="text-[9px] font-black text-primary uppercase flex items-center gap-1"><Wand2 className="h-3 w-3" /> 종합 평가 & 추천 포지션</h4>
                                                 </div>
-                                                <p className="text-base font-bold italic mb-2">"{scoutingReport.assessment}"</p>
-                                                <div className="bg-primary text-primary-foreground px-4 py-2 rounded-full inline-block text-sm font-black shadow-md">
+                                                <p className="text-xs font-bold italic mb-1">"{scoutingReport.assessment}"</p>
+                                                <div className="bg-primary text-primary-foreground px-3 py-1.5 rounded-full inline-block text-[11px] font-black shadow-md">
                                                     추천 포지션: {scoutingReport.position}
                                                 </div>
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="text-center p-10 border-4 border-dashed rounded-3xl h-full flex flex-col justify-center items-center print-hidden bg-muted/10">
-                                            <Wand2 className="h-16 w-16 text-chart-2 mb-4 opacity-20" />
-                                            <p className="text-muted-foreground mb-6 font-bold">측정 데이터를 기반으로<br/>AI 스카우팅 리포트를 생성할 수 있습니다.</p>
-                                            <Button size="lg" onClick={handleGetScoutingReport} className="bg-chart-2 hover:bg-chart-2/90 font-black shadow-xl">
+                                        <div className="text-center p-6 border-4 border-dashed rounded-2xl h-full flex flex-col justify-center items-center print-hidden bg-muted/10">
+                                            <Wand2 className="h-12 w-12 text-chart-2 mb-2 opacity-20" />
+                                            <p className="text-[11px] text-muted-foreground mb-4 font-bold">측정 데이터를 기반으로<br/>AI 스카우팅 리포트를 생성할 수 있습니다.</p>
+                                            <Button size="sm" onClick={handleGetScoutingReport} className="bg-chart-2 hover:bg-chart-2/90 font-black shadow-xl">
                                                 지금 분석 시작하기
                                             </Button>
                                         </div>
@@ -459,23 +459,23 @@ export default function ReportCardPage() {
                     )}
 
                     {/* Custom Items Section */}
-                    <section className="space-y-6">
-                        <h2 className="text-base font-black text-chart-3 flex items-center gap-2 uppercase tracking-tighter"><div className="w-1.5 h-5 bg-chart-3 rounded-full" /> 스포츠 및 기타 종목 성장 추이</h2>
+                    <section className="space-y-4">
+                        <h2 className="text-xs font-black text-chart-3 flex items-center gap-1.5 uppercase tracking-tighter"><div className="w-1 h-4 bg-chart-3 rounded-full" /> 스포츠 및 기타 종목 성장 추이</h2>
                         {customGrowthData.length > 0 ? (
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-3 gap-2">
                                 {customGrowthData.map(({ item, records }) => (
                                     <Card key={item.id} className="border-2 border-chart-3/20 shadow-sm overflow-hidden bg-card">
-                                        <div className="bg-chart-3/10 py-2 px-3 text-center border-b">
-                                            <p className="text-xs font-black text-chart-3">{item.name}</p>
+                                        <div className="bg-chart-3/10 py-1 px-2 text-center border-b">
+                                            <p className="text-[9px] font-black text-chart-3 truncate">{item.name}</p>
                                         </div>
-                                        <div className="p-4 h-[140px]">
+                                        <div className="p-2 h-[90px]">
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <BarChart data={records}>
                                                     <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
                                                     <XAxis dataKey="date" hide />
                                                     <YAxis hide domain={[0, 100]} />
-                                                    <Tooltip labelClassName="text-xs" contentStyle={{fontSize: '11px', borderRadius: '8px'}} formatter={(v) => [`${v}%`, '목표 달성률']} />
-                                                    <Bar dataKey="achievement" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} />
+                                                    <Tooltip labelClassName="text-[8px]" contentStyle={{fontSize: '8px', borderRadius: '6px'}} formatter={(v) => [`${v}%`, '목표 달성률']} />
+                                                    <Bar dataKey="achievement" fill="hsl(var(--chart-3))" radius={[3, 3, 0, 0]} />
                                                 </BarChart>
                                             </ResponsiveContainer>
                                         </div>
@@ -483,15 +483,15 @@ export default function ReportCardPage() {
                                 ))}
                             </div>
                         ) : (
-                            <div className="p-16 border-4 border-dashed rounded-3xl text-center bg-muted/5">
-                                <p className="text-muted-foreground font-bold italic">기록된 스포츠 또는 기타 활동 데이터가 아직 없습니다.</p>
+                            <div className="p-10 border-4 border-dashed rounded-2xl text-center bg-muted/5">
+                                <p className="text-[11px] text-muted-foreground font-bold italic">기록된 스포츠 또는 기타 활동 데이터가 아직 없습니다.</p>
                             </div>
                         )}
                     </section>
                 </div>
                 
-                <footer className="bg-muted/30 p-4 text-center border-t mt-auto">
-                    <p className="text-[10px] font-black text-muted-foreground tracking-tighter">{format(new Date(), 'yyyy.MM.dd')} - 2 / 2 - 체육 성장 기록 시스템 (SPORTS REPORT)</p>
+                <footer className="bg-muted/30 p-2 text-center border-t mt-auto">
+                    <p className="text-[8px] font-black text-muted-foreground tracking-tighter">{format(new Date(), 'yyyy.MM.dd')} - 2 / 2 - 체육 성장 기록 시스템 (SPORTS REPORT)</p>
                 </footer>
             </div>
 
@@ -541,7 +541,7 @@ export default function ReportCardPage() {
                     .print-grid-header {
                         display: grid !important;
                         grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
-                        gap: 1.5rem !important;
+                        gap: 1rem !important;
                     }
                     .print-col-2 {
                         grid-column: span 2 / span 2 !important;
