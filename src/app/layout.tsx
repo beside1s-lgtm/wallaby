@@ -7,6 +7,10 @@ export const metadata: Metadata = {
   title: '체육 성장 기록 시스템',
   description: '체육 수업 결과 기록 및 분석 시스템',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/200x200.png',
+    apple: '/200x200.png',
+  },
 };
 
 export default function RootLayout({
@@ -18,6 +22,7 @@ export default function RootLayout({
     <html lang="ko" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/200x200.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/200x200.png" />
         <meta name="theme-color" content="#4a55a2" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
