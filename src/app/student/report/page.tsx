@@ -267,9 +267,9 @@ export default function ReportCardPage() {
 
                 <div className="p-6 md:p-8 space-y-8 print:p-0">
                     {/* Top Row: Student Info & Comprehensive Analysis */}
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-6 print-grid-header">
                         {/* 1. Student Profile Card (40%) */}
-                        <Card className="md:col-span-2 border-2 border-primary/10 shadow-sm bg-muted/5">
+                        <Card className="md:col-span-2 border-2 border-primary/10 shadow-sm bg-muted/5 print-col-2">
                             <CardContent className="p-6 flex flex-col items-center">
                                 <Avatar className="h-40 w-32 rounded-2xl border-4 border-background shadow-md overflow-hidden mb-6">
                                     <AvatarImage src={fullStudent?.photoUrl || ''} className="object-cover" />
@@ -297,7 +297,7 @@ export default function ReportCardPage() {
                         </Card>
 
                         {/* 2. Comprehensive Analysis Card (60%) */}
-                        <Card className="md:col-span-3 border-2 border-primary/10 shadow-sm overflow-hidden flex flex-col">
+                        <Card className="md:col-span-3 border-2 border-primary/10 shadow-sm overflow-hidden flex flex-col print-col-3">
                             <CardHeader className="bg-primary/5 py-3 border-b text-center">
                                 <CardTitle className="text-sm font-black text-primary uppercase tracking-tighter">PAPS 요인별 종합 분석 및 등급</CardTitle>
                             </CardHeader>
@@ -400,8 +400,8 @@ export default function ReportCardPage() {
                     {abilityScores.length > 0 && (
                         <section className="space-y-6">
                             <h2 className="text-base font-black text-chart-2 flex items-center gap-2 uppercase tracking-tighter"><div className="w-1.5 h-5 bg-chart-2 rounded-full" /> 운동선수 잠재력 (AI 스카우팅 리포트)</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-5 gap-8 items-start">
-                                <Card className="md:col-span-2 border-2 border-chart-2/20 bg-chart-2/5 shadow-sm p-4">
+                            <div className="grid grid-cols-1 md:grid-cols-5 gap-8 items-start print-grid-header">
+                                <Card className="md:col-span-2 border-2 border-chart-2/20 bg-chart-2/5 shadow-sm p-4 print-col-2">
                                     <div className="h-[260px] w-full">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <RadarChart cx="50%" cy="50%" outerRadius="80%" data={abilityScores}>
@@ -418,7 +418,7 @@ export default function ReportCardPage() {
                                         <p className="text-3xl font-black">{Math.round(abilityScores.reduce((acc,s)=>acc+s.score,0)/abilityScores.length)}점</p>
                                     </div>
                                 </Card>
-                                <div className="md:col-span-3 space-y-4">
+                                <div className="md:col-span-3 space-y-4 print-col-3">
                                     {isReportLoading ? (
                                         <div className="flex flex-col items-center justify-center h-[300px] gap-4">
                                             <Loader2 className="h-10 w-10 animate-spin text-chart-2 opacity-50" />
@@ -535,6 +535,19 @@ export default function ReportCardPage() {
                     }
                     .text-primary, .text-chart-2, .text-chart-3 {
                         color: black !important;
+                    }
+                    
+                    /* Force side-by-side layout in print */
+                    .print-grid-header {
+                        display: grid !important;
+                        grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+                        gap: 1.5rem !important;
+                    }
+                    .print-col-2 {
+                        grid-column: span 2 / span 2 !important;
+                    }
+                    .print-col-3 {
+                        grid-column: span 3 / span 3 !important;
                     }
                 }
             `}</style>
