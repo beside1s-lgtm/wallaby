@@ -1,4 +1,3 @@
-
 'use client';
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -7,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose 
 } from '@/components/ui/dialog';
@@ -23,7 +23,7 @@ interface KnowledgeTabProps {
 
 export function KnowledgeTab({ quizzes, results, student }: KnowledgeTabProps) {
   const [selectedQuiz, setSelectedQuiz] = useState<QuizAssignment | null>(null);
-  const [currentStep, setCurrentQuarter] = useState<'video' | 'questions'>('video');
+  const [currentStep, setCurrentStep] = useState<'video' | 'questions'>('video');
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showResult, setShowResult] = useState(false);
@@ -31,7 +31,7 @@ export function KnowledgeTab({ quizzes, results, student }: KnowledgeTabProps) {
 
   const startQuiz = (quiz: QuizAssignment) => {
     setSelectedQuiz(quiz);
-    setCurrentQuarter(quiz.videoUrl ? 'video' : 'questions');
+    setCurrentStep(quiz.videoUrl ? 'video' : 'questions');
     setAnswers({});
     setShowResult(false);
   };
@@ -151,7 +151,7 @@ export function KnowledgeTab({ quizzes, results, student }: KnowledgeTabProps) {
                         allowFullScreen
                       ></iframe>
                     </div>
-                    <Button className="w-full py-6 text-lg" onClick={() => setCurrentQuarter('questions')}>
+                    <Button className="w-full py-6 text-lg" onClick={() => setCurrentStep('questions')}>
                       시청 완료! 이제 문제 풀기 <ChevronRight className="ml-2" />
                     </Button>
                   </div>
@@ -254,7 +254,7 @@ export function KnowledgeTab({ quizzes, results, student }: KnowledgeTabProps) {
             {!showResult ? (
               <div className="flex w-full gap-2">
                 {currentStep === 'questions' && selectedQuiz?.videoUrl && (
-                  <Button variant="outline" onClick={() => setCurrentQuarter('video')}>
+                  <Button variant="outline" onClick={() => setCurrentStep('video')}>
                     <ChevronLeft className="mr-2" /> 영상 다시보기
                   </Button>
                 )}
