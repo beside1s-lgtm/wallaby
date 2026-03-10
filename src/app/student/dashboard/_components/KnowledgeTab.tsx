@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose 
 } from '@/components/ui/dialog';
-import { BookOpen, Award, CheckCircle2, XCircle, Youtube, ChevronRight, ChevronLeft, Loader2, Send } from 'lucide-react';
+import { BookOpen, Award, CheckCircle2, XCircle, Youtube, ChevronRight, ChevronLeft, Loader2, Send, AlertCircle } from 'lucide-react';
 import { saveQuizResult } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import type { QuizAssignment, QuizResult, Student } from '@/lib/types';
@@ -31,6 +31,7 @@ export function KnowledgeTab({ quizzes, results, student }: KnowledgeTabProps) {
 
   const startQuiz = (quiz: QuizAssignment) => {
     setSelectedQuiz(quiz);
+    // 영상이 있으면 영상 단계부터, 없으면 바로 문제 단계로
     setCurrentStep(quiz.videoUrl ? 'video' : 'questions');
     setAnswers({});
     setShowResult(false);
@@ -42,11 +43,14 @@ export function KnowledgeTab({ quizzes, results, student }: KnowledgeTabProps) {
     setIsSubmitting(true);
     let score = 0;
     selectedQuiz.questions.forEach((q, i) => {
-      if (answers[i] === q.answer) score++;
+      // 대소문자나 공백 차이로 인한 오답 처리를 방지하기 위해 trim() 적용
+      const studentAnswer = (answers[i] || '').trim();
+      const correctAnswer = (q.answer || '').trim();
+      if (studentAnswer === correctAnswer) score++;
     });
 
     const total = selectedQuiz.questions.length;
-    const passed = (score / total) >= 0.6; // 60% 이상 통과
+    const passed = total > 0 ? (score / total) >= 0.6 : false;
 
     const result = {
       assignmentId: selectedQuiz.id,
@@ -60,6 +64,8 @@ export function KnowledgeTab({ quizzes, results, student }: KnowledgeTabProps) {
       await saveQuizResult(student.school, result);
       setLastResult(result as QuizResult);
       setShowResult(true);
+    } catch (error) {
+      console.error("Failed to save quiz result:", error);
     } finally {
       setIsSubmitting(false);
     }
@@ -86,7 +92,7 @@ export function KnowledgeTab({ quizzes, results, student }: KnowledgeTabProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {quizzes.length > 0 ? quizzes.map((q) => {
               const result = results.find(r => r.assignmentId === q.id);
-              const isPerfect = result && result.score === result.total;
+              const isPerfect = result && result.score === result.total && result.total > 0;
               const hasAttempted = !!result;
 
               return (
@@ -149,7 +155,7 @@ export function KnowledgeTab({ quizzes, results, student }: KnowledgeTabProps) {
         <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
           <DialogHeader className="p-6 pb-4 bg-primary text-primary-foreground">
             <div className="flex justify-between items-center pr-8">
-              <DialogTitle className="text-2xl font-black">{selectedQuiz?.quizTitle}</DialogTitle>
+              <DialogTitle className="text-2xl font-black">{selectedQuiz?.quizTitle || '퀴즈 로딩 중...'}</DialogTitle>
               <Badge variant="secondary" className="bg-white/20 text-white border-none font-bold">
                 총 {selectedQuiz?.questions?.length || 0}문제
               </Badge>
@@ -171,7 +177,7 @@ export function KnowledgeTab({ quizzes, results, student }: KnowledgeTabProps) {
                     <div className="aspect-video w-full rounded-2xl overflow-hidden border-4 border-muted bg-black shadow-xl">
                       <iframe
                         width="100%" height="100%"
-                        src={getYouTubeEmbedUrl(selectedQuiz.videoUrl)!}
+                        src={getYouTubeEmbedUrl(selectedQuiz.videoUrl) || ''}
                         title="참고 영상" frameBorder="0"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowFullScreen
@@ -183,67 +189,78 @@ export function KnowledgeTab({ quizzes, results, student }: KnowledgeTabProps) {
                   </div>
                 )}
 
-                {currentStep === 'questions' && selectedQuiz?.questions?.map((q, idx) => (
-                  <div key={idx} className="space-y-5 p-6 rounded-2xl border-2 border-muted bg-card transition-all hover:border-primary/20">
-                    <div className="flex items-start gap-4">
-                      <span className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-white text-sm font-black shrink-0 mt-0.5 shadow-md">
-                        {idx + 1}
-                      </span>
-                      <h4 className="text-lg font-black leading-snug pt-0.5">{q.question}</h4>
-                    </div>
+                {currentStep === 'questions' && (
+                  <div className="space-y-10 animate-in fade-in duration-500">
+                    {selectedQuiz?.questions && selectedQuiz.questions.length > 0 ? (
+                      selectedQuiz.questions.map((q, idx) => (
+                        <div key={idx} className="space-y-5 p-6 rounded-2xl border-2 border-muted bg-card transition-all hover:border-primary/20">
+                          <div className="flex items-start gap-4">
+                            <span className="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-white text-sm font-black shrink-0 mt-0.5 shadow-md">
+                              {idx + 1}
+                            </span>
+                            <h4 className="text-lg font-black leading-snug pt-0.5">{q.question}</h4>
+                          </div>
 
-                    <RadioGroup 
-                      value={answers[idx]} 
-                      onValueChange={(v) => setAnswers({...answers, [idx]: v})}
-                      className="grid grid-cols-1 gap-3 pl-12"
-                    >
-                      {q.type === 'multiple-choice' && q.options?.map((opt, oi) => (
-                        <div key={oi} className={cn(
-                          "flex items-center space-x-3 p-4 rounded-xl border-2 transition-all cursor-pointer hover:bg-muted/50",
-                          answers[idx] === opt ? "border-primary bg-primary/5 ring-4 ring-primary/10" : "border-muted"
-                        )} onClick={() => setAnswers({...answers, [idx]: opt})}>
-                          <RadioGroupItem value={opt} id={`q${idx}-o${oi}`} className="sr-only" />
-                          <span className="flex-1 cursor-pointer font-bold text-base">{opt}</span>
-                          {answers[idx] === opt && <CheckCircle2 className="h-5 w-5 text-primary" />}
-                        </div>
-                      ))}
-                      {q.type === 'ox' && (
-                        <div className="grid grid-cols-2 gap-4">
-                          {['O', 'X'].map((opt) => (
-                            <div key={opt} className={cn(
-                              "flex flex-col items-center justify-center p-6 rounded-2xl border-2 transition-all cursor-pointer hover:bg-muted/50 gap-2",
-                              answers[idx] === opt ? "border-primary bg-primary/5 ring-4 ring-primary/10" : "border-muted"
-                            )} onClick={() => setAnswers({...answers, [idx]: opt})}>
-                              <RadioGroupItem value={opt} id={`q${idx}-o${opt}`} className="sr-only" />
-                              <span className={cn("text-4xl font-black", opt === 'O' ? "text-primary" : "text-destructive")}>{opt}</span>
-                              <span className="text-xs font-bold text-muted-foreground">{opt === 'O' ? '그렇다' : '아니다'}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {(q.type === 'short-answer' || q.type === 'fill-in-the-blanks') && (
-                        <div className="space-y-3">
-                          <Input 
-                            placeholder="정답을 입력하세요" 
+                          <RadioGroup 
                             value={answers[idx] || ''} 
-                            onChange={(e) => setAnswers({...answers, [idx]: e.target.value})}
-                            className="h-14 text-lg font-bold rounded-xl border-2 focus-visible:ring-primary/20"
-                          />
-                          {q.type === 'fill-in-the-blanks' && q.options && (
-                            <div className="flex flex-wrap gap-2 pt-1 bg-muted/30 p-3 rounded-xl border border-dashed">
-                              <span className="text-xs text-muted-foreground font-black uppercase tracking-widest mr-1">[ 보기 ]</span>
-                              {q.options.map((opt, i) => (
-                                <Badge key={i} variant="secondary" className="cursor-pointer px-3 py-1 font-bold text-sm hover:bg-primary hover:text-white transition-colors" onClick={() => setAnswers({...answers, [idx]: opt})}>
-                                  {opt}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
+                            onValueChange={(v) => setAnswers({...answers, [idx]: v})}
+                            className="grid grid-cols-1 gap-3 pl-12"
+                          >
+                            {q.type === 'multiple-choice' && q.options?.map((opt, oi) => (
+                              <div key={oi} className={cn(
+                                "flex items-center space-x-3 p-4 rounded-xl border-2 transition-all cursor-pointer hover:bg-muted/50",
+                                answers[idx] === opt ? "border-primary bg-primary/5 ring-4 ring-primary/10" : "border-muted"
+                              )} onClick={() => setAnswers({...answers, [idx]: opt})}>
+                                <RadioGroupItem value={opt} id={`q${idx}-o${oi}`} className="sr-only" />
+                                <span className="flex-1 cursor-pointer font-bold text-base">{opt}</span>
+                                {answers[idx] === opt && <CheckCircle2 className="h-5 w-5 text-primary" />}
+                              </div>
+                            ))}
+                            {q.type === 'ox' && (
+                              <div className="grid grid-cols-2 gap-4">
+                                {['O', 'X'].map((opt) => (
+                                  <div key={opt} className={cn(
+                                    "flex flex-col items-center justify-center p-6 rounded-2xl border-2 transition-all cursor-pointer hover:bg-muted/50 gap-2",
+                                    answers[idx] === opt ? "border-primary bg-primary/5 ring-4 ring-primary/10" : "border-muted"
+                                  )} onClick={() => setAnswers({...answers, [idx]: opt})}>
+                                    <RadioGroupItem value={opt} id={`q${idx}-o${opt}`} className="sr-only" />
+                                    <span className={cn("text-4xl font-black", opt === 'O' ? "text-primary" : "text-destructive")}>{opt}</span>
+                                    <span className="text-xs font-bold text-muted-foreground">{opt === 'O' ? '그렇다' : '아니다'}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {(q.type === 'short-answer' || q.type === 'fill-in-the-blanks') && (
+                              <div className="space-y-3">
+                                <Input 
+                                  placeholder="정답을 입력하세요" 
+                                  value={answers[idx] || ''} 
+                                  onChange={(e) => setAnswers({...answers, [idx]: e.target.value})}
+                                  className="h-14 text-lg font-bold rounded-xl border-2 focus-visible:ring-primary/20"
+                                />
+                                {q.type === 'fill-in-the-blanks' && q.options && (
+                                  <div className="flex flex-wrap gap-2 pt-1 bg-muted/30 p-3 rounded-xl border border-dashed">
+                                    <span className="text-xs text-muted-foreground font-black uppercase tracking-widest mr-1">[ 보기 ]</span>
+                                    {q.options.map((opt, i) => (
+                                      <Badge key={i} variant="secondary" className="cursor-pointer px-3 py-1 font-bold text-sm hover:bg-primary hover:text-white transition-colors" onClick={() => setAnswers({...answers, [idx]: opt})}>
+                                        {opt}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </RadioGroup>
                         </div>
-                      )}
-                    </RadioGroup>
+                      ))
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                        <AlertCircle className="h-12 w-12 mb-4 opacity-20" />
+                        <p className="font-bold">문제를 불러올 수 없습니다. 다시 시도해주세요.</p>
+                      </div>
+                    )}
                   </div>
-                ))}
+                )}
               </div>
             ) : (
               <div className="py-12 flex flex-col items-center text-center space-y-8 animate-in zoom-in-95 duration-500">
@@ -289,7 +306,7 @@ export function KnowledgeTab({ quizzes, results, student }: KnowledgeTabProps) {
                       <span className="text-xl font-bold text-muted-foreground">/ {lastResult?.total}점</span>
                     </div>
                   </div>
-                  <Progress value={(lastResult?.score || 0) / (lastResult?.total || 1) * 100} className="h-4 rounded-full bg-muted shadow-inner" />
+                  <Progress value={(lastResult?.total || 0) > 0 ? (lastResult?.score || 0) / (lastResult?.total || 1) * 100 : 0} className="h-4 rounded-full bg-muted shadow-inner" />
                 </div>
               </div>
             )}
@@ -305,7 +322,7 @@ export function KnowledgeTab({ quizzes, results, student }: KnowledgeTabProps) {
                 )}
                 <Button 
                   className="flex-1 h-14 text-xl font-black rounded-xl shadow-lg transition-all active:scale-95" 
-                  disabled={isSubmitting || (currentStep === 'questions' && Object.keys(answers).length < (selectedQuiz?.questions?.length || 0))}
+                  disabled={isSubmitting || (currentStep === 'questions' && selectedQuiz?.questions && Object.keys(answers).length < selectedQuiz.questions.length)}
                   onClick={handleSubmit}
                 >
                   {isSubmitting ? <Loader2 className="animate-spin mr-2 h-6 w-6" /> : <Send className="mr-2 h-6 w-6" />}
