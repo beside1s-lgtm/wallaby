@@ -37,7 +37,7 @@ import {
     DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, Calendar as CalendarIcon, User, X, Youtube, Eye, EyeOff, ClipboardList } from 'lucide-react';
+import { Loader2, Search, Calendar as CalendarIcon, User, X, Youtube, Eye, EyeOff, ClipboardList, Save, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -51,18 +51,19 @@ import { papsGradeStandards } from '@/lib/paps';
 interface RecordInputProps {
     allStudents: Student[];
     allItems: MeasurementItem[];
+    allRecords: MeasurementRecord[]; // Added missing prop
     onRecordUpdate: (records: MeasurementRecord[] | string, action: 'update' | 'delete') => void;
     allTeamGroups: TeamGroup[];
     sportsClubs: SportsClub[];
 }
 
-export default function RecordInput({ allStudents, allItems, onRecordUpdate, allTeamGroups, sportsClubs }: RecordInputProps) {
+export default function RecordInput({ allStudents, allItems, allRecords, onRecordUpdate, allTeamGroups, sportsClubs }: RecordInputProps) {
   const { school } = useAuth();
   const { toast } = useToast();
   
+  // Single Individual Input State
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  
   const [selectedItemName, setSelectedItemName] = useState('');
   const [recordValue, setRecordValue] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -70,15 +71,16 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
   const [height, setHeight] = useState('');
   const [weight, setWeight] = useState('');
 
-
+  // Batch Input State
   const [selectedGrade, setSelectedGrade] = useState('');
   const [selectedClassNum, setSelectedClassNum] = useState('all');
   const [selectedGroupId, setSelectedGroupId] = useState(''); 
-  const [selectedTeamId, setSelectedTeamId] = useState('');
   const [batchRecordItem, setBatchRecordItem] = useState('');
   const [batchRecordDate, setBatchRecordDate] = useState<Date | undefined>(new Date());
   const [batchRecords, setBatchRecords] = useState<Record<string, { value?: string, height?: string, weight?: string }>>({});
   const [isBatchSubmitting, setIsBatchSubmitting] = useState(false);
+  const [savingId, setSavingId] = useState<string | null>(null); // For individual save in batch
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set()); // To track saved rows in batch
 
   const [foundStudents, setFoundStudents] = useState<Student[]>([]);
   const [isSelectionDialogOpen, setIsSelectionDialogOpen] = useState(false);
@@ -87,89 +89,32 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
   const [showGradeTable, setShowGradeTable] = useState(false);
 
   const activeItems = useMemo(() => allItems.filter(item => !item.isArchived && !item.isDeactivated), [allItems]);
-
   const studentMap = useMemo(() => new Map(allStudents.map(s => [s.id, s])), [allStudents]);
 
   const { grades, classNumsByGrade } = useMemo(() => {
-    const grades = [...new Set(allStudents.map(s => s.grade))].sort();
+    const grades = [...new Set(allStudents.map(s => s.grade))].sort((a,b) => parseInt(a) - parseInt(b));
     const classNumsByGrade: Record<string, string[]> = {};
     grades.forEach(grade => {
-        classNumsByGrade[grade] = [...new Set(allStudents.filter(s => s.grade === grade).map(s => s.classNum))].sort();
+        classNumsByGrade[grade] = [...new Set(allStudents.filter(s => s.grade === grade).map(s => s.classNum))].sort((a,b) => parseInt(a) - parseInt(b));
     });
     return { grades, classNumsByGrade };
   }, [allStudents]);
   
-  const selectedGroup = useMemo(() => {
-    if (!selectedGroupId) return null;
-    const teamGroup = allTeamGroups.find(g => g.id === selectedGroupId);
-    if (teamGroup) return { type: 'teamGroup', data: teamGroup };
-
-    const sportsClub = sportsClubs.find(c => c.id === selectedGroupId);
-    if (sportsClub) return { type: 'sportsClub', data: sportsClub };
-    
-    return null;
-  }, [selectedGroupId, allTeamGroups, sportsClubs]);
-
   const studentsForBatch = useMemo(() => {
-    if (selectedGroupId && selectedGroup) {
-        if (selectedGroup.type === 'teamGroup') {
-            const teamGroup = selectedGroup.data as TeamGroup;
-            const teamToShow = selectedTeamId ? teamGroup.teams.find(t => t.id === selectedTeamId) : null;
-            const teamsToProcess = teamToShow ? [teamToShow] : teamGroup.teams;
-            
-            return teamsToProcess.flatMap((team) => {
-                 return team.memberIds.map(memberId => studentMap.get(memberId))
-                    .filter((s): s is Student => !!s);
-            }).sort((a,b) => parseInt(a.studentNum) - parseInt(b.studentNum));
-
-        } else if (selectedGroup.type === 'sportsClub') {
-            const club = selectedGroup.data as SportsClub;
-             return club.memberIds.map(memberId => studentMap.get(memberId))
-                .filter((s): s is Student => !!s)
-                .sort((a,b) => {
-                    if (a.grade !== b.grade) return parseInt(a.grade) - parseInt(b.grade);
-                    if (a.classNum !== b.classNum) return parseInt(a.classNum) - parseInt(b.classNum);
-                    return parseInt(a.studentNum) - parseInt(b.studentNum);
-                });
-        }
+    let list: Student[] = [];
+    if (selectedGroupId) {
+        const group = allTeamGroups.find(g => g.id === selectedGroupId) || sportsClubs.find(c => c.id === selectedGroupId);
+        if (group) list = allStudents.filter(s => group.memberIds.includes(s.id));
     } else if (selectedGrade) {
-        let students = allStudents.filter(s => s.grade === selectedGrade);
-        if (selectedClassNum !== "all") {
-            students = students.filter(s => s.classNum === selectedClassNum);
-        }
-        return students.sort((a,b) => parseInt(a.studentNum) - parseInt(b.studentNum));
+        list = allStudents.filter(s => s.grade === selectedGrade && (selectedClassNum === 'all' || s.classNum === selectedClassNum));
     }
-    return [];
-  }, [allStudents, selectedGrade, selectedClassNum, selectedGroupId, selectedTeamId, selectedGroup, studentMap]);
+    return list.sort((a,b) => parseInt(a.studentNum) - parseInt(b.studentNum));
+  }, [allStudents, selectedGrade, selectedClassNum, selectedGroupId, allTeamGroups, sportsClubs]);
   
   useEffect(() => {
     setBatchRecords({}); 
-    if(selectedGroupId) {
-        setSelectedGrade('');
-        setSelectedClassNum('all');
-    }
-    if(!selectedGroupId){
-        setSelectedTeamId('');
-    }
+    setSavedIds(new Set());
   }, [selectedGrade, selectedClassNum, batchRecordItem, selectedGroupId]);
-
-  useEffect(() => {
-    setRecordValue('');
-    setHeight('');
-    setWeight('');
-    if (selectedItemName) {
-        setShowVideo(false);
-        setShowGradeTable(false);
-    }
-  }, [selectedItemName, selectedStudent]);
-
-  useEffect(() => {
-    if (batchRecordItem) {
-        setShowVideo(false);
-        setShowGradeTable(false);
-    }
-  }, [batchRecordItem]);
-
 
   useEffect(() => {
     if (activeItems.length > 0) {
@@ -186,251 +131,132 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
     }
   }, [activeItems, selectedItemName, batchRecordItem]);
 
-  const selectedItemForSingleAdd = useMemo(() => {
-      return activeItems.find(item => item.name === selectedItemName);
-  }, [selectedItemName, activeItems]);
-  
-  const selectedItemForBatchAdd = useMemo(() => {
-    return activeItems.find(item => item.name === batchRecordItem);
-  }, [batchRecordItem, activeItems]);
+  const selectedItemForSingleAdd = useMemo(() => activeItems.find(item => item.name === selectedItemName), [selectedItemName, activeItems]);
+  const selectedItemForBatchAdd = useMemo(() => activeItems.find(item => item.name === batchRecordItem), [batchRecordItem, activeItems]);
 
-  const inputPlaceholder = useMemo(() => {
-    if (!selectedItemForSingleAdd) return "측정 결과 (숫자만 입력)";
-    return `결과 (${selectedItemForSingleAdd.unit})`;
-  }, [selectedItemForSingleAdd]);
-
-
-  const handleSelectStudent = (student: Student) => {
-    setSelectedStudent(student);
-    setRecordValue('');
-    setHeight('');
-    setWeight('');
-  }
+  const getPreviousRecord = (studentId: string, itemName: string) => {
+    return allRecords
+      .filter(r => r.studentId === studentId && r.item === itemName)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+  };
 
   const handleSearch = () => {
-    if (!school) return;
-    if (!searchTerm) {
-        setSelectedStudent(null);
-        return;
-    }
-  
-    const matchingStudents = allStudents.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
-  
-    if (matchingStudents.length === 0) {
-      setSelectedStudent(null);
-      toast({
-        variant: 'destructive',
-        title: '검색 실패',
-        description: '해당 학생을 찾을 수 없습니다.'
-      });
-    } else if (matchingStudents.length === 1) {
-      handleSelectStudent(matchingStudents[0]);
+    if (!searchTerm) return;
+    const matching = allStudents.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    if (matching.length === 0) {
+      toast({ variant: 'destructive', title: '검색 실패', description: '해당 학생을 찾을 수 없습니다.' });
+    } else if (matching.length === 1) {
+      setSelectedStudent(matching[0]);
     } else {
-      setFoundStudents(matchingStudents);
+      setFoundStudents(matching);
       setIsSelectionDialogOpen(true);
     }
   };
 
-  const handleStudentSelectionFromDialog = (student: Student) => {
-    handleSelectStudent(student);
-    setIsSelectionDialogOpen(false);
-    setFoundStudents([]);
-  };
-
-  const handleAddRecord = async () => {
-    if (!selectedItemName || !school || !selectedStudent || !recordDate) {
-      toast({ variant: 'destructive', title: '입력 오류', description: '날짜, 측정 종목을 모두 입력해주세요.' });
-      return;
-    }
+  const handleIndividualSave = async (studentId: string) => {
+    if (!school || !batchRecordItem || !batchRecordDate) return;
     
+    const input = batchRecords[studentId];
+    if (!input) {
+        toast({ variant: 'destructive', title: '입력된 값이 없습니다.' });
+        return;
+    }
+
     let valueToSave: number | null = null;
-
-    if (selectedItemForSingleAdd?.isCompound) {
-      const h = parseFloat(height);
-      const w = parseFloat(weight);
-      if (isNaN(h) || isNaN(w) || h <= 0 || w <= 0) {
-        toast({ variant: 'destructive', title: '입력 오류', description: '유효한 키와 몸무게를 입력해주세요.' });
-        return;
-      }
-      const heightInMeters = h / 100;
-      valueToSave = parseFloat((w / (heightInMeters * heightInMeters)).toFixed(2));
+    if (selectedItemForBatchAdd?.isCompound) {
+        const bmi = calculateBmi(input.height, input.weight);
+        if (!bmi) {
+            toast({ variant: 'destructive', title: '키와 몸무게를 올바르게 입력해주세요.' });
+            return;
+        }
+        valueToSave = parseFloat(bmi);
     } else {
-      if (!recordValue) {
-        toast({ variant: 'destructive', title: '입력 오류', description: '결과를 입력해주세요.' });
-        return;
-      }
-      const numericValue = parseFloat(recordValue);
-      if (isNaN(numericValue)) {
-        toast({ variant: 'destructive', title: '입력 오류', description: '결과는 숫자로 입력해주세요.' });
-        return;
-      }
-      valueToSave = numericValue;
+        if (!input.value) {
+            toast({ variant: 'destructive', title: '기록을 입력해주세요.' });
+            return;
+        }
+        valueToSave = parseFloat(input.value);
     }
 
-    if (valueToSave === null) return;
-    
-    setIsSubmitting(true);
-    
+    if (valueToSave === null || isNaN(valueToSave)) return;
+
+    setSavingId(studentId);
     try {
-        const updatedRecord = await addOrUpdateRecord({
-          studentId: selectedStudent.id,
-          school: school,
-          item: selectedItemName,
-          value: valueToSave,
-          date: format(recordDate, 'yyyy-MM-dd'),
-        });
-
-        onRecordUpdate([updatedRecord], 'update');
-        
-        toast({
-          title: '기록 저장 완료',
-          description: `${selectedStudent.name} 학생의 ${selectedItemName} 기록이 저장/업데이트되었습니다.`,
-        });
-        
-        setRecordValue('');
-        setHeight('');
-        setWeight('');
-
-    } catch(error) {
-         console.error("Failed to save record:", error);
-        toast({ variant: 'destructive', title: '저장 실패', description: '기록 저장 중 오류가 발생했습니다.'})
+      const rec = await addOrUpdateRecord({ 
+        studentId, 
+        school, 
+        item: batchRecordItem, 
+        date: format(batchRecordDate, 'yyyy-MM-dd'), 
+        value: valueToSave 
+      });
+      onRecordUpdate([rec], 'update');
+      setSavedIds(prev => new Set(prev).add(studentId));
+      toast({ title: "저장 완료" });
+    } catch (e) {
+      toast({ variant: "destructive", title: "저장 실패" });
     } finally {
-        setIsSubmitting(false);
+      setSavingId(null);
     }
-  };
-  
-  const handleBatchRecordChange = (studentId: string, field: 'value' | 'height' | 'weight', inputValue: string) => {
-    setBatchRecords(prev => ({
-      ...prev,
-      [studentId]: {
-        ...prev[studentId],
-        [field]: inputValue,
-      },
-    }));
   };
 
   const handleSaveBatchRecords = async () => {
-    if (!school || !batchRecordItem || !batchRecordDate || Object.keys(batchRecords).length === 0) {
-        toast({ variant: 'destructive', title: '입력 오류', description: '날짜, 종목을 선택하고 하나 이상의 기록을 입력해주세요.' });
-        return;
-    }
-
+    if (!school || !batchRecordItem || !batchRecordDate) return;
     setIsBatchSubmitting(true);
     try {
-        const recordsToProcess: (Omit<MeasurementRecord, 'id'> & { student: Student })[] = [];
-        
+        const recordsToProcess = [];
         for (const studentId of Object.keys(batchRecords)) {
             const values = batchRecords[studentId];
-            if (!values) continue;
-            
-            const hasValue = (selectedItemForBatchAdd?.isCompound && (values.height || values.weight)) || (!selectedItemForBatchAdd?.isCompound && values.value);
-            if (!hasValue) continue;
-
-            const student = studentsForBatch.find(s => s.id === studentId);
-            if (!student) continue;
-
-            let valueToSave: number | null = null;
-            
+            let val: number | null = null;
             if (selectedItemForBatchAdd?.isCompound) {
-                const h = parseFloat(values.height || '');
-                const w = parseFloat(values.weight || '');
-                if (!isNaN(h) && !isNaN(w) && h > 0 && w > 0) {
-                    const heightInMeters = h / 100;
-                    valueToSave = parseFloat((w / (heightInMeters * heightInMeters)).toFixed(2));
-                }
+                const bmi = calculateBmi(values.height, values.weight);
+                val = bmi ? parseFloat(bmi) : null;
             } else {
-                if (values.value) {
-                    const numericValue = parseFloat(values.value);
-                    if (!isNaN(numericValue)) {
-                        valueToSave = numericValue;
-                    }
-                }
+                val = values.value ? parseFloat(values.value) : null;
             }
-
-            if (valueToSave !== null) {
-                recordsToProcess.push({
-                    student,
-                    studentId: student.id,
-                    school,
-                    item: batchRecordItem,
-                    value: valueToSave,
-                    date: format(batchRecordDate, 'yyyy-MM-dd'),
-                });
+            if (val !== null && !isNaN(val)) {
+                recordsToProcess.push({ studentId, school, item: batchRecordItem, value: val, date: format(batchRecordDate, 'yyyy-MM-dd') });
             }
         }
-        
         if (recordsToProcess.length > 0) {
-            const updatedRecords = await addOrUpdateRecords(school, studentsForBatch, recordsToProcess);
-            onRecordUpdate(updatedRecords, 'update');
-            toast({ title: '저장 완료', description: `${batchRecordItem}에 대한 ${recordsToProcess.length}개의 기록이 저장/업데이트되었습니다.` });
-            setBatchRecords({}); 
-        } else {
-            toast({ variant: 'destructive', title: '저장할 기록 없음', description: '유효한 기록을 입력해주세요.' });
+            const updated = await addOrUpdateRecords(school, studentsForBatch, recordsToProcess);
+            onRecordUpdate(updated, 'update');
+            setSavedIds(new Set(recordsToProcess.map(r => r.studentId)));
+            toast({ title: '일괄 저장 완료' });
         }
-    } catch (error) {
-        console.error('Failed to save batch records:', error);
-        toast({ variant: 'destructive', title: '일괄 저장 실패', description: '기록 저장 중 오류가 발생했습니다.' });
-    } finally {
-        setIsBatchSubmitting(false);
+    } finally { setIsBatchSubmitting(false); }
+  };
+
+  const calculateBmi = (heightCm?: string, weightKg?: string): string => {
+    const h = parseFloat(heightCm || '');
+    const w = parseFloat(weightKg || '');
+    if (!isNaN(h) && !isNaN(w) && h > 0 && w > 0) {
+        const heightInMeters = h / 100;
+        return (w / (heightInMeters * heightInMeters)).toFixed(2);
     }
-};
+    return '';
+  };
 
-  
-    const calculateBmi = (heightCm?: string, weightKg?: string): string => {
-        const h = parseFloat(heightCm || '');
-        const w = parseFloat(weightKg || '');
-        if (!isNaN(h) && !isNaN(w) && h > 0 && w > 0) {
-            const heightInMeters = h / 100;
-            return (w / (heightInMeters * heightInMeters)).toFixed(2);
-        }
-        return '';
-    };
+  const getYouTubeEmbedUrl = (url?: string) => {
+    if (!url) return null;
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? `https://www.youtube.com/embed/${match[2]}` : null;
+  };
 
-    const clearFilters = () => {
-        setSelectedGrade('');
-        setSelectedClassNum('all');
-        setSelectedGroupId('');
-        setSelectedTeamId('');
-    };
-
-    const getYouTubeEmbedUrl = (url?: string) => {
-        if (!url) return null;
-        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-        const match = url.match(regExp);
-        if (match && match[2].length === 11) {
-            return `https://www.youtube.com/embed/${match[2]}`;
-        }
-        return null;
-    };
-
-    const renderGradeRanges = (gender: 'male' | 'female') => {
-        const gradeToUse = selectedGrade || (studentsForBatch.length > 0 ? studentsForBatch[0].grade : '5');
-        const itemKey = batchRecordItem === '무릎 대고 팔굽혀펴기' ? '팔굽혀펴기' : batchRecordItem;
-        const itemStandards = papsGradeStandards[gradeToUse]?.[itemKey];
-        
-        if (!itemStandards) return <TableCell colSpan={5} className="text-center text-muted-foreground">데이터 없음</TableCell>;
-
-        const ranges = itemStandards[gender];
-        const unit = selectedItemForBatchAdd?.unit || '';
-        const type = itemStandards.type;
-
-        return [1, 2, 3, 4, 5].map(g => {
-            const gradeRanges = ranges.filter(r => r.grade === g);
-            if (gradeRanges.length === 0) return <TableCell key={g} className="text-center">-</TableCell>;
-
-            const rangeTexts = gradeRanges.map(r => {
-                if (r.max === Infinity) return `${r.min}${unit} 이상`;
-                if (r.min === 1 || r.min === -Infinity || (type === 'time' && r.min === 0)) return `${r.max}${unit} 이하`;
-                return `${r.min}~${r.max}${unit}`;
-            });
-
-            return (
-                <TableCell key={g} className="text-center text-xs break-keep">
-                    {rangeTexts.join(' 또는 ')}
-                </TableCell>
-            );
-        });
-    };
+  const renderGradeRanges = (gender: 'male' | 'female') => {
+    const gradeToUse = selectedGrade || (studentsForBatch[0]?.grade || '5');
+    const itemKey = batchRecordItem === '무릎 대고 팔굽혀펴기' ? '팔굽혀펴기' : batchRecordItem;
+    const itemStandards = papsGradeStandards[gradeToUse]?.[itemKey];
+    if (!itemStandards) return <TableCell colSpan={5} className="text-center">데이터 없음</TableCell>;
+    const ranges = itemStandards[gender];
+    const unit = selectedItemForBatchAdd?.unit || '';
+    return [1, 2, 3, 4, 5].map(g => {
+        const r = ranges.find(range => range.grade === g);
+        if (!r) return <TableCell key={g} className="text-center">-</TableCell>;
+        const text = r.max === Infinity ? `${r.min}${unit}↑` : (r.min === -Infinity || r.min === 0) ? `${r.max}${unit}↓` : `${r.min}~${r.max}${unit}`;
+        return <TableCell key={g} className="text-center text-[10px] break-keep">{text}</TableCell>;
+    });
+  };
 
   if (!school) return null;
 
@@ -438,429 +264,160 @@ export default function RecordInput({ allStudents, allItems, onRecordUpdate, all
     <>
       <Dialog open={isSelectionDialogOpen} onOpenChange={setIsSelectionDialogOpen}>
           <DialogContent>
-              <DialogHeader>
-                  <DialogTitle>동명이인 학생 선택</DialogTitle>
-                  <DialogDescription>
-                      검색된 학생 중 한 명을 선택해주세요.
-                  </DialogDescription>
-              </DialogHeader>
+              <DialogHeader><DialogTitle>학생 선택</DialogTitle></DialogHeader>
               <div className="max-h-[60vh] overflow-y-auto">
                   <Table>
-                      <TableHeader>
-                          <TableRow>
-                              <TableHead>이름</TableHead>
-                              <TableHead>학년</TableHead>
-                              <TableHead>반</TableHead>
-                              <TableHead>번호</TableHead>
-                              <TableHead></TableHead>
-                          </TableRow>
-                      </TableHeader>
+                      <TableHeader><TableRow><TableHead>이름</TableHead><TableHead>학년-반</TableHead><TableHead></TableHead></TableRow></TableHeader>
                       <TableBody>
-                          {foundStudents.map((student) => (
-                              <TableRow key={student.id}>
-                                  <TableCell>{student.name}</TableCell>
-                                  <TableCell>{student.grade}</TableCell>
-                                  <TableCell>{student.classNum}</TableCell>
-                                  <TableCell>{student.studentNum}</TableCell>
-                                  <TableCell className="text-right">
-                                      <Button size="sm" onClick={() => handleStudentSelectionFromDialog(student)}>
-                                          선택
-                                      </Button>
-                                  </TableCell>
-                              </TableRow>
+                          {foundStudents.map((s) => (
+                              <TableRow key={s.id}><TableCell>{s.name}</TableCell><TableCell>{s.grade}-{s.classNum}</TableCell><TableCell><Button size="sm" onClick={() => { setSelectedStudent(s); setIsSelectionDialogOpen(false); }}>선택</Button></TableCell></TableRow>
                           ))}
                       </TableBody>
                   </Table>
               </div>
           </DialogContent>
       </Dialog>
+
       <Tabs defaultValue="batch">
         <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="batch">학급/팀별 기록</TabsTrigger>
             <TabsTrigger value="individual">개별 기록</TabsTrigger>
         </TabsList>
+        
         <TabsContent value="batch">
              <Card className="bg-transparent shadow-none border-none">
                 <CardHeader>
                     <CardTitle>학급/팀별 측정 기록</CardTitle>
-                    <CardDescription>수업 중 측정한 결과를 학급 전체 또는 팀별로 한 번에 입력하고 저장할 수 있습니다.</CardDescription>
+                    <CardDescription>가장 최근의 이전 기록을 보며 한 명씩 즉시 저장할 수 있습니다.</CardDescription>
                     <div className="flex flex-wrap items-center gap-2 pt-4">
-                        <Select value={selectedGrade} onValueChange={(value) => { setSelectedGrade(value); setSelectedClassNum('all'); setSelectedGroupId(''); }}>
-                            <SelectTrigger className="w-full sm:w-[120px]">
-                                <SelectValue placeholder="학년 선택" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {grades.map(grade => <SelectItem key={grade} value={grade}>{grade}학년</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-
-                        <Select value={selectedClassNum} onValueChange={v => { setSelectedClassNum(v); setSelectedGroupId(''); }} disabled={!selectedGrade}>
-                            <SelectTrigger className="w-full sm:w-[120px]">
-                                <SelectValue placeholder="반 선택" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">전체 반</SelectItem>
-                                {classNumsByGrade[selectedGrade]?.map(classNum => <SelectItem key={classNum} value={classNum}>{classNum}반</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                        
-                        <span className="text-sm text-muted-foreground mx-2">또는</span>
-
-                        <Select value={selectedGroupId} onValueChange={v => { setSelectedGroupId(v); setSelectedGrade(''); setSelectedClassNum('all'); setSelectedTeamId(''); }}>
-                            <SelectTrigger className="w-full sm:w-[200px]">
-                                <SelectValue placeholder="팀/클럽 그룹 선택" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {allTeamGroups.length > 0 && allTeamGroups.map(group => (
-                                    <SelectItem key={group.id} value={group.id}>{group.description}</SelectItem>
-                                ))}
-                                 {sportsClubs.length > 0 && sportsClubs.map(club => (
-                                    <SelectItem key={club.id} value={club.id}>{club.name}</SelectItem>
-                                ))}
-                                {(allTeamGroups.length === 0 && sportsClubs.length === 0) && <SelectItem value="none" disabled>저장된 그룹이 없습니다.</SelectItem>}
-                            </SelectContent>
-                        </Select>
-                         
-                        {(selectedGrade || selectedGroupId) && <Button variant="ghost" size="icon" onClick={clearFilters}><X className="h-4 w-4" /></Button>}
-                        
-                        <div className="flex-grow min-w-[240px]">
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                <Button variant={"outline"} className={cn("w-full justify-start text-left font-normal", !batchRecordDate && "text-muted-foreground")}>
-                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                    {batchRecordDate ? format(batchRecordDate, "PPP") : <span>날짜 선택</span>}
-                                </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0">
-                                    <Calendar mode="single" selected={batchRecordDate} onSelect={setBatchRecordDate} initialFocus />
-                                </PopoverContent>
-                            </Popover>
-                        </div>
-                        <Select value={batchRecordItem} onValueChange={setBatchRecordItem}>
-                            <SelectTrigger className="w-full sm:w-[180px]">
-                                <SelectValue placeholder="측정 종목 선택" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {activeItems.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}
-                            </SelectContent>
-                        </Select>
-                        <Button onClick={handleSaveBatchRecords} disabled={isBatchSubmitting || studentsForBatch.length === 0} className="ml-auto">
-                            {isBatchSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                            일괄 저장
-                        </Button>
+                        <Select value={selectedGrade} onValueChange={v => { setSelectedGrade(v); setSelectedClassNum('all'); setSelectedGroupId(''); }}><SelectTrigger className="w-[100px]"><SelectValue placeholder="학년" /></SelectTrigger><SelectContent>{grades.map(g => <SelectItem key={g} value={g}>{g}학년</SelectItem>)}</SelectContent></Select>
+                        <Select value={selectedClassNum} onValueChange={setSelectedClassNum} disabled={!selectedGrade}><SelectTrigger className="w-[100px]"><SelectValue placeholder="반" /></SelectTrigger><SelectContent><SelectItem value="all">전체</SelectItem>{classNumsByGrade[selectedGrade]?.map(c => <SelectItem key={c} value={c}>{c}반</SelectItem>)}</SelectContent></Select>
+                        <Select value={selectedGroupId} onValueChange={v => { setSelectedGroupId(v); setSelectedGrade(''); }}><SelectTrigger className="w-[180px]"><SelectValue placeholder="그룹 선택" /></SelectTrigger><SelectContent>{allTeamGroups.concat(sportsClubs as any).map((g: any) => <SelectItem key={g.id} value={g.id}>{g.description || g.name}</SelectItem>)}</SelectContent></Select>
+                        <Popover><PopoverTrigger asChild><Button variant="outline" className="w-[180px] justify-start"><CalendarIcon className="mr-2 h-4 w-4" />{batchRecordDate ? format(batchRecordDate, "PPP") : "날짜"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={batchRecordDate} onSelect={setBatchRecordDate} initialFocus /></PopoverContent></Popover>
+                        <Select value={batchRecordItem} onValueChange={v => setBatchRecordItem(v)}><SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger><SelectContent>{activeItems.map(i => <SelectItem key={i.id} value={i.name}>{i.name}</SelectItem>)}</SelectContent></Select>
+                        <Button onClick={handleSaveBatchRecords} disabled={isBatchSubmitting || studentsForBatch.length === 0} className="ml-auto">{isBatchSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}일괄 저장</Button>
                     </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
                     {selectedItemForBatchAdd?.isPaps && (
                         <div className="p-4 border rounded-lg bg-secondary/30 space-y-4">
                             <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <ClipboardList className="h-5 w-5 text-primary" />
-                                    <h3 className="font-semibold">{batchRecordItem} 등급 기준표 ({selectedGrade || (studentsForBatch[0]?.grade || '5')}학년)</h3>
-                                </div>
-                                <Button variant="ghost" size="sm" onClick={() => setShowGradeTable(!showGradeTable)}>
-                                    {showGradeTable ? (
-                                        <><EyeOff className="mr-2 h-4 w-4" /> 숨기기</>
-                                    ) : (
-                                        <><Eye className="mr-2 h-4 w-4" /> 보기</>
-                                    )}
-                                </Button>
+                                <h3 className="font-semibold flex items-center gap-2"><ClipboardList className="h-5 w-5 text-primary" /> 등급 기준표 ({selectedGrade || '5'}학년)</h3>
+                                <Button variant="ghost" size="sm" onClick={() => setShowGradeTable(!showGradeTable)}>{showGradeTable ? '기준표 닫기' : '기준표 보기'}</Button>
                             </div>
                             {showGradeTable && (
-                                <div className="overflow-x-auto rounded-md border bg-background animate-in fade-in zoom-in-95 duration-200">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow className="bg-muted/50">
-                                                <TableHead className="text-center w-[100px]">성별</TableHead>
-                                                <TableHead className="text-center">1등급</TableHead>
-                                                <TableHead className="text-center">2등급</TableHead>
-                                                <TableHead className="text-center">3등급</TableHead>
-                                                <TableHead className="text-center">4등급</TableHead>
-                                                <TableHead className="text-center">5등급</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            <TableRow>
-                                                <TableCell className="text-center font-semibold bg-muted/20">남학생</TableCell>
-                                                {renderGradeRanges('male')}
-                                            </TableRow>
-                                            <TableRow>
-                                                <TableCell className="text-center font-semibold bg-muted/20">여학생</TableCell>
-                                                {renderGradeRanges('female')}
-                                            </TableRow>
-                                        </TableBody>
-                                    </Table>
-                                </div>
+                                <Table className="bg-background border rounded-md">
+                                    <TableHeader><TableRow className="bg-muted/50"><TableHead className="text-center w-20">성별</TableHead><TableHead className="text-center">1등급</TableHead><TableHead className="text-center">2등급</TableHead><TableHead className="text-center">3등급</TableHead><TableHead className="text-center">4등급</TableHead><TableHead className="text-center">5등급</TableHead></TableRow></TableHeader>
+                                    <TableBody>
+                                        <TableRow><TableCell className="text-center font-bold">남학생</TableCell>{renderGradeRanges('male')}</TableRow>
+                                        <TableRow><TableCell className="text-center font-bold">여학생</TableCell>{renderGradeRanges('female')}</TableRow>
+                                    </TableBody>
+                                </Table>
                             )}
                         </div>
                     )}
 
-                    {selectedItemForBatchAdd?.videoUrl && getYouTubeEmbedUrl(selectedItemForBatchAdd.videoUrl) && (
-                        <div className="p-4 border rounded-lg bg-primary/5 space-y-4">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <Youtube className="h-5 w-5 text-red-600" />
-                                    <h3 className="font-semibold">{selectedItemForBatchAdd.name} 측정 예시 영상</h3>
-                                </div>
-                                <Button variant="ghost" size="sm" onClick={() => setShowVideo(!showVideo)}>
-                                    {showVideo ? (
-                                        <><EyeOff className="mr-2 h-4 w-4" /> 숨기기</>
+                    <div className="border rounded-md">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-12">사진</TableHead>
+                                    <TableHead className="w-32">이름</TableHead>
+                                    <TableHead className="w-24 text-blue-600">이전 기록</TableHead>
+                                    {selectedItemForBatchAdd?.isCompound ? (
+                                        <>
+                                            <TableHead className="w-24">키(cm)</TableHead>
+                                            <TableHead className="w-24">몸무게(kg)</TableHead>
+                                            <TableHead className="w-24 text-center">BMI</TableHead>
+                                        </>
                                     ) : (
-                                        <><Eye className="mr-2 h-4 w-4" /> 보기</>
+                                        <TableHead className="text-center">현재 기록({selectedItemForBatchAdd?.unit})</TableHead>
                                     )}
-                                </Button>
-                            </div>
-                            {showVideo && (
-                                <div className="aspect-video w-full max-w-2xl mx-auto rounded-lg overflow-hidden border shadow-lg bg-black animate-in fade-in zoom-in-95 duration-200">
-                                    <iframe
-                                        width="100%"
-                                        height="100%"
-                                        src={getYouTubeEmbedUrl(selectedItemForBatchAdd.videoUrl)!}
-                                        title="YouTube video player"
-                                        frameBorder="0"
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                        allowFullScreen
-                                    ></iframe>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                  <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>사진</TableHead>
-                            <TableHead>학년-반</TableHead>
-                            <TableHead>번호</TableHead>
-                            <TableHead>이름</TableHead>
-                            {selectedItemForBatchAdd?.isCompound ? (
-                                <>
-                                    <TableHead>키(cm)</TableHead>
-                                    <TableHead>몸무게(kg)</TableHead>
-                                    <TableHead>BMI</TableHead>
-                                </>
-                            ) : (
-                                <>
-                                    <TableHead>기록 ({selectedItemForBatchAdd?.unit})</TableHead>
-                                    <TableHead>결과</TableHead>
-                                </>
-                            )}
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {studentsForBatch.length > 0 ? (
-                        studentsForBatch.map(student => {
-                            const studentRecords = batchRecords[student.id] || {};
-                            return (
-                                <TableRow key={student.id}>
-                                <TableCell>
-                                    <Avatar className="w-20 h-20">
-                                        <AvatarImage src={student.photoUrl || undefined} alt={student.name} />
-                                        <AvatarFallback>{student.name.charAt(0)}</AvatarFallback>
-                                    </Avatar>
-                                </TableCell>
-                                <TableCell>{student.grade}-{student.classNum}</TableCell>
-                                <TableCell>{student.studentNum}</TableCell>
-                                <TableCell>{student.name}</TableCell>
-                                {selectedItemForBatchAdd?.isCompound ? (
-                                    <>
-                                        <TableCell>
-                                            <Input
-                                                type="number"
-                                                placeholder="키(cm)"
-                                                value={studentRecords.height || ''}
-                                                onChange={(e) => handleBatchRecordChange(student.id, 'height', e.target.value)}
-                                                className="max-w-[120px]"
-                                            />
-                                        </TableCell>
-                                        <TableCell>
-                                            <Input
-                                                type="number"
-                                                placeholder="몸무게(kg)"
-                                                value={studentRecords.weight || ''}
-                                                onChange={(e) => handleBatchRecordChange(student.id, 'weight', e.target.value)}
-                                                className="max-w-[120px]"
-                                            />
-                                        </TableCell>
-                                        <TableCell>
-                                            <Input
-                                                readOnly
-                                                value={calculateBmi(studentRecords.height, studentRecords.weight)}
-                                                placeholder="BMI"
-                                                className="max-w-[120px] bg-muted"
-                                            />
-                                        </TableCell>
-                                    </>
-                                ) : (
-                                     <>
-                                        <TableCell>
-                                            <Input
-                                                type="number"
-                                                placeholder={selectedItemForBatchAdd?.unit || '기록'}
-                                                value={studentRecords.value || ''}
-                                                onChange={(e) => handleBatchRecordChange(student.id, 'value', e.target.value)}
-                                                className="max-w-[120px]"
-                                            />
-                                        </TableCell>
-                                         <TableCell>
-                                            <Input
-                                                readOnly
-                                                value={studentRecords.value || ''}
-                                                placeholder="결과"
-                                                className="max-w-[120px] bg-muted"
-                                            />
-                                        </TableCell>
-                                    </>
-                                )}
+                                    <TableHead className="w-24 text-right">작업</TableHead>
                                 </TableRow>
-                            );
-                        })
-                      ) : (
-                        <TableRow>
-                          <TableCell colSpan={selectedItemForBatchAdd?.isCompound ? 7 : 6} className="h-24 text-center">
-                            기록을 입력할 학급 또는 팀/클럽 그룹을 선택해주세요.
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </TableBody>
-                  </Table>
+                            </TableHeader>
+                            <TableBody>
+                                {studentsForBatch.map(s => {
+                                    const prev = getPreviousRecord(s.id, batchRecordItem);
+                                    const current = batchRecords[s.id] || {};
+                                    const isSaved = savedIds.has(s.id);
+                                    return (
+                                        <TableRow key={s.id} className={cn(isSaved && "bg-green-50/50")}>
+                                            <TableCell><Avatar className="w-10 h-10"><AvatarImage src={s.photoUrl} /><AvatarFallback>{s.name[0]}</AvatarFallback></Avatar></TableCell>
+                                            <TableCell><div className="flex flex-col"><span className="font-bold">{s.name}</span><span className="text-[10px] text-muted-foreground">{s.grade}-{s.classNum} {s.studentNum}번</span></div></TableCell>
+                                            <TableCell className="text-xs font-medium text-blue-600 italic">{prev ? `${prev.value}${selectedItemForBatchAdd?.unit || ''}` : '-'}</TableCell>
+                                            {selectedItemForBatchAdd?.isCompound ? (
+                                                <>
+                                                    <TableCell><Input type="number" placeholder="키" value={current.height || ''} onChange={e => setBatchRecords({...batchRecords, [s.id]: {...current, height: e.target.value}})} /></TableCell>
+                                                    <TableCell><Input type="number" placeholder="몸무게" value={current.weight || ''} onChange={e => setBatchRecords({...batchRecords, [s.id]: {...current, weight: e.target.value}})} /></TableCell>
+                                                    <TableCell className="text-center font-bold text-primary">{calculateBmi(current.height, current.weight)}</TableCell>
+                                                </>
+                                            ) : (
+                                                <TableCell><Input type="number" className="text-center max-w-[120px] mx-auto" value={current.value || ''} onChange={e => setBatchRecords({...batchRecords, [s.id]: {value: e.target.value}})} /></TableCell>
+                                            )}
+                                            <TableCell className="text-right">
+                                                <Button variant={isSaved ? "ghost" : "outline"} size="sm" onClick={() => handleIndividualSave(s.id)} disabled={savingId === s.id} className={cn(isSaved && "text-green-600")}>
+                                                    {savingId === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : isSaved ? <CheckCircle2 className="h-4 w-4" /> : <Save className="h-4 w-4" />}
+                                                    <span className="ml-1 hidden sm:inline">{isSaved ? '저장됨' : '저장'}</span>
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                                {!studentsForBatch.length && <TableRow><TableCell colSpan={7} className="h-24 text-center text-muted-foreground">대상을 선택해주세요.</TableCell></TableRow>}
+                            </TableBody>
+                        </Table>
+                    </div>
                 </CardContent>
             </Card>
         </TabsContent>
+
         <TabsContent value="individual">
              <Card className="bg-transparent shadow-none border-none">
                 <CardHeader>
-                    <CardTitle>개별 학생 기록 추가/수정</CardTitle>
-                    <CardDescription>학생을 검색하여 특정 날짜의 기록을 추가하거나, 기존 날짜의 기록을 수정합니다.</CardDescription>
-                     <div className="flex flex-wrap items-center gap-2 pt-4">
-                        <Input 
-                            type="text" 
-                            placeholder="학생 이름 검색..." 
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                            className="w-full sm:w-auto"
-                        />
-                        <Button type="button" onClick={handleSearch}><Search className="mr-2 h-4 w-4" /> 검색</Button>
-                        {selectedStudent && (
-                           <div className="flex items-center gap-4 text-sm ml-4 p-2 bg-secondary rounded-md">
-                                <Avatar className="w-20 h-20">
-                                    <AvatarImage src={selectedStudent.photoUrl || undefined} />
-                                    <AvatarFallback>
-                                        {selectedStudent.name ? selectedStudent.name.charAt(0) : <User />}
-                                    </AvatarFallback>
-                                </Avatar>
-                                <div className="text-left">
-                                    <span className="font-semibold block">{selectedStudent.name}</span>
-                                    <span className="text-muted-foreground">{selectedStudent.grade}-{selectedStudent.classNum}</span>
-                                </div>
-                            </div>
-                        )}
+                    <CardTitle>개별 학생 기록 입력</CardTitle>
+                    <div className="flex gap-2 pt-4">
+                        <Input placeholder="이름 검색..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} className="w-full sm:w-auto" />
+                        <Button onClick={handleSearch}><Search className="mr-2 h-4 w-4" /> 검색</Button>
                     </div>
                 </CardHeader>
                 {selectedStudent ? (
-                    <>
-                        <CardContent className="space-y-4">
-                            {selectedItemForSingleAdd?.videoUrl && getYouTubeEmbedUrl(selectedItemForSingleAdd.videoUrl) && (
-                                <div className="p-4 border rounded-lg bg-primary/5 space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <Youtube className="h-5 w-5 text-red-600" />
-                                            <h3 className="font-semibold">{selectedItemForSingleAdd.name} 측정 예시 영상</h3>
-                                        </div>
-                                        <Button variant="ghost" size="sm" onClick={() => setShowVideo(!showVideo)}>
-                                            {showVideo ? (
-                                                <><EyeOff className="mr-2 h-4 w-4" /> 숨기기</>
-                                            ) : (
-                                                <><Eye className="mr-2 h-4 w-4" /> 보기</>
-                                            )}
-                                        </Button>
-                                    </div>
-                                    {showVideo && (
-                                        <div className="aspect-video w-full rounded-lg overflow-hidden border shadow-lg bg-black animate-in fade-in zoom-in-95 duration-200">
-                                            <iframe
-                                                width="100%"
-                                                height="100%"
-                                                src={getYouTubeEmbedUrl(selectedItemForSingleAdd.videoUrl)!}
-                                                title="YouTube video player"
-                                                frameBorder="0"
-                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                                allowFullScreen
-                                            ></iframe>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                <Button
-                                    variant={"outline"}
-                                    className={cn(
-                                    "w-full justify-start text-left font-normal",
-                                    !recordDate && "text-muted-foreground"
-                                    )}
-                                >
-                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                    {recordDate ? format(recordDate, "PPP") : <span>날짜 선택</span>}
-                                </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0">
-                                <Calendar
-                                    mode="single"
-                                    selected={recordDate}
-                                    onSelect={setRecordDate}
-                                    initialFocus
-                                />
-                                </PopoverContent>
-                            </Popover>
-                            <Select onValueChange={setSelectedItemName} value={selectedItemName}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="측정 종목 선택" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {activeItems.map(item => (
-                                    <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            {selectedItemForSingleAdd?.isCompound ? (
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <Label htmlFor="height-single">키 (cm)</Label>
-                                        <Input id="height-single" type="number" value={height} onChange={e => setHeight(e.target.value)} />
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="weight-single">몸무게 (kg)</Label>
-                                        <Input id="weight-single" type="number" value={weight} onChange={e => setWeight(e.target.value)} />
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="text-left">
-                                    <Label>{selectedItemForSingleAdd?.unit ? `기록 (${selectedItemForSingleAdd.unit})` : '기록'}</Label>
-                                    <Input
-                                        placeholder={inputPlaceholder}
-                                        value={recordValue}
-                                        onChange={e => setRecordValue(e.target.value)}
-                                        type="number"
-                                    />
-                                </div>
-                            )}
-                        </CardContent>
-                        <CardFooter>
-                            <Button onClick={handleAddRecord} disabled={isSubmitting} className="w-full">
-                                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                결과 저장
-                            </Button>
-                        </CardFooter>
-                    </>
-                ) : (
-                    <CardContent>
-                         <div className="text-center text-muted-foreground py-10">
-                            <p>기록을 입력할 학생을 먼저 검색해주세요.</p>
+                    <CardContent className="space-y-4">
+                        <div className="flex items-center gap-4 p-4 bg-secondary rounded-lg">
+                            <Avatar className="w-20 h-20"><AvatarImage src={selectedStudent.photoUrl} /><AvatarFallback>{selectedStudent.name[0]}</AvatarFallback></Avatar>
+                            <div><p className="font-bold text-lg">{selectedStudent.name}</p><p className="text-sm text-muted-foreground">{selectedStudent.grade}학년 {selectedStudent.classNum}반 ({selectedStudent.gender})</p></div>
+                            <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setSelectedStudent(null)}><X className="h-4 w-4" /></Button>
                         </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start"><CalendarIcon className="mr-2 h-4 w-4" />{recordDate ? format(recordDate, "PPP") : "날짜"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={recordDate} onSelect={setRecordDate} initialFocus /></PopoverContent></Popover>
+                            <Select value={selectedItemName} onValueChange={setSelectedItemName}><SelectTrigger><SelectValue placeholder="종목 선택" /></SelectTrigger><SelectContent>{activeItems.map(i => <SelectItem key={i.id} value={i.name}>{i.name}</SelectItem>)}</SelectContent></Select>
+                        </div>
+                        {selectedItemForSingleAdd?.isCompound ? (
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><Label>키 (cm)</Label><Input type="number" value={height} onChange={e => setHeight(e.target.value)} /></div>
+                                <div><Label>몸무게 (kg)</Label><Input type="number" value={weight} onChange={e => setWeight(e.target.value)} /></div>
+                            </div>
+                        ) : (
+                            <div className="space-y-2"><Label>기록 ({selectedItemForSingleAdd?.unit})</Label><Input type="number" value={recordValue} onChange={e => setRecordValue(e.target.value)} className="text-lg py-6" /></div>
+                        )}
+                        <Button className="w-full py-6 text-lg font-bold" onClick={async () => {
+                            if (!school || !selectedStudent || !selectedItemName || !recordDate) return;
+                            setIsSubmitting(true);
+                            try {
+                                let val = 0;
+                                if (selectedItemForSingleAdd?.isCompound) {
+                                    val = parseFloat(calculateBmi(height, weight));
+                                } else {
+                                    val = parseFloat(recordValue);
+                                }
+                                const rec = await addOrUpdateRecord({ studentId: selectedStudent.id, school, item: selectedItemName, date: format(recordDate, 'yyyy-MM-dd'), value: val });
+                                onRecordUpdate([rec], 'update');
+                                toast({ title: "저장 완료" });
+                                setRecordValue(''); setHeight(''); setWeight('');
+                            } finally { setIsSubmitting(false); }
+                        }} disabled={isSubmitting}>저장하기</Button>
                     </CardContent>
-                )}
+                ) : <CardContent className="text-center py-10 text-muted-foreground">학생을 검색해주세요.</CardContent>}
             </Card>
         </TabsContent>
       </Tabs>
