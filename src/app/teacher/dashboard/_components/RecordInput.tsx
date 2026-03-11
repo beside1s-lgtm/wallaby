@@ -51,7 +51,7 @@ import { papsGradeStandards } from '@/lib/paps';
 interface RecordInputProps {
     allStudents: Student[];
     allItems: MeasurementItem[];
-    allRecords: MeasurementRecord[]; // Added missing prop
+    allRecords: MeasurementRecord[];
     onRecordUpdate: (records: MeasurementRecord[] | string, action: 'update' | 'delete') => void;
     allTeamGroups: TeamGroup[];
     sportsClubs: SportsClub[];
@@ -89,7 +89,6 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
   const [showGradeTable, setShowGradeTable] = useState(false);
 
   const activeItems = useMemo(() => allItems.filter(item => !item.isArchived && !item.isDeactivated), [allItems]);
-  const studentMap = useMemo(() => new Map(allStudents.map(s => [s.id, s])), [allStudents]);
 
   const { grades, classNumsByGrade } = useMemo(() => {
     const grades = [...new Set(allStudents.map(s => s.grade))].sort((a,b) => parseInt(a) - parseInt(b));
@@ -108,7 +107,11 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
     } else if (selectedGrade) {
         list = allStudents.filter(s => s.grade === selectedGrade && (selectedClassNum === 'all' || s.classNum === selectedClassNum));
     }
-    return list.sort((a,b) => parseInt(a.studentNum) - parseInt(b.studentNum));
+    return list.sort((a,b) => {
+        if (a.grade !== b.grade) return parseInt(a.grade) - parseInt(b.grade);
+        if (a.classNum !== b.classNum) return parseInt(a.classNum) - parseInt(b.classNum);
+        return parseInt(a.studentNum) - parseInt(b.studentNum);
+    });
   }, [allStudents, selectedGrade, selectedClassNum, selectedGroupId, allTeamGroups, sportsClubs]);
   
   useEffect(() => {
@@ -247,7 +250,7 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
     const gradeToUse = selectedGrade || (studentsForBatch[0]?.grade || '5');
     const itemKey = batchRecordItem === '무릎 대고 팔굽혀펴기' ? '팔굽혀펴기' : batchRecordItem;
     const itemStandards = papsGradeStandards[gradeToUse]?.[itemKey];
-    if (!itemStandards) return <TableCell colSpan={5} className="text-center">데이터 없음</TableCell>;
+    if (!itemStandards) return <TableCell colSpan={5} className="text-center text-muted-foreground">데이터 없음</TableCell>;
     const ranges = itemStandards[gender];
     const unit = selectedItemForBatchAdd?.unit || '';
     return [1, 2, 3, 4, 5].map(g => {
@@ -294,41 +297,63 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
                         <Select value={selectedClassNum} onValueChange={setSelectedClassNum} disabled={!selectedGrade}><SelectTrigger className="w-[100px]"><SelectValue placeholder="반" /></SelectTrigger><SelectContent><SelectItem value="all">전체</SelectItem>{classNumsByGrade[selectedGrade]?.map(c => <SelectItem key={c} value={c}>{c}반</SelectItem>)}</SelectContent></Select>
                         <Select value={selectedGroupId} onValueChange={v => { setSelectedGroupId(v); setSelectedGrade(''); }}><SelectTrigger className="w-[180px]"><SelectValue placeholder="그룹 선택" /></SelectTrigger><SelectContent>{allTeamGroups.concat(sportsClubs as any).map((g: any) => <SelectItem key={g.id} value={g.id}>{g.description || g.name}</SelectItem>)}</SelectContent></Select>
                         <Popover><PopoverTrigger asChild><Button variant="outline" className="w-[180px] justify-start"><CalendarIcon className="mr-2 h-4 w-4" />{batchRecordDate ? format(batchRecordDate, "PPP") : "날짜"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={batchRecordDate} onSelect={setBatchRecordDate} initialFocus /></PopoverContent></Popover>
-                        <Select value={batchRecordItem} onValueChange={v => setBatchRecordItem(v)}><SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger><SelectContent>{activeItems.map(i => <SelectItem key={i.id} value={i.name}>{i.name}</SelectItem>)}</SelectContent></Select>
+                        <Select value={batchRecordItem} onValueChange={v => { setBatchRecordItem(v); setShowVideo(false); setShowGradeTable(false); }}><SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger><SelectContent>{activeItems.map(i => <SelectItem key={i.id} value={i.name}>{i.name}</SelectItem>)}</SelectContent></Select>
                         <Button onClick={handleSaveBatchRecords} disabled={isBatchSubmitting || studentsForBatch.length === 0} className="ml-auto">{isBatchSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}일괄 저장</Button>
                     </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    {selectedItemForBatchAdd?.isPaps && (
-                        <div className="p-4 border rounded-lg bg-secondary/30 space-y-4">
-                            <div className="flex items-center justify-between">
-                                <h3 className="font-semibold flex items-center gap-2"><ClipboardList className="h-5 w-5 text-primary" /> 등급 기준표 ({selectedGrade || '5'}학년)</h3>
-                                <Button variant="ghost" size="sm" onClick={() => setShowGradeTable(!showGradeTable)}>{showGradeTable ? '기준표 닫기' : '기준표 보기'}</Button>
-                            </div>
-                            {showGradeTable && (
-                                <Table className="bg-background border rounded-md">
-                                    <TableHeader><TableRow className="bg-muted/50"><TableHead className="text-center w-20">성별</TableHead><TableHead className="text-center">1등급</TableHead><TableHead className="text-center">2등급</TableHead><TableHead className="text-center">3등급</TableHead><TableHead className="text-center">4등급</TableHead><TableHead className="text-center">5등급</TableHead></TableRow></TableHeader>
-                                    <TableBody>
-                                        <TableRow><TableCell className="text-center font-bold">남학생</TableCell>{renderGradeRanges('male')}</TableRow>
-                                        <TableRow><TableCell className="text-center font-bold">여학생</TableCell>{renderGradeRanges('female')}</TableRow>
-                                    </TableBody>
-                                </Table>
+                    {selectedItemForBatchAdd && (
+                        <div className="flex flex-wrap gap-2">
+                            {selectedItemForBatchAdd.videoUrl && (
+                                <Button variant="outline" size="sm" onClick={() => setShowVideo(!showVideo)}>
+                                    <Youtube className="mr-2 h-4 w-4 text-red-600" />
+                                    {showVideo ? '영상 닫기' : '측정 예시 영상 보기'}
+                                </Button>
+                            )}
+                            {selectedItemForBatchAdd.isPaps && (
+                                <Button variant="outline" size="sm" onClick={() => setShowGradeTable(!showGradeTable)}>
+                                    <ClipboardList className="mr-2 h-4 w-4 text-primary" />
+                                    {showGradeTable ? '기준표 닫기' : '등급 기준표 보기'}
+                                </Button>
                             )}
                         </div>
                     )}
 
-                    <div className="border rounded-md">
+                    {showVideo && selectedItemForBatchAdd?.videoUrl && (
+                        <div className="aspect-video w-full max-w-2xl mx-auto rounded-lg overflow-hidden border bg-black animate-in fade-in zoom-in-95">
+                            <iframe
+                                width="100%" height="100%"
+                                src={getYouTubeEmbedUrl(selectedItemForBatchAdd.videoUrl)!}
+                                title="참고 영상" frameBorder="0" allowFullScreen
+                            ></iframe>
+                        </div>
+                    )}
+
+                    {showGradeTable && selectedItemForBatchAdd?.isPaps && (
+                        <div className="overflow-x-auto rounded-md border bg-muted/30 p-2 animate-in fade-in zoom-in-95">
+                            <p className="text-xs font-bold mb-2 px-1 text-primary">{batchRecordItem} 등급 기준 ({selectedGrade || studentsForBatch[0]?.grade || '5'}학년)</p>
+                            <Table>
+                                <TableHeader><TableRow className="bg-background"><TableHead className="text-center h-8 text-[10px] p-1 w-[80px]">성별</TableHead><TableHead className="text-center h-8 text-[10px] p-1">1등급</TableHead><TableHead className="text-center h-8 text-[10px] p-1">2등급</TableHead><TableHead className="text-center h-8 text-[10px] p-1">3등급</TableHead><TableHead className="text-center h-8 text-[10px] p-1">4등급</TableHead><TableHead className="text-center h-8 text-[10px] p-1">5등급</TableHead></TableRow></TableHeader>
+                                <TableBody>
+                                    <TableRow className="bg-background"><TableCell className="text-center font-bold text-[10px]">남학생</TableCell>{renderGradeRanges('male')}</TableRow>
+                                    <TableRow className="bg-background"><TableCell className="text-center font-bold text-[10px]">여학생</TableCell>{renderGradeRanges('female')}</TableRow>
+                                </TableBody>
+                            </Table>
+                        </div>
+                    )}
+
+                    <div className="border rounded-md overflow-x-auto">
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead className="w-12">사진</TableHead>
+                                    <TableHead className="w-16">사진</TableHead>
                                     <TableHead className="w-32">이름</TableHead>
                                     <TableHead className="w-24 text-blue-600">이전 기록</TableHead>
                                     {selectedItemForBatchAdd?.isCompound ? (
                                         <>
-                                            <TableHead className="w-24">키(cm)</TableHead>
-                                            <TableHead className="w-24">몸무게(kg)</TableHead>
-                                            <TableHead className="w-24 text-center">BMI</TableHead>
+                                            <TableHead className="w-24 text-center">키(cm)</TableHead>
+                                            <TableHead className="w-24 text-center">몸무게(kg)</TableHead>
+                                            <TableHead className="w-20 text-center">BMI</TableHead>
                                         </>
                                     ) : (
                                         <TableHead className="text-center">현재 기록({selectedItemForBatchAdd?.unit})</TableHead>
@@ -342,21 +367,27 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
                                     const current = batchRecords[s.id] || {};
                                     const isSaved = savedIds.has(s.id);
                                     return (
-                                        <TableRow key={s.id} className={cn(isSaved && "bg-green-50/50")}>
+                                        <TableRow key={s.id} className={cn(isSaved && "bg-green-50/50 transition-colors")}>
                                             <TableCell><Avatar className="w-10 h-10"><AvatarImage src={s.photoUrl} /><AvatarFallback>{s.name[0]}</AvatarFallback></Avatar></TableCell>
                                             <TableCell><div className="flex flex-col"><span className="font-bold">{s.name}</span><span className="text-[10px] text-muted-foreground">{s.grade}-{s.classNum} {s.studentNum}번</span></div></TableCell>
                                             <TableCell className="text-xs font-medium text-blue-600 italic">{prev ? `${prev.value}${selectedItemForBatchAdd?.unit || ''}` : '-'}</TableCell>
                                             {selectedItemForBatchAdd?.isCompound ? (
                                                 <>
-                                                    <TableCell><Input type="number" placeholder="키" value={current.height || ''} onChange={e => setBatchRecords({...batchRecords, [s.id]: {...current, height: e.target.value}})} /></TableCell>
-                                                    <TableCell><Input type="number" placeholder="몸무게" value={current.weight || ''} onChange={e => setBatchRecords({...batchRecords, [s.id]: {...current, weight: e.target.value}})} /></TableCell>
-                                                    <TableCell className="text-center font-bold text-primary">{calculateBmi(current.height, current.weight)}</TableCell>
+                                                    <TableCell><Input type="number" placeholder="키" value={current.height || ''} onChange={e => setBatchRecords({...batchRecords, [s.id]: {...current, height: e.target.value}})} className="text-center h-9" /></TableCell>
+                                                    <TableCell><Input type="number" placeholder="몸무게" value={current.weight || ''} onChange={e => setBatchRecords({...batchRecords, [s.id]: {...current, weight: e.target.value}})} className="text-center h-9" /></TableCell>
+                                                    <TableCell className="text-center font-bold text-primary text-sm">{calculateBmi(current.height, current.weight)}</TableCell>
                                                 </>
                                             ) : (
-                                                <TableCell><Input type="number" className="text-center max-w-[120px] mx-auto" value={current.value || ''} onChange={e => setBatchRecords({...batchRecords, [s.id]: {value: e.target.value}})} /></TableCell>
+                                                <TableCell><Input type="number" className="text-center max-w-[120px] mx-auto h-9" value={current.value || ''} onChange={e => setBatchRecords({...batchRecords, [s.id]: {value: e.target.value}})} /></TableCell>
                                             )}
                                             <TableCell className="text-right">
-                                                <Button variant={isSaved ? "ghost" : "outline"} size="sm" onClick={() => handleIndividualSave(s.id)} disabled={savingId === s.id} className={cn(isSaved && "text-green-600")}>
+                                                <Button 
+                                                    variant={isSaved ? "ghost" : "outline"} 
+                                                    size="sm" 
+                                                    onClick={() => handleIndividualSave(s.id)} 
+                                                    disabled={savingId === s.id} 
+                                                    className={cn("h-8 px-2", isSaved && "text-green-600")}
+                                                >
                                                     {savingId === s.id ? <Loader2 className="h-3 w-3 animate-spin" /> : isSaved ? <CheckCircle2 className="h-4 w-4" /> : <Save className="h-4 w-4" />}
                                                     <span className="ml-1 hidden sm:inline">{isSaved ? '저장됨' : '저장'}</span>
                                                 </Button>
@@ -390,12 +421,36 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start"><CalendarIcon className="mr-2 h-4 w-4" />{recordDate ? format(recordDate, "PPP") : "날짜"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={recordDate} onSelect={setRecordDate} initialFocus /></PopoverContent></Popover>
-                            <Select value={selectedItemName} onValueChange={setSelectedItemName}><SelectTrigger><SelectValue placeholder="종목 선택" /></SelectTrigger><SelectContent>{activeItems.map(i => <SelectItem key={i.id} value={i.name}>{i.name}</SelectItem>)}</SelectContent></Select>
+                            <Select value={selectedItemName} onValueChange={v => { setSelectedItemName(v); setShowVideo(false); setShowGradeTable(false); }}><SelectTrigger><SelectValue placeholder="종목 선택" /></SelectTrigger><SelectContent>{activeItems.map(i => <SelectItem key={i.id} value={i.name}>{i.name}</SelectItem>)}</SelectContent></Select>
                         </div>
+                        
+                        {selectedItemForSingleAdd && (
+                            <div className="flex flex-wrap gap-2">
+                                {selectedItemForSingleAdd.videoUrl && (
+                                    <Button variant="outline" size="sm" onClick={() => setShowVideo(!showVideo)}>
+                                        <Youtube className="mr-2 h-4 w-4 text-red-600" />
+                                        {showVideo ? '영상 닫기' : '측정 예시 영상 보기'}
+                                    </Button>
+                                )}
+                                {selectedItemForSingleAdd.isPaps && (
+                                    <Button variant="outline" size="sm" onClick={() => setShowGradeTable(!showGradeTable)}>
+                                        <ClipboardList className="mr-2 h-4 w-4 text-primary" />
+                                        {showGradeTable ? '기준표 닫기' : '등급 기준표 보기'}
+                                    </Button>
+                                )}
+                            </div>
+                        )}
+
+                        {showVideo && selectedItemForSingleAdd?.videoUrl && (
+                            <div className="aspect-video w-full max-w-2xl mx-auto rounded-lg overflow-hidden border bg-black animate-in fade-in zoom-in-95">
+                                <iframe width="100%" height="100%" src={getYouTubeEmbedUrl(selectedItemForSingleAdd.videoUrl)!} title="참고 영상" frameBorder="0" allowFullScreen></iframe>
+                            </div>
+                        )}
+
                         {selectedItemForSingleAdd?.isCompound ? (
                             <div className="grid grid-cols-2 gap-4">
-                                <div><Label>키 (cm)</Label><Input type="number" value={height} onChange={e => setHeight(e.target.value)} /></div>
-                                <div><Label>몸무게 (kg)</Label><Input type="number" value={weight} onChange={e => setWeight(e.target.value)} /></div>
+                                <div className="space-y-2"><Label>키 (cm)</Label><Input type="number" value={height} onChange={e => setHeight(e.target.value)} /></div>
+                                <div className="space-y-2"><Label>몸무게 (kg)</Label><Input type="number" value={weight} onChange={e => setWeight(e.target.value)} /></div>
                             </div>
                         ) : (
                             <div className="space-y-2"><Label>기록 ({selectedItemForSingleAdd?.unit})</Label><Input type="number" value={recordValue} onChange={e => setRecordValue(e.target.value)} className="text-lg py-6" /></div>
@@ -410,11 +465,13 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
                                 } else {
                                     val = parseFloat(recordValue);
                                 }
+                                if (isNaN(val)) throw new Error("Invalid value");
                                 const rec = await addOrUpdateRecord({ studentId: selectedStudent.id, school, item: selectedItemName, date: format(recordDate, 'yyyy-MM-dd'), value: val });
                                 onRecordUpdate([rec], 'update');
                                 toast({ title: "저장 완료" });
                                 setRecordValue(''); setHeight(''); setWeight('');
-                            } finally { setIsSubmitting(false); }
+                            } catch(e) { toast({ variant: 'destructive', title: '저장 실패' }); }
+                            finally { setIsSubmitting(false); }
                         }} disabled={isSubmitting}>저장하기</Button>
                     </CardContent>
                 ) : <CardContent className="text-center py-10 text-muted-foreground">학생을 검색해주세요.</CardContent>}
