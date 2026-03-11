@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Loader2, Calendar as CalendarIcon, X, Youtube, Eye, EyeOff, ClipboardList, Save, CheckCircle2 } from 'lucide-react';
+import { Loader2, Calendar as CalendarIcon, X, Youtube, ClipboardList, Save, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -47,8 +47,16 @@ export function BatchInput({ allStudents, activeItems, allRecords, onRecordUpdat
   const students = useMemo(() => {
     let list: Student[] = [];
     if (selectedGroupId) {
-      const group = allTeamGroups.find(g => g.id === selectedGroupId) || sportsClubs.find(c => c.id === selectedGroupId);
-      if (group) list = allStudents.filter(s => group.memberIds.includes(s.id));
+      // 1. TeamGroup에서 찾기
+      const teamGroup = allTeamGroups.find(g => g.id === selectedGroupId);
+      if (teamGroup) {
+        const allMemberIdsInGroup = teamGroup.teams.flatMap(t => t.memberIds);
+        list = allStudents.filter(s => allMemberIdsInGroup.includes(s.id));
+      } else {
+        // 2. SportsClub에서 찾기
+        const club = sportsClubs.find(c => c.id === selectedGroupId);
+        if (club) list = allStudents.filter(s => club.memberIds.includes(s.id));
+      }
     } else if (selectedGrade) {
       list = allStudents.filter(s => s.grade === selectedGrade && (selectedClassNum === 'all' || s.classNum === selectedClassNum));
     }
@@ -208,13 +216,14 @@ export function BatchInput({ allStudents, activeItems, allRecords, onRecordUpdat
     <Card className="bg-transparent shadow-none border-none">
       <CardHeader>
         <CardTitle>학급/팀별 측정 기록</CardTitle>
+        <CardDescription>아이들의 이전 기록을 확인하며 한 명씩 실시간으로 안전하게 저장하세요.</CardDescription>
         <div className="flex flex-wrap items-center gap-2 pt-4">
           <Select value={selectedGrade} onValueChange={v => { setSelectedGrade(v); setSelectedGroupId(''); }}><SelectTrigger className="w-[120px]"><SelectValue placeholder="학년" /></SelectTrigger><SelectContent>{[...new Set(allStudents.map((s: any) => s.grade))].sort((a: any,b: any) => parseInt(a)-parseInt(b)).map((g: any) => <SelectItem key={g} value={g}>{g}학년</SelectItem>)}</SelectContent></Select>
           <Select value={selectedClassNum} onValueChange={setSelectedClassNum} disabled={!selectedGrade}><SelectTrigger className="w-[120px]"><SelectValue placeholder="반" /></SelectTrigger><SelectContent><SelectItem value="all">전체</SelectItem>{[...new Set(allStudents.filter((s: any) => s.grade === selectedGrade).map((s: any) => s.classNum))].sort((a: any,b: any) => parseInt(a)-parseInt(b)).map((c: any) => <SelectItem key={c} value={c}>{c}반</SelectItem>)}</SelectContent></Select>
           <Select value={selectedGroupId} onValueChange={v => { setSelectedGroupId(v); setSelectedGrade(''); }}><SelectTrigger className="w-[180px]"><SelectValue placeholder="그룹 선택" /></SelectTrigger><SelectContent>{allTeamGroups.concat(sportsClubs as any).map((g: any) => <SelectItem key={g.id} value={g.id}>{g.description || g.name}</SelectItem>)}</SelectContent></Select>
           <Popover><PopoverTrigger asChild><Button variant="outline" className="w-[200px] justify-start"><CalendarIcon className="mr-2 h-4 w-4" />{date ? format(date, "PPP") : "날짜"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={date} onSelect={setDate} initialFocus /></PopoverContent></Popover>
           <Select value={batchItem} onValueChange={v => { setBatchItem(v); setShowVideo(false); setShowGradeTable(false); }}><SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger><SelectContent>{activeItems.map(i => <SelectItem key={i.id} value={i.name}>{i.name}</SelectItem>)}</SelectContent></Select>
-          <Button onClick={handleSaveAll} disabled={isSubmitting || !students.length} className="ml-auto">{isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}일괄 저장</Button>
+          <Button onClick={handleSaveAll} disabled={isSubmitting || !students.length} className="ml-auto font-bold">{isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}전체 일괄 저장</Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -223,13 +232,13 @@ export function BatchInput({ allStudents, activeItems, allRecords, onRecordUpdat
             {selectedItemInfo.videoUrl && (
               <Button variant="outline" size="sm" onClick={() => setShowVideo(!showVideo)}>
                 <Youtube className="mr-2 h-4 w-4 text-red-600" />
-                {showVideo ? '영상 닫기' : '참고 영상 보기'}
+                {showVideo ? '영상 닫기' : '측정 예시 영상'}
               </Button>
             )}
             {selectedItemInfo.isPaps && (
               <Button variant="outline" size="sm" onClick={() => setShowGradeTable(!showGradeTable)}>
                 <ClipboardList className="mr-2 h-4 w-4 text-primary" />
-                {showGradeTable ? '기준표 닫기' : '등급 기준표 보기'}
+                {showGradeTable ? '기준표 닫기' : '등급 기준표'}
               </Button>
             )}
           </div>
@@ -282,7 +291,7 @@ export function BatchInput({ allStudents, activeItems, allRecords, onRecordUpdat
                 <TableRow>
                     <TableHead className="w-16">사진</TableHead>
                     <TableHead className="w-32">이름</TableHead>
-                    <TableHead className="w-24">이전 기록</TableHead>
+                    <TableHead className="w-24 text-blue-600 font-bold">이전 기록</TableHead>
                     {selectedItemInfo?.isCompound ? (
                         <>
                             <TableHead className="w-24 text-center">키(cm)</TableHead>
@@ -302,7 +311,7 @@ export function BatchInput({ allStudents, activeItems, allRecords, onRecordUpdat
                 const isSaved = savedIds.has(s.id);
                 
                 return (
-                <TableRow key={s.id} className={cn(isSaved && "bg-green-50/50")}>
+                <TableRow key={s.id} className={cn(isSaved && "bg-green-50/50 transition-colors")}>
                     <TableCell><Avatar className="w-10 h-10"><AvatarImage src={s.photoUrl} /><AvatarFallback>{s.name[0]}</AvatarFallback></Avatar></TableCell>
                     <TableCell>
                         <div className="flex flex-col">
@@ -310,7 +319,7 @@ export function BatchInput({ allStudents, activeItems, allRecords, onRecordUpdat
                             <span className="text-[10px] text-muted-foreground">{s.grade}-{s.classNum} {s.studentNum}번</span>
                         </div>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground font-medium italic">
+                    <TableCell className="text-xs font-black text-blue-600 italic">
                         {prev ? `${prev.value}${selectedItemInfo?.unit || ''}` : '-'}
                     </TableCell>
                     {selectedItemInfo?.isCompound ? (
@@ -333,7 +342,7 @@ export function BatchInput({ allStudents, activeItems, allRecords, onRecordUpdat
                                     className="text-center h-9"
                                 />
                             </TableCell>
-                            <TableCell className="text-center font-bold text-primary">
+                            <TableCell className="text-center font-bold text-primary text-sm">
                                 {calculateBmi(current.height, current.weight)}
                             </TableCell>
                         </>
@@ -351,7 +360,7 @@ export function BatchInput({ allStudents, activeItems, allRecords, onRecordUpdat
                         <Button 
                             variant={isSaved ? "ghost" : "outline"} 
                             size="sm" 
-                            className={cn("h-8 px-2", isSaved && "text-green-600")}
+                            className={cn("h-8 px-2 transition-all", isSaved && "text-green-600 font-bold")}
                             onClick={() => handleIndividualSave(s.id)}
                             disabled={savingId === s.id}
                         >

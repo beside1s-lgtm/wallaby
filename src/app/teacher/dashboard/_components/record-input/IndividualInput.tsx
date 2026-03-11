@@ -6,10 +6,10 @@ import { addOrUpdateRecord } from '@/lib/store';
 import { Student, MeasurementItem, MeasurementRecord } from '@/lib/types';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, Calendar as CalendarIcon, User, Youtube, ClipboardList } from 'lucide-react';
+import { Loader2, Search, Calendar as CalendarIcon, Youtube, ClipboardList, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -18,6 +18,7 @@ import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { papsGradeStandards } from '@/lib/paps';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export function IndividualInput({ allStudents, activeItems, onRecordUpdate }: { allStudents: Student[], activeItems: MeasurementItem[], onRecordUpdate: any }) {
   const { school } = useAuth();
@@ -31,16 +32,21 @@ export function IndividualInput({ allStudents, activeItems, onRecordUpdate }: { 
   
   const [showVideo, setShowVideo] = useState(false);
   const [showGradeTable, setShowGradeTable] = useState(false);
+  
+  const [foundStudents, setFoundStudents] = useState<Student[]>([]);
+  const [isSelectionDialogOpen, setIsSelectionDialogOpen] = useState(false);
 
   const selectedItemInfo = useMemo(() => activeItems.find(i => i.name === itemName), [itemName, activeItems]);
 
   const handleSearch = () => {
-    const found = allStudents.filter(s => s.name.includes(search));
+    if (!search.trim()) return;
+    const found = allStudents.filter(s => s.name.includes(search.trim()));
     if (found.length === 1) {
       setStudent(found[0]);
       setSearch('');
     } else if (found.length > 1) {
-      toast({ variant: "default", title: "검색 결과가 많습니다.", description: "더 정확한 이름을 입력해주세요." });
+      setFoundStudents(found);
+      setIsSelectionDialogOpen(true);
     } else {
       toast({ variant: "destructive", title: "학생을 찾을 수 없습니다." });
     }
@@ -104,15 +110,32 @@ export function IndividualInput({ allStudents, activeItems, onRecordUpdate }: { 
           <Button onClick={handleSearch}><Search className="h-4 w-4 mr-2" />검색</Button>
         </div>
       </CardHeader>
+      
+      <Dialog open={isSelectionDialogOpen} onOpenChange={setIsSelectionDialogOpen}>
+          <DialogContent>
+              <DialogHeader><DialogTitle>학생 선택</DialogTitle></DialogHeader>
+              <div className="max-h-[60vh] overflow-y-auto">
+                  <Table>
+                      <TableHeader><TableRow><TableHead>이름</TableHead><TableHead>학년-반</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                      <TableBody>
+                          {foundStudents.map((s) => (
+                              <TableRow key={s.id}><TableCell>{s.name}</TableCell><TableCell>{s.grade}-{s.classNum}</TableCell><TableCell><Button size="sm" onClick={() => { setStudent(s); setIsSelectionDialogOpen(false); setSearch(''); }}>선택</Button></TableCell></TableRow>
+                          ))}
+                      </TableBody>
+                  </Table>
+              </div>
+          </DialogContent>
+      </Dialog>
+
       {student && (
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-4 p-4 bg-secondary rounded-lg">
-            <Avatar className="w-20 h-20"><AvatarImage src={student.photoUrl} /><AvatarFallback>{student.name[0]}</AvatarFallback></Avatar>
+          <div className="flex items-center gap-4 p-4 bg-secondary/50 rounded-lg border border-primary/10">
+            <Avatar className="w-20 h-20 border-2 border-background"><AvatarImage src={student.photoUrl} /><AvatarFallback>{student.name[0]}</AvatarFallback></Avatar>
             <div>
-              <p className="font-bold text-lg">{student.name}</p>
-              <p className="text-sm text-muted-foreground">{student.grade}학년 {student.classNum}반 {student.studentNum}번 ({student.gender})</p>
+              <p className="font-black text-xl text-primary">{student.name}</p>
+              <p className="text-sm font-medium text-muted-foreground">{student.grade}학년 {student.classNum}반 {student.studentNum}번 ({student.gender})</p>
             </div>
-            <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setStudent(null)}>변경</Button>
+            <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setStudent(null)}><X className="h-4 w-4" /> 변경</Button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -192,11 +215,11 @@ export function IndividualInput({ allStudents, activeItems, onRecordUpdate }: { 
 
           <div className="space-y-2">
             <Label>기록 입력 ({selectedItemInfo?.unit || ''})</Label>
-            <Input type="number" placeholder="숫자만 입력하세요" value={val} onChange={e => setVal(e.target.value)} className="text-lg py-6" />
+            <Input type="number" placeholder="숫자만 입력하세요" value={val} onChange={e => setVal(e.target.value)} className="text-2xl py-8 font-black text-center" />
           </div>
 
-          <Button className="w-full py-6 text-lg font-bold" onClick={handleSave} disabled={isSubmitting || !itemName || !val}>
-            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          <Button className="w-full py-8 text-lg font-black shadow-xl transition-all active:scale-[0.98]" onClick={handleSave} disabled={isSubmitting || !itemName || !val}>
+            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
             기록 저장하기
           </Button>
         </CardContent>

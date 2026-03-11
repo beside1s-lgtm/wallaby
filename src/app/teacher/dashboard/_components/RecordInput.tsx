@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
@@ -55,8 +56,8 @@ interface RecordInputProps {
 }
 
 /**
- * @fileOverview 교사용 기록 입력 컴포넌트입니다.
- * 학급별 일괄 입력 시 이전 기록 확인 및 개별 저장 기능을 포함합니다.
+ * @fileOverview 교사용 기록 입력 통합 컴포넌트입니다.
+ * 학급별 일괄 입력 시 이전 기록 확인 및 개별 즉시 저장 기능을 포함합니다.
  */
 export default function RecordInput({ allStudents, allItems, allRecords, onRecordUpdate, allTeamGroups, sportsClubs }: RecordInputProps) {
   const { school } = useAuth();
@@ -141,8 +142,14 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
   const studentsForBatch = useMemo(() => {
     let list: Student[] = [];
     if (selectedGroupId) {
-        const group = allTeamGroups.find(g => g.id === selectedGroupId) || sportsClubs.find(c => c.id === selectedGroupId);
-        if (group) list = allStudents.filter(s => group.memberIds.includes(s.id));
+        const teamGroup = allTeamGroups.find(g => g.id === selectedGroupId);
+        if (teamGroup) {
+            const memberIds = teamGroup.teams.flatMap(t => t.memberIds);
+            list = allStudents.filter(s => memberIds.includes(s.id));
+        } else {
+            const club = sportsClubs.find(c => c.id === selectedGroupId);
+            if (club) list = allStudents.filter(s => club.memberIds.includes(s.id));
+        }
     } else if (selectedGrade) {
         list = allStudents.filter(s => s.grade === selectedGrade && (selectedClassNum === 'all' || s.classNum === selectedClassNum));
     }
@@ -281,7 +288,7 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
                       <TableHeader><TableRow><TableHead>이름</TableHead><TableHead>학년-반</TableHead><TableHead></TableHead></TableRow></TableHeader>
                       <TableBody>
                           {foundStudents.map((s) => (
-                              <TableRow key={s.id}><TableCell>{s.name}</TableCell><TableCell>{s.grade}-{s.classNum}</TableCell><TableCell><Button size="sm" onClick={() => { setSelectedStudent(s); setIsSelectionDialogOpen(false); }}>선택</Button></TableCell></TableRow>
+                              <TableRow key={s.id}><TableCell>{s.name}</TableCell><TableCell>{s.grade}-{s.classNum}</TableCell><TableCell><Button size="sm" onClick={() => { setSelectedStudent(s); setIsSelectionDialogOpen(false); setSearchTerm(''); }}>선택</Button></TableCell></TableRow>
                           ))}
                       </TableBody>
                   </Table>
@@ -407,7 +414,7 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
                     <CardTitle>개별 학생 기록 입력</CardTitle>
                     <CardDescription>학생의 이름을 검색하여 특정 종목의 기록을 입력합니다.</CardDescription>
                     <div className="flex gap-2 pt-4">
-                        <Input placeholder="학생 이름 검색..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} className="w-full sm:w-auto" />
+                        <Input placeholder="이름 검색..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} className="w-full sm:w-auto" />
                         <Button onClick={handleSearch}><Search className="mr-2 h-4 w-4" /> 검색</Button>
                     </div>
                 </CardHeader>
