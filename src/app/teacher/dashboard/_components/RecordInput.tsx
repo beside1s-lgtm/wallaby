@@ -55,10 +55,6 @@ interface RecordInputProps {
     sportsClubs: SportsClub[];
 }
 
-/**
- * @fileOverview 교사용 기록 입력 통합 컴포넌트입니다.
- * 학급별 일괄 입력 시 이전 기록 확인 및 개별 즉시 저장 기능을 포함합니다.
- */
 export default function RecordInput({ allStudents, allItems, allRecords, onRecordUpdate, allTeamGroups, sportsClubs }: RecordInputProps) {
   const { school } = useAuth();
   const { toast } = useToast();
@@ -427,7 +423,7 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <Popover><PopoverTrigger asChild><Button variant="outline" className="w-full justify-start"><CalendarIcon className="mr-2 h-4 w-4" />{recordDate ? format(recordDate, "PPP") : "날짜"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={recordDate} onSelect={setRecordDate} initialFocus /></PopoverContent></Popover>
-                            <Select value={selectedItemName} onValueChange={v => { setSelectedItemName(v); setShowVideo(false); setShowGradeTable(false); }}><SelectTrigger><SelectValue placeholder="종목 선택" /></SelectTrigger><SelectContent>{activeItems.map(i => <SelectItem key={i.id} value={i.name}>{i.name}</SelectItem>)}</SelectContent></Select>
+                            <Select value={selectedItemName} onValueChange={v => { setSelectedItemName(v); setShowVideo(false); setShowGradeTable(false); }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{activeItems.map(i => <SelectItem key={i.id} value={i.name}>{i.name}</SelectItem>)}</SelectContent></Select>
                         </div>
                         
                         {selectedItemForSingle?.isCompound ? (
