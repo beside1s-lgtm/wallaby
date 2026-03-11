@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -143,6 +144,7 @@ export default function TeacherDashboardPage() {
               <RecordInput 
                 allStudents={data.students} 
                 allItems={data.items} 
+                allRecords={data.records}
                 onRecordUpdate={() => load(true)} 
                 allTeamGroups={data.teams} 
                 sportsClubs={data.clubs} 
