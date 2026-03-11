@@ -59,7 +59,6 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
   const { school } = useAuth();
   const { toast } = useToast();
   
-  // 공통 상태
   const activeItems = useMemo(() => allItems.filter(item => !item.isArchived && !item.isDeactivated), [allItems]);
   const { grades, classNumsByGrade } = useMemo(() => {
     const gradesList = [...new Set(allStudents.map(s => s.grade))].sort((a, b) => parseInt(a) - parseInt(b));
@@ -70,7 +69,6 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
     return { grades: gradesList, classNumsByGrade: classMap };
   }, [allStudents]);
 
-  // UI 상태
   const [activeTab, setActiveTab] = useState('batch');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -79,7 +77,6 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
   const [recordDate, setRecordDate] = useState<Date | undefined>(new Date());
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // 학급별 일괄 입력 상태
   const [selectedGrade, setSelectedGrade] = useState('');
   const [selectedClassNum, setSelectedClassNum] = useState('all');
   const [selectedGroupId, setSelectedGroupId] = useState(''); 
@@ -90,15 +87,12 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
   const [savingId, setSavingId] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
 
-  // 가이드 뷰 상태
   const [showVideo, setShowVideo] = useState(false);
   const [showGradeTable, setShowGradeTable] = useState(false);
   
-  // 검색 결과 팝업 상태
   const [foundStudents, setFoundStudents] = useState<Student[]>([]);
   const [isSelectionDialogOpen, setIsSelectionDialogOpen] = useState(false);
 
-  // 초기 종목 설정
   useEffect(() => {
     if (activeItems.length > 0) {
         if (!selectedItemName) {
@@ -112,13 +106,11 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
     }
   }, [activeItems, selectedItemName, batchRecordItem]);
 
-  // 대상 변경 시 입력값 초기화
   useEffect(() => {
     setBatchRecords({});
     setSavedIds(new Set());
   }, [selectedGrade, selectedClassNum, batchRecordItem, selectedGroupId]);
 
-  // 검색 로직
   const handleSearch = () => {
     if (!searchTerm.trim()) return;
     const found = allStudents.filter(s => s.name.includes(searchTerm.trim()));
@@ -134,7 +126,6 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
     }
   };
 
-  // 필터링된 학급 학생 목록
   const studentsForBatch = useMemo(() => {
     let list: Student[] = [];
     if (selectedGroupId) {
@@ -159,14 +150,12 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
   const selectedItemForBatch = useMemo(() => activeItems.find(item => item.name === batchRecordItem), [batchRecordItem, activeItems]);
   const selectedItemForSingle = useMemo(() => activeItems.find(item => item.name === selectedItemName), [selectedItemName, activeItems]);
 
-  // 이전 기록 가져오기
   const getPreviousRecord = (studentId: string, itemName: string) => {
     return allRecords
       .filter(r => r.studentId === studentId && r.item === itemName)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
   };
 
-  // BMI 계산 로직
   const calculateBmi = (heightCm?: string, weightKg?: string): string => {
     const h = parseFloat(heightCm || '');
     const w = parseFloat(weightKg || '');
@@ -177,7 +166,6 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
     return '';
   };
 
-  // 개별 저장 로직 (한 명씩 즉시 저장)
   const handleIndividualSave = async (studentId: string) => {
     if (!school || !batchRecordItem || !batchRecordDate) return;
     
@@ -224,7 +212,6 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
     }
   };
 
-  // 일괄 저장 로직
   const handleSaveBatchRecords = async () => {
     if (!school || !batchRecordItem || !batchRecordDate) return;
     setIsBatchSubmitting(true);

@@ -47,13 +47,15 @@ export function BatchInput({ allStudents, activeItems, allRecords, onRecordUpdat
   const students = useMemo(() => {
     let list: Student[] = [];
     if (selectedGroupId) {
-      const teamGroup = allTeamGroups.find(g => g.id === selectedGroupId);
-      if (teamGroup) {
-        const allMemberIdsInGroup = teamGroup.teams.flatMap(t => t.memberIds);
-        list = allStudents.filter(s => allMemberIdsInGroup.includes(s.id));
-      } else {
-        const club = sportsClubs.find(c => c.id === selectedGroupId);
-        if (club) list = allStudents.filter(s => club.memberIds.includes(s.id));
+      const group = (allTeamGroups as (TeamGroup | SportsClub)[]).concat(sportsClubs).find(g => g.id === selectedGroupId);
+      if (group) {
+        let ids: string[] = [];
+        if ('teams' in group) {
+          ids = (group as TeamGroup).teams.flatMap(t => t.memberIds);
+        } else if ('memberIds' in group) {
+          ids = (group as SportsClub).memberIds;
+        }
+        list = allStudents.filter(s => ids.includes(s.id));
       }
     } else if (selectedGrade) {
       list = allStudents.filter(s => s.grade === selectedGrade && (selectedClassNum === 'all' || s.classNum === selectedClassNum));
@@ -137,7 +139,7 @@ export function BatchInput({ allStudents, activeItems, allRecords, onRecordUpdat
     <Card className="bg-transparent shadow-none border-none">
       <CardHeader>
         <CardTitle>학급/팀별 측정 기록</CardTitle>
-        <CardDescription>아이들의 이전 기록을 확인하며 한 명씩 실시간으로 안전하게 저장하세요.</CardDescription>
+        <CardDescription>아이들의 이전 기록을 참고하며 한 명씩 실시간으로 안전하게 저장하세요.</CardDescription>
         <div className="flex flex-wrap items-center gap-2 pt-4">
           <Select value={selectedGrade} onValueChange={v => { setSelectedGrade(v); setSelectedGroupId(''); }}><SelectTrigger className="w-[120px]"><SelectValue placeholder="학년" /></SelectTrigger><SelectContent>{[...new Set(allStudents.map((s: any) => s.grade))].sort((a: any,b: any) => parseInt(a)-parseInt(b)).map((g: any) => <SelectItem key={g} value={g}>{g}학년</SelectItem>)}</SelectContent></Select>
           <Select value={selectedClassNum} onValueChange={setSelectedClassNum} disabled={!selectedGrade}><SelectTrigger className="w-[120px]"><SelectValue placeholder="반" /></SelectTrigger><SelectContent><SelectItem value="all">전체</SelectItem>{[...new Set(allStudents.filter((s: any) => s.grade === selectedGrade).map((s: any) => s.classNum))].sort((a: any,b: any) => parseInt(a)-parseInt(b)).map((c: any) => <SelectItem key={c} value={c}>{c}반</SelectItem>)}</SelectContent></Select>

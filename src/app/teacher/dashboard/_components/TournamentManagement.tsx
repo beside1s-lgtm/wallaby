@@ -221,7 +221,7 @@ export default function TournamentManagement({ onTournamentUpdate, allTeamGroups
   const [selectedTournamentId, setSelectedTournamentId] = useState('');
   const [tournamentName, setTournamentName] = useState('');
   const [selectedSport, setSelectedSport] = useState<Tournament['sport']>('soccer');
-  const [tournamentType, setTournamentType] = useState<'tournament' | 'league'>('tournament');
+  const [tournamentType, setTournamentType] = useState<'tournament' | 'league' | 'individual-league'>('tournament');
   const [tournamentDate, setTournamentDate] = useState<Date | undefined>(new Date());
   const [selectedTeamGroupId, setSelectedTeamGroupId] = useState('');
   const [currentTournament, setCurrentTournament] = useState<Tournament | null>(null);
