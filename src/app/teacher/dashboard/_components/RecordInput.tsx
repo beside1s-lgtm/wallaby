@@ -109,7 +109,7 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
             setBatchRecordItem(bmiItem?.name || firstPapsItem?.name || activeItems[0].name);
         }
     }
-  }, [activeItems]);
+  }, [activeItems, selectedItemName, batchRecordItem]);
 
   // 대상 변경 시 입력값 및 저장 상태 초기화
   useEffect(() => {
@@ -149,6 +149,22 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
         return (w / (heightInMeters * heightInMeters)).toFixed(2);
     }
     return '';
+  };
+
+  // 검색 함수 정의
+  const handleSearch = () => {
+    if (!searchTerm.trim()) return;
+    const found = allStudents.filter(s => s.name.includes(searchTerm.trim()));
+    if (found.length === 1) {
+      setSelectedStudent(found[0]);
+      setFoundStudents([]);
+      setSearchTerm('');
+    } else if (found.length > 1) {
+      setFoundStudents(found);
+      setIsSelectionDialogOpen(true);
+    } else {
+      toast({ variant: "destructive", title: "학생을 찾을 수 없습니다." });
+    }
   };
 
   const handleIndividualSave = async (studentId: string) => {
@@ -247,7 +263,7 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
   };
 
   return (
-    <>
+    <div className="space-y-6">
       <Dialog open={isSelectionDialogOpen} onOpenChange={setIsSelectionDialogOpen}>
           <DialogContent>
               <DialogHeader><DialogTitle>학생 선택</DialogTitle></DialogHeader>
@@ -274,7 +290,7 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
              <Card className="bg-transparent shadow-none border-none">
                 <CardHeader>
                     <CardTitle>학급/팀별 측정 기록</CardTitle>
-                    <CardDescription>가장 최근의 이전 기록을 보며 한 명씩 즉시 저장할 수 있습니다.</CardDescription>
+                    <CardDescription>이전 기록을 보며 한 명씩 실시간으로 저장할 수 있습니다.</CardDescription>
                     <div className="flex flex-wrap items-center gap-2 pt-4">
                         <Select value={selectedGrade} onValueChange={v => { setSelectedGrade(v); setSelectedClassNum('all'); setSelectedGroupId(''); }}><SelectTrigger className="w-[100px]"><SelectValue placeholder="학년" /></SelectTrigger><SelectContent>{grades.map(g => <SelectItem key={g} value={g}>{g}학년</SelectItem>)}</SelectContent></Select>
                         <Select value={selectedClassNum} onValueChange={setSelectedClassNum} disabled={!selectedGrade}><SelectTrigger className="w-[100px]"><SelectValue placeholder="반" /></SelectTrigger><SelectContent><SelectItem value="all">전체</SelectItem>{classNumsByGrade[selectedGrade]?.map(c => <SelectItem key={c} value={c}>{c}반</SelectItem>)}</SelectContent></Select>
@@ -423,6 +439,6 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
             </Card>
         </TabsContent>
       </Tabs>
-    </>
+    </div>
   );
 }
