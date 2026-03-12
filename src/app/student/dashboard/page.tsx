@@ -26,6 +26,7 @@ import { CompetitionTab } from './_components/CompetitionTab';
 import { KnowledgeTab } from './_components/KnowledgeTab';
 import { getStudentFeedback } from '@/ai/flows/student-ai-feedback';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 export default function StudentDashboardPage() {
   const { user, school, isLoading: isAuthLoading } = useAuth();
