@@ -19,9 +19,10 @@ interface KnowledgeTabProps {
   quizzes: QuizAssignment[];
   results: QuizResult[];
   student: Student | null;
+  onRefresh?: () => void;
 }
 
-export function KnowledgeTab({ quizzes, results, student }: KnowledgeTabProps) {
+export function KnowledgeTab({ quizzes, results, student, onRefresh }: KnowledgeTabProps) {
   const [selectedQuiz, setSelectedQuiz] = useState<QuizAssignment | null>(null);
   const [currentStep, setCurrentStep] = useState<'video' | 'questions'>('video');
   const [answers, setAnswers] = useState<Record<number, string>>({});
@@ -64,6 +65,8 @@ export function KnowledgeTab({ quizzes, results, student }: KnowledgeTabProps) {
       await saveQuizResult(student.school, result);
       setLastResult(result as QuizResult);
       setShowResult(true);
+      // 데이터 갱신 요청
+      if (onRefresh) onRefresh();
     } catch (error) {
       console.error("Failed to save quiz result:", error);
     } finally {

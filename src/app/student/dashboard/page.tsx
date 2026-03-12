@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { 
   getItems, 
@@ -50,55 +50,56 @@ export default function StudentDashboardPage() {
   const [aiFeedback, setAiFeedback] = useState('');
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
 
-  useEffect(() => {
-    async function load() {
-      if (!user || !school) return;
-      try {
-        const [items, records, stud, allStuds, allTeams, quizzes, results, allRecords, sportsClubs, schoolInfo] = await Promise.all([
-          getItems(school), 
-          getRecordsByStudent(school, user.id), 
-          getStudentById(school, user.id),
-          getStudents(school), 
-          getTeamGroups(school), 
-          getQuizAssignments(school), 
-          getQuizResultsBySchool(school),
-          getRecords(school),
-          getSportsClubs(school),
-          getSchoolByName(school)
-        ]);
-        
-        const tournament = await getLatestTournamentForStudent(school, user.id, allStuds, allTeams);
-        
-        // Filter quizzes based on student's context
-        const filteredQuizzes = quizzes.filter(q => {
-          if (!stud) return false;
-          if (q.targetType === 'school') return true;
-          if (q.targetType === 'grade') return q.targetGrade === stud.grade;
-          if (q.targetType === 'class') return q.targetGrade === stud.grade && q.targetClassNum === stud.classNum;
-          if (q.targetType === 'club') {
-            const club = sportsClubs.find(c => c.id === q.targetClubId);
-            return club?.memberIds.includes(stud.id);
-          }
-          return false;
-        });
+  const loadData = useCallback(async () => {
+    if (!user || !school) return;
+    try {
+      const [items, records, stud, allStuds, allTeams, quizzes, results, allRecords, sportsClubs, schoolInfo] = await Promise.all([
+        getItems(school), 
+        getRecordsByStudent(school, user.id), 
+        getStudentById(school, user.id),
+        getStudents(school), 
+        getTeamGroups(school), 
+        getQuizAssignments(school), 
+        getQuizResultsBySchool(school),
+        getRecords(school),
+        getSportsClubs(school),
+        getSchoolByName(school)
+      ]);
+      
+      const tournament = await getLatestTournamentForStudent(school, user.id, allStuds, allTeams);
+      
+      // Filter quizzes based on student's context
+      const filteredQuizzes = quizzes.filter(q => {
+        if (!stud) return false;
+        if (q.targetType === 'school') return true;
+        if (q.targetType === 'grade') return q.targetGrade === stud.grade;
+        if (q.targetType === 'class') return q.targetGrade === stud.grade && q.targetClassNum === stud.classNum;
+        if (q.targetType === 'club') {
+          const club = sportsClubs.find(c => c.id === q.targetClubId);
+          return club?.memberIds.includes(stud.id);
+        }
+        return false;
+      });
 
-        setData({ 
-          items, 
-          records, 
-          student: stud, 
-          tournament, 
-          quizzes: filteredQuizzes, 
-          results: results.filter(r => r.studentId === user.id),
-          allStudents: allStuds,
-          allRecords: allRecords,
-          schoolInfo
-        });
-      } finally { 
-        setIsLoading(false); 
-      }
+      setData({ 
+        items, 
+        records, 
+        student: stud, 
+        tournament, 
+        quizzes: filteredQuizzes, 
+        results: results.filter(r => r.studentId === user.id),
+        allStudents: allStuds,
+        allRecords: allRecords,
+        schoolInfo
+      });
+    } finally { 
+      setIsLoading(false); 
     }
-    load();
   }, [user, school]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const hallOfFame = useMemo(() => {
     if (!school || data.items.length === 0 || data.allStudents.length === 0) return [];
@@ -232,7 +233,8 @@ export default function StudentDashboardPage() {
               <KnowledgeTab 
                 quizzes={data.quizzes} 
                 results={data.results} 
-                student={data.student} 
+                student={data.student}
+                onRefresh={loadData}
               />
             </TabsContent>
         </div>
