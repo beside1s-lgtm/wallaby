@@ -1,1 +1,822 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KIS 스쿨버스 - 학부모용 대화형 가이드 / Hướng dẫn cho phụ huynh</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
 
+    <!-- Google Fonts: Noto Sans KR (Korean) & Roboto (Vietnamese support) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+
+    <!-- Chosen Palette: Sky & Soft Petal -->
+    <!-- Application Structure Plan: 한국어/베트남어 다국어 지원을 위해 최상위 body 태그에 lang-ko, lang-vi 클래스를 토글하는 방식을 사용했습니다. HTML 내에 <span class="ko">와 <span class="vi">를 병기하여 자바스크립트 의존성을 줄이고 빠른 렌더링을 보장합니다. 동적으로 생성되는 알림이나 추가 폼의 경우 JS 내부에 마련된 텍스트 딕셔너리를 활용해 번역합니다. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Noto Sans KR"', '"Roboto"', 'sans-serif'],
+                    },
+                    colors: {
+                        parent: {
+                            bg: '#fdfbff',
+                            accent: '#4a90e2',
+                            soft: '#f0f4f8',
+                            danger: '#ff6b6b',
+                            success: '#51cf66',
+                            warning: '#f59e0b'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { background-color: #fdfbff; color: #2d3436; }
+        
+        /* Language Toggle Logic */
+        body.lang-ko .vi { display: none !important; }
+        body.lang-vi .ko { display: none !important; }
+
+        .nav-card:hover {
+            border-color: #4a90e2;
+            background-color: #f0f7ff;
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .animate-pop { animation: popIn 0.3s ease-out forwards; }
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 8px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col font-sans overflow-x-hidden lang-ko">
+
+    <!-- 상단 헤더 및 탭 메뉴 -->
+    <header class="bg-white border-b border-slate-100 sticky top-0 z-50 shadow-sm">
+        <div class="max-w-5xl mx-auto p-4 md:px-8 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+            <div class="flex items-center justify-between w-full sm:w-auto">
+                <div class="flex items-center gap-3 cursor-pointer group" onclick="navigate('intro')" title="Home">
+                    <span class="text-3xl group-hover:scale-110 transition-transform">🏠</span>
+                    <div>
+                        <h1 class="text-xl font-black text-slate-800 tracking-tight group-hover:text-parent-accent transition-colors">
+                            <span class="ko">KIS 스쿨버스 <span class="text-parent-accent">가이드</span></span>
+                            <span class="vi">Xe buýt KIS <span class="text-parent-accent">Sổ tay</span></span>
+                        </h1>
+                        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Parent's Manual</p>
+                    </div>
+                </div>
+
+                <!-- 모바일에서도 보이도록 언어 토글 버튼 배치 -->
+                <div class="flex sm:hidden items-center bg-slate-100 p-1 rounded-xl">
+                    <button id="btn-ko-mob" onclick="toggleLang('ko')" class="px-3 py-1.5 text-xs font-bold rounded shadow bg-white text-parent-accent transition-all">KO</button>
+                    <button id="btn-vi-mob" onclick="toggleLang('vi')" class="px-3 py-1.5 text-xs font-bold rounded text-slate-400 hover:text-slate-600 transition-all">VI</button>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-4 justify-between w-full sm:w-auto">
+                <!-- 상단 탭 -->
+                <div class="flex gap-2 overflow-x-auto pb-1 sm:pb-0 hide-scroll" id="header-tabs">
+                    <button id="header-tab-check" onclick="navigate('check')" class="px-4 py-2.5 rounded-xl text-sm font-bold text-slate-500 bg-slate-50 hover:bg-blue-50 hover:text-parent-accent transition-all whitespace-nowrap border border-slate-100">
+                        <span class="ko">🔍 실시간 확인</span><span class="vi">🔍 Kiểm tra xe</span>
+                    </button>
+                    <button id="header-tab-apply" onclick="navigate('apply')" class="px-4 py-2.5 rounded-xl text-sm font-bold text-slate-500 bg-slate-50 hover:bg-blue-50 hover:text-parent-accent transition-all whitespace-nowrap border border-slate-100">
+                        <span class="ko">📝 신청 및 변경</span><span class="vi">📝 Đăng ký & Đổi</span>
+                    </button>
+                </div>
+
+                <!-- 데스크탑 언어 토글 -->
+                <div class="hidden sm:flex items-center bg-slate-100 p-1 rounded-xl">
+                    <button id="btn-ko-desk" onclick="toggleLang('ko')" class="px-3 py-1.5 text-xs font-bold rounded shadow bg-white text-parent-accent transition-all">KO</button>
+                    <button id="btn-vi-desk" onclick="toggleLang('vi')" class="px-3 py-1.5 text-xs font-bold rounded text-slate-400 hover:text-slate-600 transition-all">VI</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-grow p-4 md:p-10">
+        <div class="max-w-5xl mx-auto">
+            
+            <!-- 인트로 섹션 -->
+            <section id="section-intro" class="text-center mb-16 animate-pop mt-6 md:mt-10">
+                <h2 class="text-3xl md:text-5xl font-black text-slate-800 mb-6 leading-tight">
+                    <span class="ko">우리 아이의 등하교,<br><span class="text-parent-accent">손쉽게 확인하고 신청하세요.</span></span>
+                    <span class="vi">Kiểm tra và đăng ký xe buýt<br><span class="text-parent-accent">cho con bạn dễ dàng.</span></span>
+                </h2>
+                <p class="text-slate-500 font-medium text-base md:text-lg mb-12 px-4">
+                    <span class="ko">아래의 메뉴를 클릭하여 실제 앱의 기능을 미리 체험해 보세요.</span>
+                    <span class="vi">Nhấp vào menu bên dưới để trải nghiệm thử các tính năng của ứng dụng.</span>
+                </p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto px-4">
+                    <button onclick="navigate('check')" class="nav-card bg-white border-2 border-slate-100 p-8 rounded-[32px] transition-all text-left group cursor-pointer">
+                        <div class="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition-transform">🔍</div>
+                        <h3 class="text-2xl font-black text-slate-800 mb-3">
+                            <span class="ko">실시간 탑승 확인</span><span class="vi">Kiểm tra xe trực tiếp</span>
+                        </h3>
+                        <p class="text-sm text-slate-500 font-medium leading-relaxed">
+                            <span class="ko">영문 이름 검색으로 자녀의 배정 차량, 현재 상태, 분실물을 확인합니다.</span>
+                            <span class="vi">Tìm kiếm bằng tên tiếng Anh để kiểm tra xe, trạng thái, và đồ thất lạc.</span>
+                        </p>
+                    </button>
+                    
+                    <button onclick="navigate('apply')" class="nav-card bg-white border-2 border-slate-100 p-8 rounded-[32px] transition-all text-left group cursor-pointer">
+                        <div class="w-16 h-16 bg-pink-50 rounded-2xl flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition-transform">📝</div>
+                        <h3 class="text-2xl font-black text-slate-800 mb-3">
+                            <span class="ko">탑승 신청 및 변경</span><span class="vi">Đăng ký & Thay đổi</span>
+                        </h3>
+                        <p class="text-sm text-slate-500 font-medium leading-relaxed">
+                            <span class="ko">직접 폼을 작성해보며 형제자매 동시 신청 및 신규 목적지 추가를 체험합니다.</span>
+                            <span class="vi">Trải nghiệm điền biểu mẫu, đăng ký cho anh chị em và thêm trạm mới.</span>
+                        </p>
+                    </button>
+                </div>
+            </section>
+
+            <!-- 기능 1: 탑승 확인 -->
+            <section id="section-check" class="hidden animate-pop mt-4">
+                <div class="mb-8 px-2 flex items-center gap-4">
+                    <button onclick="navigate('intro')" class="w-10 h-10 flex-shrink-0 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors text-xl shadow-sm">👈</button>
+                    <div>
+                        <h2 class="text-2xl md:text-3xl font-black text-slate-800">
+                            <span class="ko">실시간 탑승 확인</span><span class="vi">Kiểm tra lên xe trực tiếp</span>
+                        </h2>
+                        <p class="text-sm md:text-base text-slate-500 mt-2 font-medium">
+                            <span class="ko">영문 이름 검색으로 자녀의 차량과 현재 상태, 분실물을 확인합니다.</span>
+                            <span class="vi">Kiểm tra xe, trạng thái, và đồ thất lạc bằng cách tìm kiếm tên tiếng Anh.</span>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <!-- 가상 스마트폰 화면 -->
+                    <div class="lg:col-span-2 bg-white rounded-[40px] shadow-xl border border-slate-100 overflow-hidden relative">
+                        <div class="bg-parent-accent p-6 text-white text-center shadow-md relative z-10">
+                            <p class="text-[10px] font-black opacity-80 uppercase tracking-widest mb-1">Student Status</p>
+                            <p class="text-xl font-bold">
+                                <span class="ko">학생 등하교 현황</span><span class="vi">Trạng thái đi lại của học sinh</span>
+                            </p>
+                        </div>
+
+                        <div class="p-6 md:p-8">
+                            <!-- 검색 시뮬레이션 -->
+                            <div class="bg-slate-50 p-6 rounded-3xl mb-8 border border-slate-200 shadow-inner">
+                                <label class="text-xs font-black text-parent-accent mb-2 block tracking-tight">
+                                    <span class="ko">자녀 영문 이름 검색 (직접 입력해보세요)</span>
+                                    <span class="vi">Tìm tên tiếng Anh của con (Hãy thử nhập)</span>
+                                </label>
+                                <div class="relative">
+                                    <input type="text" id="mock-search" placeholder="예: Jimin Kim" onkeypress="handleSearchKeyPress(event)" class="w-full p-4 bg-white rounded-2xl border border-slate-200 shadow-sm font-bold text-slate-700 outline-none text-lg focus:ring-4 focus:ring-blue-100 transition-all pr-12">
+                                    <button onclick="executeSearch()" class="absolute right-4 top-1/2 -translate-y-1/2 text-2xl hover:scale-110 transition-transform active:scale-95 bg-white rounded-full">🔍</button>
+                                </div>
+                                <p class="text-[10px] text-slate-400 mt-3 ml-1 font-medium">
+                                    <span class="ko">* 엔터키를 누르거나 돋보기 아이콘을 클릭하면 조회가 시작됩니다.</span>
+                                    <span class="vi">* Nhấn Enter hoặc biểu tượng kính lúp để bắt đầu tìm kiếm.</span>
+                                </p>
+                            </div>
+
+                            <!-- 실시간 프리뷰 -->
+                            <div id="status-preview" class="bg-slate-50 rounded-3xl p-8 flex flex-col items-center justify-center text-center border-2 border-slate-200 transition-all relative overflow-hidden h-[280px]">
+                                <div id="status-icon" class="text-7xl mb-4 z-10 transition-transform">🏫</div>
+                                <h4 id="status-bus" class="text-sm font-black text-slate-400 mb-1 z-10">
+                                    <span class="ko">배정 차량 정보</span><span class="vi">Thông tin xe buýt</span>
+                                </h4>
+                                <p id="status-title" class="text-2xl font-black text-slate-800 mb-2 z-10">
+                                    <span class="ko">아이 이름을 검색해 주세요</span><span class="vi">Vui lòng tìm tên học sinh</span>
+                                </p>
+                                <span id="status-badge" class="px-3 py-1 bg-slate-200 text-slate-600 rounded-full text-xs font-bold z-10 hidden mt-2">Badge</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 조작 패널 & 분실물 -->
+                    <div class="space-y-6">
+                        <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                            <h3 class="font-black text-slate-800 mb-2 flex items-center gap-2">
+                                <span>📱</span> 
+                                <span class="ko">상태 알림 테스트</span><span class="vi">Kiểm tra thông báo trạng thái</span>
+                            </h3>
+                            <p class="text-[11px] text-slate-500 mb-4 leading-tight">
+                                <span class="ko">선생님이 기기를 조작할 때마다 앱 화면이 아래 버튼처럼 실시간으로 바뀝니다.</span>
+                                <span class="vi">Màn hình sẽ thay đổi theo thời gian thực khi giáo viên thao tác trên xe.</span>
+                            </p>
+                            <div class="space-y-2">
+                                <button onclick="updateStatus('ready')" class="w-full p-3 text-left rounded-xl border border-slate-200 hover:border-parent-warning hover:bg-orange-50 transition-all flex justify-between items-center group shadow-sm active:scale-95">
+                                    <span class="font-bold text-sm text-slate-700 group-hover:text-parent-warning">
+                                        <span class="ko">운행 대기 (미탑승)</span><span class="vi">Chờ khởi hành (Chưa lên)</span>
+                                    </span>
+                                </button>
+                                <button onclick="updateStatus('boarded')" class="w-full p-3 text-left rounded-xl border border-slate-200 hover:border-parent-success hover:bg-green-50 transition-all flex justify-between items-center group shadow-sm active:scale-95">
+                                    <span class="font-bold text-sm text-slate-700 group-hover:text-parent-success">
+                                        <span class="ko">탑승 완료</span><span class="vi">Đã lên xe</span>
+                                    </span>
+                                </button>
+                                <button onclick="updateStatus('departed')" class="w-full p-3 text-left rounded-xl border border-slate-200 hover:border-parent-accent hover:bg-blue-50 transition-all flex justify-between items-center group shadow-sm active:scale-95">
+                                    <span class="font-bold text-sm text-slate-700 group-hover:text-parent-accent">
+                                        <span class="ko">버스 출발</span><span class="vi">Xe buýt khởi hành</span>
+                                    </span>
+                                </button>
+                                <button onclick="updateStatus('arrived')" class="w-full p-3 text-left rounded-xl border border-slate-200 hover:border-slate-400 hover:bg-slate-100 transition-all flex justify-between items-center group shadow-sm active:scale-95">
+                                    <span class="font-bold text-sm text-slate-700">
+                                        <span class="ko">하차/도착 완료</span><span class="vi">Đã xuống xe/Đến nơi</span>
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 분실물 게시판 프리뷰 -->
+                        <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
+                            <h3 class="font-black text-slate-800 mb-4 flex items-center gap-2">
+                                <span>🎒</span> 
+                                <span class="ko">분실물 게시판</span><span class="vi">Đồ thất lạc</span>
+                            </h3>
+                            <div class="space-y-3">
+                                <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center gap-3 cursor-pointer hover:bg-blue-50 transition-colors">
+                                    <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-xl shadow-sm border border-slate-100">🧢</div>
+                                    <div>
+                                        <p class="text-sm font-bold text-slate-700">
+                                            <span class="ko">파란색 나이키 모자</span><span class="vi">Mũ Nike màu xanh</span>
+                                        </p>
+                                        <p class="text-[10px] text-parent-accent font-bold">
+                                            <span class="ko">1호차 (45인승) 보관 중</span><span class="vi">Giữ ở xe số 1 (45 chỗ)</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center gap-3 cursor-pointer hover:bg-blue-50 transition-colors">
+                                    <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-xl shadow-sm border border-slate-100">💧</div>
+                                    <div>
+                                        <p class="text-sm font-bold text-slate-700">
+                                            <span class="ko">스탠리 핑크 텀블러</span><span class="vi">Bình nước Stanley màu hồng</span>
+                                        </p>
+                                        <p class="text-[10px] text-parent-accent font-bold">
+                                            <span class="ko">5호차 (29인승) 보관 중</span><span class="vi">Giữ ở xe số 5 (29 chỗ)</span>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 기능 2: 신청 및 변경 -->
+            <section id="section-apply" class="hidden animate-pop mt-4">
+                <div class="mb-8 px-2 flex items-center gap-4">
+                    <button onclick="navigate('intro')" class="w-10 h-10 flex-shrink-0 rounded-full bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors text-xl shadow-sm">👈</button>
+                    <div>
+                        <h2 class="text-2xl md:text-3xl font-black text-slate-800">
+                            <span class="ko">탑승 신청 및 변경</span><span class="vi">Đăng ký và Thay đổi</span>
+                        </h2>
+                        <p class="text-sm md:text-base text-slate-500 mt-2 font-medium">
+                            <span class="ko">자녀의 탑승 정보를 입력하고 새로운 정류장을 신청해 보세요.</span>
+                            <span class="vi">Nhập thông tin học sinh và đăng ký điểm dừng (trạm) mới.</span>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                    <!-- 폼 설명 -->
+                    <div class="lg:col-span-2 space-y-6">
+                        <div class="bg-white p-8 rounded-[32px] shadow-sm border border-slate-100">
+                            <h3 class="text-xl font-black text-parent-accent mb-6 flex items-center gap-2">
+                                <span>💡</span> 
+                                <span class="ko">학부모님 필수 확인</span><span class="vi">Phụ huynh cần lưu ý</span>
+                            </h3>
+                            <ul class="space-y-5">
+                                <li class="flex gap-4 items-start">
+                                    <span class="text-2xl bg-blue-50 p-2 rounded-xl">📝</span>
+                                    <div>
+                                        <p class="font-black text-slate-800">
+                                            <span class="ko">영문 이름 입력</span><span class="vi">Nhập tên tiếng Anh</span>
+                                        </p>
+                                        <p class="text-xs font-medium text-slate-500 mt-1">
+                                            <span class="ko">정확한 배정을 위해 자녀의 이름은 반드시 영문으로 작성해 주세요.</span>
+                                            <span class="vi">Vui lòng nhập tên bằng tiếng Anh để xếp xe chính xác.</span>
+                                        </p>
+                                    </div>
+                                </li>
+                                <li class="flex gap-4 items-start">
+                                    <span class="text-2xl bg-pink-50 p-2 rounded-xl">👨‍👩‍👦</span>
+                                    <div>
+                                        <p class="font-black text-slate-800">
+                                            <span class="ko">형제/자매 한 번에 신청</span><span class="vi">Đăng ký cho anh chị em</span>
+                                        </p>
+                                        <p class="text-xs font-medium text-slate-500 mt-1">
+                                            <span class="ko">우측 폼의 '+ 형제 추가' 버튼을 눌러보세요. 한 번에 여러 명을 신청할 수 있습니다.</span>
+                                            <span class="vi">Nhấn nút '+ Thêm anh/chị/em' bên phải để đăng ký cho nhiều người cùng lúc.</span>
+                                        </p>
+                                    </div>
+                                </li>
+                                <li class="flex gap-4 items-start">
+                                    <span class="text-2xl bg-emerald-50 p-2 rounded-xl">📍</span>
+                                    <div>
+                                        <p class="font-black text-slate-800">
+                                            <span class="ko">신규 목적지 신청 가능</span><span class="vi">Đăng ký trạm mới</span>
+                                        </p>
+                                        <p class="text-xs font-medium text-slate-500 mt-1">
+                                            <span class="ko">2단계에서 원하는 정류장이 목록에 없을 경우, 직접 새 정류장을 입력할 수 있습니다.</span>
+                                            <span class="vi">Ở Bước 2, nếu không có trạm bạn muốn, bạn có thể tự nhập tên trạm.</span>
+                                        </p>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- 신청 프로세스 시뮬레이션 -->
+                    <div class="lg:col-span-3 bg-white rounded-[40px] p-6 md:p-12 shadow-xl border border-slate-100 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-full h-2 bg-slate-100">
+                            <div id="apply-progress" class="h-full bg-parent-accent transition-all duration-500" style="width: 33%"></div>
+                        </div>
+
+                        <!-- Step 1: 학생 정보 -->
+                        <div id="step-1" class="space-y-8 fade-in">
+                            <div>
+                                <h4 class="text-xs font-black text-parent-accent mb-2 uppercase tracking-widest">
+                                    <span class="ko">Step 01. 학생 정보</span><span class="vi">Bước 01. Thông tin học sinh</span>
+                                </h4>
+                                <h3 class="text-2xl font-black text-slate-800">
+                                    <span class="ko">자녀의 기본 정보를 입력하세요</span><span class="vi">Vui lòng nhập thông tin cơ bản</span>
+                                </h3>
+                            </div>
+                            
+                            <div id="student-forms-container" class="space-y-4">
+                                <div class="space-y-4 bg-slate-50 p-6 rounded-3xl border border-slate-200">
+                                    <div>
+                                        <label class="text-xs font-bold text-slate-500 mb-1 block">
+                                            <span class="ko">영문 이름 (필수)</span><span class="vi">Tên tiếng Anh (Bắt buộc)</span>
+                                        </label>
+                                        <input type="text" id="apply-name-1" placeholder="예: Jimin Kim" class="w-full p-4 bg-white rounded-xl font-bold outline-none border border-slate-200 focus:ring-2 focus:ring-parent-accent/30 transition-all">
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="text-xs font-bold text-slate-500 mb-1 block">
+                                                <span class="ko">학년</span><span class="vi">Khối lớp</span>
+                                            </label>
+                                            <select class="w-full p-4 bg-white rounded-xl font-bold outline-none border border-slate-200 text-slate-700">
+                                                <option>G1</option><option>G2</option><option selected>G3</option><option>G4</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label class="text-xs font-bold text-slate-500 mb-1 block">
+                                                <span class="ko">반</span><span class="vi">Lớp</span>
+                                            </label>
+                                            <select class="w-full p-4 bg-white rounded-xl font-bold outline-none border border-slate-200 text-slate-700">
+                                                <option selected>A</option><option>B</option><option>C</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button onclick="addSiblingForm()" class="w-full border-2 border-dashed border-parent-accent/40 rounded-3xl p-4 text-center cursor-pointer hover:bg-blue-50 transition-colors text-parent-accent font-bold text-sm bg-white flex justify-center items-center gap-2">
+                                <span class="text-lg">+</span>
+                                <span class="ko">형제 / 자매 함께 신청하기</span><span class="vi">Thêm anh/chị/em cùng đăng ký</span>
+                            </button>
+
+                            <button onclick="validateStep1()" class="w-full py-5 bg-slate-800 text-white rounded-3xl font-black hover:bg-slate-700 transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2">
+                                <span class="ko">정류장 선택으로 이동</span><span class="vi">Chuyển đến chọn trạm</span> ➔
+                            </button>
+                        </div>
+
+                        <!-- Step 2: 목적지 선택 -->
+                        <div id="step-2" class="hidden space-y-8 fade-in">
+                            <div>
+                                <h4 class="text-xs font-black text-parent-accent mb-2 uppercase tracking-widest">
+                                    <span class="ko">Step 02. 목적지(정류장)</span><span class="vi">Bước 02. Điểm đến (Trạm)</span>
+                                </h4>
+                                <h3 class="text-2xl font-black text-slate-800">
+                                    <span class="ko">원하시는 정류장을 선택하세요</span><span class="vi">Vui lòng chọn trạm bạn muốn</span>
+                                </h3>
+                            </div>
+                            
+                            <div class="space-y-6">
+                                <div class="relative">
+                                    <div onclick="toggleMockDropdown()" class="p-5 border-2 border-slate-200 rounded-3xl bg-white flex items-center justify-between shadow-sm cursor-pointer hover:border-parent-accent transition-colors">
+                                        <div>
+                                            <p class="text-[10px] font-black text-parent-accent mb-1 uppercase">
+                                                <span class="ko">등교 정류장 검색 (목록에서 선택)</span><span class="vi">Tìm trạm đi học (Chọn từ danh sách)</span>
+                                            </p>
+                                            <p id="selected-dest-text" class="font-bold text-slate-400">
+                                                <span class="ko">목록에서 정류장 찾기 🔍</span><span class="vi">Tìm trạm trong danh sách 🔍</span>
+                                            </p>
+                                        </div>
+                                        <span class="text-xl transition-transform" id="dropdown-arrow">▼</span>
+                                    </div>
+                                    
+                                    <div id="mock-dropdown" class="hidden absolute top-full left-0 w-full mt-2 bg-white border-2 border-slate-100 rounded-2xl shadow-xl z-20 max-h-48 overflow-y-auto custom-scroll">
+                                        <div onclick="selectMockDest('강남역 11번 출구 국민은행 앞', 'Trạm Gangnam Cửa số 11')" class="p-4 hover:bg-blue-50 border-b border-slate-50 cursor-pointer font-bold text-slate-700">
+                                            <span class="ko">강남역 11번 출구 국민은행 앞</span><span class="vi">Trạm Gangnam Cửa số 11</span>
+                                        </div>
+                                        <div onclick="selectMockDest('양재역 4번 출구', 'Trạm Yangjae Cửa số 4')" class="p-4 hover:bg-blue-50 border-b border-slate-50 cursor-pointer font-bold text-slate-700">
+                                            <span class="ko">양재역 4번 출구</span><span class="vi">Trạm Yangjae Cửa số 4</span>
+                                        </div>
+                                        <div onclick="selectMockDest('판교역 환승센터', 'Trạm trung chuyển Pangyo')" class="p-4 hover:bg-blue-50 cursor-pointer font-bold text-slate-700">
+                                            <span class="ko">판교역 환승센터</span><span class="vi">Trạm trung chuyển Pangyo</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center gap-4 text-slate-300 font-bold px-4">
+                                    <div class="flex-grow border-t border-slate-200"></div>
+                                    <span><span class="ko">또는</span><span class="vi">Hoặc</span></span>
+                                    <div class="flex-grow border-t border-slate-200"></div>
+                                </div>
+
+                                <div class="bg-blue-50 p-6 rounded-3xl border border-blue-100 transition-all group focus-within:border-parent-accent">
+                                    <label class="flex items-center gap-3 cursor-pointer mb-4">
+                                        <input type="checkbox" id="chk-new-dest" onchange="toggleNewDestInput()" class="w-5 h-5 rounded text-parent-accent focus:ring-parent-accent">
+                                        <span class="font-bold text-slate-700 text-sm">
+                                            <span class="ko">목록에 원하는 정류장이 없나요? (직접 입력)</span><span class="vi">Không có trạm trong danh sách? (Tự nhập)</span>
+                                        </span>
+                                    </label>
+                                    <input type="text" id="ipt-new-dest" placeholder="신규 정류장 이름을 정확히 입력해주세요." disabled class="w-full p-4 bg-white/50 rounded-xl font-bold outline-none border border-blue-200 text-slate-700 placeholder-slate-400 text-sm transition-all focus:bg-white disabled:opacity-50">
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-4 mt-8">
+                                    <button onclick="nextStep(1)" class="py-5 bg-slate-100 rounded-3xl font-black text-slate-500 hover:bg-slate-200 active:scale-95 transition-all">
+                                        <span class="ko">이전</span><span class="vi">Trở lại</span>
+                                    </button>
+                                    <button onclick="submitApplication()" class="py-5 bg-parent-accent text-white rounded-3xl font-black shadow-lg shadow-blue-200 hover:bg-blue-600 active:scale-95 transition-all flex justify-center items-center gap-2">
+                                        <span class="ko">제출하기</span><span class="vi">Gửi đăng ký</span> 🚀
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 3: 완료 -->
+                        <div id="step-3" class="hidden space-y-6 text-center py-12 fade-in">
+                            <div class="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center text-5xl mx-auto mb-6 shadow-inner animate-pop">✅</div>
+                            <h3 class="text-3xl font-black text-slate-800 mb-2">
+                                <span class="ko">신청이 접수되었습니다!</span><span class="vi">Đăng ký đã được nhận!</span>
+                            </h3>
+                            <div class="bg-slate-50 p-6 rounded-2xl border border-slate-100 max-w-sm mx-auto text-left">
+                                <p class="text-sm font-bold text-slate-600 leading-relaxed mb-2" id="result-name-container">
+                                    <!-- Dynamic text via JS -->
+                                </p>
+                                <p class="text-sm font-bold text-slate-600 leading-relaxed">
+                                    <span class="ko">입력하신 신청 정보가 <span class="text-parent-accent">학교 관리자에게 전달</span>되었습니다. 내용 검토 및 승인 후 익일부터 노선에 반영됩니다.</span>
+                                    <span class="vi">Thông tin đăng ký đã được gửi đến <span class="text-parent-accent">quản lý trường</span>. Sẽ áp dụng vào ngày hôm sau khi được phê duyệt.</span>
+                                </p>
+                            </div>
+                            <button onclick="resetApplication()" class="mt-8 px-10 py-4 border-2 border-slate-200 text-slate-600 hover:bg-slate-50 rounded-full font-black transition-colors active:scale-95">
+                                <span class="ko">처음으로 돌아가기</span><span class="vi">Quay lại trang chủ</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script>
+        // Language Toggle Logic
+        let currentLang = 'ko';
+
+        // Translation Dictionary for JS Alerts and dynamic text
+        const t = {
+            ko: {
+                searchHint: "예: Jimin Kim",
+                newDestHint: "신규 정류장 이름을 정확히 입력해주세요.",
+                alertName: "자녀의 영문 이름을 입력해 주세요. (예: Jimin Kim)",
+                busAssigned: "배정 차량: 1호차 (Morning / 등교)",
+                searchDone: " 학생 조회 완료",
+                statusReady: " 학생은 아직 탑승 전입니다",
+                statusBoarded: " 학생이 버스에 안전하게 탔습니다",
+                statusDeparted: " 학생이 학교를 향해 출발했습니다",
+                statusArrived: " 학생이 무사히 하차 완료했습니다",
+                badgeReady: "운행 대기 (미탑승)",
+                badgeBoarded: "탑승 확인됨",
+                badgeDeparted: "차량 이동 중",
+                badgeArrived: "하차/도착 확인",
+                alertFirst: "첫 번째 학생의 영문 이름을 반드시 입력해주세요.",
+                alertDest: "기존 정류장을 선택하거나, 신규 정류장 이름을 입력해 주세요.",
+                siblingName: "형제/자매 영문 이름 (필수)",
+                siblingHint: "예: Yuna Kim",
+                grade: "학년",
+                class: "반",
+                del: "✕ 삭제",
+                applicant: "접수자: ",
+                andOthers: " 외 ",
+                students: "명"
+            },
+            vi: {
+                searchHint: "VD: Jimin Kim",
+                newDestHint: "Vui lòng nhập chính xác tên trạm mới.",
+                alertName: "Vui lòng nhập tên tiếng Anh của trẻ. (VD: Jimin Kim)",
+                busAssigned: "Xe buýt: Số 1 (Morning / Đi học)",
+                searchDone: " Đã tra cứu xong",
+                statusReady: " chưa lên xe",
+                statusBoarded: " đã lên xe an toàn",
+                statusDeparted: " đang trên đường đến trường",
+                statusArrived: " đã xuống xe an toàn",
+                badgeReady: "Đang chờ (Chưa lên)",
+                badgeBoarded: "Đã lên xe",
+                badgeDeparted: "Đang di chuyển",
+                badgeArrived: "Đã xuống xe",
+                alertFirst: "Vui lòng nhập tên tiếng Anh của học sinh đầu tiên.",
+                alertDest: "Vui lòng chọn trạm hoặc nhập tên trạm mới.",
+                siblingName: "Tên tiếng Anh của anh/chị/em (Bắt buộc)",
+                siblingHint: "VD: Yuna Kim",
+                grade: "Khối lớp",
+                class: "Lớp",
+                del: "✕ Xóa",
+                applicant: "Người đăng ký: ",
+                andOthers: " và ",
+                students: " học sinh khác"
+            }
+        };
+
+        function toggleLang(lang) {
+            currentLang = lang;
+            document.body.classList.remove('lang-ko', 'lang-vi');
+            document.body.classList.add('lang-' + lang);
+
+            // Update buttons styling
+            const btnStyles = {
+                active: 'px-3 py-1.5 text-xs font-bold rounded shadow bg-white text-parent-accent transition-all',
+                inactive: 'px-3 py-1.5 text-xs font-bold rounded text-slate-400 hover:text-slate-600 transition-all'
+            };
+
+            ['desk', 'mob'].forEach(device => {
+                document.getElementById(`btn-ko-${device}`).className = (lang === 'ko') ? btnStyles.active : btnStyles.inactive;
+                document.getElementById(`btn-vi-${device}`).className = (lang === 'vi') ? btnStyles.active : btnStyles.inactive;
+            });
+
+            // Update placeholders
+            document.getElementById('mock-search').placeholder = t[lang].searchHint;
+            document.getElementById('ipt-new-dest').placeholder = t[lang].newDestHint;
+            
+            // Re-render active dynamic content if needed
+            if (activeStatus && currentStudentName) {
+                updateStatus(activeStatus);
+            }
+            if (document.getElementById('result-name-container').innerHTML !== '') {
+                renderResultName();
+            }
+        }
+
+        let currentStudentName = '';
+        let activeStatus = null;
+
+        // 1. Navigation
+        function navigate(tab) {
+            document.querySelectorAll('main section').forEach(s => s.classList.add('hidden'));
+            document.getElementById('section-' + tab).classList.remove('hidden');
+
+            ['check', 'apply'].forEach(t => {
+                const btn = document.getElementById('header-tab-' + t);
+                if(btn) {
+                    if(t === tab) {
+                        btn.className = "px-4 py-2.5 rounded-xl text-sm font-bold bg-parent-accent text-white shadow-md whitespace-nowrap transition-all";
+                    } else {
+                        btn.className = "px-4 py-2.5 rounded-xl text-sm font-bold text-slate-500 bg-slate-50 hover:bg-blue-50 hover:text-parent-accent transition-all whitespace-nowrap border border-slate-100";
+                    }
+                }
+            });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // 2. Status Check Logic
+        function handleSearchKeyPress(e) { if (e.key === 'Enter') executeSearch(); }
+
+        function executeSearch() {
+            const ipt = document.getElementById('mock-search');
+            let name = ipt.value.trim();
+            
+            if(!name) {
+                alert(t[currentLang].alertName);
+                ipt.focus();
+                return;
+            }
+            name = name.charAt(0).toUpperCase() + name.slice(1);
+            currentStudentName = name;
+
+            document.getElementById('status-bus').innerText = t[currentLang].busAssigned;
+            document.getElementById('status-title').innerText = name + t[currentLang].searchDone;
+            
+            updateStatus('ready');
+            ipt.blur();
+        }
+
+        function updateStatus(status) {
+            activeStatus = status;
+            const preview = document.getElementById('status-preview');
+            const icon = document.getElementById('status-icon');
+            const title = document.getElementById('status-title');
+            const badge = document.getElementById('status-badge');
+            
+            const nameToDisplay = currentStudentName || 'Jimin Kim';
+
+            preview.className = 'bg-slate-50 rounded-3xl p-8 flex flex-col items-center justify-center text-center border-2 border-slate-200 transition-all duration-300 relative overflow-hidden h-[280px] animate-pop';
+            badge.classList.remove('hidden');
+
+            document.getElementById('status-bus').innerText = t[currentLang].busAssigned;
+
+            switch(status) {
+                case 'ready':
+                    preview.classList.add('bg-orange-50', 'border-parent-warning');
+                    icon.innerText = '🕒';
+                    title.innerHTML = `<span class="text-parent-warning font-black">${nameToDisplay}</span><span class="font-bold">${t[currentLang].statusReady}</span>`;
+                    badge.className = 'px-4 py-1.5 bg-parent-warning text-white rounded-full text-xs font-black shadow-sm mt-2';
+                    badge.innerText = t[currentLang].badgeReady;
+                    break;
+                case 'boarded':
+                    preview.classList.add('bg-green-50', 'border-parent-success');
+                    icon.innerText = '🎒';
+                    title.innerHTML = `<span class="text-parent-success font-black">${nameToDisplay}</span><span class="font-bold">${t[currentLang].statusBoarded}</span>`;
+                    badge.className = 'px-4 py-1.5 bg-parent-success text-white rounded-full text-xs font-black shadow-sm mt-2';
+                    badge.innerText = t[currentLang].badgeBoarded;
+                    break;
+                case 'departed':
+                    preview.classList.add('bg-blue-50', 'border-parent-accent');
+                    icon.innerText = '🚌';
+                    title.innerHTML = `<span class="text-parent-accent font-black">${nameToDisplay}</span><span class="font-bold">${t[currentLang].statusDeparted}</span>`;
+                    badge.className = 'px-4 py-1.5 bg-parent-accent text-white rounded-full text-xs font-black shadow-sm mt-2';
+                    badge.innerText = t[currentLang].badgeDeparted;
+                    break;
+                case 'arrived':
+                    preview.classList.add('bg-slate-100', 'border-slate-300');
+                    icon.innerText = '🏫';
+                    title.innerHTML = `<span class="text-slate-600 font-black">${nameToDisplay}</span><span class="font-bold">${t[currentLang].statusArrived}</span>`;
+                    badge.className = 'px-4 py-1.5 bg-slate-500 text-white rounded-full text-xs font-black shadow-sm mt-2';
+                    badge.innerText = t[currentLang].badgeArrived;
+                    break;
+            }
+        }
+
+        // 3. Application Form Logic
+        let siblingCount = 1;
+
+        function addSiblingForm() {
+            siblingCount++;
+            const container = document.getElementById('student-forms-container');
+            const newForm = document.createElement('div');
+            newForm.className = 'space-y-4 bg-blue-50 p-6 rounded-3xl border border-blue-100 fade-in relative';
+            
+            // Generate bilingual template
+            newForm.innerHTML = `
+                <button onclick="this.parentElement.remove(); siblingCount--;" class="absolute top-4 right-4 text-slate-400 hover:text-rose-500 font-bold text-sm">
+                    <span class="ko">${t.ko.del}</span><span class="vi">${t.vi.del}</span>
+                </button>
+                <div>
+                    <label class="text-xs font-bold text-parent-accent mb-1 block">
+                        <span class="ko">${t.ko.siblingName}</span><span class="vi">${t.vi.siblingName}</span>
+                    </label>
+                    <input type="text" placeholder="${t[currentLang].siblingHint}" class="w-full p-4 bg-white rounded-xl font-bold outline-none border border-blue-200 focus:ring-2 focus:ring-parent-accent/30 transition-all sibling-input">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-xs font-bold text-slate-500 mb-1 block">
+                            <span class="ko">${t.ko.grade}</span><span class="vi">${t.vi.grade}</span>
+                        </label>
+                        <select class="w-full p-4 bg-white rounded-xl font-bold outline-none border border-slate-200 text-slate-700"><option>G1</option><option>G2</option><option>G3</option><option>G4</option></select>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-slate-500 mb-1 block">
+                            <span class="ko">${t.ko.class}</span><span class="vi">${t.vi.class}</span>
+                        </label>
+                        <select class="w-full p-4 bg-white rounded-xl font-bold outline-none border border-slate-200 text-slate-700"><option>A</option><option>B</option><option>C</option></select>
+                    </div>
+                </div>
+            `;
+            container.appendChild(newForm);
+        }
+
+        function validateStep1() {
+            const nameInput = document.getElementById('apply-name-1').value.trim();
+            if(!nameInput) {
+                alert(t[currentLang].alertFirst);
+                document.getElementById('apply-name-1').focus();
+                return;
+            }
+            nextStep(2);
+        }
+
+        function toggleMockDropdown() {
+            const dp = document.getElementById('mock-dropdown');
+            const arrow = document.getElementById('dropdown-arrow');
+            if(dp.classList.contains('hidden')) {
+                dp.classList.remove('hidden');
+                arrow.style.transform = 'rotate(180deg)';
+            } else {
+                dp.classList.add('hidden');
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        function selectMockDest(destKo, destVi) {
+            document.getElementById('selected-dest-text').innerHTML = `<span class="ko">${destKo}</span><span class="vi">${destVi}</span>`;
+            document.getElementById('selected-dest-text').classList.replace('text-slate-400', 'text-slate-800');
+            toggleMockDropdown();
+            
+            const chk = document.getElementById('chk-new-dest');
+            if(chk.checked) { chk.checked = false; toggleNewDestInput(); }
+        }
+
+        function toggleNewDestInput() {
+            const chk = document.getElementById('chk-new-dest');
+            const ipt = document.getElementById('ipt-new-dest');
+            if(chk.checked) {
+                ipt.disabled = false;
+                ipt.classList.replace('bg-white/50', 'bg-white');
+                ipt.focus();
+                document.getElementById('selected-dest-text').innerHTML = `<span class="ko">목록에서 정류장 찾기 🔍</span><span class="vi">Tìm trạm trong danh sách 🔍</span>`;
+                document.getElementById('selected-dest-text').classList.replace('text-slate-800', 'text-slate-400');
+            } else {
+                ipt.disabled = true;
+                ipt.classList.replace('bg-white', 'bg-white/50');
+                ipt.value = '';
+            }
+        }
+
+        function submitApplication() {
+            const destText = document.getElementById('selected-dest-text').innerText;
+            const newDestChecked = document.getElementById('chk-new-dest').checked;
+            const newDestValue = document.getElementById('ipt-new-dest').value.trim();
+
+            if (destText.includes('🔍') && (!newDestChecked || !newDestValue)) {
+                alert(t[currentLang].alertDest);
+                return;
+            }
+
+            renderResultName();
+            nextStep(3);
+        }
+        
+        function renderResultName() {
+            const mainName = document.getElementById('apply-name-1').value.trim();
+            const container = document.getElementById('result-name-container');
+            if (siblingCount > 1) {
+                container.innerHTML = `${t[currentLang].applicant} <span class="text-parent-accent font-black">${mainName}</span> ${t[currentLang].andOthers} ${siblingCount-1}${t[currentLang].students}`;
+            } else {
+                container.innerHTML = `${t[currentLang].applicant} <span class="text-parent-accent font-black">${mainName}</span>`;
+            }
+        }
+
+        function nextStep(step) {
+            document.getElementById('step-1').classList.add('hidden');
+            document.getElementById('step-2').classList.add('hidden');
+            document.getElementById('step-3').classList.add('hidden');
+            
+            document.getElementById('step-' + step).classList.remove('hidden');
+            
+            const progressBar = document.getElementById('apply-progress');
+            progressBar.style.width = (step * 33.33) + '%';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function resetApplication() {
+            document.getElementById('apply-name-1').value = '';
+            document.getElementById('selected-dest-text').innerHTML = `<span class="ko">목록에서 정류장 찾기 🔍</span><span class="vi">Tìm trạm trong danh sách 🔍</span>`;
+            document.getElementById('selected-dest-text').classList.replace('text-slate-800', 'text-slate-400');
+            const chk = document.getElementById('chk-new-dest');
+            chk.checked = false;
+            toggleNewDestInput();
+            
+            const container = document.getElementById('student-forms-container');
+            while (container.children.length > 1) {
+                container.removeChild(container.lastChild);
+            }
+            siblingCount = 1;
+
+            navigate('intro');
+            nextStep(1); 
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            const dp = document.getElementById('mock-dropdown');
+            if(!dp.classList.contains('hidden')) {
+                const isClickInside = event.target.closest('#section-apply .relative');
+                if (!isClickInside) {
+                    toggleMockDropdown();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
