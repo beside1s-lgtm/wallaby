@@ -46,6 +46,7 @@ export type School = {
   name: string;
   password?: string;
   createdAt: any; // Can be a Date or a server timestamp
+  isStudentInputDisabled?: boolean; // 학생 입력 제한 설정
 };
 
 export type SportsClub = {

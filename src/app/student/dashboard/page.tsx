@@ -1,8 +1,20 @@
-
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { getItems, getRecordsByStudent, getStudentById, getLatestTournamentForStudent, getStudents, getTeamGroups, getQuizAssignments, getQuizResultsBySchool, calculateRanks, getRecords, getSportsClubs } from '@/lib/store';
+import { 
+  getItems, 
+  getRecordsByStudent, 
+  getStudentById, 
+  getLatestTournamentForStudent, 
+  getStudents, 
+  getTeamGroups, 
+  getQuizAssignments, 
+  getQuizResultsBySchool, 
+  calculateRanks, 
+  getRecords, 
+  getSportsClubs,
+  getSchoolByName
+} from '@/lib/store';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Printer } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -27,7 +39,8 @@ export default function StudentDashboardPage() {
     quizzes: [], 
     results: [],
     allStudents: [],
-    allRecords: []
+    allRecords: [],
+    schoolInfo: null
   });
   const [isLoading, setIsLoading] = useState(true);
   
@@ -40,7 +53,7 @@ export default function StudentDashboardPage() {
     async function load() {
       if (!user || !school) return;
       try {
-        const [items, records, stud, allStuds, allTeams, quizzes, results, allRecords, sportsClubs] = await Promise.all([
+        const [items, records, stud, allStuds, allTeams, quizzes, results, allRecords, sportsClubs, schoolInfo] = await Promise.all([
           getItems(school), 
           getRecordsByStudent(school, user.id), 
           getStudentById(school, user.id),
@@ -49,7 +62,8 @@ export default function StudentDashboardPage() {
           getQuizAssignments(school), 
           getQuizResultsBySchool(school),
           getRecords(school),
-          getSportsClubs(school)
+          getSportsClubs(school),
+          getSchoolByName(school)
         ]);
         
         const tournament = await getLatestTournamentForStudent(school, user.id, allStuds, allTeams);
@@ -75,7 +89,8 @@ export default function StudentDashboardPage() {
           quizzes: filteredQuizzes, 
           results: results.filter(r => r.studentId === user.id),
           allStudents: allStuds,
-          allRecords: allRecords
+          allRecords: allRecords,
+          schoolInfo
         });
       } finally { 
         setIsLoading(false); 
@@ -137,6 +152,8 @@ export default function StudentDashboardPage() {
     }
   };
 
+  const isInputDisabled = !!data.schoolInfo?.isStudentInputDisabled;
+
   if (isLoading || isAuthLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-12 w-12 text-primary" /></div>;
 
   return (
@@ -164,9 +181,14 @@ export default function StudentDashboardPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 h-14 bg-muted/50 p-1.5 rounded-xl border">
+        <TabsList className={cn(
+          "grid w-full mb-8 h-14 bg-muted/50 p-1.5 rounded-xl border",
+          isInputDisabled ? "grid-cols-3" : "grid-cols-4"
+        )}>
           <TabsTrigger value="growth-record" className="text-sm sm:text-base font-bold data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-md rounded-lg">성장 기록</TabsTrigger>
-          <TabsTrigger value="measurement-input" className="text-sm sm:text-base font-bold data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-md rounded-lg">기록 입력</TabsTrigger>
+          {!isInputDisabled && (
+            <TabsTrigger value="measurement-input" className="text-sm sm:text-base font-bold data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-md rounded-lg">기록 입력</TabsTrigger>
+          )}
           <TabsTrigger value="my-competition" className="text-sm sm:text-base font-bold data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-md rounded-lg">나의 대회</TabsTrigger>
           <TabsTrigger value="physical-knowledge" className="text-sm sm:text-base font-bold data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-md rounded-lg">체육 지식</TabsTrigger>
         </TabsList>
@@ -186,12 +208,14 @@ export default function StudentDashboardPage() {
               />
             </TabsContent>
             
-            <TabsContent value="measurement-input" className="animate-in fade-in-50 duration-300">
-              <MeasurementInputTab 
-                items={data.items.filter((i:any)=>!i.isDeactivated && !i.isArchived)} 
-                student={data.student} 
-              />
-            </TabsContent>
+            {!isInputDisabled && (
+              <TabsContent value="measurement-input" className="animate-in fade-in-50 duration-300">
+                <MeasurementInputTab 
+                  items={data.items.filter((i:any)=>!i.isDeactivated && !i.isArchived)} 
+                  student={data.student} 
+                />
+              </TabsContent>
+            )}
             
             <TabsContent value="my-competition" className="animate-in fade-in-50 duration-300">
               <CompetitionTab 

@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import {
   exportToCsv,
@@ -8,8 +8,10 @@ import {
   cleanUpDuplicateRecords,
   assignMissingAccessCodes,
   promoteStudents,
+  getSchoolByName,
+  updateSchoolSetting,
 } from "@/lib/store";
-import type { Student, MeasurementItem, MeasurementRecord } from "@/lib/types";
+import type { Student, MeasurementItem, MeasurementRecord, School } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -40,14 +42,16 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { parseCsv, exportToZip } from "@/lib/utils";
-import { FileUp, FileDown, Loader2, Sparkles, KeyRound, Trash2, Search } from "lucide-react";
+import { FileUp, FileDown, Loader2, Sparkles, KeyRound, Trash2, Search, Settings2 } from "lucide-react";
 import { format } from "date-fns";
+import { Switch } from "@/components/ui/switch";
 
 export function DatabaseManagement({ students, records, items, onUpdate }: { students: Student[], records: MeasurementRecord[], items: MeasurementItem[], onUpdate: () => void }) {
   const { school } = useAuth();
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isStudentInputDisabled, setIsStudentInputDisabled] = useState(false);
 
   const [deleteDate, setDeleteDate] = useState("");
   const [deleteItem, setDeleteItem] = useState("");
@@ -56,7 +60,32 @@ export function DatabaseManagement({ students, records, items, onUpdate }: { stu
   const [studentSearch, setStudentSearch] = useState("");
   const [foundStudent, setFoundStudent] = useState<Student | null>(null);
 
+  useEffect(() => {
+    async function loadSettings() {
+      if (school) {
+        const sData = await getSchoolByName(school);
+        if (sData) {
+          setIsStudentInputDisabled(!!sData.isStudentInputDisabled);
+        }
+      }
+    }
+    loadSettings();
+  }, [school]);
+
   const recordDates = useMemo(() => [...new Set(records.map(r => r.date))].sort((a,b) => new Date(b).getTime() - new Date(a).getTime()), [records]);
+
+  const handleToggleStudentInput = async (checked: boolean) => {
+    if (!school) return;
+    const disabled = !checked; // Switch ON means 허용 (Not disabled)
+    setIsStudentInputDisabled(disabled);
+    try {
+      await updateSchoolSetting(school, { isStudentInputDisabled: disabled });
+      toast({ title: checked ? "학생 입력 허용" : "학생 입력 차단", description: `학생 대시보드의 입력 기능이 ${checked ? '활성화' : '비활성화'}되었습니다.` });
+    } catch (e) {
+      setIsStudentInputDisabled(!disabled);
+      toast({ variant: 'destructive', title: '설정 변경 실패' });
+    }
+  };
 
   const handlePromotionCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -151,6 +180,24 @@ export function DatabaseManagement({ students, records, items, onUpdate }: { stu
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* 0. 시스템 설정 */}
+        <div className="border-b pb-6 bg-primary/5 p-4 rounded-lg">
+          <div className="flex items-center gap-2 mb-4">
+            <Settings2 className="h-5 w-5 text-primary" />
+            <h3 className="text-lg font-bold">시스템 권한 설정</h3>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label className="text-base">학생 본인의 기록 입력 허용</Label>
+              <p className="text-sm text-muted-foreground">허용 시 학생 대시보드에 '기록 입력' 탭이 활성화됩니다.</p>
+            </div>
+            <Switch 
+              checked={!isStudentInputDisabled} 
+              onCheckedChange={handleToggleStudentInput} 
+            />
+          </div>
+        </div>
+
         {/* 1. 진급 처리 */}
         <div className="border-b pb-6">
           <h3 className="text-lg font-semibold mb-2">학생 진급 처리</h3>

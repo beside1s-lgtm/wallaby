@@ -1,4 +1,3 @@
-
 "use client";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
@@ -78,6 +77,7 @@ import {
   Trash2,
   Pencil,
   CalendarIcon,
+  History,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -170,7 +170,8 @@ export default function ClassAnalytics({
 
   const handleSelectStudent = (student: Student) => {
     setSelectedStudent(student);
-    setStudentRecords(allRecords.filter(r => r.studentId === student.id));
+    const recs = allRecords.filter(r => r.studentId === student.id);
+    setStudentRecords(recs);
     setAiAnalysis(null);
     if (!progressChartItem && activeItems.length) setProgressChartItem(activeItems[0].name);
     setTimeout(() => {
@@ -196,6 +197,8 @@ export default function ClassAnalytics({
     try {
       await deleteRecord(school, recordId);
       onRecordUpdate();
+      // Update local state for immediate feedback
+      setStudentRecords(prev => prev.filter(r => r.id !== recordId));
       toast({ title: "기록 삭제 완료" });
     } catch (e) { toast({ variant: "destructive", title: "삭제 실패" }); }
   };
@@ -285,7 +288,7 @@ export default function ClassAnalytics({
     <Card className="bg-transparent shadow-none border-none">
       <CardHeader>
         <CardTitle>학급 및 학생 분석</CardTitle>
-        <CardDescription>학급 전체의 수준을 비교하거나 학생 개별 성장 리포트를 조회합니다.</CardDescription>
+        <CardDescription>학급 전체의 수준을 비교하거나 학생 개별 성장 리포트를 조회하고 잘못된 기록을 삭제합니다.</CardDescription>
         <div className="flex flex-wrap items-center gap-2 pt-4">
           <Input placeholder="이름 검색..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSearch()} className="w-full sm:w-auto" />
           <Button onClick={handleSearch}><Search className="mr-2 h-4 w-4" /> 검색</Button>
@@ -301,7 +304,7 @@ export default function ClassAnalytics({
         {(selectedGrade || selectedClubId || selectedStudent) && (
           <div className="space-y-8">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <Card className="border-2 border-primary/10">
+              <Card className="border-2 border-primary/10 shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between">
                   <div>
                     <CardTitle className="text-lg">성취도 비교 분석</CardTitle>
@@ -333,7 +336,7 @@ export default function ClassAnalytics({
               </Card>
 
               {selectedStudent && (
-                <Card className="border-2 border-primary/10" ref={studentDetailRef}>
+                <Card className="border-2 border-primary/10 shadow-sm" ref={studentDetailRef}>
                   <CardHeader className="flex flex-row items-center justify-between">
                     <div>
                       <CardTitle className="text-lg">{selectedStudent.name} 성장 분석</CardTitle>
@@ -372,12 +375,80 @@ export default function ClassAnalytics({
                 </Card>
               )}
             </div>
+
+            {/* Individual Records List for Selection Deletion */}
+            {selectedStudent && (
+              <Card className="border-2 border-destructive/10">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <History className="h-5 w-5 text-primary" />
+                    측정 기록 명단 및 삭제
+                  </CardTitle>
+                  <CardDescription>{selectedStudent.name} 학생의 전체 측정 기록입니다. 잘못 입력된 데이터는 개별 삭제할 수 있습니다.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="border rounded-md overflow-hidden">
+                    <Table>
+                      <TableHeader className="bg-muted/50">
+                        <TableRow>
+                          <TableHead>측정일</TableHead>
+                          <TableHead>종목명</TableHead>
+                          <TableHead>기록</TableHead>
+                          <TableHead className="text-right">삭제</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {studentRecords.length > 0 ? (
+                          studentRecords.sort((a,b) => b.date.localeCompare(a.date)).map((record) => (
+                            <TableRow key={record.id}>
+                              <TableCell className="text-sm">{record.date}</TableCell>
+                              <TableCell className="font-bold text-sm">{record.item}</TableCell>
+                              <TableCell className="text-sm">{record.value}{allItems.find(i=>i.name === record.item)?.unit}</TableCell>
+                              <TableCell className="text-right">
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10">
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>기록 삭제</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        정말로 {record.date}에 측정된 {record.item} 기록을 삭제하시겠습니까? 삭제 후에는 복구할 수 없습니다.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>취소</AlertDialogCancel>
+                                      <AlertDialogAction 
+                                        onClick={() => handleDeleteRecord(record.id)}
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                      >
+                                        삭제
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">측정 기록이 없습니다.</TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
 
-        <div className="border rounded-md">
+        <div className="border rounded-md shadow-sm">
           <Table>
-            <TableHeader>
+            <TableHeader className="bg-muted/30">
               <TableRow>
                 <TableHead>번호</TableHead>
                 <TableHead>이름</TableHead>
@@ -388,17 +459,17 @@ export default function ClassAnalytics({
             <TableBody>
               {filteredStudents.length > 0 ? (
                 filteredStudents.map(s => (
-                  <TableRow key={s.id} className={cn(selectedStudent?.id === s.id && "bg-primary/5")}>
+                  <TableRow key={s.id} className={cn(selectedStudent?.id === s.id && "bg-primary/5 font-bold")}>
                     <TableCell>{s.studentNum}</TableCell>
                     <TableCell className="font-bold">{s.name}</TableCell>
                     <TableCell>{s.gender}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="link" size="sm" onClick={() => handleSelectStudent(s)}>상세 분석</Button>
+                      <Button variant="link" size="sm" onClick={() => handleSelectStudent(s)} className="font-bold">분석 & 관리</Button>
                     </TableCell>
                   </TableRow>
                 ))
               ) : (
-                <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">대상을 선택해주세요.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">대상을 선택하거나 이름을 검색해주세요.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>

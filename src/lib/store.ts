@@ -44,6 +44,7 @@ export const initializeData = async (schoolName: string, password?: string) => {
         id: schoolName,
         name: schoolName,
         createdAt: serverTimestamp(),
+        isStudentInputDisabled: false,
       };
       if (password) {
         schoolData.password = password;
@@ -148,6 +149,23 @@ export const getSchoolByName = async (schoolName: string): Promise<School | null
     throw e;
   }
 }
+
+export const updateSchoolSetting = async (schoolName: string, settings: Partial<School>): Promise<void> => {
+  await signIn();
+  const schoolRef = doc(db, 'schools', schoolName);
+  try {
+    await updateDoc(schoolRef, settings);
+  } catch (e: any) {
+    if (e.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: schoolRef.path,
+            operation: 'update',
+            requestResourceData: settings
+        }));
+    }
+    throw e;
+  }
+};
 
 export const updateSchoolPassword = async (schoolName: string, password: string): Promise<void> => {
   await signIn();
