@@ -1,3 +1,4 @@
+
 'use client';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/hooks/use-auth';
@@ -200,6 +201,8 @@ export default function StudentDashboardPage() {
               <GrowthRecordTab 
                 records={data.records} 
                 activeItems={data.items.filter((i:any)=>!i.isDeactivated && !i.isArchived)} 
+                allStudents={data.allStudents}
+                allRecords={data.allRecords}
                 student={data.student}
                 hallOfFame={hallOfFame}
                 itemFilter={itemFilter}

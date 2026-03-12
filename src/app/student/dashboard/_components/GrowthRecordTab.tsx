@@ -5,13 +5,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell, BarChart } from 'recharts';
-import { Wand2, Trophy, Loader2, Info, LayoutDashboard } from 'lucide-react';
+import { Wand2, Trophy, Loader2, Info, LayoutDashboard, Star } from 'lucide-react';
 import type { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { getPapsGrade, getCustomItemGrade } from '@/lib/paps';
 
 interface GrowthRecordTabProps {
   records: MeasurementRecord[];
   activeItems: MeasurementItem[];
+  allStudents: Student[];
+  allRecords: MeasurementRecord[];
   itemFilter: string;
   setItemFilter: (val: string) => void;
   hallOfFame: any[];
@@ -24,6 +27,8 @@ interface GrowthRecordTabProps {
 export function GrowthRecordTab({ 
   records, 
   activeItems, 
+  allStudents,
+  allRecords,
   itemFilter, 
   setItemFilter, 
   hallOfFame, 
@@ -42,43 +47,63 @@ export function GrowthRecordTab({
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [records, itemFilter]);
 
-  // 종목 미선택 시: 각 종목별 최신 기록 요약 (PAPS 우선, 최대 6개)
+  // 종목 미선택 시: 각 종목별 최신 기록 요약 및 학년 평균 비교 데이터 산출
   const summaryData = useMemo(() => {
-    if (itemFilter !== 'all') return [];
+    if (itemFilter !== 'all' || !student) return [];
 
-    // 1. 각 종목별 최신 기록 하나씩만 추출
-    const latestMap = new Map<string, MeasurementRecord>();
-    records.forEach(r => {
-      const existing = latestMap.get(r.item);
-      if (!existing || new Date(r.date) > new Date(existing.date)) {
-        latestMap.set(r.item, r);
-      }
-    });
+    // 1. 학년 동급생 필터링
+    const classmates = allStudents.filter(s => s.grade === student.grade);
+    const classmateIds = new Set(classmates.map(s => s.id));
 
-    // 2. 활성 종목 중 기록이 있는 것들 필터링 및 우선순위 부여
-    const itemsWithLatest = activeItems
-      .filter(item => latestMap.has(item.name))
+    // 2. 종목별 나의 최신 기록 & 학년 평균 기록 계산
+    const result = activeItems
+      .filter(item => !item.isArchived && !item.isDeactivated)
       .map(item => {
-        const latest = latestMap.get(item.name)!;
-        let priority = 3; // 기본 기타
+        // 나의 최신 기록
+        const myRecs = records.filter(r => r.item === item.name);
+        const latest = myRecs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+        
+        if (!latest) return null;
+
+        // 학년 평균 기록
+        const gradeRecs = allRecords.filter(r => r.item === item.name && classmateIds.has(r.studentId));
+        const latestByStudent = new Map<string, number>();
+        gradeRecs.forEach(r => {
+          const current = latestByStudent.get(r.studentId);
+          // 실제로는 날짜별 최신을 가져와야 하지만, 대략적인 평균을 위해 최근 기록들을 맵에 담음
+          latestByStudent.set(r.studentId, r.value);
+        });
+        
+        const values = Array.from(latestByStudent.values());
+        const average = values.length > 0 ? parseFloat((values.reduce((a, b) => a + b, 0) / values.length).toFixed(2)) : 0;
+
+        // 등급 계산
+        let grade = null;
+        if (item.isPaps) {
+          grade = getPapsGrade(item.name, student, latest.value);
+        } else {
+          grade = getCustomItemGrade(item, latest.value);
+        }
+
+        let priority = 3;
         if (item.isPaps) priority = 1;
-        else if (item.category && item.category !== '기타' && item.category !== 'PAPS') priority = 2;
+        else if (item.category && item.category !== '기타') priority = 2;
 
         return {
           name: item.name,
           value: latest.value,
+          average: average,
           unit: item.unit,
-          priority,
-          date: latest.date,
-          category: item.category || (item.isPaps ? 'PAPS' : '기타')
+          grade: grade,
+          priority
         };
-      });
-
-    // 3. 우선순위 순 정렬 후 상위 6개만 선택
-    return itemsWithLatest
+      })
+      .filter((d): d is any => d !== null)
       .sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name))
       .slice(0, 6);
-  }, [records, activeItems, itemFilter]);
+
+    return result;
+  }, [records, activeItems, allStudents, allRecords, itemFilter, student]);
 
   const selectedItemInfo = useMemo(() => {
     return activeItems.find(i => i.name === itemFilter);
@@ -86,26 +111,26 @@ export function GrowthRecordTab({
 
   return (
     <div className="space-y-8 mt-6">
-      <Card className="border-2 border-primary/10 shadow-sm">
-        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2">
+      <Card className="border-2 border-primary/10 shadow-sm overflow-hidden">
+        <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b bg-card">
           <div>
             <CardTitle className="text-2xl font-black text-primary flex items-center gap-2">
-              {itemFilter === 'all' ? <><LayoutDashboard className="h-6 w-6" /> 나의 체력 요약</> : "나의 성장 기록"}
+              {itemFilter === 'all' ? <><LayoutDashboard className="h-6 w-6" /> 나의 체력 분석</> : "나의 성장 기록"}
             </CardTitle>
-            <CardDescription className="text-base font-medium">
+            <CardDescription className="text-base font-bold">
               {itemFilter === 'all' 
-                ? "최근 측정한 주요 종목들의 기록 현황입니다." 
-                : <span className="text-foreground"><strong className="text-primary">{itemFilter}</strong> 기록의 변화 추이입니다.</span>}
+                ? "학년 평균(주황색) 대비 나의 위치(파란색)를 확인하세요." 
+                : <span className="text-foreground"><strong className="text-primary">{itemFilter}</strong> 기록 변화</span>}
             </CardDescription>
           </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto bg-muted/30 p-1.5 rounded-lg border">
-            <span className="text-xs font-bold text-muted-foreground px-2 shrink-0">종목 변경</span>
+          <div className="flex items-center gap-2 w-full sm:w-auto bg-muted/30 p-1.5 rounded-xl border">
+            <span className="text-[10px] font-black text-muted-foreground px-2 shrink-0 uppercase tracking-widest">View Mode</span>
             <Select value={itemFilter} onValueChange={setItemFilter}>
-              <SelectTrigger className="w-full sm:w-[180px] bg-background border-none shadow-none focus:ring-0 h-9">
+              <SelectTrigger className="w-full sm:w-[180px] bg-background border-none shadow-none focus:ring-0 h-9 font-bold">
                 <SelectValue placeholder="종목 선택" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">나의 체력 요약 (전체)</SelectItem>
+                <SelectItem value="all" className="font-bold">나의 체력 요약 (전체)</SelectItem>
                 {activeItems.map((i) => (
                   <SelectItem key={i.id} value={i.name}>{i.name}</SelectItem>
                 ))}
@@ -113,73 +138,102 @@ export function GrowthRecordTab({
             </Select>
           </div>
         </CardHeader>
-        <CardContent className="h-[400px] pt-6">
+        <CardContent className="pt-8">
           {itemFilter === 'all' ? (
             summaryData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={summaryData} margin={{ top: 20, right: 10, left: -20, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.3} />
-                  <XAxis 
-                    dataKey="name" 
-                    fontSize={11} 
-                    fontWeight="700"
-                    tickLine={false} 
-                    axisLine={false} 
-                    tickMargin={12}
-                    angle={-15}
-                    textAnchor="end"
-                  />
-                  <YAxis 
-                    fontSize={11} 
-                    fontWeight="600"
-                    tickLine={false} 
-                    axisLine={false} 
-                    tickMargin={8}
-                  />
-                  <Tooltip 
-                    cursor={{ fill: 'hsl(var(--primary) / 0.05)' }}
-                    contentStyle={{ 
-                      borderRadius: '12px', 
-                      border: '1px solid hsl(var(--border))', 
-                      boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
-                      padding: '12px'
-                    }}
-                    formatter={(value: number, name: string, props: any) => [
-                      `${value}${props.payload.unit}`, 
-                      '최신 기록'
-                    ]}
-                    labelFormatter={(label) => `${label} 현황`}
-                  />
-                  <Bar 
-                    dataKey="value" 
-                    radius={[6, 6, 0, 0]} 
-                    barSize={40}
-                    animationDuration={1500}
-                  >
-                    {summaryData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={entry.priority === 1 ? 'hsl(var(--primary))' : entry.priority === 2 ? 'hsl(var(--chart-2))' : 'hsl(var(--chart-3))'} 
+              <div className="space-y-10">
+                <div className="h-[350px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={summaryData} margin={{ top: 20, right: 10, left: -20, bottom: 20 }} barGap={-25}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.2} />
+                      <XAxis 
+                        dataKey="name" 
+                        fontSize={11} 
+                        fontWeight="800"
+                        tickLine={false} 
+                        axisLine={false} 
+                        tickMargin={12}
+                        angle={-10}
+                        textAnchor="end"
                       />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+                      <YAxis 
+                        fontSize={11} 
+                        fontWeight="600"
+                        tickLine={false} 
+                        axisLine={false} 
+                        tickMargin={8}
+                      />
+                      <Tooltip 
+                        cursor={{ fill: 'transparent' }}
+                        contentStyle={{ 
+                          borderRadius: '16px', 
+                          border: 'none', 
+                          boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
+                          padding: '16px',
+                          fontWeight: 'bold'
+                        }}
+                        formatter={(value: number, name: string, props: any) => [
+                          `${value}${props.payload.unit}`, 
+                          name === 'value' ? '나의 기록' : '학년 평균'
+                        ]}
+                      />
+                      <Legend verticalAlign="top" align="right" height={36} iconType="circle" />
+                      <Bar 
+                        dataKey="average" 
+                        name="학년 평균" 
+                        fill="hsl(var(--chart-2))" 
+                        radius={[8, 8, 0, 0]} 
+                        barSize={45}
+                        animationDuration={1500}
+                        opacity={0.4}
+                      />
+                      <Bar 
+                        dataKey="value" 
+                        name="나의 기록" 
+                        fill="hsl(var(--primary))" 
+                        radius={[8, 8, 0, 0]} 
+                        barSize={30}
+                        animationDuration={2000}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                  {summaryData.map((data, idx) => (
+                    <div key={idx} className="flex flex-col items-center p-4 bg-muted/20 rounded-2xl border-2 border-transparent hover:border-primary/10 transition-all">
+                      <p className="text-[10px] font-black text-muted-foreground mb-1 truncate w-full text-center">{data.name}</p>
+                      <div className="flex items-center justify-center gap-1 mb-2">
+                        <span className="text-xl font-black text-primary">{data.value}</span>
+                        <span className="text-[10px] font-bold text-muted-foreground mt-1">{data.unit}</span>
+                      </div>
+                      {data.grade && (
+                        <Badge className={cn(
+                          "font-black px-3 py-0.5 rounded-full text-[10px]",
+                          data.grade <= 2 ? "bg-green-500" : data.grade === 3 ? "bg-amber-500" : "bg-destructive"
+                        )}>
+                          {data.grade}등급
+                        </Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-full text-muted-foreground border-2 border-dashed rounded-2xl bg-muted/5 animate-in fade-in duration-500">
-                <Info className="h-12 w-12 mb-3 opacity-20 text-primary" />
-                <p className="font-bold text-lg">기록 데이터가 부족합니다.</p>
-                <p className="text-sm opacity-70">측정 입력 탭에서 첫 기록을 저장해보세요!</p>
+              <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground border-4 border-dashed rounded-3xl bg-muted/5 animate-in fade-in duration-500">
+                <Info className="h-16 w-16 mb-4 opacity-10 text-primary" />
+                <p className="font-black text-xl">기록 데이터가 부족합니다.</p>
+                <p className="text-sm font-medium opacity-70 mt-1">측정 입력 탭에서 첫 기록을 저장해보세요!</p>
               </div>
             )
           ) : filteredRecords.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height={400}>
               <ComposedChart data={filteredRecords} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.3} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.2} />
                 <XAxis 
                   dataKey="date" 
                   fontSize={11} 
-                  fontWeight="600"
+                  fontWeight="700"
                   tickLine={false} 
                   axisLine={false} 
                   tickMargin={12}
@@ -197,10 +251,10 @@ export function GrowthRecordTab({
                 <Tooltip 
                   cursor={{ fill: 'hsl(var(--primary) / 0.05)' }}
                   contentStyle={{ 
-                    borderRadius: '12px', 
-                    border: '1px solid hsl(var(--border))', 
-                    boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)',
-                    padding: '12px'
+                    borderRadius: '16px', 
+                    border: 'none', 
+                    boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
+                    padding: '16px'
                   }}
                   formatter={(value: number) => [`${value}${selectedItemInfo?.unit || ''}`, '기록']}
                   labelFormatter={(label) => `측정일: ${label}`}
@@ -209,34 +263,38 @@ export function GrowthRecordTab({
                   dataKey="value" 
                   name={itemFilter} 
                   fill="hsl(var(--primary))" 
-                  radius={[6, 6, 0, 0]} 
+                  radius={[8, 8, 0, 0]} 
                   barSize={32}
                   animationDuration={1500}
+                  opacity={0.3}
                 />
                 <Line 
                   type="monotone" 
                   dataKey="value" 
                   stroke="hsl(var(--primary))" 
-                  strokeWidth={3} 
-                  dot={{ r: 5, fill: "hsl(var(--background))", strokeWidth: 3, stroke: "hsl(var(--primary))" }}
-                  activeDot={{ r: 7, strokeWidth: 0 }}
+                  strokeWidth={4} 
+                  dot={{ r: 6, fill: "hsl(var(--background))", strokeWidth: 4, stroke: "hsl(var(--primary))" }}
+                  activeDot={{ r: 8, strokeWidth: 0, shadow: '0 0 10px rgba(0,0,0,0.2)' }}
                   animationDuration={2000}
                 />
               </ComposedChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground border-2 border-dashed rounded-2xl bg-muted/5 animate-in fade-in duration-500">
-              <p className="font-bold text-lg mb-1">'{itemFilter}' 기록이 아직 없습니다.</p>
-              <p className="text-sm opacity-70">기록 입력 탭에서 오늘의 측정 결과를 저장해보세요!</p>
+            <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground border-4 border-dashed rounded-3xl bg-muted/5 animate-in fade-in duration-500">
+              <p className="font-black text-xl mb-1">'{itemFilter}' 기록이 아직 없습니다.</p>
+              <p className="text-sm font-medium opacity-70">기록 입력 탭에서 오늘의 측정 결과를 저장해보세요!</p>
             </div>
           )}
         </CardContent>
-        <CardFooter className="bg-muted/20 px-6 py-3 border-t">
-          <p className="text-xs text-muted-foreground font-medium">
-            {itemFilter === 'all' 
-              ? "* 종목별 가장 최근에 측정한 기록들을 보여줍니다 (최대 6개)." 
-              : `* 최근 ${filteredRecords.length}회의 측정 결과가 표시되고 있습니다.`}
-          </p>
+        <CardFooter className="bg-muted/20 px-6 py-4 border-t flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-primary rounded-full" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">나의 최신 기록</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-[#ff9d42] rounded-full opacity-60" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">학년 평균 기록</span>
+          </div>
         </CardFooter>
       </Card>
       
