@@ -81,7 +81,6 @@ export default function RecordBrowser({
   const [dateFilter, setDateFilter] = useState<Date | 'latest' | undefined>('latest');
   const [viewType, setViewType] = useState<ViewType>('grade');
   
-  // 기본 정렬을 학년-반-번호 순으로 변경
   const [papsSort, setPapsSort] = useState<SortDescriptor[]>([
     { column: '학년', direction: 'ascending'},
     { column: '반', direction: 'ascending'},
@@ -89,21 +88,26 @@ export default function RecordBrowser({
   ]);
 
 
-  // For "종목별 기록" tab
   const [selectedItem, setSelectedItem] = useState('');
   const [itemGradeFilter, setItemGradeFilter] = useState('all');
   const [itemClassNumFilter, setItemClassNumFilter] = useState('all');
   
-  // 종목별 정렬도 학년-반-번호 순으로 변경
   const [itemSort, setItemSort] = useState<SortDescriptor[]>([
     { column: 'grade', direction: 'ascending' },
     { column: 'classNum', direction: 'ascending' },
     { column: 'studentNum', direction: 'ascending' }
   ]);
   
-  // For Theory Exam Results
   const [quizResults, setQuizResults] = useState<QuizResult[]>([]);
   const [quizAssignments, setQuizAssignments] = useState<QuizAssignment[]>([]);
+
+  // Filter for items that actually have at least one record
+  const itemsWithRecords = useMemo(() => {
+    const recordedItemNames = new Set(allRecords.map(r => r.item));
+    return allItems
+      .filter(item => recordedItemNames.has(item.name))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [allItems, allRecords]);
 
   useEffect(() => {
     if (school && selectedItem === 'theory-exam') {
@@ -661,7 +665,7 @@ export default function RecordBrowser({
                             <SelectItem value="theory-exam" className="font-bold text-primary flex items-center">
                                 <BookOpen className="h-4 w-4 mr-2" /> 이론 평가
                             </SelectItem>
-                            {allItems.map((item) => (
+                            {itemsWithRecords.map((item) => (
                               <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
                             ))}
                           </SelectContent>
