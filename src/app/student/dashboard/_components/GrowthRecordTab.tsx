@@ -1,14 +1,16 @@
+
 'use client';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell, BarChart } from 'recharts';
-import { Wand2, Trophy, Loader2, Info, LayoutDashboard, Star } from 'lucide-react';
+import { Wand2, Trophy, Loader2, Info, LayoutDashboard, Crown, Medal } from 'lucide-react';
 import type { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { getPapsGrade, getCustomItemGrade } from '@/lib/paps';
+import { calculateRanks } from '@/lib/store';
 
 interface GrowthRecordTabProps {
   records: MeasurementRecord[];
@@ -31,12 +33,12 @@ export function GrowthRecordTab({
   allRecords,
   itemFilter, 
   setItemFilter, 
-  hallOfFame, 
   onAiFeedback, 
   aiFeedback, 
   isFeedbackLoading,
   student
 }: GrowthRecordTabProps) {
+  const [hofGrade, setHofGrade] = useState<string>(student?.grade || 'all');
   
   // 개별 종목 선택 시: 시간 순 변화 기록
   const filteredRecords = useMemo(() => {
@@ -46,6 +48,39 @@ export function GrowthRecordTab({
       .filter(r => r.item === itemFilter)
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [records, itemFilter]);
+
+  // 명예의 전당 학년 목록
+  const grades = useMemo(() => 
+    [...new Set(allStudents.map(s => s.grade))].sort((a, b) => parseInt(a) - parseInt(b)),
+    [allStudents]
+  );
+
+  // 명예의 전당 데이터 계산 (내부에서 필터링하여 다시 계산)
+  const filteredHallOfFameData = useMemo(() => {
+    if (!student || activeItems.length === 0 || allStudents.length === 0) return [];
+    
+    const measurementWeekItems = activeItems.filter(item => item.isMeasurementWeek && !item.isArchived && !item.isDeactivated);
+    if (measurementWeekItems.length === 0) return [];
+    
+    const school = student.school;
+    const allRanks = calculateRanks(school, activeItems, allRecords, allStudents, hofGrade === 'all' ? undefined : hofGrade);
+    const studentMap = new Map(allStudents.map(s => [s.id, s]));
+
+    return measurementWeekItems.map(item => {
+      const itemRanks = allRanks[item.name] || [];
+      const topStudents = itemRanks.slice(0, 3).map(rankInfo => {
+        const s = studentMap.get(rankInfo.studentId);
+        return {
+          rank: rankInfo.rank,
+          name: s?.name || '알 수 없음',
+          value: `${rankInfo.value}${item.unit}`,
+          grade: s?.grade,
+          classNum: s?.classNum
+        };
+      });
+      return { itemName: item.name, topStudents };
+    });
+  }, [activeItems, allRecords, allStudents, hofGrade, student]);
 
   // 종목 미선택 시: 각 종목별 최신 기록 요약 및 학년 평균 비교 데이터 산출
   const summaryData = useMemo(() => {
@@ -70,7 +105,6 @@ export function GrowthRecordTab({
         const latestByStudent = new Map<string, number>();
         gradeRecs.forEach(r => {
           const current = latestByStudent.get(r.studentId);
-          // 실제로는 날짜별 최신을 가져와야 하지만, 대략적인 평균을 위해 최근 기록들을 맵에 담음
           latestByStudent.set(r.studentId, r.value);
         });
         
@@ -298,16 +332,34 @@ export function GrowthRecordTab({
         </CardFooter>
       </Card>
       
-      {hallOfFame.length > 0 && (
+      {filteredHallOfFameData.length > 0 && (
         <Card className="bg-amber-50/50 border-2 border-amber-200 shadow-sm overflow-hidden">
-          <CardHeader className="bg-amber-100 pb-4 border-b border-amber-200">
-            <CardTitle className="flex items-center gap-2 text-amber-900 font-black">
-              <Trophy className="h-6 w-6 text-amber-600" /> 우리 학교 명예의 전당
-            </CardTitle>
-            <CardDescription className="text-amber-800 font-bold opacity-90">현재 측정 주간인 종목의 상위 기록자입니다.</CardDescription>
+          <CardHeader className="bg-amber-100 pb-4 border-b border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-amber-900 font-black">
+                <Trophy className="h-6 w-6 text-amber-600" /> 우리 학교 명예의 전당
+              </CardTitle>
+              <CardDescription className="text-amber-800 font-bold opacity-90">
+                {hofGrade === 'all' ? '전체 학년' : `${hofGrade}학년`} 상위 기록자입니다.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2 bg-white/50 p-1.5 rounded-xl border border-amber-200 shadow-sm">
+              <span className="text-[10px] font-black text-amber-800 px-2 uppercase tracking-widest shrink-0">필터</span>
+              <Select value={hofGrade} onValueChange={setHofGrade}>
+                <SelectTrigger className="w-[120px] h-8 bg-transparent border-none shadow-none focus:ring-0 font-bold text-amber-900">
+                  <SelectValue placeholder="학년 선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" className="font-bold">전체 학년</SelectItem>
+                  {grades.map(g => (
+                    <SelectItem key={g} value={g} className="font-bold">{g}학년</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6">
-            {hallOfFame.map((h: any) => (
+            {filteredHallOfFameData.map((h: any) => (
               <div key={h.itemName} className="p-4 bg-background rounded-xl shadow-sm border border-amber-100 flex flex-col gap-3">
                 <div className="bg-amber-100 self-center px-3 py-1 rounded-full text-amber-900 font-black text-sm">
                   {h.itemName}
@@ -322,7 +374,10 @@ export function GrowthRecordTab({
                         )}>
                           {i+1}
                         </span>
-                        <span className="font-bold">{s.name}</span>
+                        <div className="flex flex-col">
+                          <span className="font-bold">{s.name}</span>
+                          <span className="text-[9px] text-muted-foreground">{s.grade}학년 {s.classNum}반</span>
+                        </div>
                       </div>
                       <span className="font-black text-primary">{s.value}</span>
                     </div>

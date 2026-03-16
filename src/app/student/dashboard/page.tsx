@@ -1,6 +1,6 @@
 
 'use client';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { 
   getItems, 
@@ -11,7 +11,6 @@ import {
   getTeamGroups, 
   getQuizAssignments, 
   getQuizResultsBySchool, 
-  calculateRanks, 
   getRecords, 
   getSportsClubs,
   getSchoolByName
@@ -28,6 +27,7 @@ import { KnowledgeTab } from './_components/KnowledgeTab';
 import { getStudentFeedback } from '@/ai/flows/student-ai-feedback';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { calculateRanks } from '@/lib/store';
 
 export default function StudentDashboardPage() {
   const { user, school, isLoading: isAuthLoading } = useAuth();
@@ -101,29 +101,6 @@ export default function StudentDashboardPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  const hallOfFame = useMemo(() => {
-    if (!school || data.items.length === 0 || data.allStudents.length === 0) return [];
-    
-    const measurementWeekItems = data.items.filter((item: any) => item.isMeasurementWeek && !item.isArchived && !item.isDeactivated);
-    if (measurementWeekItems.length === 0) return [];
-    
-    const allRanks = calculateRanks(school, data.items, data.allRecords, data.allStudents);
-    const studentMap = new Map(data.allStudents.map((s: any) => [s.id, s]));
-
-    return measurementWeekItems.map((item: any) => {
-      const itemRanks = allRanks[item.name] || [];
-      const topStudents = itemRanks.slice(0, 3).map(rankInfo => {
-        const s = studentMap.get(rankInfo.studentId);
-        return {
-          rank: rankInfo.rank,
-          name: s?.name || '알 수 없음',
-          value: `${rankInfo.value}${item.unit}`
-        };
-      });
-      return { itemName: item.name, topStudents };
-    });
-  }, [data.items, data.allRecords, data.allStudents, school]);
 
   const handleAiFeedback = async () => {
     if (!data.student || data.records.length === 0 || !school) return;
@@ -204,7 +181,7 @@ export default function StudentDashboardPage() {
                 allStudents={data.allStudents}
                 allRecords={data.allRecords}
                 student={data.student}
-                hallOfFame={hallOfFame}
+                hallOfFame={[]} // hallOfFame is now calculated inside the component
                 itemFilter={itemFilter}
                 setItemFilter={setItemFilter}
                 aiFeedback={aiFeedback}
