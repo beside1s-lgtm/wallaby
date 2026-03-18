@@ -1,25 +1,23 @@
-
 'use client';
 import { useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell, BarChart } from 'recharts';
-import { Wand2, Trophy, Loader2, Info, LayoutDashboard, Crown, Medal } from 'lucide-react';
-import type { Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
+import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, BarChart } from 'recharts';
+import { Wand2, Trophy, Loader2, Info, LayoutDashboard } from 'lucide-react';
+import type { Student, MeasurementRecord, MeasurementItem, ItemStatistics } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { getPapsGrade, getCustomItemGrade } from '@/lib/paps';
-import { calculateRanks } from '@/lib/store';
 
 interface GrowthRecordTabProps {
   records: MeasurementRecord[];
   activeItems: MeasurementItem[];
   allStudents: Student[];
   allRecords: MeasurementRecord[];
+  statistics: ItemStatistics[];
   itemFilter: string;
   setItemFilter: (val: string) => void;
-  hallOfFame: any[];
   onAiFeedback: () => void;
   aiFeedback: string;
   isFeedbackLoading: boolean;
@@ -30,8 +28,7 @@ interface GrowthRecordTabProps {
 export function GrowthRecordTab({ 
   records, 
   activeItems, 
-  allStudents,
-  allRecords,
+  statistics,
   itemFilter, 
   setItemFilter, 
   onAiFeedback, 
@@ -50,41 +47,47 @@ export function GrowthRecordTab({
   }, [records, itemFilter]);
 
   const grades = useMemo(() => 
-    [...new Set(allStudents.map(s => s.grade))].sort((a, b) => parseInt(a) - parseInt(b)),
-    [allStudents]
+    ['4', '5', '6', '7', '8', '9', '10', '11', '12'],
+    []
   );
 
   const filteredHallOfFameData = useMemo(() => {
-    if (!student || activeItems.length === 0 || allStudents.length === 0 || allRecords.length === 0) return [];
+    if (!student || activeItems.length === 0 || statistics.length === 0) return [];
     
     const measurementWeekItems = activeItems.filter(item => item.isMeasurementWeek && !item.isArchived && !item.isDeactivated);
     if (measurementWeekItems.length === 0) return [];
     
-    const school = student.school;
-    const allRanks = calculateRanks(school, activeItems, allRecords, allStudents, hofGrade === 'all' ? undefined : hofGrade);
-    const studentMap = new Map(allStudents.map(s => [s.id, s]));
-
     return measurementWeekItems.map(item => {
-      const itemRanks = allRanks[item.name] || [];
-      const topStudents = itemRanks.slice(0, 3).map(rankInfo => {
-        const s = studentMap.get(rankInfo.studentId);
-        return {
-          rank: rankInfo.rank,
-          name: s?.name || '알 수 없음',
-          value: `${rankInfo.value}${item.unit}`,
-          grade: s?.grade,
-          classNum: s?.classNum
-        };
-      });
-      return { itemName: item.name, topStudents };
-    });
-  }, [activeItems, allRecords, allStudents, hofGrade, student]);
+      const itemStats = statistics.find(s => s.id === item.name);
+      if (!itemStats) return { itemName: item.name, topStudents: [] };
+
+      let studentsToDisplay = [];
+      if (hofGrade === 'all') {
+        // Find top 3 across all grades
+        const allRanks = Object.values(itemStats.gradeStats).flatMap(g => g.topRanks);
+        studentsToDisplay = allRanks
+            .sort((a, b) => {
+                if (item.recordType === 'time' || item.recordType === 'level') return a.value - b.value;
+                return b.value - a.value;
+            })
+            .slice(0, 3);
+      } else {
+        studentsToDisplay = itemStats.gradeStats[hofGrade]?.topRanks.slice(0, 3) || [];
+      }
+
+      return {
+        itemName: item.name,
+        topStudents: studentsToDisplay.map(s => ({
+          ...s,
+          value: `${s.value}${item.unit}`,
+          grade: hofGrade === 'all' ? undefined : hofGrade
+        }))
+      };
+    }).filter(h => h.topStudents.length > 0);
+  }, [activeItems, statistics, hofGrade, student]);
 
   const summaryData = useMemo(() => {
-    if (itemFilter !== 'all' || !student || allStudents.length === 0) return [];
-
-    const classmates = allStudents.filter(s => s.grade === student.grade);
-    const classmateIds = new Set(classmates.map(s => s.id));
+    if (itemFilter !== 'all' || !student) return [];
 
     return activeItems
       .filter(item => !item.isArchived && !item.isDeactivated)
@@ -93,15 +96,10 @@ export function GrowthRecordTab({
         const latest = myRecs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
         if (!latest) return null;
 
-        const gradeRecs = allRecords.filter(r => r.item === item.name && classmateIds.has(r.studentId));
-        const latestByStudent = new Map<string, number>();
-        gradeRecs.forEach(r => latestByStudent.set(r.studentId, r.value));
-        
-        const values = Array.from(latestByStudent.values());
-        const average = values.length > 0 ? parseFloat((values.reduce((a, b) => a + b, 0) / values.length).toFixed(2)) : 0;
+        const itemStats = statistics.find(s => s.id === item.name);
+        const average = itemStats?.gradeStats[student.grade]?.average || 0;
 
         let grade = item.isPaps ? getPapsGrade(item.name, student, latest.value) : getCustomItemGrade(item, latest.value);
-
         let priority = item.isPaps ? 1 : (item.category && item.category !== '기타' ? 2 : 3);
 
         return { name: item.name, value: latest.value, average, unit: item.unit, grade, priority };
@@ -109,7 +107,7 @@ export function GrowthRecordTab({
       .filter((d): d is any => d !== null)
       .sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name))
       .slice(0, 6);
-  }, [records, activeItems, allStudents, allRecords, itemFilter, student]);
+  }, [records, activeItems, statistics, itemFilter, student]);
 
   const selectedItemInfo = useMemo(() => activeItems.find(i => i.name === itemFilter), [activeItems, itemFilter]);
 
@@ -143,12 +141,7 @@ export function GrowthRecordTab({
         </CardHeader>
         <CardContent className="pt-8">
           {itemFilter === 'all' ? (
-            isExtendedLoading ? (
-              <div className="flex flex-col items-center justify-center h-[300px] gap-4">
-                <Loader2 className="h-10 w-10 animate-spin text-primary opacity-50" />
-                <p className="font-bold text-muted-foreground animate-pulse">학년 통계 데이터를 불러오는 중...</p>
-              </div>
-            ) : summaryData.length > 0 ? (
+            summaryData.length > 0 ? (
               <div className="space-y-10">
                 <div className="h-[350px]">
                   <ResponsiveContainer width="100%" height="100%">
@@ -213,12 +206,7 @@ export function GrowthRecordTab({
         </CardContent>
       </Card>
       
-      {isExtendedLoading ? (
-        <Card className="bg-muted/10 border-2 border-dashed py-12 flex flex-col items-center gap-4">
-          <Loader2 className="animate-spin text-primary/30" />
-          <p className="text-sm font-bold text-muted-foreground">명예의 전당 데이터를 불러오는 중...</p>
-        </Card>
-      ) : filteredHallOfFameData.length > 0 && (
+      {filteredHallOfFameData.length > 0 && (
         <Card className="bg-amber-50/50 border-2 border-amber-200 shadow-sm overflow-hidden">
           <CardHeader className="bg-amber-100 pb-4 border-b border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
@@ -252,7 +240,7 @@ export function GrowthRecordTab({
                         <span className={cn("w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-black text-white", i === 0 ? "bg-yellow-500" : i === 1 ? "bg-slate-400" : "bg-amber-600")}>{i+1}</span>
                         <div className="flex flex-col">
                           <span className="font-bold">{s.name}</span>
-                          <span className="text-[9px] text-muted-foreground">{s.grade}학년 {s.classNum}반</span>
+                          <span className="text-[9px] text-muted-foreground">{s.grade || '전체'}학년 {s.classNum}반</span>
                         </div>
                       </div>
                       <span className="font-black text-primary">{s.value}</span>
@@ -282,7 +270,7 @@ export function GrowthRecordTab({
           )}
         </CardContent>
         <CardFooter className="bg-primary/5 pt-0 px-6 pb-6">
-          <Button className="w-full h-14 text-lg font-black shadow-lg gap-2" onClick={onAiFeedback} disabled={isFeedbackLoading || records.length === 0 || !extendedData.isLoaded}>
+          <Button className="w-full h-14 text-lg font-black shadow-lg gap-2" onClick={onAiFeedback} disabled={isFeedbackLoading || records.length === 0}>
             {isFeedbackLoading ? <Loader2 className="animate-spin h-5 w-5" /> : <Wand2 className="h-5 w-5" />}
             AI 성장 분석 요청하기
           </Button>

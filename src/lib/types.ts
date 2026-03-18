@@ -39,6 +39,19 @@ export type MeasurementRecord = {
   date: string; // YYYY-MM-DD
 };
 
+export type ItemStatistics = {
+  id: string; // itemName
+  gradeStats: {
+    [grade: string]: {
+      average: number;
+      count: number;
+      topRanks: { studentId: string; rank: number; value: number; name: string; classNum: string }[];
+      allRanks: { studentId: string; rank: number; value: number }[];
+    }
+  };
+  lastUpdated: any;
+};
+
 export type StudentLogin = Omit<Student, 'id' | 'gender'>;
 
 export type School = {

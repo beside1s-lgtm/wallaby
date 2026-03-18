@@ -1,4 +1,3 @@
-
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/use-auth';
@@ -13,7 +12,8 @@ import {
   getQuizResultsBySchool, 
   getRecords, 
   getSportsClubs,
-  getSchoolByName
+  getSchoolByName,
+  getStatistics
 } from '@/lib/store';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Printer } from 'lucide-react';
@@ -27,7 +27,6 @@ import { KnowledgeTab } from './_components/KnowledgeTab';
 import { getStudentFeedback } from '@/ai/flows/student-ai-feedback';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { calculateRanks } from '@/lib/store';
 
 export default function StudentDashboardPage() {
   const { user, school, isLoading: isAuthLoading } = useAuth();
@@ -41,10 +40,11 @@ export default function StudentDashboardPage() {
     records: [],
     schoolInfo: null,
     quizzes: [],
-    results: []
+    results: [],
+    statistics: []
   });
 
-  // 확장 데이터 (백그라운드 로딩 - 통계, 등수용)
+  // 확장 데이터 (백그라운드 로딩 - 대회용)
   const [extendedData, setExtendedData] = useState<any>({
     allStudents: [],
     allRecords: [],
@@ -59,18 +59,19 @@ export default function StudentDashboardPage() {
   const [aiFeedback, setAiFeedback] = useState('');
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
 
-  // 1단계: 필수 데이터 로딩 (매우 빠름)
+  // 1단계: 필수 데이터 로딩 (학생 본인 기록 + 사전 계산된 통계)
   const loadEssentialData = useCallback(async () => {
     if (!user || !school) return;
     try {
-      const [items, records, stud, quizzes, results, schoolInfo, sportsClubs] = await Promise.all([
+      const [items, records, stud, quizzes, results, schoolInfo, sportsClubs, statistics] = await Promise.all([
         getItems(school), 
         getRecordsByStudent(school, user.id), 
         getStudentById(school, user.id),
         getQuizAssignments(school), 
         getQuizResultsBySchool(school),
         getSchoolByName(school),
-        getSportsClubs(school)
+        getSportsClubs(school),
+        getStatistics(school)
       ]);
       
       const filteredQuizzes = quizzes.filter(q => {
@@ -91,27 +92,26 @@ export default function StudentDashboardPage() {
         student: stud, 
         quizzes: filteredQuizzes, 
         results: results.filter(r => r.studentId === user.id),
-        schoolInfo
+        schoolInfo,
+        statistics
       });
       setIsLoading(false);
       
-      // 2단계: 확장 데이터 로딩 시작
-      loadExtendedData(stud, items);
+      // 2단계: 무거운 데이터 로딩 (대회 및 팀 기능용)
+      loadExtendedData(stud);
     } catch (e) {
       console.error("Essential data load failed", e);
       setIsLoading(false);
     }
   }, [user, school]);
 
-  // 2단계: 무거운 데이터 로딩 (백그라운드)
-  const loadExtendedData = async (stud: any, items: any) => {
+  const loadExtendedData = async (stud: any) => {
     if (!school || !stud) return;
     setIsExtendedLoading(true);
     try {
-      // 필요한 데이터만 선별적으로 가져오거나 병렬 처리 최적화
-      const [allStuds, allRecords, allTeams] = await Promise.all([
+      const [allStuds, allRecs, allTeams] = await Promise.all([
         getStudents(school),
-        getRecords(school), // TODO: 향후 학년별 fetch로 최적화 필요
+        getRecords(school),
         getTeamGroups(school)
       ]);
 
@@ -119,7 +119,7 @@ export default function StudentDashboardPage() {
 
       setExtendedData({
         allStudents: allStuds,
-        allRecords: allRecords,
+        allRecords: allRecs,
         tournament,
         isLoaded: true
       });
@@ -135,18 +135,23 @@ export default function StudentDashboardPage() {
   }, [loadEssentialData]);
 
   const handleAiFeedback = async () => {
-    if (!essentialData.student || essentialData.records.length === 0 || !school || !extendedData.isLoaded) {
-      toast({ title: "데이터 분석 준비 중", description: "통계 데이터를 불러오는 중입니다. 잠시만 기다려주세요." });
-      return;
-    }
+    if (!essentialData.student || essentialData.records.length === 0 || !school) return;
     
     setIsFeedbackLoading(true);
     try {
       const latestRecord = [...essentialData.records].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-      const allItemRanks = calculateRanks(school, essentialData.items, extendedData.allRecords, extendedData.allStudents, essentialData.student.grade);
-      const itemRanks = allItemRanks[latestRecord.item] || [];
-      const rankInfo = itemRanks.find(r => r.studentId === essentialData.student.id && r.value === latestRecord.value);
-      const rankText = rankInfo ? `${itemRanks.length}명 중 ${rankInfo.rank}등` : '';
+      
+      // Use cached statistics if available
+      const itemStats = essentialData.statistics.find((s: any) => s.id === latestRecord.item);
+      let rankText = '';
+      
+      if (itemStats && itemStats.gradeStats[essentialData.student.grade]) {
+        const gradeData = itemStats.gradeStats[essentialData.student.grade];
+        const rankInfo = gradeData.allRanks.find((r: any) => r.studentId === essentialData.student.id);
+        if (rankInfo) {
+            rankText = `${gradeData.count}명 중 ${rankInfo.rank}등`;
+        }
+      }
 
       const result = await getStudentFeedback({
         school,
@@ -215,8 +220,8 @@ export default function StudentDashboardPage() {
                 activeItems={essentialData.items.filter((i:any)=>!i.isDeactivated && !i.isArchived)} 
                 allStudents={extendedData.allStudents}
                 allRecords={extendedData.allRecords}
+                statistics={essentialData.statistics}
                 student={essentialData.student}
-                hallOfFame={[]}
                 itemFilter={itemFilter}
                 setItemFilter={setItemFilter}
                 aiFeedback={aiFeedback}

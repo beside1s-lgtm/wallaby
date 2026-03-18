@@ -1,5 +1,5 @@
 'use client';
-import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentToAdd, School, StudentToUpdate, TeamGroup, TeamGroupInput, Tournament, Team, SportsClub, Quiz, QuizAssignment, QuizResult } from './types';
+import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentToAdd, School, StudentToUpdate, TeamGroup, TeamGroupInput, Tournament, Team, SportsClub, Quiz, QuizAssignment, QuizResult, ItemStatistics } from './types';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
 import { initialItems, initialStudents, initialRecords } from './initial-data';
@@ -104,7 +104,7 @@ export const deleteSchoolAndData = async (schoolName: string): Promise<void> => 
     await signIn();
     const batch = writeBatch(db);
     
-    const collectionsToDelete = ['students', 'items', 'records', 'teamGroups', 'tournaments'];
+    const collectionsToDelete = ['students', 'items', 'records', 'teamGroups', 'tournaments', 'statistics'];
 
     for (const coll of collectionsToDelete) {
         const collRef = collection(db, 'schools', schoolName, coll);
@@ -208,7 +208,11 @@ export const deleteStudentAndAssociatedRecords = async (school: string, studentI
   const q = query(recordsRef, where('studentId', '==', studentId));
   
   const recordsSnapshot = await getDocs(q);
-  recordsSnapshot.forEach(doc => batch.delete(doc.ref));
+  const affectedItems = new Set<string>();
+  recordsSnapshot.forEach(doc => {
+    affectedItems.add(doc.data().item);
+    batch.delete(doc.ref);
+  });
 
   const studentDocRef = doc(db, 'schools', school, 'students', studentId);
   batch.delete(studentDocRef);
@@ -223,6 +227,11 @@ export const deleteStudentAndAssociatedRecords = async (school: string, studentI
     }
     throw e;
   });
+
+  // Recalculate stats for all affected items
+  for (const item of affectedItems) {
+    await updateItemStatistics(school, item);
+  }
 };
 
 
@@ -606,7 +615,7 @@ export const setRecords = async (school: string, records: MeasurementRecord[]) =
     await batch.commit().catch(e => {
         if (e.code === 'permission-denied') {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: itemsRef.path,
+                path: recordsRef.path,
                 operation: 'write',
                 requestResourceData: { message: 'Batch setting records.' }
             }));
@@ -651,6 +660,10 @@ export const addOrUpdateRecord = async (record: Partial<MeasurementRecord> & Pic
       finalRecord = { ...record, id: newRecordRef.id } as MeasurementRecord;
       await setDoc(newRecordRef, finalRecord);
     }
+    
+    // Pre-calculate statistics after write
+    updateItemStatistics(record.school, record.item);
+
   } catch (e: any) {
     if (e.code === 'permission-denied') {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -668,6 +681,9 @@ export const addOrUpdateRecord = async (record: Partial<MeasurementRecord> & Pic
 export const deleteRecord = async (school: string, recordId: string) => {
   await signIn();
   const recordDocRef = doc(db, 'schools', school, 'records', recordId);
+  const snap = await getDoc(recordDocRef);
+  const itemName = snap.exists() ? snap.data().item : null;
+
   await deleteDoc(recordDocRef).catch(e => {
     if (e.code === 'permission-denied') {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -677,6 +693,10 @@ export const deleteRecord = async (school: string, recordId: string) => {
     }
     throw e;
   });
+
+  if (itemName) {
+    updateItemStatistics(school, itemName);
+  }
 };
 
 export const deleteRecordsByDateAndItem = async (school: string, date: string, item: string): Promise<number> => {
@@ -704,6 +724,8 @@ export const deleteRecordsByDateAndItem = async (school: string, date: string, i
         }
         throw e;
     });
+
+    updateItemStatistics(school, item);
     return snapshot.size;
 };
 
@@ -711,9 +733,12 @@ export const addOrUpdateRecords = async (school: string, students: Student[], re
   await signIn();
   
   const updatedRecords: MeasurementRecord[] = [];
+  const affectedItems = new Set<string>();
+
   if (recordsToProcess.length > 0) {
     const batch = writeBatch(db);
     for (const record of recordsToProcess) {
+        affectedItems.add(record.item);
         const q = query(
             collection(db, 'schools', school, 'records'),
             where('studentId', '==', record.studentId),
@@ -742,6 +767,11 @@ export const addOrUpdateRecords = async (school: string, students: Student[], re
         }
         throw e;
     });
+
+    // Recalculate stats for all affected items
+    for (const item of affectedItems) {
+        updateItemStatistics(school, item);
+    }
   }
 
   return updatedRecords;
@@ -766,8 +796,103 @@ export const getRecordsByStudent = async (school: string, studentId: string): Pr
 };
 
 
-// Ranks
-type RankInfo = { studentId: string; value: number; rank: number };
+// Statistics & Ranks
+export const updateItemStatistics = async (school: string, itemName: string): Promise<void> => {
+    await signIn();
+    const students = await getStudents(school);
+    const items = await getItems(school);
+    const itemInfo = items.find(i => i.name === itemName);
+    if (!itemInfo) return;
+
+    const recordsRef = collection(db, 'schools', school, 'records');
+    const q = query(recordsRef, where('item', '==', itemName));
+    const snapshot = await getDocs(q);
+    const allRecords = snapshot.docs.map(d => d.data() as MeasurementRecord);
+
+    const grades = [...new Set(students.map(s => s.grade))];
+    const gradeStats: ItemStatistics['gradeStats'] = {};
+
+    const studentMap = new Map(students.map(s => [s.id, s]));
+
+    for (const grade of grades) {
+        const gradeStudents = students.filter(s => s.grade === grade);
+        const gradeStudentIds = new Set(gradeStudents.map(s => s.id));
+        
+        const latestRecords: Record<string, MeasurementRecord> = {};
+        allRecords.filter(r => gradeStudentIds.has(r.studentId)).forEach(record => {
+            if (!latestRecords[record.studentId] || new Date(record.date) > new Date(latestRecords[record.studentId].date)) {
+                latestRecords[record.studentId] = record;
+            }
+        });
+
+        const studentValues = Object.values(latestRecords);
+        if (studentValues.length === 0) continue;
+
+        if (itemInfo.recordType === 'time') {
+            studentValues.sort((a, b) => a.value - b.value);
+        } else if (itemInfo.recordType === 'level') {
+            studentValues.sort((a, b) => a.value - b.value);
+        } else {
+            studentValues.sort((a, b) => b.value - a.value);
+        }
+
+        const allRanks: { studentId: string; rank: number; value: number }[] = [];
+        let rank = 1;
+        for (let i = 0; i < studentValues.length; i++) {
+            if (i > 0 && studentValues[i].value !== studentValues[i - 1].value) {
+                rank = i + 1;
+            }
+            allRanks.push({ studentId: studentValues[i].studentId, value: studentValues[i].value, rank });
+        }
+
+        const totalValue = studentValues.reduce((acc, r) => acc + r.value, 0);
+        const average = parseFloat((totalValue / studentValues.length).toFixed(2));
+
+        const topRanks = allRanks.slice(0, 5).map(r => {
+            const s = studentMap.get(r.studentId);
+            return { ...r, name: s?.name || '?', classNum: s?.classNum || '?' };
+        });
+
+        gradeStats[grade] = {
+            average,
+            count: studentValues.length,
+            topRanks,
+            allRanks
+        };
+    }
+
+    const statsRef = doc(db, 'schools', school, 'statistics', itemName);
+    const statsData: ItemStatistics = {
+        id: itemName,
+        gradeStats,
+        lastUpdated: serverTimestamp()
+    };
+
+    await setDoc(statsRef, statsData).catch(e => {
+        if (e.code === 'permission-denied') {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: statsRef.path,
+                operation: 'write',
+                requestResourceData: statsData
+            }));
+        }
+    });
+};
+
+export const getStatistics = async (school: string): Promise<ItemStatistics[]> => {
+    await signIn();
+    const statsRef = collection(db, 'schools', school, 'statistics');
+    const snapshot = await getDocs(statsRef).catch(e => {
+        if (e.code === 'permission-denied') {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: statsRef.path,
+                operation: 'list'
+            }));
+        }
+        throw e;
+    });
+    return snapshot.docs.map(doc => doc.data() as ItemStatistics);
+};
 
 export const calculateRanks = (
     school: string, 
@@ -775,8 +900,8 @@ export const calculateRanks = (
     allRecords: MeasurementRecord[],
     allStudents: Student[],
     grade?: string
-): Record<string, RankInfo[]> => {
-  const allRanks: Record<string, RankInfo[]> = {};
+): Record<string, { studentId: string; value: number; rank: number }[]> => {
+  const allRanks: Record<string, { studentId: string; value: number; rank: number }[]> = {};
 
   const gradeStudents = grade ? allStudents.filter(s => s.grade === grade) : allStudents;
   const gradeStudentIds = new Set(gradeStudents.map(s => s.id));
@@ -801,7 +926,7 @@ export const calculateRanks = (
       studentValues.sort((a, b) => b.value - a.value); // Higher is better
     }
 
-    const ranks: RankInfo[] = [];
+    const ranks: { studentId: string; value: number; rank: number }[] = [];
     let rank = 1;
     for (let i = 0; i < studentValues.length; i++) {
       if (i > 0 && studentValues[i].value !== studentValues[i - 1].value) {
@@ -837,10 +962,12 @@ export const cleanUpDuplicateRecords = async (school: string): Promise<number> =
 
   const batch = writeBatch(db);
   let duplicatesFound = 0;
+  const affectedItems = new Set<string>();
 
   for (const [key, recordGroup] of recordsByCompoundKey.entries()) {
     if (recordGroup.length > 1) {
       duplicatesFound += recordGroup.length - 1;
+      affectedItems.add(recordGroup[0].item);
       // Keep the one with the latest ID (or any other logic, here latest ID means latest write)
       recordGroup.sort((a, b) => b.id.localeCompare(a.id));
       for (let i = 1; i < recordGroup.length; i++) {
@@ -861,6 +988,9 @@ export const cleanUpDuplicateRecords = async (school: string): Promise<number> =
         }
         throw e;
     });
+    for (const item of affectedItems) {
+        updateItemStatistics(school, item);
+    }
   }
   return duplicatesFound;
 };
@@ -1223,6 +1353,10 @@ export const deleteItemAndAssociatedRecords = async (school: string, itemToDelet
     }
     throw e;
   });
+
+  // Delete statistics
+  const statsDocRef = doc(db, 'schools', school, 'statistics', itemToDelete.name);
+  await deleteDoc(statsDocRef);
 };
 
 export const deleteCategoryAndAssociatedRecords = async (school: string, category: string, allItems: MeasurementItem[]): Promise<void> => {
@@ -1251,6 +1385,8 @@ export const deleteCategoryAndAssociatedRecords = async (school: string, categor
   itemsToDelete.forEach(item => {
     const itemDocRef = doc(db, 'schools', school, 'items', item.id);
     batch.delete(itemDocRef);
+    const statsDocRef = doc(db, 'schools', school, 'statistics', item.name);
+    batch.delete(statsDocRef);
   });
 
   await batch.commit().catch(e => {
@@ -1291,7 +1427,7 @@ export const saveQuiz = async (school: string, quizData: Omit<Quiz, 'id' | 'crea
 export const getQuizzes = async (school: string): Promise<Quiz[]> => {
   await signIn();
   const quizzesRef = collection(db, 'schools', school, 'quizzes');
-  const q = query(quizzesRef, orderBy('createdAt', 'desc'));
+  const q = query( quizzesRef, orderBy('createdAt', 'desc'));
   const snapshot = await getDocs(q).catch(e => {
     if (e.code === 'permission-denied') {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
