@@ -24,6 +24,7 @@ interface GrowthRecordTabProps {
   aiFeedback: string;
   isFeedbackLoading: boolean;
   student: Student | null;
+  isExtendedLoading?: boolean;
 }
 
 export function GrowthRecordTab({ 
@@ -36,28 +37,25 @@ export function GrowthRecordTab({
   onAiFeedback, 
   aiFeedback, 
   isFeedbackLoading,
-  student
+  student,
+  isExtendedLoading
 }: GrowthRecordTabProps) {
   const [hofGrade, setHofGrade] = useState<string>(student?.grade || 'all');
   
-  // 개별 종목 선택 시: 시간 순 변화 기록
   const filteredRecords = useMemo(() => {
     if (!itemFilter || itemFilter === 'all') return [];
-    
     return records
       .filter(r => r.item === itemFilter)
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [records, itemFilter]);
 
-  // 명예의 전당 학년 목록
   const grades = useMemo(() => 
     [...new Set(allStudents.map(s => s.grade))].sort((a, b) => parseInt(a) - parseInt(b)),
     [allStudents]
   );
 
-  // 명예의 전당 데이터 계산 (내부에서 필터링하여 다시 계산)
   const filteredHallOfFameData = useMemo(() => {
-    if (!student || activeItems.length === 0 || allStudents.length === 0) return [];
+    if (!student || activeItems.length === 0 || allStudents.length === 0 || allRecords.length === 0) return [];
     
     const measurementWeekItems = activeItems.filter(item => item.isMeasurementWeek && !item.isArchived && !item.isDeactivated);
     if (measurementWeekItems.length === 0) return [];
@@ -82,66 +80,38 @@ export function GrowthRecordTab({
     });
   }, [activeItems, allRecords, allStudents, hofGrade, student]);
 
-  // 종목 미선택 시: 각 종목별 최신 기록 요약 및 학년 평균 비교 데이터 산출
   const summaryData = useMemo(() => {
-    if (itemFilter !== 'all' || !student) return [];
+    if (itemFilter !== 'all' || !student || allStudents.length === 0) return [];
 
-    // 1. 학년 동급생 필터링
     const classmates = allStudents.filter(s => s.grade === student.grade);
     const classmateIds = new Set(classmates.map(s => s.id));
 
-    // 2. 종목별 나의 최신 기록 & 학년 평균 기록 계산
-    const result = activeItems
+    return activeItems
       .filter(item => !item.isArchived && !item.isDeactivated)
       .map(item => {
-        // 나의 최신 기록
         const myRecs = records.filter(r => r.item === item.name);
         const latest = myRecs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-        
         if (!latest) return null;
 
-        // 학년 평균 기록
         const gradeRecs = allRecords.filter(r => r.item === item.name && classmateIds.has(r.studentId));
         const latestByStudent = new Map<string, number>();
-        gradeRecs.forEach(r => {
-          const current = latestByStudent.get(r.studentId);
-          latestByStudent.set(r.studentId, r.value);
-        });
+        gradeRecs.forEach(r => latestByStudent.set(r.studentId, r.value));
         
         const values = Array.from(latestByStudent.values());
         const average = values.length > 0 ? parseFloat((values.reduce((a, b) => a + b, 0) / values.length).toFixed(2)) : 0;
 
-        // 등급 계산
-        let grade = null;
-        if (item.isPaps) {
-          grade = getPapsGrade(item.name, student, latest.value);
-        } else {
-          grade = getCustomItemGrade(item, latest.value);
-        }
+        let grade = item.isPaps ? getPapsGrade(item.name, student, latest.value) : getCustomItemGrade(item, latest.value);
 
-        let priority = 3;
-        if (item.isPaps) priority = 1;
-        else if (item.category && item.category !== '기타') priority = 2;
+        let priority = item.isPaps ? 1 : (item.category && item.category !== '기타' ? 2 : 3);
 
-        return {
-          name: item.name,
-          value: latest.value,
-          average: average,
-          unit: item.unit,
-          grade: grade,
-          priority
-        };
+        return { name: item.name, value: latest.value, average, unit: item.unit, grade, priority };
       })
       .filter((d): d is any => d !== null)
       .sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name))
       .slice(0, 6);
-
-    return result;
   }, [records, activeItems, allStudents, allRecords, itemFilter, student]);
 
-  const selectedItemInfo = useMemo(() => {
-    return activeItems.find(i => i.name === itemFilter);
-  }, [activeItems, itemFilter]);
+  const selectedItemInfo = useMemo(() => activeItems.find(i => i.name === itemFilter), [activeItems, itemFilter]);
 
   return (
     <div className="space-y-8 mt-6">
@@ -153,12 +123,11 @@ export function GrowthRecordTab({
             </CardTitle>
             <CardDescription className="text-base font-bold">
               {itemFilter === 'all' 
-                ? "학년 평균(주황색) 대비 나의 위치(파란색)를 확인하세요." 
+                ? "학년 평균 대비 나의 위치를 확인하세요." 
                 : <span className="text-foreground"><strong className="text-primary">{itemFilter}</strong> 기록 변화</span>}
             </CardDescription>
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto bg-muted/30 p-1.5 rounded-xl border">
-            <span className="text-[10px] font-black text-muted-foreground px-2 shrink-0 uppercase tracking-widest">View Mode</span>
             <Select value={itemFilter} onValueChange={setItemFilter}>
               <SelectTrigger className="w-full sm:w-[180px] bg-background border-none shadow-none focus:ring-0 h-9 font-bold">
                 <SelectValue placeholder="종목 선택" />
@@ -174,65 +143,30 @@ export function GrowthRecordTab({
         </CardHeader>
         <CardContent className="pt-8">
           {itemFilter === 'all' ? (
-            summaryData.length > 0 ? (
+            isExtendedLoading ? (
+              <div className="flex flex-col items-center justify-center h-[300px] gap-4">
+                <Loader2 className="h-10 w-10 animate-spin text-primary opacity-50" />
+                <p className="font-bold text-muted-foreground animate-pulse">학년 통계 데이터를 불러오는 중...</p>
+              </div>
+            ) : summaryData.length > 0 ? (
               <div className="space-y-10">
                 <div className="h-[350px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={summaryData} margin={{ top: 20, right: 10, left: -20, bottom: 20 }} barGap={-25}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.2} />
-                      <XAxis 
-                        dataKey="name" 
-                        fontSize={11} 
-                        fontWeight="800"
-                        tickLine={false} 
-                        axisLine={false} 
-                        tickMargin={12}
-                        angle={-10}
-                        textAnchor="end"
-                      />
-                      <YAxis 
-                        fontSize={11} 
-                        fontWeight="600"
-                        tickLine={false} 
-                        axisLine={false} 
-                        tickMargin={8}
-                      />
+                      <XAxis dataKey="name" fontSize={11} fontWeight="800" tickLine={false} axisLine={false} tickMargin={12} angle={-10} textAnchor="end" />
+                      <YAxis fontSize={11} fontWeight="600" tickLine={false} axisLine={false} tickMargin={8} />
                       <Tooltip 
                         cursor={{ fill: 'transparent' }}
-                        contentStyle={{ 
-                          borderRadius: '16px', 
-                          border: 'none', 
-                          boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)',
-                          padding: '16px',
-                          fontWeight: 'bold'
-                        }}
-                        formatter={(value: number, name: string, props: any) => [
-                          `${value}${props.payload.unit}`, 
-                          name === 'value' ? '나의 기록' : '학년 평균'
-                        ]}
+                        contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', padding: '16px', fontWeight: 'bold' }}
+                        formatter={(value: number, name: string, props: any) => [`${value}${props.payload.unit}`, name === 'value' ? '나의 기록' : '학년 평균']}
                       />
                       <Legend verticalAlign="top" align="right" height={36} iconType="circle" />
-                      <Bar 
-                        dataKey="average" 
-                        name="학년 평균" 
-                        fill="hsl(var(--chart-2))" 
-                        radius={[8, 8, 0, 0]} 
-                        barSize={45}
-                        animationDuration={1500}
-                        opacity={0.4}
-                      />
-                      <Bar 
-                        dataKey="value" 
-                        name="나의 기록" 
-                        fill="hsl(var(--primary))" 
-                        radius={[8, 8, 0, 0]} 
-                        barSize={30}
-                        animationDuration={2000}
-                      />
+                      <Bar dataKey="average" name="학년 평균" fill="hsl(var(--chart-2))" radius={[8, 8, 0, 0]} barSize={45} animationDuration={1000} opacity={0.4} />
+                      <Bar dataKey="value" name="나의 기록" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} barSize={30} animationDuration={1200} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
-
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                   {summaryData.map((data, idx) => (
                     <div key={idx} className="flex flex-col items-center p-4 bg-muted/20 rounded-2xl border-2 border-transparent hover:border-primary/10 transition-all">
@@ -242,10 +176,7 @@ export function GrowthRecordTab({
                         <span className="text-[10px] font-bold text-muted-foreground mt-1">{data.unit}</span>
                       </div>
                       {data.grade && (
-                        <Badge className={cn(
-                          "font-black px-3 py-0.5 rounded-full text-[10px]",
-                          data.grade <= 2 ? "bg-green-500" : data.grade === 3 ? "bg-amber-500" : "bg-destructive"
-                        )}>
+                        <Badge className={cn("font-black px-3 py-0.5 rounded-full text-[10px]", data.grade <= 2 ? "bg-green-500" : data.grade === 3 ? "bg-amber-500" : "bg-destructive")}>
                           {data.grade}등급
                         </Badge>
                       )}
@@ -254,85 +185,40 @@ export function GrowthRecordTab({
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground border-4 border-dashed rounded-3xl bg-muted/5 animate-in fade-in duration-500">
+              <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground border-4 border-dashed rounded-3xl bg-muted/5">
                 <Info className="h-16 w-16 mb-4 opacity-10 text-primary" />
                 <p className="font-black text-xl">기록 데이터가 부족합니다.</p>
-                <p className="text-sm font-medium opacity-70 mt-1">측정 입력 탭에서 첫 기록을 저장해보세요!</p>
               </div>
             )
           ) : filteredRecords.length > 0 ? (
             <ResponsiveContainer width="100%" height={400}>
               <ComposedChart data={filteredRecords} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.2} />
-                <XAxis 
-                  dataKey="date" 
-                  fontSize={11} 
-                  fontWeight="700"
-                  tickLine={false} 
-                  axisLine={false} 
-                  tickMargin={12}
-                  tickFormatter={(val) => val.split('-').slice(1).join('/')}
-                />
-                <YAxis 
-                  fontSize={11} 
-                  fontWeight="600"
-                  tickLine={false} 
-                  axisLine={false} 
-                  unit={selectedItemInfo?.unit}
-                  domain={['auto', 'auto']}
-                  tickMargin={8}
-                />
+                <XAxis dataKey="date" fontSize={11} fontWeight="700" tickLine={false} axisLine={false} tickMargin={12} tickFormatter={(val) => val.split('-').slice(1).join('/')} />
+                <YAxis fontSize={11} fontWeight="600" tickLine={false} axisLine={false} unit={selectedItemInfo?.unit} domain={['auto', 'auto']} tickMargin={8} />
                 <Tooltip 
                   cursor={{ fill: 'hsl(var(--primary) / 0.05)' }}
-                  contentStyle={{ 
-                    borderRadius: '16px', 
-                    border: 'none', 
-                    boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
-                    padding: '16px'
-                  }}
+                  contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', padding: '16px' }}
                   formatter={(value: number) => [`${value}${selectedItemInfo?.unit || ''}`, '기록']}
-                  labelFormatter={(label) => `측정일: ${label}`}
                 />
-                <Bar 
-                  dataKey="value" 
-                  name={itemFilter} 
-                  fill="hsl(var(--primary))" 
-                  radius={[8, 8, 0, 0]} 
-                  barSize={32}
-                  animationDuration={1500}
-                  opacity={0.3}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="value" 
-                  stroke="hsl(var(--primary))" 
-                  strokeWidth={4} 
-                  dot={{ r: 6, fill: "hsl(var(--background))", strokeWidth: 4, stroke: "hsl(var(--primary))" }}
-                  activeDot={{ r: 8, strokeWidth: 0, shadow: '0 0 10px rgba(0,0,0,0.2)' }}
-                  animationDuration={2000}
-                />
+                <Bar dataKey="value" name={itemFilter} fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} barSize={32} opacity={0.3} />
+                <Line type="monotone" dataKey="value" stroke="hsl(var(--primary))" strokeWidth={4} dot={{ r: 6, fill: "hsl(var(--background))", strokeWidth: 4, stroke: "hsl(var(--primary))" }} />
               </ComposedChart>
             </ResponsiveContainer>
           ) : (
-            <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground border-4 border-dashed rounded-3xl bg-muted/5 animate-in fade-in duration-500">
-              <p className="font-black text-xl mb-1">'{itemFilter}' 기록이 아직 없습니다.</p>
-              <p className="text-sm font-medium opacity-70">기록 입력 탭에서 오늘의 측정 결과를 저장해보세요!</p>
+            <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground border-4 border-dashed rounded-3xl bg-muted/5">
+              <p className="font-black text-xl mb-1">기록이 없습니다.</p>
             </div>
           )}
         </CardContent>
-        <CardFooter className="bg-muted/20 px-6 py-4 border-t flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-primary rounded-full" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">나의 최신 기록</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-[#ff9d42] rounded-full opacity-60" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">학년 평균 기록</span>
-          </div>
-        </CardFooter>
       </Card>
       
-      {filteredHallOfFameData.length > 0 && (
+      {isExtendedLoading ? (
+        <Card className="bg-muted/10 border-2 border-dashed py-12 flex flex-col items-center gap-4">
+          <Loader2 className="animate-spin text-primary/30" />
+          <p className="text-sm font-bold text-muted-foreground">명예의 전당 데이터를 불러오는 중...</p>
+        </Card>
+      ) : filteredHallOfFameData.length > 0 && (
         <Card className="bg-amber-50/50 border-2 border-amber-200 shadow-sm overflow-hidden">
           <CardHeader className="bg-amber-100 pb-4 border-b border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
@@ -344,16 +230,13 @@ export function GrowthRecordTab({
               </CardDescription>
             </div>
             <div className="flex items-center gap-2 bg-white/50 p-1.5 rounded-xl border border-amber-200 shadow-sm">
-              <span className="text-[10px] font-black text-amber-800 px-2 uppercase tracking-widest shrink-0">필터</span>
               <Select value={hofGrade} onValueChange={setHofGrade}>
                 <SelectTrigger className="w-[120px] h-8 bg-transparent border-none shadow-none focus:ring-0 font-bold text-amber-900">
                   <SelectValue placeholder="학년 선택" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all" className="font-bold">전체 학년</SelectItem>
-                  {grades.map(g => (
-                    <SelectItem key={g} value={g} className="font-bold">{g}학년</SelectItem>
-                  ))}
+                  {grades.map(g => <SelectItem key={g} value={g} className="font-bold">{g}학년</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -361,19 +244,12 @@ export function GrowthRecordTab({
           <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6">
             {filteredHallOfFameData.map((h: any) => (
               <div key={h.itemName} className="p-4 bg-background rounded-xl shadow-sm border border-amber-100 flex flex-col gap-3">
-                <div className="bg-amber-100 self-center px-3 py-1 rounded-full text-amber-900 font-black text-sm">
-                  {h.itemName}
-                </div>
+                <div className="bg-amber-100 self-center px-3 py-1 rounded-full text-amber-900 font-black text-sm">{h.itemName}</div>
                 <div className="space-y-2">
                   {h.topStudents.map((s:any, i:number) => (
                     <div key={i} className="flex justify-between items-center text-sm p-2 rounded-lg hover:bg-muted/30 transition-colors">
                       <div className="flex items-center gap-2">
-                        <span className={cn(
-                          "w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-black text-white",
-                          i === 0 ? "bg-yellow-500" : i === 1 ? "bg-slate-400" : "bg-amber-600"
-                        )}>
-                          {i+1}
-                        </span>
+                        <span className={cn("w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-black text-white", i === 0 ? "bg-yellow-500" : i === 1 ? "bg-slate-400" : "bg-amber-600")}>{i+1}</span>
                         <div className="flex flex-col">
                           <span className="font-bold">{s.name}</span>
                           <span className="text-[9px] text-muted-foreground">{s.grade}학년 {s.classNum}반</span>
@@ -391,34 +267,22 @@ export function GrowthRecordTab({
 
       <Card className="border-2 border-primary/10 overflow-hidden">
         <CardHeader className="bg-primary/5 pb-4 border-b">
-          <CardTitle className="flex items-center gap-2 text-primary font-black">
-            <Wand2 className="h-6 w-6" /> AI 맞춤 성장 피드백
-          </CardTitle>
-          <CardDescription className="font-medium">나의 최근 기록을 바탕으로 AI 코치가 분석해 드립니다.</CardDescription>
+          <CardTitle className="flex items-center gap-2 text-primary font-black"><Wand2 className="h-6 w-6" /> AI 맞춤 성장 피드백</CardTitle>
         </CardHeader>
         <CardContent className="pt-6 pb-6">
           {isFeedbackLoading ? (
             <div className="flex flex-col items-center justify-center py-12 gap-4">
               <Loader2 className="h-10 w-10 animate-spin text-primary opacity-50" />
-              <p className="text-sm font-bold text-muted-foreground animate-pulse">나의 기록을 분석하는 중입니다...</p>
+              <p className="text-sm font-bold text-muted-foreground">나의 기록을 분석하는 중입니다...</p>
             </div>
           ) : (
-            <div className={cn(
-              "p-6 rounded-2xl transition-all duration-500",
-              aiFeedback ? "bg-primary/5 border border-primary/10 shadow-inner" : "bg-muted/20 border border-dashed text-center"
-            )}>
-              <p className="whitespace-pre-wrap text-base font-medium leading-relaxed italic text-foreground/80">
-                {aiFeedback || "아직 분석된 내용이 없습니다. 아래 버튼을 눌러 AI 분석을 시작해보세요!"}
-              </p>
+            <div className={cn("p-6 rounded-2xl transition-all duration-500", aiFeedback ? "bg-primary/5 border border-primary/10 shadow-inner" : "bg-muted/20 border border-dashed text-center")}>
+              <p className="whitespace-pre-wrap text-base font-medium leading-relaxed italic text-foreground/80">{aiFeedback || "아직 분석된 내용이 없습니다."}</p>
             </div>
           )}
         </CardContent>
         <CardFooter className="bg-primary/5 pt-0 px-6 pb-6">
-          <Button 
-            className="w-full h-14 text-lg font-black shadow-lg hover:shadow-xl transition-all gap-2" 
-            onClick={onAiFeedback} 
-            disabled={isFeedbackLoading || records.length === 0}
-          >
+          <Button className="w-full h-14 text-lg font-black shadow-lg gap-2" onClick={onAiFeedback} disabled={isFeedbackLoading || records.length === 0 || !extendedData.isLoaded}>
             {isFeedbackLoading ? <Loader2 className="animate-spin h-5 w-5" /> : <Wand2 className="h-5 w-5" />}
             AI 성장 분석 요청하기
           </Button>

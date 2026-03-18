@@ -33,43 +33,46 @@ export default function StudentDashboardPage() {
   const { user, school, isLoading: isAuthLoading } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("growth-record");
-  const [data, setData] = useState<any>({ 
-    items: [], 
-    records: [], 
-    student: null, 
-    tournament: null, 
-    quizzes: [], 
-    results: [],
+  
+  // 필수 데이터 (로그인 직후 즉시 로딩)
+  const [essentialData, setEssentialData] = useState<any>({
+    student: null,
+    items: [],
+    records: [],
+    schoolInfo: null,
+    quizzes: [],
+    results: []
+  });
+
+  // 확장 데이터 (백그라운드 로딩 - 통계, 등수용)
+  const [extendedData, setExtendedData] = useState<any>({
     allStudents: [],
     allRecords: [],
-    schoolInfo: null
+    tournament: null,
+    isLoaded: false
   });
+
   const [isLoading, setIsLoading] = useState(true);
+  const [isExtendedLoading, setIsExtendedLoading] = useState(false);
   
-  // States for GrowthRecordTab
   const [itemFilter, setItemFilter] = useState('all');
   const [aiFeedback, setAiFeedback] = useState('');
   const [isFeedbackLoading, setIsFeedbackLoading] = useState(false);
 
-  const loadData = useCallback(async () => {
+  // 1단계: 필수 데이터 로딩 (매우 빠름)
+  const loadEssentialData = useCallback(async () => {
     if (!user || !school) return;
     try {
-      const [items, records, stud, allStuds, allTeams, quizzes, results, allRecords, sportsClubs, schoolInfo] = await Promise.all([
+      const [items, records, stud, quizzes, results, schoolInfo, sportsClubs] = await Promise.all([
         getItems(school), 
         getRecordsByStudent(school, user.id), 
         getStudentById(school, user.id),
-        getStudents(school), 
-        getTeamGroups(school), 
         getQuizAssignments(school), 
         getQuizResultsBySchool(school),
-        getRecords(school),
-        getSportsClubs(school),
-        getSchoolByName(school)
+        getSchoolByName(school),
+        getSportsClubs(school)
       ]);
       
-      const tournament = await getLatestTournamentForStudent(school, user.id, allStuds, allTeams);
-      
-      // Filter quizzes based on student's context
       const filteredQuizzes = quizzes.filter(q => {
         if (!stud) return false;
         if (q.targetType === 'school') return true;
@@ -82,46 +85,78 @@ export default function StudentDashboardPage() {
         return false;
       });
 
-      setData({ 
+      setEssentialData({ 
         items, 
         records, 
         student: stud, 
-        tournament, 
         quizzes: filteredQuizzes, 
         results: results.filter(r => r.studentId === user.id),
-        allStudents: allStuds,
-        allRecords: allRecords,
         schoolInfo
       });
-    } finally { 
-      setIsLoading(false); 
+      setIsLoading(false);
+      
+      // 2단계: 확장 데이터 로딩 시작
+      loadExtendedData(stud, items);
+    } catch (e) {
+      console.error("Essential data load failed", e);
+      setIsLoading(false);
     }
   }, [user, school]);
 
+  // 2단계: 무거운 데이터 로딩 (백그라운드)
+  const loadExtendedData = async (stud: any, items: any) => {
+    if (!school || !stud) return;
+    setIsExtendedLoading(true);
+    try {
+      // 필요한 데이터만 선별적으로 가져오거나 병렬 처리 최적화
+      const [allStuds, allRecords, allTeams] = await Promise.all([
+        getStudents(school),
+        getRecords(school), // TODO: 향후 학년별 fetch로 최적화 필요
+        getTeamGroups(school)
+      ]);
+
+      const tournament = await getLatestTournamentForStudent(school, stud.id, allStuds, allTeams);
+
+      setExtendedData({
+        allStudents: allStuds,
+        allRecords: allRecords,
+        tournament,
+        isLoaded: true
+      });
+    } catch (e) {
+      console.error("Extended data load failed", e);
+    } finally {
+      setIsExtendedLoading(false);
+    }
+  };
+
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    loadEssentialData();
+  }, [loadEssentialData]);
 
   const handleAiFeedback = async () => {
-    if (!data.student || data.records.length === 0 || !school) return;
+    if (!essentialData.student || essentialData.records.length === 0 || !school || !extendedData.isLoaded) {
+      toast({ title: "데이터 분석 준비 중", description: "통계 데이터를 불러오는 중입니다. 잠시만 기다려주세요." });
+      return;
+    }
     
     setIsFeedbackLoading(true);
     try {
-      const latestRecord = [...data.records].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-      const allItemRanks = calculateRanks(school, data.items, data.allRecords, data.allStudents, data.student.grade);
+      const latestRecord = [...essentialData.records].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+      const allItemRanks = calculateRanks(school, essentialData.items, extendedData.allRecords, extendedData.allStudents, essentialData.student.grade);
       const itemRanks = allItemRanks[latestRecord.item] || [];
-      const rankInfo = itemRanks.find(r => r.studentId === data.student.id && r.value === latestRecord.value);
+      const rankInfo = itemRanks.find(r => r.studentId === essentialData.student.id && r.value === latestRecord.value);
       const rankText = rankInfo ? `${itemRanks.length}명 중 ${rankInfo.rank}등` : '';
 
       const result = await getStudentFeedback({
         school,
-        studentName: data.student.name,
+        studentName: essentialData.student.name,
         exerciseType: latestRecord.item,
-        performanceResult: `${latestRecord.value}${data.items.find((i:any)=>i.name===latestRecord.item)?.unit || ''}`,
-        grade: data.student.grade,
-        classNumber: data.student.classNum,
-        studentNumber: data.student.studentNum,
-        gender: data.student.gender,
+        performanceResult: `${latestRecord.value}${essentialData.items.find((i:any)=>i.name===latestRecord.item)?.unit || ''}`,
+        grade: essentialData.student.grade,
+        classNumber: essentialData.student.classNum,
+        studentNumber: essentialData.student.studentNum,
+        gender: essentialData.student.gender,
         rank: rankText
       });
       setAiFeedback(result.feedback);
@@ -132,7 +167,7 @@ export default function StudentDashboardPage() {
     }
   };
 
-  const isInputDisabled = !!data.schoolInfo?.isStudentInputDisabled;
+  const isInputDisabled = !!essentialData.schoolInfo?.isStudentInputDisabled;
 
   if (isLoading || isAuthLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-12 w-12 text-primary" /></div>;
 
@@ -141,15 +176,15 @@ export default function StudentDashboardPage() {
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-card/50 p-6 rounded-2xl border backdrop-blur-sm shadow-sm">
         <div className="flex items-center gap-4">
           <Avatar className="w-20 h-20 border-4 border-primary/10 ring-4 ring-background">
-            <AvatarImage src={data.student?.photoUrl} />
-            <AvatarFallback className="bg-primary/5 text-primary text-2xl font-black">{data.student?.name[0]}</AvatarFallback>
+            <AvatarImage src={essentialData.student?.photoUrl} />
+            <AvatarFallback className="bg-primary/5 text-primary text-2xl font-black">{essentialData.student?.name[0]}</AvatarFallback>
           </Avatar>
           <div>
             <div className="flex items-center gap-2 mb-1">
-                <h1 className="text-3xl font-black text-primary">{data.student?.name}</h1>
+                <h1 className="text-3xl font-black text-primary">{essentialData.student?.name}</h1>
                 <span className="text-sm font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full">학생용 대시보드</span>
             </div>
-            <p className="text-muted-foreground font-medium">{data.student?.grade}학년 {data.student?.classNum}반 {data.student?.studentNum}번</p>
+            <p className="text-muted-foreground font-medium">{essentialData.student?.grade}학년 {essentialData.student?.classNum}반 {essentialData.student?.studentNum}번</p>
           </div>
         </div>
         <Button asChild variant="outline" className="shadow-sm font-bold hover:bg-primary/5 hover:text-primary transition-colors">
@@ -176,45 +211,46 @@ export default function StudentDashboardPage() {
         <div className="mt-8 transition-all duration-500">
             <TabsContent value="growth-record" className="animate-in fade-in-50 duration-300">
               <GrowthRecordTab 
-                records={data.records} 
-                activeItems={data.items.filter((i:any)=>!i.isDeactivated && !i.isArchived)} 
-                allStudents={data.allStudents}
-                allRecords={data.allRecords}
-                student={data.student}
-                hallOfFame={[]} // hallOfFame is now calculated inside the component
+                records={essentialData.records} 
+                activeItems={essentialData.items.filter((i:any)=>!i.isDeactivated && !i.isArchived)} 
+                allStudents={extendedData.allStudents}
+                allRecords={extendedData.allRecords}
+                student={essentialData.student}
+                hallOfFame={[]}
                 itemFilter={itemFilter}
                 setItemFilter={setItemFilter}
                 aiFeedback={aiFeedback}
                 isFeedbackLoading={isFeedbackLoading}
                 onAiFeedback={handleAiFeedback}
+                isExtendedLoading={isExtendedLoading && !extendedData.isLoaded}
               />
             </TabsContent>
             
             {!isInputDisabled && (
               <TabsContent value="measurement-input" className="animate-in fade-in-50 duration-300">
                 <MeasurementInputTab 
-                  items={data.items.filter((i:any)=>!i.isDeactivated && !i.isArchived)} 
-                  student={data.student} 
+                  items={essentialData.items.filter((i:any)=>!i.isDeactivated && !i.isArchived)} 
+                  student={essentialData.student} 
                 />
               </TabsContent>
             )}
             
             <TabsContent value="my-competition" className="animate-in fade-in-50 duration-300">
               <CompetitionTab 
-                tournament={data.tournament} 
-                student={data.student}
-                allStudents={data.allStudents}
-                allRecords={data.allRecords}
-                allItems={data.items}
+                tournament={extendedData.tournament} 
+                student={essentialData.student}
+                allStudents={extendedData.allStudents}
+                allRecords={extendedData.allRecords}
+                allItems={essentialData.items}
               />
             </TabsContent>
             
             <TabsContent value="physical-knowledge" className="animate-in fade-in-50 duration-300">
               <KnowledgeTab 
-                quizzes={data.quizzes} 
-                results={data.results} 
-                student={data.student}
-                onRefresh={loadData}
+                quizzes={essentialData.quizzes} 
+                results={essentialData.results} 
+                student={essentialData.student}
+                onRefresh={loadEssentialData}
               />
             </TabsContent>
         </div>
