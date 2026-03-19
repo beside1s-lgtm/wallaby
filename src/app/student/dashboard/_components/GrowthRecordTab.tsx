@@ -98,15 +98,25 @@ export function GrowthRecordTab({
         const itemStats = statistics.find(s => s.id === item.name);
         const average = itemStats?.gradeStats[student.grade]?.average || 0;
 
-        let grade = item.isPaps ? getPapsGrade(item.name, student, latest.value) : getCustomItemGrade(item, latest.value);
+        // 등급 계산
+        const myGrade = item.isPaps ? getPapsGrade(item.name, student, latest.value) : getCustomItemGrade(item, latest.value);
+        const avgGrade = item.isPaps ? getPapsGrade(item.name, student, average) : getCustomItemGrade(item, average);
+
+        // 그래프용 점수 변환 (1등급 -> 5점, 5등급 -> 1점)
+        const myScore = myGrade ? (6 - myGrade) : 0;
+        const avgScore = avgGrade ? (6 - avgGrade) : 0;
+
         let priority = item.isPaps ? 1 : (item.category && item.category !== '기타' ? 2 : 3);
 
         return { 
           name: item.name, 
-          value: latest.value, 
-          average: average, 
+          value: myScore, // 바 높이 (나의 등급 점수)
+          average: avgScore, // 바 높이 (평균 등급 점수)
+          rawRecord: latest.value,
+          rawAverage: average,
           unit: item.unit, 
-          grade, 
+          grade: myGrade,
+          avgGrade: avgGrade,
           priority 
         };
       })
@@ -127,7 +137,7 @@ export function GrowthRecordTab({
             </CardTitle>
             <CardDescription className="text-base font-bold">
               {itemFilter === 'all' 
-                ? "학년 평균(주황) 대비 나의 기록(파랑)을 확인하세요." 
+                ? "학년 평균 등급 대비 나의 등급을 확인하세요. (높을수록 좋은 등급)" 
                 : <span className="text-foreground"><strong className="text-primary">{itemFilter}</strong> 기록 변화</span>}
             </CardDescription>
           </div>
@@ -154,15 +164,29 @@ export function GrowthRecordTab({
                     <BarChart 
                       data={summaryData} 
                       margin={{ top: 20, right: 10, left: -20, bottom: 20 }} 
-                      barGap="-100%" // 바를 완전히 겹치게 설정
+                      barGap="-100%"
                     >
                       <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.2} />
                       <XAxis dataKey="name" fontSize={11} fontWeight="800" tickLine={false} axisLine={false} tickMargin={12} angle={-10} textAnchor="end" />
-                      <YAxis fontSize={11} fontWeight="600" tickLine={false} axisLine={false} tickMargin={8} />
+                      <YAxis 
+                        domain={[0, 5]} 
+                        ticks={[1, 2, 3, 4, 5]} 
+                        tickFormatter={(val) => `${6 - val}등급`}
+                        fontSize={11} 
+                        fontWeight="600" 
+                        tickLine={false} 
+                        axisLine={false} 
+                        tickMargin={8} 
+                      />
                       <Tooltip 
                         cursor={{ fill: 'transparent' }}
                         contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', padding: '16px', fontWeight: 'bold' }}
-                        formatter={(value: number, name: string, props: any) => [`${value}${props.payload.unit}`, name]}
+                        formatter={(value: number, name: string, props: any) => {
+                          const isAvg = name === '학년 평균';
+                          const raw = isAvg ? props.payload.rawAverage : props.payload.rawRecord;
+                          const grade = isAvg ? props.payload.avgGrade : props.payload.grade;
+                          return [`${raw}${props.payload.unit} (${grade}등급)`, name];
+                        }}
                       />
                       <Legend verticalAlign="top" align="right" height={36} iconType="circle" />
                       {/* 학년 평균: 더 넓은 주황색 바 (배경) */}
@@ -177,7 +201,7 @@ export function GrowthRecordTab({
                     <div key={idx} className="flex flex-col items-center p-4 bg-muted/20 rounded-2xl border-2 border-transparent hover:border-primary/10 transition-all">
                       <p className="text-[10px] font-black text-muted-foreground mb-1 truncate w-full text-center">{data.name}</p>
                       <div className="flex items-center justify-center gap-1 mb-2">
-                        <span className="text-xl font-black text-primary">{data.value}</span>
+                        <span className="text-xl font-black text-primary">{data.rawRecord}</span>
                         <span className="text-[10px] font-bold text-muted-foreground mt-1">{data.unit}</span>
                       </div>
                       {data.grade && (
