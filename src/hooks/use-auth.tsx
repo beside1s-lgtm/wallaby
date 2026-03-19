@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -38,10 +39,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
+    if (!auth) {
+        setIsLoading(false);
+        return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
       setFirebaseUser(fbUser);
       if (fbUser) {
         try {
+          // 사파리 개인정보 보호 모드 등에서 localStorage 접근 에러를 방지합니다.
           const storedRole = localStorage.getItem('userRole') as Role;
           const storedSchool = localStorage.getItem('userSchool');
 
@@ -60,34 +67,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setUser(storedUser);
               setRole(storedRole);
               setSchool(storedSchool);
-            } else {
-              // Data inconsistency, clear auth state
-              localStorage.removeItem('userRole');
-              localStorage.removeItem('loggedInStudent');
-              localStorage.removeItem('userSchool');
-              setRole(null);
-              setSchool(null);
-              setUser(null);
             }
           }
         } catch (error) {
-          console.error('Failed to initialize auth state from storage:', error);
-          // Clear potentially corrupted storage
-           localStorage.removeItem('userRole');
-           localStorage.removeItem('loggedInStudent');
-           localStorage.removeItem('userSchool');
-           setRole(null);
-           setSchool(null);
-           setUser(null);
+          console.warn('Failed to access localStorage (Safari compatibility):', error);
         }
-      } else {
-        // No firebase user, ensure local state is cleared
-        localStorage.removeItem('userRole');
-        localStorage.removeItem('loggedInStudent');
-        localStorage.removeItem('userSchool');
-        setRole(null);
-        setSchool(null);
-        setUser(null);
       }
       setIsLoading(false);
     });
@@ -96,9 +80,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (isLoading) return; // Do not perform any routing logic while auth state is loading
+    if (isLoading) return; 
 
-    const isAuthPage = pathname === '/' || pathname === '/student-login' || pathname === '/teacher/register';
+    const isAuthPage = pathname === '/' || pathname === '/student-login';
     
     if (role && isAuthPage) {
         if (role === 'teacher') {
@@ -109,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
     }
     
-    if (!role && !isAuthPage) {
+    if (!role && !isAuthPage && !pathname.startsWith('/admin')) {
         router.replace('/');
         return;
     }
@@ -125,10 +109,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 
   const login = useCallback((role: 'teacher' | 'student', userData: Omit<User, 'school'> & { school: string }) => {
-    localStorage.setItem('userRole', role);
-    localStorage.setItem('userSchool', userData.school);
-    if (role === 'student') {
-      localStorage.setItem('loggedInStudent', JSON.stringify(userData));
+    try {
+        localStorage.setItem('userRole', role);
+        localStorage.setItem('userSchool', userData.school);
+        if (role === 'student') {
+          localStorage.setItem('loggedInStudent', JSON.stringify(userData));
+        }
+    } catch (e) {
+        console.warn("Storage write failed (Safari Private Mode):", e);
     }
     setRole(role);
     setSchool(userData.school);
@@ -137,16 +125,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     const currentRole = localStorage.getItem('userRole');
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('loggedInStudent');
-    localStorage.removeItem('userSchool');
-    sessionStorage.removeItem('welcomeShown');
+    try {
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('loggedInStudent');
+        localStorage.removeItem('userSchool');
+        sessionStorage.removeItem('welcomeShown');
+    } catch (e) {}
     
     setRole(null);
     setSchool(null);
     setUser(null);
     
-    // Using window.location.href ensures a full page reload, clearing all state.
     if (currentRole === 'student') {
       window.location.href = '/student-login';
     } else {

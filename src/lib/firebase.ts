@@ -2,7 +2,7 @@
 'use client';
 
 import { initializeApp, getApp, getApps, FirebaseApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged, type User, Auth } from 'firebase/auth';
+import { getAuth, signInAnonymously, onAuthStateChanged, type User, Auth, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 
 // 환경 변수에서 Firebase 설정값을 가져옵니다.
@@ -28,17 +28,17 @@ if (typeof window !== 'undefined') {
 
   if (missingKeys.length > 0) {
     console.error("❌ [설정 오류] Firebase 키가 누락되었습니다. 호스팅 관리 화면(환경 변수 설정)에서 다음 항목을 추가해주세요:", missingKeys.join(", "));
-    
-    if (process.env.NODE_ENV === 'production') {
-        console.warn("⚠️ 앱 호스팅 대시보드에서 환경 변수를 설정해야 앱이 정상 작동합니다.");
-    }
   }
   
   try {
-    // 설정값이 부족하더라도 시도는 해보되, 실패 시 에러를 잡습니다.
     app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
     db = getFirestore(app);
     auth = getAuth(app);
+    
+    // 아이폰 사파리 및 모바일 브라우저 호환성을 위해 인증 지속성을 명시적으로 Local로 설정합니다.
+    setPersistence(auth, browserLocalPersistence).catch(err => {
+        console.warn("인증 지속성 설정 실패(비로그인 모드 작동):", err);
+    });
   } catch (error) {
     console.error("❌ Firebase 초기화 실패:", error);
     app = null as any;
@@ -54,30 +54,38 @@ if (typeof window !== 'undefined') {
 
 let authUser: User | null = null;
 
+/**
+ * @fileOverview Firebase 익명 로그인을 수행합니다.
+ * 아이폰 사파리 등에서 hanging 현상을 방지하기 위해 로직을 최적화했습니다.
+ */
 const signIn = async (): Promise<User> => {
     if (!auth) {
-        const errorMsg = "로그인 서버(Firebase Auth)가 연결되지 않았습니다. 환경 변수 설정을 확인해 주세요.";
+        const errorMsg = "로그인 서버 연결 실패. 환경 변수 설정을 확인해 주세요.";
         console.error(errorMsg);
-        // 사용자에게 직접 경고창을 띄워 인지시킵니다.
-        alert(errorMsg);
         throw new Error(errorMsg);
     }
-    return new Promise((resolve, reject) => {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
-            unsubscribe(); 
-            if (user) {
-                authUser = user;
-                resolve(user);
-            } else {
-                signInAnonymously(auth)
-                    .then((userCredential) => {
-                        authUser = userCredential.user;
-                        resolve(userCredential.user);
-                    })
-                    .catch(reject);
-            }
-        }, reject);
-    });
+
+    // 이미 로그인된 상태라면 즉시 현재 사용자 반환
+    if (auth.currentUser) {
+        authUser = auth.currentUser;
+        return auth.currentUser;
+    }
+
+    try {
+        // 익명 로그인 수행
+        const userCredential = await signInAnonymously(auth);
+        authUser = userCredential.user;
+        return userCredential.user;
+    } catch (error: any) {
+        console.error("Anonymous sign-in failed:", error);
+        // 사파리 개인정보 보호 모드 등에서 발생할 수 있는 에러 처리
+        if (error.code === 'auth/operation-not-allowed') {
+            alert("Firebase 콘솔에서 익명 로그인이 활성화되지 않았습니다.");
+        } else {
+            alert("로그인 중 오류가 발생했습니다. 브라우저 설정을 확인하거나 일반 모드로 접속해주세요.");
+        }
+        throw error;
+    }
 };
 
 export { app, db, auth, signIn, authUser };
