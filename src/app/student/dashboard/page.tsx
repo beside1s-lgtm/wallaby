@@ -1,5 +1,6 @@
+
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { 
   getItems, 
@@ -10,7 +11,6 @@ import {
   getTeamGroups, 
   getQuizAssignments, 
   getQuizResultsBySchool, 
-  getRecords, 
   getSportsClubs,
   getSchoolByName,
   getStatistics
@@ -44,10 +44,9 @@ export default function StudentDashboardPage() {
     statistics: []
   });
 
-  // 확장 데이터 (백그라운드 로딩 - 대회용)
+  // 확장 데이터 (특정 탭 진입 시 로딩)
   const [extendedData, setExtendedData] = useState<any>({
     allStudents: [],
-    allRecords: [],
     tournament: null,
     isLoaded: false
   });
@@ -63,10 +62,12 @@ export default function StudentDashboardPage() {
   const loadEssentialData = useCallback(async () => {
     if (!user || !school) return;
     try {
+      const studentId = (user as any).id;
+      // 병렬 요청으로 속도 극대화
       const [items, records, stud, quizzes, results, schoolInfo, sportsClubs, statistics] = await Promise.all([
         getItems(school), 
-        getRecordsByStudent(school, (user as any).id), 
-        getStudentById(school, (user as any).id),
+        getRecordsByStudent(school, studentId), 
+        getStudentById(school, studentId),
         getQuizAssignments(school), 
         getQuizResultsBySchool(school),
         getSchoolByName(school),
@@ -91,35 +92,32 @@ export default function StudentDashboardPage() {
         records, 
         student: stud, 
         quizzes: filteredQuizzes, 
-        results: results.filter(r => r.studentId === (user as any).id),
+        results: results.filter(r => r.studentId === studentId),
         schoolInfo,
         statistics
       });
       setIsLoading(false);
-      
-      // 2단계: 무거운 데이터 로딩 (대회 및 팀 기능용)
-      if (stud) loadExtendedData(stud);
     } catch (e) {
       console.error("Essential data load failed", e);
       setIsLoading(false);
     }
   }, [user, school]);
 
-  const loadExtendedData = async (stud: any) => {
-    if (!school || !stud) return;
+  // 2단계: 무거운 데이터 로딩 (대회 및 팀 기능용 - 필요할 때만 호출)
+  const loadExtendedData = useCallback(async () => {
+    if (!school || !essentialData.student || extendedData.isLoaded) return;
+    
     setIsExtendedLoading(true);
     try {
-      const [allStuds, allRecs, allTeams] = await Promise.all([
+      const [allStuds, allTeams] = await Promise.all([
         getStudents(school),
-        getRecords(school),
         getTeamGroups(school)
       ]);
 
-      const tournament = await getLatestTournamentForStudent(school, stud.id, allStuds, allTeams);
+      const tournament = await getLatestTournamentForStudent(school, essentialData.student.id, allStuds, allTeams);
 
       setExtendedData({
         allStudents: allStuds,
-        allRecords: allRecs,
         tournament,
         isLoaded: true
       });
@@ -128,11 +126,18 @@ export default function StudentDashboardPage() {
     } finally {
       setIsExtendedLoading(false);
     }
-  };
+  }, [school, essentialData.student, extendedData.isLoaded]);
 
   useEffect(() => {
     loadEssentialData();
   }, [loadEssentialData]);
+
+  // 대회 탭 진입 시 확장 데이터 로딩 시작
+  useEffect(() => {
+    if (activeTab === 'my-competition' && !extendedData.isLoaded) {
+      loadExtendedData();
+    }
+  }, [activeTab, extendedData.isLoaded, loadExtendedData]);
 
   const handleAiFeedback = async () => {
     if (!essentialData.student || essentialData.records.length === 0 || !school) return;
@@ -141,7 +146,6 @@ export default function StudentDashboardPage() {
     try {
       const latestRecord = [...essentialData.records].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
       
-      // Use cached statistics if available
       const itemStats = essentialData.statistics.find((s: any) => s.id === latestRecord.item);
       let rankText = '';
       
@@ -174,10 +178,16 @@ export default function StudentDashboardPage() {
 
   const isInputDisabled = !!essentialData.schoolInfo?.isStudentInputDisabled;
 
-  if (isLoading || isAuthLoading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-12 w-12 text-primary" /></div>;
+  if (isLoading || isAuthLoading) return (
+    <div className="flex flex-col h-screen items-center justify-center gap-4 bg-background">
+      <Loader2 className="animate-spin h-12 w-12 text-primary opacity-20" />
+      <p className="font-bold text-muted-foreground animate-pulse">안전하게 대시보드를 불러오는 중입니다...</p>
+    </div>
+  );
 
   return (
     <div className="container mx-auto p-4 md:p-8 space-y-8 pb-20">
+      {/* Header Section */}
       <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-card/50 p-6 rounded-2xl border backdrop-blur-sm shadow-sm">
         <div className="flex items-center gap-4">
           <Avatar className="w-20 h-20 border-4 border-primary/10 ring-4 ring-background">
@@ -209,17 +219,20 @@ export default function StudentDashboardPage() {
           {!isInputDisabled && (
             <TabsTrigger value="measurement-input" className="text-sm sm:text-base font-bold data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-md rounded-lg">기록 입력</TabsTrigger>
           )}
-          <TabsTrigger value="my-competition" className="text-sm sm:text-base font-bold data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-md rounded-lg">나의 대회</TabsTrigger>
+          <TabsTrigger value="my-competition" className="text-sm sm:text-base font-bold data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-md rounded-lg">
+            나의 대회
+            {isExtendedLoading && <Loader2 className="ml-2 h-3 w-3 animate-spin inline opacity-50" />}
+          </TabsTrigger>
           <TabsTrigger value="physical-knowledge" className="text-sm sm:text-base font-bold data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-md rounded-lg">체육 지식</TabsTrigger>
         </TabsList>
         
-        <div className="mt-8 transition-all duration-500">
+        <div className="mt-8">
             <TabsContent value="growth-record" className="animate-in fade-in-50 duration-300">
               <GrowthRecordTab 
                 records={essentialData.records} 
                 activeItems={essentialData.items.filter((i:any)=>!i.isDeactivated && !i.isArchived)} 
                 allStudents={extendedData.allStudents}
-                allRecords={extendedData.allRecords}
+                allRecords={[]} // 학생 뷰에서는 전체 기록을 참조하지 않고 통계 데이터만 사용
                 statistics={essentialData.statistics}
                 student={essentialData.student}
                 itemFilter={itemFilter}
@@ -227,7 +240,6 @@ export default function StudentDashboardPage() {
                 aiFeedback={aiFeedback}
                 isFeedbackLoading={isFeedbackLoading}
                 onAiFeedback={handleAiFeedback}
-                isExtendedLoading={isExtendedLoading && !extendedData.isLoaded}
               />
             </TabsContent>
             
@@ -241,14 +253,21 @@ export default function StudentDashboardPage() {
             )}
             
             <TabsContent value="my-competition" className="animate-in fade-in-50 duration-300">
-              <CompetitionTab 
-                tournament={extendedData.tournament} 
-                student={essentialData.student}
-                allStudents={extendedData.allStudents}
-                allRecords={extendedData.allRecords}
-                allItems={essentialData.items}
-                statistics={essentialData.statistics}
-              />
+              {isExtendedLoading && !extendedData.isLoaded ? (
+                <div className="py-20 flex flex-col items-center gap-4">
+                  <Loader2 className="h-10 w-10 animate-spin text-primary opacity-20" />
+                  <p className="text-sm font-bold text-muted-foreground">우리 팀 대진표와 전력을 분석하는 중입니다...</p>
+                </div>
+              ) : (
+                <CompetitionTab 
+                  tournament={extendedData.tournament} 
+                  student={essentialData.student}
+                  allStudents={extendedData.allStudents}
+                  allRecords={[]}
+                  allItems={essentialData.items}
+                  statistics={essentialData.statistics}
+                />
+              )}
             </TabsContent>
             
             <TabsContent value="physical-knowledge" className="animate-in fade-in-50 duration-300">

@@ -1,3 +1,4 @@
+
 'use client';
 import { useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -22,7 +23,6 @@ interface GrowthRecordTabProps {
   aiFeedback: string;
   isFeedbackLoading: boolean;
   student: Student | null;
-  isExtendedLoading?: boolean;
 }
 
 export function GrowthRecordTab({ 
@@ -35,7 +35,6 @@ export function GrowthRecordTab({
   aiFeedback, 
   isFeedbackLoading,
   student,
-  isExtendedLoading
 }: GrowthRecordTabProps) {
   const [hofGrade, setHofGrade] = useState<string>(student?.grade || 'all');
   
@@ -63,8 +62,8 @@ export function GrowthRecordTab({
 
       let studentsToDisplay = [];
       if (hofGrade === 'all') {
-        const allRanks = Object.values(itemStats.gradeStats).flatMap(g => g.topRanks);
-        studentsToDisplay = allRanks
+        studentsToDisplay = Object.values(itemStats.gradeStats)
+            .flatMap(g => g.topRanks)
             .sort((a, b) => {
                 if (item.recordType === 'time' || item.recordType === 'level') return a.value - b.value;
                 return b.value - a.value;
@@ -79,7 +78,7 @@ export function GrowthRecordTab({
         topStudents: studentsToDisplay.map(s => ({
           ...s,
           value: `${s.value}${item.unit}`,
-          grade: hofGrade === 'all' ? undefined : hofGrade
+          grade: s.grade || hofGrade
         }))
       };
     }).filter(h => h.topStudents.length > 0);
@@ -243,7 +242,7 @@ export function GrowthRecordTab({
                         <span className={cn("w-5 h-5 flex items-center justify-center rounded-full text-[10px] font-black text-white", i === 0 ? "bg-yellow-500" : i === 1 ? "bg-slate-400" : "bg-amber-600")}>{i+1}</span>
                         <div className="flex flex-col">
                           <span className="font-bold">{s.name}</span>
-                          <span className="text-[9px] text-muted-foreground">{s.grade || '전체'}학년 {s.classNum}반</span>
+                          <span className="text-[9px] text-muted-foreground">{s.grade || hofGrade}학년 {s.classNum}반</span>
                         </div>
                       </div>
                       <span className="font-black text-primary">{s.value}</span>
