@@ -94,13 +94,21 @@ export function GrowthRecordTab({
         const latest = myRecs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
         if (!latest) return null;
 
+        // 사전 계산된 통계에서 해당 학년의 평균값 추출
         const itemStats = statistics.find(s => s.id === item.name);
         const average = itemStats?.gradeStats[student.grade]?.average || 0;
 
         let grade = item.isPaps ? getPapsGrade(item.name, student, latest.value) : getCustomItemGrade(item, latest.value);
         let priority = item.isPaps ? 1 : (item.category && item.category !== '기타' ? 2 : 3);
 
-        return { name: item.name, value: latest.value, average, unit: item.unit, grade, priority };
+        return { 
+          name: item.name, 
+          value: latest.value, 
+          average: average, 
+          unit: item.unit, 
+          grade, 
+          priority 
+        };
       })
       .filter((d): d is any => d !== null)
       .sort((a, b) => a.priority - b.priority || a.name.localeCompare(b.name))
@@ -146,7 +154,7 @@ export function GrowthRecordTab({
                     <BarChart 
                       data={summaryData} 
                       margin={{ top: 20, right: 10, left: -20, bottom: 20 }} 
-                      barGap="-50%"
+                      barGap="-100%" // 바를 완전히 겹치게 설정
                     >
                       <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.2} />
                       <XAxis dataKey="name" fontSize={11} fontWeight="800" tickLine={false} axisLine={false} tickMargin={12} angle={-10} textAnchor="end" />
@@ -154,10 +162,12 @@ export function GrowthRecordTab({
                       <Tooltip 
                         cursor={{ fill: 'transparent' }}
                         contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', padding: '16px', fontWeight: 'bold' }}
-                        formatter={(value: number, name: string, props: any) => [`${value}${props.payload.unit}`, name === 'value' ? '나의 기록' : '학년 평균']}
+                        formatter={(value: number, name: string, props: any) => [`${value}${props.payload.unit}`, name]}
                       />
                       <Legend verticalAlign="top" align="right" height={36} iconType="circle" />
+                      {/* 학년 평균: 더 넓은 주황색 바 (배경) */}
                       <Bar dataKey="average" name="학년 평균" fill="hsl(var(--chart-2))" radius={[8, 8, 0, 0]} barSize={45} animationDuration={1000} />
+                      {/* 나의 기록: 좁은 파란색 바 (전경) */}
                       <Bar dataKey="value" name="나의 기록" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} barSize={25} animationDuration={1200} />
                     </BarChart>
                   </ResponsiveContainer>
