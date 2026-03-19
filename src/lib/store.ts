@@ -1,4 +1,3 @@
-
 'use client';
 import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentToAdd, School, StudentToUpdate, TeamGroup, TeamGroupInput, Tournament, Team, SportsClub, Quiz, QuizAssignment, QuizResult, ItemStatistics } from './types';
 import { v4 as uuidv4 } from 'uuid';
@@ -17,7 +16,8 @@ import {
   limit,
   updateDoc,
   serverTimestamp,
-  orderBy
+  orderBy,
+  deleteDoc
 } from 'firebase/firestore';
 import { errorEmitter } from './error-emitter';
 import { FirestorePermissionError } from './errors';
@@ -417,6 +417,16 @@ export const updateItemStatistics = async (school: string, itemName: string): Pr
     await setDoc(doc(db, 'schools', school, 'statistics', itemName), { id: itemName, gradeStats, lastUpdated: serverTimestamp() });
 };
 
+export const rebuildAllStatistics = async (school: string): Promise<void> => {
+    await signIn();
+    const items = await getItems(school);
+    const activeItems = items.filter(i => !i.isDeactivated && !i.isArchived);
+    
+    for (const item of activeItems) {
+        await updateItemStatistics(school, item.name);
+    }
+};
+
 export const getStatistics = async (school: string): Promise<ItemStatistics[]> => {
     await signIn();
     const snapshot = await getDocs(collection(db, 'schools', school, 'statistics'));
@@ -653,7 +663,7 @@ export const getQuizAssignments = async (school: string): Promise<QuizAssignment
 
 export const deleteQuizAssignment = async (school: string, assignmentId: string): Promise<void> => {
   await signIn();
-  await deleteDoc(doc(db, 'schools', school, 'quizAssignments', assignmentId));
+  await deleteDoc(doc(collection(db, 'schools', school, 'quizAssignments'), assignmentId));
 };
 
 export const saveQuizResult = async (school: string, result: Omit<QuizResult, 'id' | 'createdAt'>): Promise<void> => {
