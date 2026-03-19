@@ -127,6 +127,14 @@ export function GrowthRecordTab({
 
   const selectedItemInfo = useMemo(() => activeItems.find(i => i.name === itemFilter), [activeItems, itemFilter]);
 
+  // 커스텀 막대 셰이프: 배경(평균) 바 위에 나의 기록 바를 정확히 중앙 정렬
+  const renderMyRecordBar = (props: any) => {
+    const { x, y, width, height, fill } = props;
+    const narrowWidth = 22; // 전경 바 너비
+    const offset = (width - narrowWidth) / 2; // 중앙 정렬을 위한 오프셋
+    return <rect x={x + offset} y={y} width={narrowWidth} height={height} fill={fill} rx={6} ry={6} />;
+  };
+
   return (
     <div className="space-y-8 mt-6">
       <Card className="border-2 border-primary/10 shadow-sm overflow-hidden">
@@ -164,7 +172,7 @@ export function GrowthRecordTab({
                     <BarChart 
                       data={summaryData} 
                       margin={{ top: 20, right: 10, left: -20, bottom: 20 }} 
-                      barGap="-100%"
+                      barGap="-100%" // 두 바를 완전히 겹침
                     >
                       <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.2} />
                       <XAxis 
@@ -197,7 +205,7 @@ export function GrowthRecordTab({
                         }}
                       />
                       <Legend verticalAlign="top" align="right" height={36} iconType="circle" />
-                      {/* 학년 평균: 더 넓은 주황색 바 (배경) */}
+                      {/* 배경: 학년 평균 (더 넓은 오렌지 바) */}
                       <Bar 
                         dataKey="average" 
                         name="학년 평균" 
@@ -206,13 +214,13 @@ export function GrowthRecordTab({
                         barSize={45} 
                         animationDuration={1000} 
                       />
-                      {/* 나의 기록: 좁은 파란색 바 (전경) - 배경 바 정중앙에 겹침 */}
+                      {/* 전경: 나의 기록 (커스텀 셰이프로 중앙에 좁게 배치) */}
                       <Bar 
                         dataKey="value" 
                         name="나의 기록" 
                         fill="hsl(var(--primary))" 
-                        radius={[8, 8, 0, 0]} 
-                        barSize={25} 
+                        barSize={45} // 평균 바와 동일한 베이스 너비를 주어 중앙 정렬 유도
+                        shape={renderMyRecordBar}
                         animationDuration={1200} 
                       />
                     </BarChart>
