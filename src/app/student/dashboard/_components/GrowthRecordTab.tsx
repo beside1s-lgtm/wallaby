@@ -94,15 +94,13 @@ export function GrowthRecordTab({
         const latest = myRecs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
         if (!latest) return null;
 
-        // 사전 계산된 통계에서 해당 학년의 평균값 추출
         const itemStats = statistics.find(s => s.id === item.name);
         const average = itemStats?.gradeStats[student.grade]?.average || 0;
 
-        // 등급 계산
         const myGrade = item.isPaps ? getPapsGrade(item.name, student, latest.value) : getCustomItemGrade(item, latest.value);
         const avgGrade = item.isPaps ? getPapsGrade(item.name, student, average) : getCustomItemGrade(item, average);
 
-        // 그래프용 점수 변환 (1등급 -> 5점, 5등급 -> 1점)
+        // 1등급 -> 5점, 5등급 -> 1점으로 환산 (요청하신 대로 1등급이 가장 높은 5층에 위치)
         const myScore = myGrade ? (6 - myGrade) : 0;
         const avgScore = avgGrade ? (6 - avgGrade) : 0;
 
@@ -110,8 +108,8 @@ export function GrowthRecordTab({
 
         return { 
           name: item.name, 
-          value: myScore, // 전경: 나의 등급 점수
-          average: avgScore, // 배경: 학년 평균 등급 점수
+          value: myScore, 
+          average: avgScore,
           rawRecord: latest.value,
           rawAverage: average,
           unit: item.unit, 
@@ -127,12 +125,20 @@ export function GrowthRecordTab({
 
   const selectedItemInfo = useMemo(() => activeItems.find(i => i.name === itemFilter), [activeItems, itemFilter]);
 
-  // 커스텀 막대 셰이프: 배경(평균) 바 위에 나의 기록 바를 정확히 중앙 정렬
-  const renderMyRecordBar = (props: any) => {
-    const { x, y, width, height, fill } = props;
-    const narrowWidth = 22; // 전경 바 너비
-    const offset = (width - narrowWidth) / 2; // 중앙 정렬을 위한 오프셋
-    return <rect x={x + offset} y={y} width={narrowWidth} height={height} fill={fill} rx={6} ry={6} />;
+  // 커스텀 셰이프: 배경(평균) 바 위에 나의 기록 바를 정확히 중앙에 좁게 배치
+  const renderOverlaidBar = (props: any) => {
+    const { x, y, width, height, fill, payload, dataKey } = props;
+    if (dataKey === 'average') {
+      // 배경: 학년 평균 (넓은 바)
+      const barWidth = 40;
+      const centerX = x + width / 2;
+      return <rect x={centerX - barWidth / 2} y={y} width={barWidth} height={height} fill="hsl(36, 100%, 50%)" rx={8} ry={8} />;
+    } else {
+      // 전경: 나의 기록 (중앙에 좁게 배치)
+      const barWidth = 20;
+      const centerX = x + width / 2;
+      return <rect x={centerX - barWidth / 2} y={y} width={barWidth} height={height} fill="hsl(var(--primary))" rx={6} ry={6} />;
+    }
   };
 
   return (
@@ -145,7 +151,7 @@ export function GrowthRecordTab({
             </CardTitle>
             <CardDescription className="text-base font-bold">
               {itemFilter === 'all' 
-                ? "학년 평균 등급 대비 나의 등급을 확인하세요. (높을수록 좋은 등급)" 
+                ? "학년 평균 등급 대비 나의 위치를 확인하세요. (높을수록 우수한 등급)" 
                 : <span className="text-foreground"><strong className="text-primary">{itemFilter}</strong> 기록 변화</span>}
             </CardDescription>
           </div>
@@ -163,16 +169,16 @@ export function GrowthRecordTab({
             </Select>
           </div>
         </CardHeader>
-        <CardContent className="pt-8">
+        <CardContent className="pt-10">
           {itemFilter === 'all' ? (
             summaryData.length > 0 ? (
               <div className="space-y-10">
-                <div className="h-[350px]">
+                <div className="h-[350px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart 
                       data={summaryData} 
-                      margin={{ top: 20, right: 10, left: -20, bottom: 20 }} 
-                      barGap="-100%" // 두 바를 완전히 겹침
+                      margin={{ top: 20, right: 30, left: -20, bottom: 20 }} 
+                      barGap="-100%"
                     >
                       <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.2} />
                       <XAxis 
@@ -205,22 +211,16 @@ export function GrowthRecordTab({
                         }}
                       />
                       <Legend verticalAlign="top" align="right" height={36} iconType="circle" />
-                      {/* 배경: 학년 평균 (더 넓은 오렌지 바) */}
                       <Bar 
                         dataKey="average" 
                         name="학년 평균" 
-                        fill="hsl(var(--chart-2))" 
-                        radius={[8, 8, 0, 0]} 
-                        barSize={45} 
+                        shape={renderOverlaidBar}
                         animationDuration={1000} 
                       />
-                      {/* 전경: 나의 기록 (커스텀 셰이프로 중앙에 좁게 배치) */}
                       <Bar 
                         dataKey="value" 
                         name="나의 기록" 
-                        fill="hsl(var(--primary))" 
-                        barSize={45} // 평균 바와 동일한 베이스 너비를 주어 중앙 정렬 유도
-                        shape={renderMyRecordBar}
+                        shape={renderOverlaidBar}
                         animationDuration={1200} 
                       />
                     </BarChart>
