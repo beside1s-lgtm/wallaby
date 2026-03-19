@@ -5,8 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Swords, Users, Trophy, Calendar, CheckCircle2, ListOrdered, Wand2, Loader2, Brain, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { Tournament, Match, Team, Student, MeasurementRecord, MeasurementItem } from '@/lib/types';
-import { calculateRanks } from '@/lib/store';
+import type { Tournament, Match, Team, Student, MeasurementRecord, MeasurementItem, ItemStatistics } from '@/lib/types';
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Tooltip, Legend } from 'recharts';
 import { getTeamAnalysis, type TeamAnalysisOutput } from '@/ai/flows/team-analysis-flow';
 
@@ -16,9 +15,10 @@ interface CompetitionTabProps {
   allStudents: Student[];
   allRecords: MeasurementRecord[];
   allItems: MeasurementItem[];
+  statistics: ItemStatistics[];
 }
 
-export function CompetitionTab({ tournament, student, allStudents, allRecords, allItems }: CompetitionTabProps) {
+export function CompetitionTab({ tournament, student, allStudents, allRecords, allItems, statistics }: CompetitionTabProps) {
   const [aiReport, setAiReport] = useState<TeamAnalysisOutput | null>(null);
   const [isReportLoading, setIsReportLoading] = useState(false);
 
@@ -83,55 +83,44 @@ export function CompetitionTab({ tournament, student, allStudents, allRecords, a
     return Object.values(stats).sort((a, b) => b.points - a.points || b.wins - a.wins);
   }, [tournament]);
 
-  // 4. 팀 능력치 비교 데이터 계산
+  // 4. 팀 능력치 비교 데이터 계산 (Statistics 캐시 활용)
   const abilityAnalysis = useMemo(() => {
-    if (!myTeam || !student || !allStudents.length || !allRecords.length) return null;
+    if (!myTeam || !student || !allStudents.length || statistics.length === 0) return null;
 
-    // 대회의 기반이 되는 종목들 (팀 편성 시 사용된 종목 등)
-    // 여기서는 대회 정보에 종목 정보가 없으므로 PAPS 또는 관련 있는 최신 종목들을 추정
     const selectedItemNames = allItems
       .filter(i => !i.isArchived && !i.isDeactivated)
-      .slice(0, 5) // 최대 5개 종목 선정
+      .slice(0, 5)
       .map(i => i.name);
 
-    const ranks = calculateRanks(student.school, allItems, allRecords, allStudents, student.grade);
-    
-    // 나의 점수 계산 (백분위 기반 0~100)
-    const myScores = selectedItemNames.map(name => {
-      const itemRanks = ranks[name] || [];
-      const rankInfo = itemRanks.find(r => r.studentId === student.id);
-      let score = 0;
-      if (rankInfo && itemRanks.length > 0) {
-        score = Math.round((1 - (rankInfo.rank - 1) / itemRanks.length) * 100);
-      }
-      return { item: name, score };
-    });
-
-    // 팀 평균 점수 계산
-    const teamAverageScores = selectedItemNames.map(name => {
-      const itemRanks = ranks[name] || [];
-      const teamMemberIds = new Set(myTeam.memberIds);
-      const teamMemberRanks = itemRanks.filter(r => teamMemberIds.has(r.studentId));
+    // 나의 점수 및 팀 평균 점수 계산 (statistics에서 순위 정보 참조)
+    const scoresMap = selectedItemNames.map(name => {
+      const itemStats = statistics.find(s => s.id === name);
+      const gradeData = itemStats?.gradeStats[student.grade];
       
-      let averageScore = 0;
-      if (teamMemberRanks.length > 0) {
-        const totalScore = teamMemberRanks.reduce((acc, r) => {
-          const s = Math.round((1 - (r.rank - 1) / itemRanks.length) * 100);
-          return acc + s;
-        }, 0);
-        averageScore = Math.round(totalScore / teamMemberRanks.length);
-      }
-      return { item: name, score: averageScore };
+      if (!gradeData || !gradeData.allRanks.length) return { item: name, me: 0, team: 0 };
+
+      const myRankInfo = gradeData.allRanks.find(r => r.studentId === student.id);
+      const myScore = myRankInfo ? Math.round((1 - (myRankInfo.rank - 1) / gradeData.count) * 100) : 0;
+
+      const teamMemberIds = new Set(myTeam.memberIds);
+      const teamRanks = gradeData.allRanks.filter(r => teamMemberIds.has(r.studentId));
+      const teamAvgScore = teamRanks.length > 0 
+        ? Math.round(teamRanks.reduce((acc, r) => acc + Math.round((1 - (r.rank - 1) / gradeData.count) * 100), 0) / teamRanks.length)
+        : 0;
+
+      return { item: name, me: myScore, team: teamAvgScore };
     });
 
-    const radarData = selectedItemNames.map((name, idx) => ({
-      subject: name,
-      me: myScores[idx].score,
-      team: teamAverageScores[idx].score,
+    const radarData = scoresMap.map(s => ({
+      subject: s.item,
+      me: s.me,
+      team: s.team,
     }));
 
+    const teamAverageScores = scoresMap.map(s => ({ item: s.item, score: s.team }));
+
     return { radarData, teamAverageScores };
-  }, [myTeam, student, allStudents, allRecords, allItems]);
+  }, [myTeam, student, allStudents, statistics, allItems]);
 
   // 5. AI 팀 분석 리포트 가져오기
   useEffect(() => {

@@ -63,7 +63,6 @@ export function GrowthRecordTab({
 
       let studentsToDisplay = [];
       if (hofGrade === 'all') {
-        // Find top 3 across all grades
         const allRanks = Object.values(itemStats.gradeStats).flatMap(g => g.topRanks);
         studentsToDisplay = allRanks
             .sort((a, b) => {
@@ -121,7 +120,7 @@ export function GrowthRecordTab({
             </CardTitle>
             <CardDescription className="text-base font-bold">
               {itemFilter === 'all' 
-                ? "학년 평균 대비 나의 위치를 확인하세요." 
+                ? "학년 평균(주황) 대비 나의 기록(파랑)을 확인하세요." 
                 : <span className="text-foreground"><strong className="text-primary">{itemFilter}</strong> 기록 변화</span>}
             </CardDescription>
           </div>
@@ -145,7 +144,11 @@ export function GrowthRecordTab({
               <div className="space-y-10">
                 <div className="h-[350px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={summaryData} margin={{ top: 20, right: 10, left: -20, bottom: 20 }} barGap={-25}>
+                    <BarChart 
+                      data={summaryData} 
+                      margin={{ top: 20, right: 10, left: -20, bottom: 20 }} 
+                      barGap="-50%"
+                    >
                       <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.2} />
                       <XAxis dataKey="name" fontSize={11} fontWeight="800" tickLine={false} axisLine={false} tickMargin={12} angle={-10} textAnchor="end" />
                       <YAxis fontSize={11} fontWeight="600" tickLine={false} axisLine={false} tickMargin={8} />
@@ -155,8 +158,8 @@ export function GrowthRecordTab({
                         formatter={(value: number, name: string, props: any) => [`${value}${props.payload.unit}`, name === 'value' ? '나의 기록' : '학년 평균']}
                       />
                       <Legend verticalAlign="top" align="right" height={36} iconType="circle" />
-                      <Bar dataKey="average" name="학년 평균" fill="hsl(var(--chart-2))" radius={[8, 8, 0, 0]} barSize={45} animationDuration={1000} opacity={0.4} />
-                      <Bar dataKey="value" name="나의 기록" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} barSize={30} animationDuration={1200} />
+                      <Bar dataKey="average" name="학년 평균" fill="hsl(var(--chart-2))" radius={[8, 8, 0, 0]} barSize={45} animationDuration={1000} />
+                      <Bar dataKey="value" name="나의 기록" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} barSize={25} animationDuration={1200} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>

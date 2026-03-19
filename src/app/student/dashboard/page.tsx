@@ -65,8 +65,8 @@ export default function StudentDashboardPage() {
     try {
       const [items, records, stud, quizzes, results, schoolInfo, sportsClubs, statistics] = await Promise.all([
         getItems(school), 
-        getRecordsByStudent(school, user.id), 
-        getStudentById(school, user.id),
+        getRecordsByStudent(school, (user as any).id), 
+        getStudentById(school, (user as any).id),
         getQuizAssignments(school), 
         getQuizResultsBySchool(school),
         getSchoolByName(school),
@@ -91,14 +91,14 @@ export default function StudentDashboardPage() {
         records, 
         student: stud, 
         quizzes: filteredQuizzes, 
-        results: results.filter(r => r.studentId === user.id),
+        results: results.filter(r => r.studentId === (user as any).id),
         schoolInfo,
         statistics
       });
       setIsLoading(false);
       
       // 2단계: 무거운 데이터 로딩 (대회 및 팀 기능용)
-      loadExtendedData(stud);
+      if (stud) loadExtendedData(stud);
     } catch (e) {
       console.error("Essential data load failed", e);
       setIsLoading(false);
@@ -247,6 +247,7 @@ export default function StudentDashboardPage() {
                 allStudents={extendedData.allStudents}
                 allRecords={extendedData.allRecords}
                 allItems={essentialData.items}
+                statistics={essentialData.statistics}
               />
             </TabsContent>
             
