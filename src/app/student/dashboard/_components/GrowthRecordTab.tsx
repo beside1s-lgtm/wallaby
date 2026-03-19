@@ -110,13 +110,13 @@ export function GrowthRecordTab({
 
         return { 
           name: item.name, 
-          value: myScore, // 바 높이 (나의 등급 점수)
-          average: avgScore, // 바 높이 (평균 등급 점수)
+          value: myScore, // 전경: 나의 등급 점수
+          average: avgScore, // 배경: 학년 평균 등급 점수
           rawRecord: latest.value,
           rawAverage: average,
           unit: item.unit, 
-          grade: myGrade,
-          avgGrade: avgGrade,
+          grade: myGrade || 5,
+          avgGrade: avgGrade || 5,
           priority 
         };
       })
@@ -167,7 +167,15 @@ export function GrowthRecordTab({
                       barGap="-100%"
                     >
                       <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.2} />
-                      <XAxis dataKey="name" fontSize={11} fontWeight="800" tickLine={false} axisLine={false} tickMargin={12} angle={-10} textAnchor="end" />
+                      <XAxis 
+                        dataKey="name" 
+                        fontSize={11} 
+                        fontWeight="800" 
+                        tickLine={false} 
+                        axisLine={false} 
+                        tickMargin={12} 
+                        interval={0}
+                      />
                       <YAxis 
                         domain={[0, 5]} 
                         ticks={[1, 2, 3, 4, 5]} 
@@ -190,9 +198,23 @@ export function GrowthRecordTab({
                       />
                       <Legend verticalAlign="top" align="right" height={36} iconType="circle" />
                       {/* 학년 평균: 더 넓은 주황색 바 (배경) */}
-                      <Bar dataKey="average" name="학년 평균" fill="hsl(var(--chart-2))" radius={[8, 8, 0, 0]} barSize={45} animationDuration={1000} />
-                      {/* 나의 기록: 좁은 파란색 바 (전경) */}
-                      <Bar dataKey="value" name="나의 기록" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} barSize={25} animationDuration={1200} />
+                      <Bar 
+                        dataKey="average" 
+                        name="학년 평균" 
+                        fill="hsl(var(--chart-2))" 
+                        radius={[8, 8, 0, 0]} 
+                        barSize={45} 
+                        animationDuration={1000} 
+                      />
+                      {/* 나의 기록: 좁은 파란색 바 (전경) - 배경 바 정중앙에 겹침 */}
+                      <Bar 
+                        dataKey="value" 
+                        name="나의 기록" 
+                        fill="hsl(var(--primary))" 
+                        radius={[8, 8, 0, 0]} 
+                        barSize={25} 
+                        animationDuration={1200} 
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -205,7 +227,10 @@ export function GrowthRecordTab({
                         <span className="text-[10px] font-bold text-muted-foreground mt-1">{data.unit}</span>
                       </div>
                       {data.grade && (
-                        <Badge className={cn("font-black px-3 py-0.5 rounded-full text-[10px]", data.grade <= 2 ? "bg-green-500" : data.grade === 3 ? "bg-amber-500" : "bg-destructive")}>
+                        <Badge className={cn(
+                          "font-black px-3 py-0.5 rounded-full text-[10px]", 
+                          data.grade <= 2 ? "bg-green-500" : data.grade === 3 ? "bg-amber-500" : "bg-destructive"
+                        )}>
                           {data.grade}등급
                         </Badge>
                       )}
