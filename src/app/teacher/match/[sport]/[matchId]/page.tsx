@@ -10,7 +10,9 @@ import { getTournaments } from '@/lib/store';
 import { Tournament } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 
-export default function GenericMatchDetailPage() {
+import { Suspense } from 'react';
+
+function GenericMatchDetailContent() {
   const params = useParams();
   const router = useRouter();
   const { school } = useAuth();
@@ -80,5 +82,13 @@ export default function GenericMatchDetailPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function GenericMatchDetailPage() {
+  return (
+    <Suspense fallback={<div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-12 w-12 text-primary" /></div>}>
+      <GenericMatchDetailContent />
+    </Suspense>
   );
 }

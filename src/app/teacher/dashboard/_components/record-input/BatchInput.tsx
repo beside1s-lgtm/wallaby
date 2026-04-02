@@ -103,7 +103,15 @@ export function BatchInput({ allStudents, activeItems, allRecords, onRecordUpdat
 
     setSavingId(studentId);
     try {
-      const rec = await addOrUpdateRecord({ studentId, school, item: batchItem, date: format(date, 'yyyy-MM-dd'), value: val });
+      const rec = await addOrUpdateRecord({ 
+        studentId, 
+        school, 
+        item: batchItem, 
+        date: format(date, 'yyyy-MM-dd'), 
+        value: val,
+        height: selectedItemInfo?.isCompound ? parseFloat(input.height) : undefined,
+        weight: selectedItemInfo?.isCompound ? parseFloat(input.weight) : undefined
+      });
       onRecordUpdate([rec], 'update');
       setSavedIds(prev => new Set(prev).add(studentId));
       toast({ title: "저장 완료" });
@@ -121,9 +129,18 @@ export function BatchInput({ allStudents, activeItems, allRecords, onRecordUpdat
       const toSave = students.map(s => {
         const input = records[s.id];
         if (!input) return null;
-        let val = selectedItemInfo?.isCompound ? parseFloat(calculateBmi(input.height, input.weight)) : parseFloat(input.value);
+        let isCompound = selectedItemInfo?.isCompound;
+        let val = isCompound ? parseFloat(calculateBmi(input.height, input.weight)) : parseFloat(input.value);
         if (isNaN(val)) return null;
-        return { studentId: s.id, school, item: batchItem, date: format(date, 'yyyy-MM-dd'), value: val };
+        return { 
+          studentId: s.id, 
+          school, 
+          item: batchItem, 
+          date: format(date, 'yyyy-MM-dd'), 
+          value: val,
+          height: isCompound ? parseFloat(input.height) : undefined,
+          weight: isCompound ? parseFloat(input.weight) : undefined
+        };
       }).filter((r): r is any => r !== null);
 
       if (toSave.length) {

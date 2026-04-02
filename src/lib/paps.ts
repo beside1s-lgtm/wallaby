@@ -297,7 +297,8 @@ export function calculatePapsScore(item: string, student: Student, value: number
     }
 
     const thresholds = student.gender === '남' ? standard.male : standard.female;
-    const { min, max, type } = standard;
+    const { type } = standard;
+    const { min, max } = thresholds;
 
     let score = 0;
     const range = thresholds.max - thresholds.min;

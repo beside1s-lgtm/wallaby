@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import JSZip from 'jszip';
+import * as XLSX from 'xlsx';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -77,14 +78,54 @@ export function exportToCsv(filename: string, rows: object[]) {
   }
 }
 
+export function exportToExcel(filename: string, rows: object[]) {
+  if (!rows || rows.length === 0) return;
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
+  XLSX.writeFile(workbook, filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`);
+}
+
+export async function parseExcel<T>(file: File): Promise<T[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const data = new Uint8Array(e.target?.result as ArrayBuffer);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+      
+      const parsed = jsonData.map(row => {
+        return Object.entries(row).reduce((obj, [key, value]) => {
+          const newKey = universalKeyMap[key.trim()] || key.trim();
+          if (newKey !== 'accessCode') {
+            (obj as any)[newKey] = String(value).trim();
+          }
+          return obj;
+        }, {} as T);
+      });
+      resolve(parsed);
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+
 export async function exportToZip(filename: string, files: { name: string, data: object[] }[]) {
   const zip = new JSZip();
   
   files.forEach(file => {
-      const csvData = convertToCsv(file.data);
-      if (csvData) {
-          zip.file(file.name, `\uFEFF${csvData}`);
-      }
+      // Use CSV for inside Zip if necessary, or just use XLSX for everything.
+      // But for templates, let's just make them separate XLSX files if they are multiple?
+      // Actually, let's keep CSV inside ZIP for now OR change it to multiple XLSX if needed.
+      // The user wants XLSX for templates. Let's make them separate XLSX if requested?
+      // Let's just update exportToZip to pack XLSX files instead.
+      const worksheet = XLSX.utils.json_to_sheet(file.data);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
+      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      zip.file(file.name.replace('.csv', '.xlsx'), excelBuffer);
   });
 
   const zipBlob = await zip.generateAsync({ type: 'blob' });

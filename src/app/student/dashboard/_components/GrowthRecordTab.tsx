@@ -75,7 +75,7 @@ export function GrowthRecordTab({
 
       return {
         itemName: item.name,
-        topStudents: studentsToDisplay.map(s => ({
+        topStudents: studentsToDisplay.map((s: any) => ({
           ...s,
           value: `${s.value}${item.unit}`,
           grade: s.grade || hofGrade

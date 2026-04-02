@@ -7,7 +7,7 @@ import {
   deleteRecord,
   addOrUpdateRecord,
 } from "@/lib/store";
-import { Student, MeasurementRecord, MeasurementItem, SportsClub } from "@/lib/types";
+import { Student, MeasurementRecord, MeasurementItem, SportsClub, MeasurementPeriod } from "@/lib/types";
 import { Input } from "@/components/ui/input";
 import {
   Card,
@@ -85,6 +85,7 @@ import {
   getCustomItemGrade,
   normalizePapsRecord,
   normalizeCustomRecord,
+  calculatePapsScore,
 } from "@/lib/paps";
 import AiWelcome from "./AiWelcome";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -135,16 +136,18 @@ export default function ClassAnalytics({
 
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [studentRecords, setStudentRecords] = useState<MeasurementRecord[]>([]);
-  const [progressChartItem, setProgressChartItem] = useState<string>("");
-
+  const [progressChartItem, setProgressChartItem] = useState<string>("PAPS 종합 점수");
   const [aiAnalysis, setAiAnalysis] = useState<ScoutingReportOutput | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isAiButtonDisabled, setIsAiButtonDisabled] = useState(false);
+  const [analyzeType, setAnalyzeType] = useState<"best" | "all">("best");
 
   const [comparisonType, setComparisonType] = useState<"paps" | "custom">("paps");
   const studentDetailRef = useRef<HTMLDivElement>(null);
 
   const activeItems = useMemo(() => allItems.filter(i => !i.isArchived && !i.isDeactivated), [allItems]);
+  const papsItems = useMemo(() => activeItems.filter(i => i.isPaps), [activeItems]);
+  const measurementPeriods = useMemo(() => (school as any)?.measurementPeriods || [], [school]);
 
   const { grades, classNumsByGrade } = useMemo(() => {
     const grades = [...new Set(allStudents.map((s) => s.grade))].sort((a,b) => parseInt(a)-parseInt(b));
@@ -186,7 +189,7 @@ export default function ClassAnalytics({
       handleSelectStudent(found[0]);
       setSelectedGrade(""); setSelectedClubId("");
     } else if (found.length > 1) {
-      toast({ title: "여러 명의 학생이 검색됨", description: "학년/반 필터를 이용해 선택해주세요." });
+      toast({ title: "여러 명의 학생이 검색됨", description: "아래 명단에서 분석할 학생을 선택해 주세요." });
     } else {
       toast({ variant: "destructive", title: "학생을 찾을 수 없습니다." });
     }
@@ -284,6 +287,46 @@ export default function ClassAnalytics({
     };
   }, [selectedStudent, selectedGrade, selectedClassNum, selectedClubId, allRecords, allItems, comparisonType, filteredStudents, allStudents, school, sportsClubs]);
 
+  const growthData = useMemo(() => {
+    if (!selectedStudent || !progressChartItem || measurementPeriods.length === 0) return [];
+    
+    return measurementPeriods.map((p: MeasurementPeriod) => {
+        let value: number | null = null;
+        let displayValue = '-';
+
+        if (progressChartItem === "PAPS 종합 점수") {
+            let total = 0;
+            let foundAny = false;
+            papsItems.forEach((item: MeasurementItem) => {
+                const itemRecs = studentRecords.filter((r: MeasurementRecord) => r.item === item.name && r.date >= p.startDate && r.date <= p.endDate);
+                if (itemRecs.length > 0) {
+                    let best;
+                    if (item.recordType === 'time') best = itemRecs.sort((a: MeasurementRecord, b: MeasurementRecord) => a.value - b.value)[0];
+                    else best = itemRecs.sort((a: MeasurementRecord, b: MeasurementRecord) => b.value - a.value)[0];
+                    const score = calculatePapsScore(item.name, selectedStudent, best.value);
+                    if (score !== null) { total += score; foundAny = true; }
+                }
+            });
+            if (foundAny) { value = total; displayValue = `${total}점`; }
+        } else {
+            const item = allItems.find((i: MeasurementItem) => i.name === progressChartItem);
+            const itemRecs = studentRecords.filter((r: MeasurementRecord) => r.item === progressChartItem && r.date >= p.startDate && r.date <= p.endDate);
+            if (itemRecs.length > 0) {
+                let best;
+                if (item?.recordType === 'time') best = itemRecs.sort((a: MeasurementRecord, b: MeasurementRecord) => a.value - b.value)[0];
+                else best = itemRecs.sort((a: MeasurementRecord, b: MeasurementRecord) => b.value - a.value)[0];
+                value = best.value;
+                displayValue = `${best.value}${item?.unit || ''}`;
+            }
+        }
+        return { name: p.name, value, displayValue };
+    }).filter((d: { value: number | null }) => d.value !== null);
+  }, [selectedStudent, progressChartItem, studentRecords, allItems, measurementPeriods, papsItems]);
+
+  const isGrowthChartAvailable = useMemo(() => {
+    return measurementPeriods.length >= 2 && growthData.length >= 2;
+  }, [measurementPeriods, growthData]);
+
   return (
     <Card className="bg-transparent shadow-none border-none">
       <CardHeader>
@@ -340,22 +383,48 @@ export default function ClassAnalytics({
                   <CardHeader className="flex flex-row items-center justify-between">
                     <div>
                       <CardTitle className="text-lg">{selectedStudent.name} 성장 분석</CardTitle>
-                      <CardDescription>개별 성취도 및 AI 코칭</CardDescription>
+                      <CardDescription>{selectedStudent.grade}학년 {selectedStudent.classNum}반 · 개별 성취도 및 AI 코칭</CardDescription>
                     </div>
                     <Button variant="ghost" size="icon" onClick={() => setSelectedStudent(null)}><XIcon className="h-4 w-4" /></Button>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    <div className="h-[200px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart data={studentRecords.sort((a,b)=>a.date.localeCompare(b.date))}>
-                          <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                          <XAxis dataKey="date" fontSize={10} />
-                          <YAxis domain={[0, 'auto']} />
-                          <Tooltip />
-                          <Line type="monotone" dataKey="value" stroke="hsl(var(--primary))" strokeWidth={2} />
-                        </ComposedChart>
-                      </ResponsiveContainer>
-                    </div>
+                      <div className="flex items-center justify-between mb-4">
+                        <Select value={progressChartItem} onValueChange={setProgressChartItem}>
+                          <SelectTrigger className="w-[180px] h-8 text-xs font-bold"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                              <SelectItem value="PAPS 종합 점수">PAPS 종합 점수</SelectItem>
+                              {activeItems.map(i => <SelectItem key={i.id} value={i.name}>{i.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <span className="text-[10px] text-muted-foreground">
+                            {isGrowthChartAvailable ? '주간별 성장 곡선' : '기록 현황'}
+                        </span>
+                      </div>
+                      {measurementPeriods.length >= 2 ? (
+                        growthData.length > 0 ? (
+                          <div className="h-[200px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <ComposedChart data={growthData}>
+                                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                                <XAxis dataKey="name" fontSize={10} />
+                                <YAxis domain={[0, progressChartItem === "PAPS 종합 점수" ? 100 : 'auto']} />
+                                <Tooltip />
+                                <Line type="monotone" dataKey="value" name="기록" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ r: 6, fill: "hsl(var(--primary))" }} label={{ position: 'top', fontSize: 10, fill: 'hsl(var(--primary))', fontWeight: 'bold' }} />
+                              </ComposedChart>
+                            </ResponsiveContainer>
+                          </div>
+                        ) : (
+                          <div className="h-[200px] flex items-center justify-center border rounded-md bg-muted/20 text-xs text-muted-foreground italic">
+                            설정된 측정 주간에 기록이 없습니다.
+                          </div>
+                        )
+                      ) : (
+                        <div className="h-[200px] flex items-center justify-center border rounded-md bg-muted/20 text-xs text-muted-foreground italic">
+                          {measurementPeriods.length === 0
+                            ? '종목 관리에서 측정 주간을 설정해주세요.'
+                            : '성장 그래프는 측정 주간이 2개 이상 설정되어야 표시됩니다.'}
+                        </div>
+                      )}
                     <div className="p-4 bg-muted/50 rounded-lg text-sm">
                       {isAiLoading ? (
                         <div className="flex items-center justify-center py-4"><Loader2 className="animate-spin mr-2 h-4 w-4" /> AI 분석 중...</div>
@@ -461,7 +530,12 @@ export default function ClassAnalytics({
                 filteredStudents.map(s => (
                   <TableRow key={s.id} className={cn(selectedStudent?.id === s.id && "bg-primary/5 font-bold")}>
                     <TableCell>{s.studentNum}</TableCell>
-                    <TableCell className="font-bold">{s.name}</TableCell>
+                    <TableCell>
+                        <div className="flex flex-col">
+                            <span className="font-bold">{s.name}</span>
+                            <span className="text-[10px] text-muted-foreground">{s.grade}학년 {s.classNum}반</span>
+                        </div>
+                    </TableCell>
                     <TableCell>{s.gender}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="link" size="sm" onClick={() => handleSelectStudent(s)} className="font-bold">분석 & 관리</Button>

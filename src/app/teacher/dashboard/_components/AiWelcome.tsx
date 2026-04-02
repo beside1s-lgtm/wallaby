@@ -1,6 +1,6 @@
-
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/hooks/use-auth';
 import { getTeacherDashboardBriefing } from '@/ai/flows/teacher-ai-dashboard';
 import {
@@ -9,10 +9,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Loader2, Lightbulb, BarChart2, TrendingUp } from 'lucide-react';
+import { Loader2, Lightbulb, BarChart2, TrendingUp, Sparkles, AlertCircle, Bot, ChevronRight } from 'lucide-react';
 import {
   Bar,
   BarChart,
@@ -22,10 +21,12 @@ import {
   Tooltip,
   Legend,
   CartesianGrid,
+  Cell,
 } from 'recharts';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { getPapsGrade, normalizePapsRecord, normalizeCustomRecord } from '@/lib/paps';
 import type { Student, MeasurementItem, MeasurementRecord } from '@/lib/types';
+import { cn } from '@/lib/utils';
 
 type BriefingData = {
   briefing: string;
@@ -39,6 +40,14 @@ type AiWelcomeProps = {
     items: MeasurementItem[];
     records: MeasurementRecord[];
 }
+
+const COLORS = [
+  'oklch(0.646 0.222 41.116)', 
+  'oklch(0.6 0.118 184.704)', 
+  'oklch(0.398 0.07 227.392)', 
+  'oklch(0.828 0.189 84.429)', 
+  'oklch(0.769 0.188 70.08)'
+];
 
 export default function AiWelcome({ title, allStudents, classStudents, items, records }: AiWelcomeProps) {
   const { school } = useAuth();
@@ -55,7 +64,7 @@ export default function AiWelcome({ title, allStudents, classStudents, items, re
     const studentMap = new Map(allStudents.map(s => [s.id, s]));
     const analysisTargetStudents = classStudents || allStudents;
     
-    // --- Logic for Progress Analysis (based on the target student group) ---
+    // --- Progress Analysis Logic ---
     const progressData: Record<string, { first: number[], last: number[] }> = {};
     const itemsWithMultipleRecords = items.filter(item => {
         const studentRecords = records.filter(r => r.item === item.name && analysisTargetStudents.some(s => s.id === r.studentId));
@@ -78,8 +87,6 @@ export default function AiWelcome({ title, allStudents, classStudents, items, re
         studentRecordsMap.forEach((studentRecords, studentId) => {
             if (studentRecords.length < 2) return;
             studentRecords.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-            const firstRecord = studentRecords[0];
-            const lastRecord = studentRecords[studentRecords.length - 1];
             const student = studentMap.get(studentId);
             if (!student) return;
 
@@ -87,13 +94,13 @@ export default function AiWelcome({ title, allStudents, classStudents, items, re
             let lastAchievement: number | null = null;
 
             if(item.isPaps) {
-                const firstGrade = getPapsGrade(item.name, student, firstRecord.value);
-                const lastGrade = getPapsGrade(item.name, student, lastRecord.value);
-                if (firstGrade) firstAchievement = normalizePapsRecord(firstGrade, firstRecord.value, item.name, student);
-                if (lastGrade) lastAchievement = normalizePapsRecord(lastGrade, lastRecord.value, item.name, student);
+                const firstGrade = getPapsGrade(item.name, student, studentRecords[0].value);
+                const lastGrade = getPapsGrade(item.name, student, studentRecords[studentRecords.length-1].value);
+                if (firstGrade) firstAchievement = normalizePapsRecord(firstGrade, studentRecords[0].value, item.name, student);
+                if (lastGrade) lastAchievement = normalizePapsRecord(lastGrade, studentRecords[studentRecords.length-1].value, item.name, student);
             } else {
-                firstAchievement = normalizeCustomRecord(item, firstRecord.value);
-                lastAchievement = normalizeCustomRecord(item, lastRecord.value);
+                firstAchievement = normalizeCustomRecord(item, studentRecords[0].value);
+                lastAchievement = normalizeCustomRecord(item, studentRecords[studentRecords.length-1].value);
             }
 
             if (firstAchievement !== null && lastAchievement !== null) {
@@ -110,7 +117,7 @@ export default function AiWelcome({ title, allStudents, classStudents, items, re
         const avgFirst = parseFloat((data.first.reduce((a,b) => a+b, 0) / data.first.length).toFixed(2));
         const avgLast = parseFloat((data.last.reduce((a,b) => a+b, 0) / data.last.length).toFixed(2));
         const change = parseFloat((avgLast - avgFirst).toFixed(2));
-        if (change > 0) { // Only show improvements
+        if (change > 0) {
             finalProgressData[itemName] = { change, past: avgFirst, present: avgLast };
         }
     });
@@ -121,7 +128,7 @@ export default function AiWelcome({ title, allStudents, classStudents, items, re
         .map(([name, data]) => ({ name, ...data }));
 
 
-    // --- Logic for Main Briefing ---
+    // --- PAPS Analysis Logic ---
     const getPapsAnalysis = (studentGroup: Student[]) => {
         if (studentGroup.length === 0) return null;
         const papsItems = items.filter(item => item.isPaps);
@@ -199,7 +206,7 @@ export default function AiWelcome({ title, allStudents, classStudents, items, re
           };
           finalPapsChartData = Object.entries(classPaps.analysis.gradeDistribution).map(([name, value]) => ({ name, value }));
         }
-    } else { // Overall briefing
+    } else {
         const overallPapsAnalysis = getPapsAnalysis(allStudents);
         if (overallPapsAnalysis) {
             const byGradeLevel: Record<string, any> = {};
@@ -223,7 +230,7 @@ export default function AiWelcome({ title, allStudents, classStudents, items, re
     }
 
 
-    // --- Logic for Custom Items Briefing ---
+    // --- Custom Items Briefing Logic ---
     const customItems = items.filter(item => !item.isPaps && item.goal && item.recordType !== 'time');
     const customRecords = records.filter(record => customItems.some(item => item.name === record.item) && analysisTargetStudents.some(s => s.id === record.studentId));
     
@@ -232,22 +239,15 @@ export default function AiWelcome({ title, allStudents, classStudents, items, re
     
     if (customRecords.length > 0) {
         const customInsights: Record<string, { totalPercentage: number, count: number }> = {};
-        const latestRecordMap = new Map<string, string>(); // key: studentId-itemId, value: recordId
-
-        analysisTargetStudents.forEach(student => {
-            customItems.forEach(item => {
-                const latest = records
+        const latestRecordsForAnalysis = analysisTargetStudents.map(student => {
+            return customItems.map(item => {
+                return records
                     .filter(r => r.studentId === student.id && r.item === item.name)
                     .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-                if (latest) {
-                    latestRecordMap.set(`${student.id}-${item.name}`, latest.id);
-                }
-            });
-        });
+            }).filter(Boolean);
+        }).flat();
 
-        for (const record of customRecords) {
-            if (latestRecordMap.get(`${record.studentId}-${record.item}`) !== record.id) continue;
-
+        for (const record of latestRecordsForAnalysis) {
             const itemInfo = customItems.find(i => i.name === record.item);
             if(!itemInfo || !itemInfo.goal) continue;
             
@@ -294,12 +294,14 @@ export default function AiWelcome({ title, allStudents, classStudents, items, re
 
   }, [school, allStudents, classStudents, items, records, title, isClassBriefing]);
 
-  const fetchBriefing = async () => {
+  const fetchBriefing = useCallback(async () => {
     if (!school || !hasData || !analysisDataForAI || isAiButtonDisabled) return;
     
     setIsLoading(true);
     setBriefingData(null);
     setIsAiButtonDisabled(true);
+    setIsOpen(true);
+    
     setTimeout(() => setIsAiButtonDisabled(false), 10000);
     try {
         const result = await getTeacherDashboardBriefing(analysisDataForAI);
@@ -313,143 +315,221 @@ export default function AiWelcome({ title, allStudents, classStudents, items, re
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [school, hasData, analysisDataForAI, isAiButtonDisabled]);
   
   useEffect(() => {
-    if (!isOpen) {
+    if (!isOpen && !isLoading) {
         setBriefingData(null);
     }
-  }, [isOpen]);
+  }, [isOpen, isLoading]);
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button onClick={fetchBriefing} disabled={!hasData || isLoading || isAiButtonDisabled} variant="outline">
-          {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lightbulb className="mr-2 h-4 w-4" />}
-          {isLoading ? "분석 중..." : isAiButtonDisabled ? '10초 후에 다시 시도하세요' : title}
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-bold font-headline">{school} {dialogTitle}</DialogTitle>
-           <DialogDescription>
-            학생들의 PAPS 및 기타 종목 데이터를 종합 분석하여 생성된 AI 리포트입니다.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex-1 overflow-y-auto pr-2 space-y-6">
+    <>
+      <Button 
+        onClick={fetchBriefing} 
+        disabled={!hasData || isLoading || isAiButtonDisabled} 
+        variant="outline"
+        className={cn(
+          "relative overflow-hidden font-black transition-all group h-11 px-6 rounded-xl border-primary/20",
+          isLoading ? "animate-pulse" : "hover:border-primary hover:bg-primary/5 shadow-sm"
+        )}
+      >
+        <AnimatePresence mode="wait">
           {isLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <Loader2 className="w-12 h-12 animate-spin text-primary" />
-            </div>
-          ) : briefingData ? (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {papsChartData.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <BarChart2 className="w-5 h-5 text-primary" />
-                        PAPS 등급 분포 (%)
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={250}>
-                      <BarChart data={papsChartData}>
-                        <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                        <YAxis yAxisId="left" stroke="hsl(var(--chart-1))" domain={[0, 100]} unit="%" />
-                        <Tooltip
-                            contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}
-                            formatter={(value) => [`${value}%`, '비율']}
-                        />
-                        <Bar yAxisId="left" dataKey="value" name="등급 비율" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              )}
-              
-              {customChartData.length > 0 && (
-                 <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <BarChart2 className="w-5 h-5 text-accent" />
-                        기타 종목 평균 목표 달성률 (%)
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={250}>
-                      <BarChart data={customChartData}>
-                        <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
-                        <YAxis yAxisId="left" stroke="hsl(var(--chart-2))" domain={[0, 100]} unit="%" />
-                        <Tooltip
-                            contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}
-                            formatter={(value) => [`${value}%`, '평균 달성률']}
-                        />
-                        <Bar yAxisId="left" dataKey="value" name="목표 달성률" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              )}
-              
-              {progressAnalysisData && progressAnalysisData.length > 0 && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <TrendingUp className="w-5 h-5 text-green-500" />
-                            주요 성장 종목 (평균 성취도)
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <ResponsiveContainer width="100%" height={250}>
-                           <BarChart data={progressAnalysisData} layout="vertical">
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis type="number" domain={[0, 100]} unit="%" />
-                                <YAxis type="category" dataKey="name" width={100} tick={{fontSize: 12}} />
-                                <Tooltip
-                                    contentStyle={{ background: "hsl(var(--background))", border: "1px solid hsl(var(--border))" }}
-                                    formatter={(value, name) => [`${value}%`, name === 'past' ? '과거 성취도' : '현재 성취도']}
-                                />
-                                <Legend />
-                                <Bar dataKey="past" name="과거" fill="hsl(var(--chart-4))" />
-                                <Bar dataKey="present" name="현재" fill="hsl(var(--chart-2))" />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </CardContent>
-                </Card>
-              )}
-
-              <Card className="bg-primary/5">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Lightbulb className="w-5 h-5 text-primary" />
-                    종합 브리핑
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{briefingData.briefing}</p>
-                </CardContent>
-                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 pt-4 border-t">
-                    <Lightbulb className="w-5 h-5 text-accent" />
-                    수업 조언
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{briefingData.advice}</p>
-                </CardContent>
-              </Card>
-
-            </div>
+            <motion.span 
+              key="loading"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="flex items-center"
+            >
+              <Loader2 className="mr-2 h-4 w-4 animate-spin text-primary" />
+              AI 심층 분석 중...
+            </motion.span>
           ) : (
-             <div className="flex items-center justify-center h-full">
-                <p>표시할 데이터가 없습니다.</p>
-            </div>
+            <motion.span 
+              key="idle"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="flex items-center"
+            >
+              <Sparkles className="mr-2 h-4 w-4 text-primary group-hover:animate-bounce" />
+              {isAiButtonDisabled ? '시스템 준비 중' : title}
+            </motion.span>
           )}
-        </div>
-        <div className="mt-4 flex justify-end">
-          <Button onClick={() => setIsOpen(false)}>닫기</Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </AnimatePresence>
+      </Button>
+
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="max-w-5xl h-[95vh] sm:h-[90vh] flex flex-col premium-card border-none p-0 overflow-hidden rounded-xl sm:rounded-[2rem]">
+          <DialogHeader className="p-5 sm:p-8 pb-4 bg-primary/[0.03] border-b border-border/50">
+            <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2 text-primary">
+              <div className="p-1.5 sm:p-2 bg-primary/10 rounded-lg sm:rounded-xl">
+                <Bot className="w-5 h-5 sm:w-6 sm:h-6" />
+              </div>
+              <DialogTitle className="text-xl sm:text-3xl font-black font-headline tracking-tighter sm:tracking-tight">{school} {dialogTitle}</DialogTitle>
+            </div>
+            <DialogDescription className="text-sm sm:text-base font-bold opacity-70">
+              실시간 데이터 기반의 지능형 맞춤 분석 리포트입니다.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto p-5 sm:p-8 space-y-8 sm:space-y-10 hide-scrollbar">
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center h-full gap-4 py-20">
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                >
+                  <Loader2 className="w-12 h-12 sm:w-16 sm:h-16 text-primary/30" />
+                </motion.div>
+                <p className="text-base sm:text-xl font-bold animate-pulse text-muted-foreground font-headline tracking-tight text-center">데이터 패턴 수집 및 분석 리포트 생성 중...</p>
+              </div>
+            ) : briefingData ? (
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-8 sm:space-y-10"
+              >
+                {/* Statistics Cards */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+                  {papsChartData.length > 0 && (
+                    <Card className="premium-card bg-background/50 border-border/40 p-4 sm:p-6">
+                      <CardHeader className="p-0 pb-4">
+                        <CardTitle className="flex items-center gap-2 text-base sm:text-lg font-black text-primary">
+                            <BarChart2 className="w-5 h-5" />
+                            PAPS 등급 분포
+                        </CardTitle>
+                        <CardDescription className="text-xs sm:text-sm">전체 학생 등급 비율입니다.</CardDescription>
+                      </CardHeader>
+                      <CardContent className="p-0">
+                        <ResponsiveContainer width="100%" height={260}>
+                          <BarChart data={papsChartData}>
+                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11, fontWeight: 'bold' }} dy={10} />
+                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10 }} />
+                            <Tooltip
+                                cursor={{ fill: 'rgba(0,0,0,0.03)' }}
+                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '12px' }}
+                            />
+                            <Bar dataKey="value" radius={[8, 8, 0, 0]} barSize={30}>
+                              {papsChartData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  )}
+                  
+                  {customChartData.length > 0 && (
+                    <Card className="premium-card bg-background/50 border-border/40 p-4 sm:p-6">
+                      <CardHeader className="p-0 pb-4">
+                        <CardTitle className="flex items-center gap-2 text-base sm:text-lg font-black text-blue-600">
+                            <TrendingUp className="w-5 h-5" />
+                            평균 목표 달성도
+                        </CardTitle>
+                        <CardDescription className="text-xs sm:text-sm">수업 목표 대비 수행 수준입니다.</CardDescription>
+                      </CardHeader>
+                      <CardContent className="p-0">
+                        <ResponsiveContainer width="100%" height={260}>
+                          <BarChart data={customChartData} layout="vertical" margin={{ left: -10 }}>
+                            <XAxis type="number" hide />
+                            <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} width={80} tick={{ fontSize: 11, fontWeight: 'bold' }} />
+                            <Tooltip
+                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', fontSize: '12px' }}
+                            />
+                            <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={20} fill="oklch(0.6 0.118 184.704)" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+
+                {/* Progress Summary */}
+                {progressAnalysisData && progressAnalysisData.length > 0 && (
+                  <Card className="premium-card border-l-4 border-l-green-500 bg-green-500/[0.02] p-5 sm:p-8">
+                    <CardHeader className="p-0 pb-4">
+                        <CardTitle className="flex items-center gap-2 text-base sm:text-lg font-black text-green-700">
+                            <Sparkles className="w-5 h-5" />
+                            최우수 성장 지표
+                        </CardTitle>
+                        <CardDescription className="text-xs sm:text-sm">높은 성취를 보인 3대 핵심 종목입니다.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 p-0 pt-2">
+                        {progressAnalysisData.map((item, id) => (
+                          <div key={id} className="p-4 rounded-xl bg-background shadow-premium border border-border/40 group hover:border-green-500/40 transition-all">
+                            <p className="text-xs sm:text-sm font-bold text-muted-foreground mb-1.5 flex items-center justify-between">
+                              {item.name}
+                              <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </p>
+                            <div className="flex items-end gap-1.5">
+                              <span className="text-2xl sm:text-3xl font-black text-green-600 tracking-tighter">+{item.change}%</span>
+                              <span className="text-[10px] text-muted-foreground pb-1 font-black">UP</span>
+                            </div>
+                            <div className="mt-3 h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                              <motion.div 
+                                initial={{ width: 0 }}
+                                animate={{ width: `${item.present}%` }}
+                                transition={{ duration: 1, delay: 0.5 }}
+                                className="h-full bg-green-500" 
+                              />
+                            </div>
+                          </div>
+                        ))}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* AI Briefing Content */}
+                <div className="flex flex-col gap-6 sm:gap-8 pb-10">
+                  <div className="bg-primary/[0.03] p-6 sm:p-10 rounded-2xl sm:rounded-[2.5rem] border border-primary/10 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-48 h-48 sm:w-64 sm:h-64 bg-primary/5 rounded-full blur-[60px] sm:blur-[80px] -mr-24 -mt-24 sm:-mr-32 sm:-mt-32" />
+                    <div className="flex items-center gap-2 sm:gap-3 mb-6 relative">
+                      <div className="p-2 sm:p-3 bg-primary/10 rounded-xl sm:rounded-2xl">
+                        <Sparkles className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
+                      </div>
+                      <h3 className="text-xl sm:text-3xl font-black font-headline tracking-tighter text-primary">지능형 종합 분석</h3>
+                    </div>
+                    <div className="relative">
+                       <p className="text-base sm:text-xl leading-[1.8] sm:leading-[2.2] font-semibold text-foreground/80 whitespace-pre-wrap italic">
+                         {briefingData.briefing}
+                       </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-accent/[0.03] p-6 sm:p-10 rounded-2xl sm:rounded-[2.5rem] border border-accent/10 relative overflow-hidden">
+                    <div className="absolute bottom-0 left-0 w-48 h-48 sm:w-64 sm:h-64 bg-accent/5 rounded-full blur-[60px] sm:blur-[80px] -ml-24 -mb-24 sm:-ml-32 sm:-mb-32" />
+                    <div className="flex items-center gap-2 sm:gap-3 mb-6 relative">
+                      <div className="p-2 sm:p-3 bg-accent/10 rounded-xl sm:rounded-2xl">
+                        <AlertCircle className="w-6 h-6 sm:w-8 sm:h-8 text-accent" />
+                      </div>
+                      <h3 className="text-xl sm:text-3xl font-black font-headline tracking-tighter text-accent">전략적 교수-학습 제언</h3>
+                    </div>
+                    <div className="relative">
+                       <p className="text-base sm:text-xl leading-[1.8] sm:leading-[2.2] font-semibold text-foreground/80 whitespace-pre-wrap">
+                         {briefingData.advice}
+                       </p>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground py-20">
+                <AlertCircle className="w-16 h-16 sm:w-20 sm:h-20 opacity-20" />
+                <p className="text-lg sm:text-2xl font-black opacity-30 text-center">표시할 분석 데이터가 부족합니다.</p>
+              </div>
+            )}
+          </div>
+          <div className="p-5 sm:p-8 bg-muted/20 border-t border-border/50 flex justify-center sm:justify-end">
+            <Button onClick={() => setIsOpen(false)} size="lg" className="w-full sm:w-auto h-12 sm:h-14 sm:px-12 rounded-xl sm:rounded-2xl font-black text-lg sm:text-xl shadow-premium hover:scale-105 active:scale-95 transition-all">
+              확인
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

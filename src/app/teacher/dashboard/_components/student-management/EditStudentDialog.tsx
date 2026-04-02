@@ -22,25 +22,42 @@ import {
 import { Pencil, Loader2 } from "lucide-react";
 import type { Student, StudentToUpdate } from "@/lib/types";
 
-export function EditStudentDialog({ student, onUpdateStudent }: { student: Student, onUpdateStudent: (data: StudentToUpdate) => Promise<void> }) {
-  const [form, setForm] = useState<StudentToUpdate>({});
+
+export function EditStudentDialog({ 
+  student, 
+  onUpdateStudent, 
+  open, 
+  onOpenChange 
+}: { 
+  student: Student; 
+  onUpdateStudent: (data: Partial<Omit<Student, "school" | "id" | "accessCode">>) => Promise<void>; 
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [form, setForm] = useState<Partial<Omit<Student, "school" | "id" | "accessCode">>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    if (student && isOpen) setForm({ grade: student.grade, classNum: student.classNum, studentNum: student.studentNum, name: student.name, gender: student.gender });
-  }, [student, isOpen]);
+    if (student && open) {
+        setForm({ 
+            grade: student.grade, 
+            classNum: student.classNum, 
+            studentNum: student.studentNum, 
+            name: student.name, 
+            gender: student.gender 
+        });
+    }
+  }, [student, open]);
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
     await onUpdateStudent(form);
     setIsSubmitting(false);
-    setIsOpen(false);
+    onOpenChange(false);
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <Button variant="outline" onClick={() => setIsOpen(true)}><Pencil className="mr-2 h-4 w-4" /> 정보 수정</Button>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader><DialogTitle>학생 정보 수정</DialogTitle></DialogHeader>
         <div className="grid gap-4 py-4">

@@ -5,6 +5,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { addOrUpdateRecord, addOrUpdateRecords } from '@/lib/store';
 import { Student, MeasurementItem, MeasurementRecord, TeamGroup, SportsClub } from '@/lib/types';
+import { exportToExcel } from '@/lib/store';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -36,7 +37,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, Calendar as CalendarIcon, X, Youtube, ClipboardList, Save, CheckCircle2 } from 'lucide-react';
+import { Loader2, Search, Calendar as CalendarIcon, X, Youtube, ClipboardList, Save, CheckCircle2, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -59,7 +60,7 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
   const { school } = useAuth();
   const { toast } = useToast();
   
-  const activeItems = useMemo(() => allItems.filter(item => !item.isArchived && !item.isDeactivated), [allItems]);
+  const activeItems = useMemo(() => allItems.filter(item => item.isMeasurementWeek && !item.isArchived && !item.isDeactivated), [allItems]);
   const { grades, classNumsByGrade } = useMemo(() => {
     const gradesList = [...new Set(allStudents.map(s => s.grade))].sort((a, b) => parseInt(a) - parseInt(b));
     const classMap: Record<string, string[]> = {};
@@ -239,6 +240,31 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
     } finally { setIsBatchSubmitting(false); }
   };
 
+  const handleDownloadTemplate = () => {
+    if (studentsForBatch.length === 0) {
+      toast({ variant: 'destructive', title: '다운로드 실패', description: '먼저 학년/반 또는 그룹을 선택해주세요.' });
+      return;
+    }
+    
+    if (!batchRecordItem) {
+      toast({ variant: 'destructive', title: '다운로드 실패', description: '측정 종목을 선택해주세요.' });
+      return;
+    }
+
+    const templateData = studentsForBatch.map(s => ({
+      '학년': s.grade,
+      '반': s.classNum,
+      '번호': s.studentNum,
+      '이름': s.name,
+      [batchRecordItem]: '',
+      '비고': ''
+    }));
+
+    const filename = `${selectedGrade ? `${selectedGrade}학년_${selectedClassNum}반` : '그룹'}_${batchRecordItem}_입력템플릿`;
+    exportToExcel(filename, templateData);
+    toast({ title: '템플릿 다운로드 완료', description: '기록을 입력한 후 일괄 업로드 기능을 이용해 주세요.' });
+  };
+
   const getYouTubeEmbedUrl = (url?: string) => {
     if (!url) return null;
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
@@ -296,6 +322,10 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
                         <Select value={selectedGroupId} onValueChange={v => { setSelectedGroupId(v); setSelectedGrade(''); }}><SelectTrigger className="w-[180px]"><SelectValue placeholder="그룹 선택" /></SelectTrigger><SelectContent>{allTeamGroups.concat(sportsClubs as any).map((g: any) => <SelectItem key={g.id} value={g.id}>{g.description || g.name}</SelectItem>)}</SelectContent></Select>
                         <Popover><PopoverTrigger asChild><Button variant="outline" className="w-[180px] justify-start"><CalendarIcon className="mr-2 h-4 w-4" />{batchRecordDate ? format(batchRecordDate, "PPP") : "날짜"}</Button></PopoverTrigger><PopoverContent className="w-auto p-0"><Calendar mode="single" selected={batchRecordDate} onSelect={setBatchRecordDate} initialFocus /></PopoverContent></Popover>
                         <Select value={batchRecordItem} onValueChange={v => { setBatchRecordItem(v); setShowVideo(false); setShowGradeTable(false); }}><SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger><SelectContent>{activeItems.map(i => <SelectItem key={i.id} value={i.name}>{i.name}</SelectItem>)}</SelectContent></Select>
+                        <Button variant="outline" onClick={handleDownloadTemplate} disabled={studentsForBatch.length === 0} title="엑셀 템플릿 다운로드">
+                            <Download className="mr-2 h-4 w-4" />
+                            템플릿
+                        </Button>
                         <Button onClick={handleSaveBatchRecords} disabled={isBatchSubmitting || studentsForBatch.length === 0} className="ml-auto font-bold">{isBatchSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}전체 저장</Button>
                     </div>
                 </CardHeader>

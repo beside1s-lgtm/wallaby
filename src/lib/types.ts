@@ -37,6 +37,16 @@ export type MeasurementRecord = {
   item: string; // The name of the measurement item
   value: number;
   date: string; // YYYY-MM-DD
+  note?: string; // 비고
+  height?: number; // BMI용 키 데이터
+  weight?: number; // BMI용 몸무게 데이터
+};
+
+export type MeasurementPeriod = {
+  id: string;
+  name: string; // 예: 1차 측정, 2차 측정
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
 };
 
 export type ItemStatistics = {
@@ -60,6 +70,7 @@ export type School = {
   password?: string;
   createdAt: any; // Can be a Date or a server timestamp
   isStudentInputDisabled?: boolean; // 학생 입력 제한 설정
+  measurementPeriods?: MeasurementPeriod[]; // 학교 공통 측정 주간 설정
 };
 
 export type SportsClub = {

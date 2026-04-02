@@ -347,7 +347,7 @@ export default function ReportCardPage() {
                             ) : (
                                 <div className="text-center py-2 print-hidden">
                                     <p className="text-[10px] text-muted-foreground mb-2">PAPS 데이터를 바탕으로 AI 코치의 상세 분석을 받아보세요.</p>
-                                    <Button size="xs" variant="outline" onClick={handleGetBriefing} disabled={isBriefingLoading} className="h-8 font-bold border-primary text-primary hover:bg-primary/10">
+                                    <Button size="sm" variant="outline" onClick={handleGetBriefing} disabled={isBriefingLoading} className="h-8 font-bold border-primary text-primary hover:bg-primary/10">
                                         {isBriefingLoading ? <Loader2 className="animate-spin h-3 w-3 mr-1.5" /> : <Wand2 className="h-3 w-3 mr-1.5" />}
                                         AI 분석 리포트 생성하기
                                     </Button>

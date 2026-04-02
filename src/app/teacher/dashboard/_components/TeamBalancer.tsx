@@ -59,6 +59,8 @@ import {
   Trophy,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
+import { motion, AnimatePresence } from "framer-motion";
 import { getScoutingReport } from "@/ai/flows/scouting-report-flow";
 import type { ScoutingReportOutput } from "@/ai/flows/scouting-report-flow";
 import {
@@ -216,8 +218,12 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
       
       const ranksByGrade = new Map();
       const distinctGrades = [...new Set(studentsForAnalysis.map(s => s.grade))];
+      
+      // Cache ranks by grade to avoid repeated calculations
       distinctGrades.forEach(g => {
-          ranksByGrade.set(g, calculateRanks(school, allItems, allRecords, allStudents, g));
+          if (!ranksByGrade.has(g)) {
+              ranksByGrade.set(g, calculateRanks(school, allItems, allRecords, allStudents, g));
+          }
       });
       
       selectedItemNames.forEach(name => {
@@ -228,6 +234,7 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
             if (itemRanks) {
                 const rankInfo = itemRanks.find((r: any) => r.studentId === student.id);
                 if (rankInfo && itemRanks.length > 0) {
+                    // Pre-calculate percentile score
                     score = Math.round((1 - (rankInfo.rank - 1) / itemRanks.length) * 100);
                 }
             }
@@ -305,26 +312,25 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     if (!ids.length) { toast({ variant: "destructive", title: "학생을 선택하세요" }); return; }
     
     const studentsToBalance = allStudents.filter(s => ids.includes(s.id));
-    let baseList = [...studentsToBalance];
-    
-    if (balancingStrategy === 'random') {
-        baseList.sort(() => Math.random() - 0.5);
-    } else {
-        baseList = baseList.map(s => ({ s, score: studentScores.get(s.id)?.totalScore || 0 }))
-                   .sort((a,b) => b.score - a.score)
-                   .map(x => x.s);
-    }
-    
     let balancedArrays: Student[][] = [];
     
-    if (divideBy === 'teams') {
-        const count = numTeams;
-        balancedArrays = Array.from({ length: count }, () => []);
+    // Helper to balance a single list of students into N teams
+    const balanceList = (list: Student[], count: number): Student[][] => {
+        const result: Student[][] = Array.from({ length: count }, () => []);
+        let baseList = [...list];
         
+        if (balancingStrategy === 'random') {
+            baseList.sort(() => Math.random() - 0.5);
+        } else {
+            baseList = baseList.map(s => ({ s, score: studentScores.get(s.id)?.totalScore || 0 }))
+                       .sort((a,b) => b.score - a.score)
+                       .map(x => x.s);
+        }
+
         if (balancingStrategy === 'balanced') {
             let dir = 1, idx = 0;
             baseList.forEach(s => {
-                balancedArrays[idx].push(s);
+                result[idx].push(s);
                 idx += dir;
                 if (idx < 0 || idx >= count) { dir *= -1; idx += dir; }
             });
@@ -332,50 +338,118 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
             const perTeam = baseList.length / count;
             baseList.forEach((s, i) => {
                 const tIdx = Math.min(count - 1, Math.floor(i / perTeam));
-                balancedArrays[tIdx].push(s);
+                result[tIdx].push(s);
             });
         } else {
             baseList.forEach((s, i) => {
-                balancedArrays[i % count].push(s);
+                result[i % count].push(s);
             });
         }
-        setLeftoverStudents([]);
-    } else if (divideBy === 'members') {
-        const teamCount = Math.floor(baseList.length / membersPerTeam);
-        if (teamCount === 0) { toast({ variant: "destructive", title: "인원이 너무 적습니다" }); return; }
-        balancedArrays = Array.from({ length: teamCount }, () => []);
-        const toDist = baseList.slice(0, teamCount * membersPerTeam);
-        const leftovers = baseList.slice(teamCount * membersPerTeam);
+        return result;
+    };
+
+    if (selectedGender === 'separate') {
+        const males = studentsToBalance.filter(s => s.gender === '남');
+        const females = studentsToBalance.filter(s => s.gender === '여');
         
-        if (balancingStrategy === 'balanced') {
-            let dir = 1, idx = 0;
-            toDist.forEach(s => {
-                balancedArrays[idx].push(s);
-                idx += dir;
-                if (idx < 0 || idx >= teamCount) { dir *= -1; idx += dir; }
-            });
-        } else if (balancingStrategy === 'by-ability') {
-            toDist.forEach((s, i) => {
-                const tIdx = Math.floor(i / membersPerTeam);
-                balancedArrays[tIdx].push(s);
-            });
+        let teamCount = 0;
+        if (divideBy === 'teams') {
+            teamCount = numTeams;
         } else {
-            toDist.forEach((s, i) => {
-                balancedArrays[i % teamCount].push(s);
-            });
+            teamCount = Math.max(1, Math.floor(studentsToBalance.length / membersPerTeam));
         }
-        setLeftoverStudents(leftovers);
+
+        const maleGroups = balanceList(males, teamCount);
+        const femaleGroups = balanceList(females, teamCount);
+        
+        balancedArrays = Array.from({ length: teamCount }, (_, i) => {
+            return [...maleGroups[i], ...femaleGroups[i]];
+        });
+        
+        // Find leftovers for 'members-per-team' mode if any
+        if (divideBy === 'members') {
+            // Simplified: logic above already distributes everyone. 
+            // If we want exact leftovers:
+            setLeftoverStudents([]);
+        }
     } else {
-        balancedArrays = [baseList];
-        setLeftoverStudents([]);
+        // Original combined logic
+        let baseList = [...studentsToBalance];
+        
+        if (balancingStrategy === 'random') {
+            baseList.sort(() => Math.random() - 0.5);
+        } else {
+            baseList = baseList.map(s => ({ s, score: studentScores.get(s.id)?.totalScore || 0 }))
+                       .sort((a,b) => b.score - a.score)
+                       .map(x => x.s);
+        }
+        
+        if (divideBy === 'teams') {
+            const count = numTeams;
+            balancedArrays = Array.from({ length: count }, () => []);
+            
+            if (balancingStrategy === 'balanced') {
+                let dir = 1, idx = 0;
+                baseList.forEach(s => {
+                    balancedArrays[idx].push(s);
+                    idx += dir;
+                    if (idx < 0 || idx >= count) { dir *= -1; idx += dir; }
+                });
+            } else if (balancingStrategy === 'by-ability') {
+                const perTeam = baseList.length / count;
+                baseList.forEach((s, i) => {
+                    const tIdx = Math.min(count - 1, Math.floor(i / perTeam));
+                    balancedArrays[tIdx].push(s);
+                });
+            } else {
+                baseList.forEach((s, i) => {
+                    balancedArrays[i % count].push(s);
+                });
+            }
+            setLeftoverStudents([]);
+        } else if (divideBy === 'members') {
+            const teamCount = Math.floor(baseList.length / membersPerTeam);
+            if (teamCount === 0) { toast({ variant: "destructive", title: "인원이 너무 적습니다" }); return; }
+            balancedArrays = Array.from({ length: teamCount }, () => []);
+            const toDist = baseList.slice(0, teamCount * membersPerTeam);
+            const leftovers = baseList.slice(teamCount * membersPerTeam);
+            
+            if (balancingStrategy === 'balanced') {
+                let dir = 1, idx = 0;
+                toDist.forEach(s => {
+                    balancedArrays[idx].push(s);
+                    idx += dir;
+                    if (idx < 0 || idx >= teamCount) { dir *= -1; idx += dir; }
+                });
+            } else if (balancingStrategy === 'by-ability') {
+                toDist.forEach((s, i) => {
+                    const tIdx = Math.floor(i / membersPerTeam);
+                    balancedArrays[tIdx].push(s);
+                });
+            } else {
+                toDist.forEach((s, i) => {
+                    balancedArrays[i % teamCount].push(s);
+                });
+            }
+            setLeftoverStudents(leftovers);
+        } else {
+            balancedArrays = [baseList];
+            setLeftoverStudents([]);
+        }
     }
 
     setTeams(balancedArrays.map((arr, i) => ({
         id: uuidv4(),
         name: `${arr[0]?.grade || ''}-${arr[0]?.classNum || ''} 팀 ${i+1}`,
         teamIndex: i,
-        memberIds: arr.map(s => s.id),
-        members: arr
+        memberIds: arr.sort((a,b) => {
+            if (a.gender !== b.gender) return a.gender === '남' ? -1 : 1;
+            return 0;
+        }).map(s => s.id),
+        members: arr.sort((a,b) => {
+            if (a.gender !== b.gender) return a.gender === '남' ? -1 : 1;
+            return 0;
+        })
     })));
     toast({ title: "팀 편성 완료" });
   };
@@ -452,6 +526,29 @@ export default function TeamBalancer({ allStudents, allItems, allRecords, teamGr
     });
     return map;
   }, [teams, studentScores, selectedItemNames]);
+
+  if (!school) {
+      return (
+          <div className="space-y-6">
+              <Card className="bg-transparent shadow-none border-none">
+                  <CardHeader className="px-0"><Skeleton className="h-10 w-48" /></CardHeader>
+                  <CardContent className="px-0 space-y-4">
+                      <div className="flex gap-2"><Skeleton className="h-10 w-32" /><Skeleton className="h-10 w-32" /><Skeleton className="h-10 w-32" /></div>
+                  </CardContent>
+              </Card>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[1,2,3,4,5,6].map(i => (
+                      <Card key={i} className="p-4 space-y-3">
+                          <Skeleton className="h-6 w-1/3" />
+                          <div className="space-y-2">
+                              {[1,2,3,4,5].map(j => <Skeleton key={j} className="h-10 w-full" />)}
+                          </div>
+                      </Card>
+                  ))}
+              </div>
+          </div>
+      );
+  }
 
   return (
     <div className="space-y-6">

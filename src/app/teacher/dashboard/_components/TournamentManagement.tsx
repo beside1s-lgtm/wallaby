@@ -402,8 +402,78 @@ export default function TournamentManagement({ onTournamentUpdate, allTeamGroups
     volleyball: '배구',
     baseball: '야구',
     dodgeball: '피구',
-    etc: '일반'
-  };
+  etc: '일반'
+};
+
+function TournamentBracket({ matches, teams, getTeamName }: { matches: Match[], teams: Team[], getTeamName: (id: string | null) => string }) {
+  const rounds = useMemo(() => {
+    const r: Record<number, Match[]> = {};
+    matches.forEach(m => {
+      const roundKey = m.round as number;
+      if (!r[roundKey]) r[roundKey] = [];
+      r[roundKey].push(m);
+    });
+    return Object.keys(r).sort((a, b) => Number(a) - Number(b)).map(k => ({ round: Number(k), matches: r[Number(k)] }));
+  }, [matches]);
+
+  if (rounds.length === 0) return null;
+
+  return (
+    <div className="w-full overflow-x-auto py-8 bg-muted/20 rounded-xl border border-dashed border-primary/20 scrollbar-thin scrollbar-thumb-primary/20">
+      <div className="flex gap-12 min-w-max px-8">
+        {rounds.map((r, rIdx) => (
+          <div key={r.round} className="flex flex-col justify-around gap-8 py-4">
+            <h4 className="text-center font-black text-primary/40 uppercase tracking-tighter text-sm mb-4">ROUND {r.round}</h4>
+            <div className="flex flex-col justify-around flex-1 gap-12">
+              {r.matches.sort((a, b) => a.matchNumber - b.matchNumber).map((m, mIdx) => {
+                const isWinnerA = m.winnerId && m.winnerId === m.teamAId;
+                const isWinnerB = m.winnerId && m.winnerId === m.teamBId;
+                
+                return (
+                  <div key={m.id} className="relative group">
+                    {/* Visual Connector to next round */}
+                    {rIdx < rounds.length - 1 && (
+                      <div className={cn(
+                        "absolute -right-12 top-1/2 w-12 h-px bg-primary/20 -z-10",
+                        m.nextMatchSlot === 'A' ? "origin-left" : "origin-left"
+                      )} />
+                    )}
+                    
+                    <Card className={cn(
+                      "w-48 shadow-sm transition-all border-2 overflow-hidden",
+                      m.status === 'completed' ? "border-muted bg-muted/20" : "border-primary/20 hover:border-primary/50 hover:shadow-md"
+                    )}>
+                      <div className="bg-muted/50 px-2 py-1 text-[8px] font-black flex justify-between">
+                        <span>MATCH {m.matchNumber}</span>
+                        {m.status === 'completed' && <span className="text-green-600">DONE</span>}
+                      </div>
+                      <div className="divide-y divide-primary/5">
+                        <div className={cn(
+                          "flex justify-between items-center px-3 py-2 text-xs",
+                          isWinnerA ? "bg-primary/10 font-black text-primary" : "text-foreground/70"
+                        )}>
+                          <span className="truncate flex-1">{getTeamName(m.teamAId)}</span>
+                          <span className="font-mono bg-background/50 px-1.5 rounded">{m.scoresA?.[0] || 0}</span>
+                        </div>
+                        <div className={cn(
+                          "flex justify-between items-center px-3 py-2 text-xs",
+                          isWinnerB ? "bg-primary/10 font-black text-primary" : "text-foreground/70"
+                        )}>
+                          <span className="truncate flex-1">{getTeamName(m.teamBId)}</span>
+                          <span className="font-mono bg-background/50 px-1.5 rounded">{m.scoresB?.[0] || 0}</span>
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
   return (
     <div className="space-y-6">
@@ -503,7 +573,7 @@ export default function TournamentManagement({ onTournamentUpdate, allTeamGroups
         <Card className="p-6 border-2 border-primary/10 shadow-lg">
           <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
             <div>
-              <Badge variant="outline" className="mb-1">{sportDisplayMap[currentTournament.sport || 'etc']}</Badge>
+              <Badge variant="outline" className="mb-1">{(sportDisplayMap as Record<string, string>)[currentTournament.sport || 'etc']}</Badge>
               <div className="flex items-center gap-3">
                 <h2 className="text-2xl font-black text-primary flex items-center gap-2">
                   <TrophyIcon className="h-6 w-6 text-yellow-500" /> {currentTournament.name} 경기 관리
@@ -525,6 +595,25 @@ export default function TournamentManagement({ onTournamentUpdate, allTeamGroups
             </div>
           </div>
 
+          {currentTournament.type === 'tournament' && (
+            <div className="mb-12 space-y-4">
+               <div className="flex items-center gap-2 mb-2">
+                 <Swords className="h-5 w-5 text-primary" />
+                 <h3 className="font-black text-lg">시각적 대진표 (Tournament Tree)</h3>
+               </div>
+               <TournamentBracket 
+                  matches={currentTournament.matches} 
+                  teams={currentTournament.teams} 
+                  getTeamName={getTeamName} 
+               />
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 mb-6">
+            <CalendarIcon className="h-5 w-5 text-primary" />
+            <h3 className="font-black text-lg">전체 경기 기록 및 관리</h3>
+          </div>
+          
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {currentTournament.matches.map(m => (
               <Card key={m.id} className={cn(

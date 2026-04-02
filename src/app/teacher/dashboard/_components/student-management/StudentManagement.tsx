@@ -80,6 +80,7 @@ export function StudentManagement({
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedGrade, setSelectedGrade] = useState("all");
   const [selectedClassNum, setSelectedClassNum] = useState("all");
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   const { grades, classNumsByGrade } = useMemo(() => {
     const grades = [
@@ -242,7 +243,19 @@ export function StudentManagement({
           {/* Action Group */}
           <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
             <AddStudentDialog onAddStudent={handleAddStudent} school={school || ''} />
-            {selectedStudentForEdit && <EditStudentDialog student={selectedStudentForEdit} onUpdateStudent={handleUpdateStudent} />}
+            {selectedStudentForEdit && (
+              <>
+                <Button variant="outline" size="sm" className="h-9" onClick={() => setIsEditDialogOpen(true)}>
+                  <Pencil className="mr-2 h-4 w-4" /> 정보 수정
+                </Button>
+                <EditStudentDialog 
+                  student={selectedStudentForEdit} 
+                  onUpdateStudent={handleUpdateStudent} 
+                  open={isEditDialogOpen} 
+                  onOpenChange={setIsEditDialogOpen} 
+                />
+              </>
+            )}
             <Button variant="outline" size="sm" className="h-9" onClick={() => document.getElementById("student-csv-upload")?.click()} disabled={isUploading}>
               {isUploading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> 등록 중...</> : <><FileUp className="mr-2 h-4 w-4" /> 일괄 등록</>}
             </Button>

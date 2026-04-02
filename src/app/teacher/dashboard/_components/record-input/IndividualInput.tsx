@@ -27,6 +27,8 @@ export function IndividualInput({ allStudents, activeItems, onRecordUpdate }: { 
   const [student, setStudent] = useState<Student | null>(null);
   const [itemName, setItemName] = useState('');
   const [val, setVal] = useState('');
+  const [height, setHeight] = useState('');
+  const [weight, setWeight] = useState('');
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -56,10 +58,24 @@ export function IndividualInput({ allStudents, activeItems, onRecordUpdate }: { 
     if (!school || !student || !itemName || !date) return;
     setIsSubmitting(true);
     try {
-      const rec = await addOrUpdateRecord({ studentId: student.id, school, item: itemName, date: format(date, 'yyyy-MM-dd'), value: parseFloat(val) });
+      const isCompound = selectedItemInfo?.isCompound;
+      let finalVal = isCompound ? parseFloat(calculateBmi(height, weight)) : parseFloat(val);
+      if (isNaN(finalVal)) return;
+
+      const rec = await addOrUpdateRecord({ 
+        studentId: student.id, 
+        school, 
+        item: itemName, 
+        date: format(date, 'yyyy-MM-dd'), 
+        value: finalVal,
+        height: isCompound ? parseFloat(height) : undefined,
+        weight: isCompound ? parseFloat(weight) : undefined
+      });
       onRecordUpdate([rec], 'update');
       toast({ title: "저장 완료" });
       setVal('');
+      setHeight('');
+      setWeight('');
     } catch (e) { toast({ variant: "destructive", title: "저장 실패" }); }
     finally { setIsSubmitting(false); }
   };
@@ -69,6 +85,15 @@ export function IndividualInput({ allStudents, activeItems, onRecordUpdate }: { 
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
     const match = url.match(regExp);
     return match && match[2].length === 11 ? `https://www.youtube.com/embed/${match[2]}` : null;
+  };
+
+  const calculateBmi = (hStr: string, wStr: string): string => {
+    const h = parseFloat(hStr);
+    const w = parseFloat(wStr);
+    if (!isNaN(h) && !isNaN(w) && h > 0) {
+      return (w / ((h / 100) ** 2)).toFixed(2);
+    }
+    return '';
   };
 
   const renderGradeRanges = () => {
@@ -213,12 +238,29 @@ export function IndividualInput({ allStudents, activeItems, onRecordUpdate }: { 
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label>기록 입력 ({selectedItemInfo?.unit || ''})</Label>
-            <Input type="number" placeholder="숫자만 입력하세요" value={val} onChange={e => setVal(e.target.value)} className="text-2xl py-8 font-black text-center" />
-          </div>
+          {selectedItemInfo?.isCompound ? (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>키 (cm)</Label>
+                <Input type="number" placeholder="0.0" value={height} onChange={e => setHeight(e.target.value)} className="text-xl py-6 font-bold text-center" />
+              </div>
+              <div className="space-y-2">
+                <Label>몸무게 (kg)</Label>
+                <Input type="number" placeholder="0.0" value={weight} onChange={e => setWeight(e.target.value)} className="text-xl py-6 font-bold text-center" />
+              </div>
+              <div className="col-span-2 p-3 bg-primary/5 rounded-lg border border-primary/10 flex justify-between items-center">
+                <span className="font-bold text-muted-foreground">계산된 BMI:</span>
+                <span className="text-2xl font-black text-primary">{calculateBmi(height, weight) || '0.00'}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label>기록 입력 ({selectedItemInfo?.unit || ''})</Label>
+              <Input type="number" placeholder="숫자만 입력하세요" value={val} onChange={e => setVal(e.target.value)} className="text-2xl py-8 font-black text-center" />
+            </div>
+          )}
 
-          <Button className="w-full py-8 text-lg font-black shadow-xl transition-all active:scale-[0.98]" onClick={handleSave} disabled={isSubmitting || !itemName || !val}>
+          <Button className="w-full py-8 text-lg font-black shadow-xl transition-all active:scale-[0.98]" onClick={handleSave} disabled={isSubmitting || !itemName || (selectedItemInfo?.isCompound ? (!height || !weight) : !val)}>
             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
             기록 저장하기
           </Button>

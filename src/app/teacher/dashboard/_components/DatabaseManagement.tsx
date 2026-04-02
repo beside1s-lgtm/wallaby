@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import {
-  exportToCsv,
+  exportToExcel,
   addOrUpdateRecords,
   deleteRecordsByDateAndItem,
   cleanUpDuplicateRecords,
@@ -42,7 +42,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { parseCsv, exportToZip } from "@/lib/utils";
+import { parseExcel, exportToZip } from "@/lib/utils";
 import { FileUp, FileDown, Loader2, Sparkles, KeyRound, Trash2, Search, Settings2, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { Switch } from "@/components/ui/switch";
@@ -88,46 +88,36 @@ export function DatabaseManagement({ students, records, items, onUpdate }: { stu
     }
   };
 
-  const handlePromotionCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePromotionExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && school) {
       setIsProcessing(true);
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const text = e.target?.result as string;
-        try {
-          const promotionData = parseCsv<any>(text);
-          if (promotionData.length === 0) throw new Error("CSV 파일에 데이터가 없습니다.");
-          const updatedCount = await promoteStudents(school, students, promotionData);
-          onUpdate();
-          toast({ title: "진급 처리 완료", description: `${updatedCount}명의 학생 정보가 업데이트되었습니다.` });
-        } catch (error: any) {
-          toast({ variant: "destructive", title: "진급 처리 실패", description: error.message || "CSV 형식을 확인해주세요." });
-        } finally { setIsProcessing(false); }
-      };
-      reader.readAsText(file, "UTF-8");
+      try {
+        const promotionData = await parseExcel<any>(file);
+        if (promotionData.length === 0) throw new Error("엑셀 파일에 데이터가 없습니다.");
+        const updatedCount = await promoteStudents(school, students, promotionData);
+        onUpdate();
+        toast({ title: "진급 처리 완료", description: `${updatedCount}명의 학생 정보가 업데이트되었습니다.` });
+      } catch (error: any) {
+        toast({ variant: "destructive", title: "진급 처리 실패", description: error.message || "엑셀 형식을 확인해주세요." });
+      } finally { setIsProcessing(false); }
     }
     event.target.value = ""; 
   };
 
-  const handleRecordCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRecordExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && school) {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const text = e.target?.result as string;
-        setIsUploading(true);
-        try {
-          const parsedRecords = parseCsv<any>(text);
-          if (parsedRecords.length === 0) throw new Error("No data in CSV");
-          await addOrUpdateRecords(school, students, parsedRecords);
-          onUpdate();
-          toast({ title: "기록 등록 완료", description: `기록 일괄 등록이 완료되었습니다.` });
-        } catch (error) {
-          toast({ variant: "destructive", title: "파일 오류", description: "CSV 파일 형식이나 내용을 확인해주세요." });
-        } finally { setIsUploading(false); }
-      };
-      reader.readAsText(file, "UTF-8");
+      setIsUploading(true);
+      try {
+        const parsedRecords = await parseExcel<any>(file);
+        if (parsedRecords.length === 0) throw new Error("No data in Excel");
+        await addOrUpdateRecords(school, students, parsedRecords);
+        onUpdate();
+        toast({ title: "기록 등록 완료", description: `기록 일괄 등록이 완료되었습니다.` });
+      } catch (error) {
+        toast({ variant: "destructive", title: "파일 오류", description: "엑셀 파일 형식이나 내용을 확인해주세요." });
+      } finally { setIsUploading(false); }
     }
     event.target.value = ""; 
   };
@@ -158,7 +148,7 @@ export function DatabaseManagement({ students, records, items, onUpdate }: { stu
           학교: school, 학년: foundStudent.grade, 반: foundStudent.classNum, 번호: foundStudent.studentNum,
           이름: foundStudent.name, 성별: foundStudent.gender, 측정종목: r.item, 기록: r.value, 측정일: r.date,
       }));
-      exportToCsv(`${school}_${foundStudent.name}_기록.csv`, dataToExport);
+      exportToExcel(`${school}_${foundStudent.name}_기록.xlsx`, dataToExport);
   };
 
   const handleBulkDelete = async () => {
@@ -224,8 +214,8 @@ export function DatabaseManagement({ students, records, items, onUpdate }: { stu
               {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileUp className="mr-2 h-4 w-4" />}
               진급 파일 업로드
             </Button>
-            <input type="file" id="promotion-upload" accept=".csv" onChange={handlePromotionCsvUpload} className="hidden" />
-            <Button variant="link" onClick={() => exportToCsv(`${school}_학생_진급_템플릿.csv`, [{ school, grade: "1", classNum: "1", studentNum: "1", name: "홍길동", newGrade: "2", newClassNum: "1", newStudentNum: "1" }])}>
+            <input type="file" id="promotion-upload" accept=".xlsx" onChange={handlePromotionExcelUpload} className="hidden" />
+            <Button variant="link" onClick={() => exportToExcel(`${school}_학생_진급_템플릿.xlsx`, [{ school, grade: "1", classNum: "1", studentNum: "1", name: "홍길동", newGrade: "2", newClassNum: "1", newStudentNum: "1" }])}>
               진급용 템플릿 다운로드
             </Button>
           </div>
@@ -242,8 +232,8 @@ export function DatabaseManagement({ students, records, items, onUpdate }: { stu
               {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileUp className="mr-2 h-4 w-4" />}
               기록 일괄 등록
             </Button>
-            <input type="file" id="record-upload" accept=".csv" onChange={handleRecordCsvUpload} className="hidden" />
-            <Button variant="link" onClick={() => exportToZip("기록_등록_템플릿.zip", [{ name: "기록_등록_템플릿.csv", data: [{ school, grade: "1", classNum: "1", studentNum: "1", name: "홍길동", item: "50m 달리기", value: 9.5, date: format(new Date(), 'yyyy-MM-dd')}] }, { name: "등록된_종목_목록.csv", data: items.map(item => ({ '종목명': item.name, '단위': item.unit })) }])}>
+            <input type="file" id="record-upload" accept=".xlsx" onChange={handleRecordExcelUpload} className="hidden" />
+            <Button variant="link" onClick={() => exportToZip("기록_등록_템플릿.zip", [{ name: "기록_등록_템플릿.xlsx", data: [{ school, grade: "1", classNum: "1", studentNum: "1", name: "홍길동", item: "50m 달리기", 기록: 9.5, 측정일: format(new Date(), 'yyyy-MM-dd')}] }, { name: "등록된_종목_목록.xlsx", data: items.map(item => ({ '종목명': item.name, '단위': item.unit })) }])}>
               기록용 템플릿(Zip) 다운로드
             </Button>
           </div>
@@ -254,7 +244,7 @@ export function DatabaseManagement({ students, records, items, onUpdate }: { stu
                 <Input placeholder="학생 이름..." value={studentSearch} onChange={e => setStudentSearch(e.target.value)} className="w-full sm:w-auto" onKeyDown={e => e.key === 'Enter' && handleSearchStudent()} />
                 <Button variant="secondary" onClick={handleSearchStudent}><Search className="h-4 w-4 mr-2" />학생 찾기</Button>
                 <Button variant="outline" onClick={handleDownloadStudentRecords} disabled={!foundStudent}><FileDown className="mr-2 h-4 w-4" />{foundStudent ? `${foundStudent.name} 기록 추출` : '기록 추출'}</Button>
-                <Button variant="outline" onClick={() => exportToCsv(`${school}_전체_기록.csv`, records.map(r => { const s = students.find(st => st.id === r.studentId); return { 학교: school, 학년: s?.grade, 반: s?.classNum, 번호: s?.studentNum, 이름: s?.name, 성별: s?.gender, 측정종목: r.item, 기록: r.value, 측정일: r.date } }))}>
+                <Button variant="outline" onClick={() => exportToExcel(`${school}_전체_기록.xlsx`, records.map(r => { const s = students.find(st => st.id === r.studentId); return { 학교: school, 학년: s?.grade, 반: s?.classNum, 번호: s?.studentNum, 이름: s?.name, 성별: s?.gender, 측정종목: r.item, 기록: r.value, 측정일: r.date } }))}>
                     <FileDown className="mr-2 h-4 w-4" />전체 기록 백업
                 </Button>
             </div>

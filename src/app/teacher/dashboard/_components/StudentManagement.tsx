@@ -6,7 +6,7 @@ import {
   deleteStudentAndAssociatedRecords,
   addStudent,
   updateStudent,
-  exportToCsv,
+  exportToExcel,
 } from "@/lib/store";
 import type {
   Student,
@@ -58,12 +58,16 @@ import {
   Loader2,
   Pencil,
   User as UserIcon,
+  Search,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AddStudentDialog } from "./student-management/AddStudentDialog";
 import { EditStudentDialog } from "./student-management/EditStudentDialog";
 import { PhotoEditDialog } from "./student-management/PhotoEditDialog";
 import { BatchPhotoUploadDialog } from "./student-management/BatchPhotoUploadDialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface StudentManagementProps {
   students: Student[];
@@ -81,6 +85,8 @@ export function StudentManagement({
   const [isProcessing, setIsProcessing] = useState(false);
   const [selectedGrade, setSelectedGrade] = useState("all");
   const [selectedClassNum, setSelectedClassNum] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
   const { grades, classNumsByGrade } = useMemo(() => {
     const grades = [
@@ -105,8 +111,11 @@ export function StudentManagement({
         filtered = filtered.filter((s) => s.classNum === selectedClassNum);
       }
     }
+    if (searchTerm) {
+      filtered = filtered.filter((s) => s.name.includes(searchTerm));
+    }
     return filtered;
-  }, [students, selectedGrade, selectedClassNum]);
+  }, [students, selectedGrade, selectedClassNum, searchTerm]);
 
   const sortedStudents = useMemo(() => {
     return [...filteredStudents].sort((a, b) => {
@@ -142,9 +151,9 @@ export function StudentManagement({
   };
   
   const handleUpdateStudent = async (studentData: StudentToUpdate) => {
-    if (!school || !selectedStudentForEdit) return;
-    await updateStudent(school, selectedStudentForEdit.id, studentData);
-    setSelection({});
+    if (!school || !editingStudent) return;
+    await updateStudent(school, editingStudent.id, studentData);
+    setEditingStudent(null);
     onStudentsUpdate();
     toast({ title: "학생 정보 수정 완료", description: `${studentData.name} 학생의 정보가 수정되었습니다.` });
   };
@@ -195,7 +204,7 @@ export function StudentManagement({
       '접속코드': s.accessCode,
     }));
     
-    exportToCsv(`${school}_${label}_명단.csv`, dataToExport);
+    exportToExcel(`${school}_${label}_명단.xlsx`, dataToExport);
     toast({
       title: "다운로드 시작",
       description: `${label.replace(/_/g, ' ')} 명단을 다운로드합니다.`,
@@ -232,6 +241,32 @@ export function StudentManagement({
     event.target.value = ""; 
   };
 
+  if (!school) {
+    return (
+        <Card className="bg-transparent shadow-none border-none px-0">
+            <CardHeader className="px-0">
+                <Skeleton className="h-8 w-40 mb-2" />
+                <Skeleton className="h-4 w-60" />
+            </CardHeader>
+            <CardContent className="px-0 space-y-6">
+                <div className="flex justify-between items-center">
+                    <div className="flex gap-2"><Skeleton className="h-10 w-24" /><Skeleton className="h-10 w-24" /><Skeleton className="h-10 w-24" /></div>
+                    <Skeleton className="h-10 w-48" />
+                </div>
+                <div className="border rounded-xl overflow-hidden bg-muted/20">
+                    <div className="bg-muted/30 p-4"><Skeleton className="h-6 w-full" /></div>
+                    {[1,2,3,4,5].map(i => (
+                        <div key={i} className="p-4 flex items-center gap-4 border-t border-muted/30">
+                            <Skeleton className="h-5 w-5" /><Skeleton className="h-14 w-14 rounded-full" />
+                            <Skeleton className="h-4 flex-1" /><Skeleton className="h-4 flex-1" /><Skeleton className="h-4 flex-1" /><Skeleton className="h-4 w-20" />
+                        </div>
+                    ))}
+                </div>
+            </CardContent>
+        </Card>
+    );
+  }
+
   return (
     <Card className="bg-transparent shadow-none border-none">
       <CardHeader>
@@ -242,12 +277,20 @@ export function StudentManagement({
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
           <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
             <AddStudentDialog onAddStudent={handleAddStudent} school={school || ''} />
-            {selectedStudentForEdit && <EditStudentDialog student={selectedStudentForEdit} onUpdateStudent={handleUpdateStudent} />}
             <Button variant="outline" size="sm" className="h-9" onClick={() => document.getElementById("student-csv-upload")?.click()} disabled={isUploading}>
               {isUploading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> 등록 중...</> : <><FileUp className="mr-2 h-4 w-4" /> 일괄 등록</>}
             </Button>
             <input type="file" id="student-csv-upload" accept=".csv" onChange={handleStudentCsvUpload} style={{ display: "none" }} />
             <BatchPhotoUploadDialog students={sortedStudents} onComplete={onStudentsUpdate} school={school || ''} />
+            <div className="relative ml-auto lg:ml-2 w-full lg:w-64">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="학생 이름 검색..."
+                value={searchTerm}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+                className="pl-9 h-9"
+              />
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-start lg:justify-end">
@@ -311,13 +354,28 @@ export function StudentManagement({
                   <TableCell><Avatar className="w-20 h-20"><AvatarImage src={student.photoUrl} /><AvatarFallback>{student.name[0]}</AvatarFallback></Avatar></TableCell>
                   <TableCell>{student.grade}</TableCell><TableCell>{student.classNum}</TableCell><TableCell>{student.studentNum}</TableCell>
                   <TableCell className="font-medium">{student.name}</TableCell><TableCell>{student.gender}</TableCell><TableCell>{student.accessCode}</TableCell>
-                  <TableCell className="text-right"><PhotoEditDialog student={student} onUpdatePhoto={handleUpdatePhoto} /></TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEditingStudent(student)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <PhotoEditDialog student={student} onUpdatePhoto={handleUpdatePhoto} />
+                    </div>
+                  </TableCell>
                 </TableRow>
               )) : <TableRow><TableCell colSpan={9} className="h-24 text-center">등록된 학생이 없습니다.</TableCell></TableRow>}
             </TableBody>
           </Table>
         </div>
       </CardContent>
+      {editingStudent && (
+          <EditStudentDialog 
+            student={editingStudent} 
+            onUpdateStudent={handleUpdateStudent} 
+            open={!!editingStudent}
+            onOpenChange={(open: boolean) => !open && setEditingStudent(null)}
+          />
+      )}
     </Card>
   );
 }

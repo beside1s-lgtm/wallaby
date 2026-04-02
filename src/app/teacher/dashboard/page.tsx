@@ -1,7 +1,9 @@
 
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/use-auth";
 import { getStudents, getItems, getRecords, getTeamGroups, getSportsClubs } from "@/lib/store";
 import type { Student, MeasurementItem, MeasurementRecord, TeamGroup, SportsClub } from "@/lib/types";
@@ -25,10 +27,33 @@ import {
   Swords,
   Database,
   Bot,
+  Loader2,
 } from "lucide-react";
 import { DashboardHeader } from "@/components/DashboardHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+
+const tabVariants = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" as const } },
+  exit: { opacity: 0, y: -10, transition: { duration: 0.2 } }
+};
+
+function DashboardSkeleton() {
+  return (
+    <div className="container mx-auto p-4 space-y-6">
+      <Skeleton className="h-16 w-full rounded-xl" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Skeleton className="h-40 col-span-full rounded-2xl" />
+        <Skeleton className="h-12 w-full rounded-lg" />
+        <Skeleton className="h-12 w-full rounded-lg" />
+        <Skeleton className="h-12 w-full rounded-lg" />
+        <Skeleton className="h-12 w-full rounded-lg" />
+      </div>
+      <Skeleton className="h-[500px] w-full rounded-2xl" />
+    </div>
+  );
+}
 
 export default function TeacherDashboardPage() {
   const { school, isLoading: isAuthLoading } = useAuth();
@@ -41,8 +66,16 @@ export default function TeacherDashboardPage() {
   }>({ students: [], items: [], records: [], teams: [], clubs: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("measurement");
+  const router = useRouter();
 
-  // 데이터 로딩 최적화: 캐시된 데이터와 병렬 요청 활용
+  useEffect(() => {
+     if (activeTab) {
+       const url = new URL(window.location.href);
+       url.searchParams.set('tab', activeTab);
+       router.replace(url.pathname + url.search, { scroll: false });
+     }
+  }, [activeTab, router]);
+
   const load = useCallback(async (silent = false) => {
     if (!school) return;
     if (!silent) setIsLoading(true);
@@ -72,103 +105,113 @@ export default function TeacherDashboardPage() {
     }
   }, []);
 
-  // 탭 변경 시 불필요한 리렌더링 방지를 위해 메모이제이션된 하위 컴포넌트 렌더링
   const renderTabContent = useMemo(() => {
-    if (isLoading || isAuthLoading) return null;
+    if (isLoading || isAuthLoading) return <DashboardSkeleton />;
 
     return (
-      <div className="w-full">
-        <TabsContent value="measurement" className="space-y-6">
-          <Tabs defaultValue="input">
-            <TabsList className="grid w-full grid-cols-4 mb-6 bg-muted/50 h-auto sm:h-10">
-              <TabsTrigger value="input" className="text-xs sm:text-sm py-2">입력</TabsTrigger>
-              <TabsTrigger value="analysis" className="text-xs sm:text-sm py-2">분석</TabsTrigger>
-              <TabsTrigger value="browser" className="text-xs sm:text-sm py-2">조회</TabsTrigger>
-              <TabsTrigger value="ranking" className="text-xs sm:text-sm py-2">순위</TabsTrigger>
-            </TabsList>
-            <TabsContent value="input">
-              <RecordInput allStudents={data.students} allItems={data.items} allRecords={data.records} onRecordUpdate={() => load(true)} allTeamGroups={data.teams} sportsClubs={data.clubs} />
-            </TabsContent>
-            <TabsContent value="analysis">
-              <ClassAnalytics allStudents={data.students} allItems={data.items} allRecords={data.records} onRecordUpdate={() => load(true)} sportsClubs={data.clubs} />
-            </TabsContent>
-            <TabsContent value="browser">
-              <RecordBrowser allStudents={data.students} allItems={data.items} allRecords={data.records} />
-            </TabsContent>
-            <TabsContent value="ranking">
-              <Ranking allStudents={data.students} allItems={data.items} allRecords={data.records} />
-            </TabsContent>
-          </Tabs>
-        </TabsContent>
+      <AnimatePresence mode="wait">
+        <motion.div
+           key={activeTab}
+           variants={tabVariants}
+           initial="initial"
+           animate="animate"
+           exit="exit"
+           className="w-full"
+        >
+          <TabsContent value="measurement" className="space-y-6 mt-0">
+            <Tabs defaultValue="input">
+              <TabsList className="grid w-full grid-cols-4 mb-6 bg-muted/30 p-1 rounded-xl h-auto sm:h-12 border border-border/50">
+                <TabsTrigger value="input" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">입력</TabsTrigger>
+                <TabsTrigger value="analysis" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">분석</TabsTrigger>
+                <TabsTrigger value="browser" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">조회</TabsTrigger>
+                <TabsTrigger value="ranking" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">순위</TabsTrigger>
+              </TabsList>
+              <Suspense fallback={<div className="flex justify-center p-12"><Loader2 className="animate-spin text-primary" /></div>}>
+                <TabsContent value="input">
+                  <RecordInput allStudents={data.students} allItems={data.items} allRecords={data.records} onRecordUpdate={() => load(true)} allTeamGroups={data.teams} sportsClubs={data.clubs} />
+                </TabsContent>
+                <TabsContent value="analysis">
+                  <ClassAnalytics allStudents={data.students} allItems={data.items} allRecords={data.records} onRecordUpdate={() => load(true)} sportsClubs={data.clubs} />
+                </TabsContent>
+                <TabsContent value="browser">
+                  <RecordBrowser allStudents={data.students} allItems={data.items} allRecords={data.records} />
+                </TabsContent>
+                <TabsContent value="ranking">
+                  <Ranking allStudents={data.students} allItems={data.items} allRecords={data.records} />
+                </TabsContent>
+              </Suspense>
+            </Tabs>
+          </TabsContent>
 
-        <TabsContent value="theory" className="animate-in fade-in-50 duration-300">
-          <TheoryExamManagement allStudents={data.students} sportsClubs={data.clubs} />
-        </TabsContent>
+          <TabsContent value="theory" className="mt-0">
+            <TheoryExamManagement allStudents={data.students} sportsClubs={data.clubs} />
+          </TabsContent>
 
-        <TabsContent value="competition" className="space-y-6">
-          <Tabs defaultValue="tournament">
-            <TabsList className="grid w-full grid-cols-3 mb-6 bg-muted/50 h-auto sm:h-10">
-              <TabsTrigger value="tournament" className="text-xs sm:text-sm py-2">대회</TabsTrigger>
-              <TabsTrigger value="balancer" className="text-xs sm:text-sm py-2">편성</TabsTrigger>
-              <TabsTrigger value="clubs" className="text-xs sm:text-sm py-2">클럽</TabsTrigger>
-            </TabsList>
-            <TabsContent value="tournament">
-              <TournamentManagement onTournamentUpdate={() => load(true)} allTeamGroups={data.teams} allStudents={data.students} />
-            </TabsContent>
-            <TabsContent value="balancer">
-              <TeamBalancer allStudents={data.students} allItems={data.items} allRecords={data.records} teamGroups={data.teams} onTeamGroupUpdate={() => load(true)} onTeamGroupDelete={() => load(true)} sportsClubs={data.clubs} />
-            </TabsContent>
-            <TabsContent value="clubs">
-              <SportsClubManagement allStudents={data.students} sportsClubs={data.clubs} onClubUpdate={() => load(true)} />
-            </TabsContent>
-          </Tabs>
-        </TabsContent>
+          <TabsContent value="competition" className="space-y-6 mt-0">
+            <Tabs defaultValue="tournament">
+              <TabsList className="grid w-full grid-cols-3 mb-6 bg-muted/30 p-1 rounded-xl h-auto sm:h-12 border border-border/50">
+                <TabsTrigger value="tournament" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">대회</TabsTrigger>
+                <TabsTrigger value="balancer" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">편성</TabsTrigger>
+                <TabsTrigger value="clubs" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">클럽</TabsTrigger>
+              </TabsList>
+              <Suspense fallback={<Loader2 className="animate-spin mx-auto" />}>
+                <TabsContent value="tournament">
+                  <TournamentManagement onTournamentUpdate={() => load(true)} allTeamGroups={data.teams} allStudents={data.students} />
+                </TabsContent>
+                <TabsContent value="balancer">
+                  <TeamBalancer allStudents={data.students} allItems={data.items} allRecords={data.records} teamGroups={data.teams} onTeamGroupUpdate={() => load(true)} onTeamGroupDelete={() => load(true)} sportsClubs={data.clubs} />
+                </TabsContent>
+                <TabsContent value="clubs">
+                  <SportsClubManagement allStudents={data.students} sportsClubs={data.clubs} onClubUpdate={() => load(true)} />
+                </TabsContent>
+              </Suspense>
+            </Tabs>
+          </TabsContent>
 
-        <TabsContent value="data" className="space-y-6">
-          <Tabs defaultValue="students">
-            <TabsList className="grid w-full grid-cols-3 mb-6 bg-muted/50 h-auto sm:h-10">
-              <TabsTrigger value="students" className="text-xs sm:text-sm py-2">명부</TabsTrigger>
-              <TabsTrigger value="items" className="text-xs sm:text-sm py-2">종목</TabsTrigger>
-              <TabsTrigger value="db" className="text-xs sm:text-sm py-2">DB</TabsTrigger>
-            </TabsList>
-            <TabsContent value="students">
-              <StudentManagement students={data.students} onStudentsUpdate={() => load(true)} />
-            </TabsContent>
-            <TabsContent value="items">
-              <MeasurementManagement items={data.items} onItemsUpdate={(newItems) => setData(prev => ({...prev, items: newItems}))} />
-            </TabsContent>
-            <TabsContent value="db">
-              <DatabaseManagement students={data.students} records={data.records} items={data.items} onUpdate={() => load(true)} />
-            </TabsContent>
-          </Tabs>
-        </TabsContent>
-      </div>
+          <TabsContent value="data" className="space-y-6 mt-0">
+            <Tabs defaultValue="students">
+              <TabsList className="grid w-full grid-cols-3 mb-6 bg-muted/30 p-1 rounded-xl h-auto sm:h-12 border border-border/50">
+                <TabsTrigger value="students" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">명부</TabsTrigger>
+                <TabsTrigger value="items" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">종목</TabsTrigger>
+                <TabsTrigger value="db" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">DB</TabsTrigger>
+              </TabsList>
+              <Suspense fallback={<Loader2 className="animate-spin mx-auto" />}>
+                <TabsContent value="students">
+                  <StudentManagement students={data.students} onStudentsUpdate={() => load(true)} />
+                </TabsContent>
+                <TabsContent value="items">
+                  <MeasurementManagement items={data.items} onItemsUpdate={(newItems) => setData(prev => ({...prev, items: newItems}))} />
+                </TabsContent>
+                <TabsContent value="db">
+                  <DatabaseManagement students={data.students} records={data.records} items={data.items} onUpdate={() => load(true)} />
+                </TabsContent>
+              </Suspense>
+            </Tabs>
+          </TabsContent>
+        </motion.div>
+      </AnimatePresence>
     );
-  }, [isLoading, isAuthLoading, data, load]);
+  }, [isLoading, isAuthLoading, data, load, activeTab]);
 
-  if (isLoading || isAuthLoading) return (
-    <div className="container mx-auto p-4 space-y-4">
-      <Skeleton className="h-16 w-full" />
-      <Skeleton className="h-64 w-full" />
-      <Skeleton className="h-96 w-full" />
-    </div>
-  );
+  if (isAuthLoading) return <DashboardSkeleton />;
 
   return (
-    <div className="container mx-auto p-2 sm:p-4 space-y-6 pb-20">
+
+    <div className="container mx-auto p-2 sm:p-10 space-y-8 sm:space-y-12 pb-32">
       <DashboardHeader />
       
-      <Card className="bg-primary/5 border-primary/20">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-primary">
-            <Bot className="h-5 w-5" />
-            AI 스마트 브리핑
+      <Card className="premium-card bg-primary/[0.04] border-primary/20 overflow-hidden relative group">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-[80px] -mr-32 -mt-32 transition-transform group-hover:scale-125 duration-700" />
+        <CardHeader className="pb-4 relative z-10">
+          <CardTitle className="flex items-center gap-3 text-primary font-headline text-2xl sm:text-3xl">
+            <Bot className="h-8 w-8 text-primary/80 animate-pulse" />
+            <span className="premium-gradient-text tracking-tighter">AI 인텔리전스 센터</span>
           </CardTitle>
-          <CardDescription>우리 학교 학생들의 체력 및 스포츠 활동 데이터를 AI가 분석합니다.</CardDescription>
+          <CardDescription className="text-base font-bold opacity-70">실시간 데이터 수집 및 고성능 AI 모형을 통한 학교 체육 통합 분석 리포트를 제공합니다.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="relative z-10 pt-2">
           <AiWelcome 
-            title="학교 전체 분석 리포트 확인" 
+            title="학교 전체 AI 지능형 리포트 확인" 
             allStudents={data.students} 
             items={data.items} 
             records={data.records} 
@@ -177,26 +220,28 @@ export default function TeacherDashboardPage() {
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 mb-8 h-12">
-          <TabsTrigger value="measurement" className="text-sm sm:text-base font-bold px-1">
-            <LineChart className="mr-1 sm:mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+        <TabsList className="flex items-center justify-start overflow-x-auto hide-scrollbar w-full mb-10 h-16 sm:h-20 p-2 bg-muted/20 border border-border/40 rounded-[1.5rem] sm:rounded-[2.5rem] backdrop-blur-md shadow-inner gap-2 sm:gap-3">
+          <TabsTrigger value="measurement" className="flex-1 min-w-[130px] h-full rounded-[1rem] sm:rounded-[2rem] text-sm sm:text-lg font-black tracking-tight flex items-center justify-center gap-2 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-2xl transition-all">
+            <LineChart className="w-5 h-5 sm:w-6 sm:h-6" />
             측정 & 분석
           </TabsTrigger>
-          <TabsTrigger value="theory" className="text-sm sm:text-base font-bold px-1">
-            <BookOpen className="mr-1 sm:mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+          <TabsTrigger value="theory" className="flex-1 min-w-[130px] h-full rounded-[1rem] sm:rounded-[2rem] text-sm sm:text-lg font-black tracking-tight flex items-center justify-center gap-2 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-2xl transition-all">
+            <BookOpen className="w-5 h-5 sm:w-6 sm:h-6" />
             이론 평가
           </TabsTrigger>
-          <TabsTrigger value="competition" className="text-sm sm:text-base font-bold px-1">
-            <Swords className="mr-1 sm:mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+          <TabsTrigger value="competition" className="flex-1 min-w-[130px] h-full rounded-[1rem] sm:rounded-[2rem] text-sm sm:text-lg font-black tracking-tight flex items-center justify-center gap-2 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-2xl transition-all">
+            <Swords className="w-5 h-5 sm:w-6 sm:h-6" />
             대회 & 팀
           </TabsTrigger>
-          <TabsTrigger value="data" className="text-sm sm:text-base font-bold px-1">
-            <Database className="mr-1 sm:mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+          <TabsTrigger value="data" className="flex-1 min-w-[130px] h-full rounded-[1rem] sm:rounded-[2rem] text-sm sm:text-lg font-black tracking-tight flex items-center justify-center gap-2 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-2xl transition-all">
+            <Database className="w-5 h-5 sm:w-6 sm:h-6" />
             데이터 관리
           </TabsTrigger>
         </TabsList>
 
-        {renderTabContent}
+        <Suspense fallback={<DashboardSkeleton />}>
+           {renderTabContent}
+        </Suspense>
       </Tabs>
     </div>
   );

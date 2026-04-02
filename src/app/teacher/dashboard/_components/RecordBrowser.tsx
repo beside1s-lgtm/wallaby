@@ -2,7 +2,7 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
-import { exportToCsv, getQuizResultsBySchool, getQuizAssignments } from '@/lib/store';
+import { exportToExcel, getQuizResultsBySchool, getQuizAssignments, deleteRecordsByDateAndItem } from '@/lib/store';
 import type { Student, MeasurementItem, MeasurementRecord, QuizResult, QuizAssignment } from '@/lib/types';
 import { getPapsGrade, calculatePapsScore, getCustomItemGrade } from '@/lib/paps';
 import { calculateRanks } from '@/lib/store';
@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { FileDown, Calendar as CalendarIcon, BookOpen } from 'lucide-react';
+import { FileDown, Calendar as CalendarIcon, BookOpen, Trash2, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -37,6 +37,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 
 interface RecordBrowserProps {
@@ -91,6 +92,8 @@ export default function RecordBrowser({
   const [selectedItem, setSelectedItem] = useState('');
   const [itemGradeFilter, setItemGradeFilter] = useState('all');
   const [itemClassNumFilter, setItemClassNumFilter] = useState('all');
+  const [itemDateFilter, setItemDateFilter] = useState('latest');
+  const [isDeleting, setIsDeleting] = useState(false);
   
   const [itemSort, setItemSort] = useState<SortDescriptor[]>([
     { column: 'grade', direction: 'ascending' },
@@ -136,6 +139,7 @@ export default function RecordBrowser({
     return { grades, classNumsByGrade, availableDates: dates };
   }, [allStudents, allRecords]);
   
+  const selectedItemInfo = useMemo(() => allItems.find(i => i.name === selectedItem), [selectedItem, allItems]);
 
   const studentPapsTableData = useMemo(() => {
      let filteredStudents = allStudents;
@@ -260,7 +264,7 @@ export default function RecordBrowser({
   }, [studentPapsTableData, papsSort]);
   
 
-  const handlePapsDownloadCsv = () => {
+  const handlePapsDownloadExcel = () => {
     if (sortedPapsData.length === 0) {
       toast({
         variant: 'destructive',
@@ -270,11 +274,11 @@ export default function RecordBrowser({
       return;
     }
     
-    const fileName = `PAPS_종합_현황_${viewType}_${new Date().toISOString().split('T')[0]}.csv`;
-    exportToCsv(fileName, sortedPapsData);
+    const fileName = `PAPS_종합_현황_${viewType}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    exportToExcel(fileName, sortedPapsData);
     toast({
       title: '다운로드 시작',
-      description: 'PAPS 종합 체력 현황을 CSV 파일로 다운로드합니다.',
+      description: 'PAPS 종합 체력 현황을 엑셀 파일로 다운로드합니다.',
     });
   };
 
@@ -351,9 +355,16 @@ export default function RecordBrowser({
     const itemRanks = allRanks[selectedItem] || [];
 
     return filteredStudents.map(student => {
-      const records = allRecords.filter(r => r.studentId === student.id && r.item === selectedItem);
+      let records = allRecords.filter(r => r.studentId === student.id && r.item === selectedItem);
+      
+      if (itemDateFilter !== 'latest' && itemDateFilter !== 'all') {
+        records = records.filter(r => r.date === itemDateFilter);
+      }
+
       const latestRecord = records.length > 0
-        ? records.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
+        ? (itemDateFilter === 'latest' 
+           ? records.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
+           : records[0])
         : null;
       
       const rankInfo = latestRecord ? itemRanks.find(r => r.studentId === student.id && r.value === latestRecord.value) : null;
@@ -371,6 +382,8 @@ export default function RecordBrowser({
         ...student,
         latestDate: latestRecord?.date || null,
         value: latestRecord?.value,
+        height: latestRecord?.height,
+        weight: latestRecord?.weight,
         recordGrade, 
         rank: rankInfo ? rankInfo.rank : null,
         totalRanked: itemRanks.length,
@@ -380,7 +393,7 @@ export default function RecordBrowser({
       };
     });
 
-  }, [school, selectedItem, itemGradeFilter, itemClassNumFilter, allStudents, allRecords, allItems, quizResults, quizAssignments]);
+  }, [school, selectedItem, itemGradeFilter, itemClassNumFilter, itemDateFilter, allStudents, allRecords, allItems, quizResults, quizAssignments]);
 
   const sortedItemData = useMemo(() => {
       if (!itemSort.length) return studentItemTableData;
@@ -435,9 +448,9 @@ export default function RecordBrowser({
   }, [studentItemTableData, itemSort, selectedItem, allItems]);
 
 
-  const handleItemDownloadCsv = () => {
-    if(sortedItemData.length === 0) {
-       toast({
+  const handleItemDownloadExcel = () => {
+    if (sortedItemData.length === 0) {
+      toast({
         variant: 'destructive',
         title: '다운로드 실패',
         description: '다운로드할 데이터가 없습니다.',
@@ -446,34 +459,94 @@ export default function RecordBrowser({
     }
 
     if (selectedItem === 'theory-exam') {
-        const dataToExport = sortedItemData.map(s => ({
-            '학년': s.grade,
-            '반': s.classNum,
-            '번호': s.studentNum,
-            '이름': s.name,
-            '평가 제목': (s as any).quizTitle || '-',
-            '점수': (s as any).score || '-',
-            '통합 여부': (s as any).passed ? '통과' : '미통과',
-            '응시일': (s as any).latestDate || '-',
-        }));
-        const fileName = `이론평가_현황_${new Date().toISOString().split('T')[0]}.csv`;
-        exportToCsv(fileName, dataToExport);
-        toast({ title: '다운로드 시작', description: '이론 평가 현황을 CSV 파일로 다운로드합니다.' });
-        return;
+      const dataToExport = sortedItemData.map(s => ({
+        '학년': s.grade,
+        '반': s.classNum,
+        '번호': s.studentNum,
+        '이름': s.name,
+        '평가 제목': (s as any).quizTitle || '-',
+        '점수': (s as any).score || '-',
+        '통합 여부': (s as any).passed ? '통과' : '미통과',
+        '응시일': (s as any).latestDate || '-',
+      }));
+      const fileName = `이론평가_현황_${new Date().toISOString().split('T')[0]}.xlsx`;
+      exportToExcel(fileName, dataToExport);
+      toast({ title: '다운로드 시작', description: '이론 평가 현황을 엑셀 파일로 다운로드합니다.' });
+      return;
     }
 
     const itemInfo = allItems.find(i => i.name === selectedItem);
-    const dataToExport = sortedItemData.map(s => ({
+    const dataToExport = sortedItemData.map(s => {
+      const row: any = {
         '학년': s.grade,
         '반': s.classNum,
         '번호': s.studentNum,
         '이름': s.name,
         '최근 측정일': (s as any).latestDate || '-',
         '기록': (s as any).value !== undefined ? `${(s as any).value}${itemInfo?.unit || ''}` : '-',
-        '등급': (s as any).recordGrade ? `${(s as any).recordGrade}등급` : '-',
-        '순위': (s as any).rank ? `${(s as any).rank}등` : '-',
+      };
+
+      if (itemInfo?.isCompound) {
+        row['키(cm)'] = (s as any).height || '-';
+        row['몸무게(kg)'] = (s as any).weight || '-';
+      }
+
+      row['등급'] = (s as any).recordGrade ? `${(s as any).recordGrade}등급` : '-';
+      row['순위'] = (s as any).rank ? `${(s as any).rank}등` : '-';
+      
+      return row;
+    });
+    const fileName = `${selectedItem}_기록 현황_${new Date().toISOString().split('T')[0]}.xlsx`;
+    exportToExcel(fileName, dataToExport);
+    toast({
+      title: '다운로드 시작',
+      description: `${selectedItem} 기록을 엑셀 파일로 다운로드합니다.`,
+    });
+  };
+
+  const handleItemDownloadCsv = () => {
+    if (sortedItemData.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: '다운로드 실패',
+        description: '다운로드할 데이터가 없습니다.',
+      });
+      return;
+    }
+
+    // CSV fallback if needed, but since we're migrating to Excel, we might want to keep it or remove it.
+    // Let's keep it but also ensure it doesn't cause issues.
+    const { exportToCsv } = require('@/lib/store');
+    
+    if (selectedItem === 'theory-exam') {
+      const dataToExport = sortedItemData.map(s => ({
+        '학년': s.grade,
+        '반': s.classNum,
+        '번호': s.studentNum,
+        '이름': s.name,
+        '평가 제목': (s as any).quizTitle || '-',
+        '점수': (s as any).score || '-',
+        '통합 여부': (s as any).passed ? '통과' : '미통과',
+        '응시일': (s as any).latestDate || '-',
+      }));
+      const fileName = `이론평가_현황_${new Date().toISOString().split('T')[0]}.csv`;
+      exportToCsv(fileName, dataToExport);
+      toast({ title: '다운로드 시작', description: '이론 평가 현황을 CSV 파일로 다운로드합니다.' });
+      return;
+    }
+
+    const itemInfo = allItems.find(i => i.name === selectedItem);
+    const dataToExport = sortedItemData.map(s => ({
+      '학년': s.grade,
+      '반': s.classNum,
+      '번호': s.studentNum,
+      '이름': s.name,
+      '최근 측정일': (s as any).latestDate || '-',
+      '기록': (s as any).value !== undefined ? `${(s as any).value}${itemInfo?.unit || ''}` : '-',
+      '등급': (s as any).recordGrade ? `${(s as any).recordGrade}등급` : '-',
+      '순위': (s as any).rank ? `${(s as any).rank}등` : '-',
     }));
-     const fileName = `${selectedItem}_기록 현황_${new Date().toISOString().split('T')[0]}.csv`;
+    const fileName = `${selectedItem}_기록 현황_${new Date().toISOString().split('T')[0]}.csv`;
     exportToCsv(fileName, dataToExport);
     toast({
       title: '다운로드 시작',
@@ -612,9 +685,9 @@ export default function RecordBrowser({
                             </SelectContent>
                         </Select>
                         
-                        <Button onClick={handlePapsDownloadCsv} variant="outline" className="ml-auto">
+                        <Button onClick={handlePapsDownloadExcel} variant="outline" className="ml-auto">
                             <FileDown className="mr-2 h-4 w-4" />
-                            결과 다운로드
+                            엑셀 다운로드
                         </Button>
                     </div>
                      <div className="border rounded-md overflow-x-auto">
@@ -698,9 +771,9 @@ export default function RecordBrowser({
                             ))}
                             </SelectContent>
                         </Select>
-                        <Button onClick={handleItemDownloadCsv} variant="outline" className="ml-auto" disabled={!selectedItem}>
+                        <Button onClick={handleItemDownloadExcel} variant="outline" className="ml-auto" disabled={!selectedItem}>
                             <FileDown className="mr-2 h-4 w-4" />
-                            결과 다운로드
+                            엑셀 다운로드
                         </Button>
                     </div>
                     <div className="border rounded-md overflow-x-auto">
@@ -719,6 +792,10 @@ export default function RecordBrowser({
                                         { key: 'passed', label: '통과 여부' }
                                       ] : [
                                         { key: 'latestDate', label: '최근 측정일' },
+                                        ...(selectedItemInfo?.isCompound ? [
+                                          { key: 'height', label: '키(cm)' },
+                                          { key: 'weight', label: '몸무게(kg)' }
+                                        ] : []),
                                         { key: 'value', label: '기록' },
                                         { key: 'recordGrade', label: '등급' },
                                         { key: 'rank', label: '순위' },
@@ -755,6 +832,12 @@ export default function RecordBrowser({
                                             ) : (
                                                 <>
                                                     <TableCell>{(s as any).latestDate || '-'}</TableCell>
+                                                    {allItems.find(i => i.name === selectedItem)?.isCompound && (
+                                                      <>
+                                                        <TableCell>{(s as any).height || '-'}</TableCell>
+                                                        <TableCell>{(s as any).weight || '-'}</TableCell>
+                                                      </>
+                                                    )}
                                                     <TableCell>{(s as any).value !== undefined && (s as any).value !== null ? `${(s as any).value}${allItems.find(i => i.name === selectedItem)?.unit || ''}`: '-'}</TableCell>
                                                     <TableCell>{(s as any).recordGrade ? `${(s as any).recordGrade}등급` : '-'}</TableCell>
                                                     <TableCell>{(s as any).rank ? `${(s as any).rank} / ${(s as any).totalRanked}` : '-'}</TableCell>

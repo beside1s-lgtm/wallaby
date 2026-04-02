@@ -1,5 +1,5 @@
 'use client';
-import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentToAdd, School, StudentToUpdate, TeamGroup, TeamGroupInput, Tournament, Team, SportsClub, Quiz, QuizAssignment, QuizResult, ItemStatistics } from './types';
+import type { Student, MeasurementItem, MeasurementRecord, RecordType, StudentToAdd, School, StudentToUpdate, TeamGroup, TeamGroupInput, Tournament, Team, SportsClub, Quiz, QuizAssignment, QuizResult, ItemStatistics, MeasurementPeriod } from './types';
 import { v4 as uuidv4 } from 'uuid';
 import { initialItems, initialStudents, initialRecords } from './initial-data';
 import { db, signIn } from './firebase';
@@ -21,7 +21,8 @@ import {
 } from 'firebase/firestore';
 import { errorEmitter } from './error-emitter';
 import { FirestorePermissionError } from './errors';
-import { exportToCsv as exportToCsvUtil } from './utils';
+import { exportToExcel as exportToExcelUtil } from './utils';
+import { getPapsGrade } from './paps';
 
 // 초기 데이터 설정 최적화: 트랜잭션 내에서 한 번에 처리
 export const initializeData = async (schoolName: string, password?: string) => {
@@ -69,7 +70,12 @@ export const initializeData = async (schoolName: string, password?: string) => {
   }
 };
 
+export const exportToExcel = (filename: string, rows: object[]) => {
+  exportToExcelUtil(filename, rows);
+}
+
 export const exportToCsv = (filename: string, rows: object[]) => {
+  const { exportToCsv: exportToCsvUtil } = require('./utils');
   exportToCsvUtil(filename, rows);
 }
 
@@ -152,6 +158,12 @@ export const getStudent = async (
   );
   const snapshot = await getDocs(q);
   return snapshot.empty ? undefined : snapshot.docs[0].data() as Student;
+};
+
+export const updateSchoolPeriods = async (schoolId: string, periods: MeasurementPeriod[]) => {
+  await signIn();
+  const schoolRef = doc(db, 'schools', schoolId);
+  await updateDoc(schoolRef, { measurementPeriods: periods });
 };
 
 export const addStudent = async (school: string, studentData: StudentToAdd, allStudents: Student[]) => {
@@ -300,8 +312,11 @@ export const addOrUpdateRecord = async (record: Partial<MeasurementRecord> & Pic
   let finalRecord: MeasurementRecord;
   if (!querySnapshot.empty) {
     const docRef = querySnapshot.docs[0].ref;
-    await updateDoc(docRef, { value: record.value });
-    finalRecord = { ...querySnapshot.docs[0].data(), id: docRef.id, value: record.value } as MeasurementRecord;
+    const updates: any = { value: record.value };
+    if (record.height !== undefined) updates.height = record.height;
+    if (record.weight !== undefined) updates.weight = record.weight;
+    await updateDoc(docRef, updates);
+    finalRecord = { ...querySnapshot.docs[0].data(), id: docRef.id, value: record.value, height: record.height, weight: record.weight } as MeasurementRecord;
   } else {
     const newRef = record.id ? doc(recordsRef, record.id) : doc(recordsRef);
     finalRecord = { ...record, id: newRef.id } as MeasurementRecord;
@@ -344,8 +359,11 @@ export const addOrUpdateRecords = async (school: string, students: Student[], re
         const q = query(collection(db, 'schools', school, 'records'), where('studentId', '==', record.studentId), where('item', '==', record.item), where('date', '==', record.date), limit(1));
         const querySnapshot = await getDocs(q);
         if (!querySnapshot.empty) {
-            batch.update(querySnapshot.docs[0].ref, { value: record.value });
-            updatedRecords.push({ ...querySnapshot.docs[0].data(), id: querySnapshot.docs[0].id, value: record.value } as MeasurementRecord);
+            const updates: any = { value: record.value };
+            if (record.height !== undefined) updates.height = record.height;
+            if (record.weight !== undefined) updates.weight = record.weight;
+            batch.update(querySnapshot.docs[0].ref, updates);
+            updatedRecords.push({ ...querySnapshot.docs[0].data(), id: querySnapshot.docs[0].id, value: record.value, height: record.height, weight: record.weight } as MeasurementRecord);
         } else {
             const docRef = doc(collection(db, 'schools', school, 'records'));
             batch.set(docRef, { ...record, id: docRef.id });
@@ -446,13 +464,36 @@ export const calculateRanks = (school: string, allItems: MeasurementItem[], allR
     });
 
     const studentValues = Object.values(latestRecords);
-    if (item.recordType === 'time' || item.recordType === 'level') { studentValues.sort((a, b) => a.value - b.value); }
-    else { studentValues.sort((a, b) => b.value - a.value); }
+    if (item.name === '체질량지수(BMI)') {
+      studentValues.sort((a, b) => {
+        const sA = allStudents.find(s => s.id === a.studentId);
+        const sB = allStudents.find(s => s.id === b.studentId);
+        const gA = sA ? (getPapsGrade(item.name, sA, a.value) || 5) : 5;
+        const gB = sB ? (getPapsGrade(item.name, sB, b.value) || 5) : 5;
+        if (gA !== gB) return gA - gB;
+        return a.value - b.value;
+      });
+    } else if (item.recordType === 'time' || item.recordType === 'level') { 
+      studentValues.sort((a, b) => a.value - b.value); 
+    } else { 
+      studentValues.sort((a, b) => b.value - a.value); 
+    }
 
     const ranks: { studentId: string; value: number; rank: number }[] = [];
     let rank = 1;
     for (let i = 0; i < studentValues.length; i++) {
-      if (i > 0 && studentValues[i].value !== studentValues[i - 1].value) rank = i + 1;
+      if (item.name === '체질량지수(BMI)') {
+        const sA = allStudents.find(s => s.id === studentValues[i].studentId);
+        const sPrev = i > 0 ? allStudents.find(s => s.id === studentValues[i-1].studentId) : null;
+        const gA = sA ? (getPapsGrade(item.name, sA, studentValues[i].value) || 5) : 5;
+        const gPrev = sPrev ? (getPapsGrade(item.name, sPrev, studentValues[i-1].value) || 5) : 5;
+        
+        if (i > 0 && (studentValues[i].value !== studentValues[i - 1].value || gA !== gPrev)) {
+          rank = i + 1;
+        }
+      } else {
+        if (i > 0 && studentValues[i].value !== studentValues[i - 1].value) rank = i + 1;
+      }
       ranks.push({ studentId: studentValues[i].studentId, value: studentValues[i].value, rank });
     }
     allRanks[item.name] = ranks;
