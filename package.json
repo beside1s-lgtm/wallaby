@@ -47,7 +47,7 @@
     "genkit": "^1.22.0",
     "jszip": "^3.10.1",
     "lucide-react": "^0.475.0",
-    "next": "^16.2.1-canary.18",
+    "next": "^16.2.2",
     "next-themes": "^0.3.0",
     "patch-package": "^8.0.0",
     "react": "19.3.0-canary-80b1cab3-20260331",
