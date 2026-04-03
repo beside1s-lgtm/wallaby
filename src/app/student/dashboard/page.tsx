@@ -277,7 +277,8 @@ export default function StudentDashboardPage() {
                 <TabsContent value="measurement-input" className="m-0 border-none p-0 outline-none">
                   <MeasurementInputTab 
                     items={essentialData.items.filter((i:any)=>!i.isDeactivated && !i.isArchived)} 
-                    student={essentialData.student} 
+                    student={essentialData.student}
+                    records={essentialData.records}
                   />
                 </TabsContent>
               )}

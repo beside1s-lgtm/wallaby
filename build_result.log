@@ -1,0 +1,70 @@
+﻿
+> nextn@0.1.0 build
+> next build
+
+node.exe : ??`eslint` co
+nfiguration in next.conf
+ig.ts is no longer suppo
+rted. See more info here
+: https://nextjs.org/doc
+s/app/api-reference/cli/
+next#next-lint-options
+위치 줄:1 문자:1
++ & "C:\Program Files\no
+dejs/node.exe" "C:\Progr
+am Files\nodejs/node_mo 
+...
++ ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo      
+        : NotSpecified: 
+(??`    eslint` conf...x
+t-lint    -options:Strin
+g) [], R    emoteExcepti
+on
+    + FullyQualifiedErro
+rI    d : NativeCommandE
+rror
+ 
+??Invalid next.config.ts
+ options detected: 
+??    Unrecognized key(s
+) in object: 'eslint'
+??See more info here: ht
+tps://nextjs.org/docs/me
+ssages/invalid-next-conf
+ig
+??Next.js 16.2.2 (Turbopack)
+- Environments: .env.local, .env
+- Cache Components enabled
+
+  Creating an optimized production build ...
+??Compiled successfully in 7.6s
+  Skipping validation of types
+  Finished TypeScript config validation in 19ms ...
+  Collecting page data using 12 workers ...
+  Generating static pages using 12 workers (0/11) ...
+  Generating static pages using 12 workers (2/11) 
+  Generating static pages using 12 workers (5/11) 
+  Generating static pages using 12 workers (8/11) 
+??Generating static pages using 12 workers (11/11) in 1211ms
+  Finalizing page optimization ...
+
+Route (app)
+????/
+????/_not-found
+????/admin
+????/student-login
+????/student/dashboard
+????/student/report
+????/teacher/dashboard
+????/teacher/match/[sport]
+????/teacher/match/[sport]
+????/teacher/match/[sport]/[matchId]
+  ??/teacher/match/[sport]/[matchId]
+
+
+?? (Static)             prerendered as static content
+?? (Partial Prerender)  prerendered as static HTML with dynamic server-streamed content
+

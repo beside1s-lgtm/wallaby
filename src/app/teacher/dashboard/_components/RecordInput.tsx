@@ -37,7 +37,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from '@/components/ui/button';
-import { Loader2, Search, Calendar as CalendarIcon, X, Youtube, ClipboardList, Save, CheckCircle2, Download } from 'lucide-react';
+import { Youtube, Eye, EyeOff, ClipboardList, Loader2, Calculator, Save, Search, Calendar as CalendarIcon, X, Download, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -55,6 +55,16 @@ interface RecordInputProps {
     allTeamGroups: TeamGroup[];
     sportsClubs: SportsClub[];
 }
+
+const calculateBmi = (height?: string, weight?: string) => {
+    const h = parseFloat(height || '');
+    const w = parseFloat(weight || '');
+    if (!isNaN(h) && !isNaN(w) && h > 0 && w > 0) {
+        const hMeter = h / 100;
+        return (w / (hMeter * hMeter)).toFixed(2);
+    }
+    return '';
+};
 
 export default function RecordInput({ allStudents, allItems, allRecords, onRecordUpdate, allTeamGroups, sportsClubs }: RecordInputProps) {
   const { school } = useAuth();
@@ -107,26 +117,6 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
     }
   }, [activeItems, selectedItemName, batchRecordItem]);
 
-  useEffect(() => {
-    setBatchRecords({});
-    setSavedIds(new Set());
-  }, [selectedGrade, selectedClassNum, batchRecordItem, selectedGroupId]);
-
-  const handleSearch = () => {
-    if (!searchTerm.trim()) return;
-    const found = allStudents.filter(s => s.name.includes(searchTerm.trim()));
-    if (found.length === 1) {
-      setSelectedStudent(found[0]);
-      setFoundStudents([]);
-      setSearchTerm('');
-    } else if (found.length > 1) {
-      setFoundStudents(found);
-      setIsSelectionDialogOpen(true);
-    } else {
-      toast({ variant: "destructive", title: "학생을 찾을 수 없습니다." });
-    }
-  };
-
   const studentsForBatch = useMemo(() => {
     let list: Student[] = [];
     if (selectedGroupId) {
@@ -150,6 +140,57 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
 
   const selectedItemForBatch = useMemo(() => activeItems.find(item => item.name === batchRecordItem), [batchRecordItem, activeItems]);
   const selectedItemForSingle = useMemo(() => activeItems.find(item => item.name === selectedItemName), [selectedItemName, activeItems]);
+
+  useEffect(() => {
+    const isCompound = selectedItemForBatch?.isCompound;
+    const newBatchRecords: Record<string, { value?: string, height?: string, weight?: string }> = {};
+    
+    if (isCompound && studentsForBatch.length > 0) {
+      studentsForBatch.forEach(s => {
+        const prev = getPreviousRecord(s.id, batchRecordItem);
+        if (prev && prev.height && prev.weight) {
+          newBatchRecords[s.id] = {
+            height: prev.height.toString(),
+            weight: prev.weight.toString()
+          };
+        }
+      });
+    }
+    
+    setBatchRecords(newBatchRecords);
+    setSavedIds(new Set());
+  }, [selectedGrade, selectedClassNum, batchRecordItem, selectedGroupId, studentsForBatch, selectedItemForBatch]);
+
+  // 개별 기록 탭에서 학생 선택 시 BMI 초기 데이터 로딩
+  useEffect(() => {
+    if (selectedStudent && selectedItemForSingle?.isCompound) {
+      const prev = getPreviousRecord(selectedStudent.id, selectedItemName);
+      if (prev && prev.height && prev.weight && !batchRecords[selectedStudent.id]) {
+        setBatchRecords(prevMap => ({
+          ...prevMap,
+          [selectedStudent.id]: {
+            height: prev.height?.toString(),
+            weight: prev.weight?.toString()
+          }
+        }));
+      }
+    }
+  }, [selectedStudent, selectedItemName, selectedItemForSingle]);
+
+  const handleSearch = () => {
+    if (!searchTerm.trim()) return;
+    const found = allStudents.filter(s => s.name.includes(searchTerm.trim()));
+    if (found.length === 1) {
+      setSelectedStudent(found[0]);
+      setFoundStudents([]);
+      setSearchTerm('');
+    } else if (found.length > 1) {
+      setFoundStudents(found);
+      setIsSelectionDialogOpen(true);
+    } else {
+      toast({ variant: "destructive", title: "학생을 찾을 수 없습니다." });
+    }
+  };
 
   const getPreviousRecord = (studentId: string, itemName: string) => {
     return allRecords
@@ -201,7 +242,9 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
         school, 
         item: batchRecordItem, 
         date: format(batchRecordDate, 'yyyy-MM-dd'), 
-        value: valueToSave 
+        value: valueToSave,
+        height: input.height ? parseFloat(input.height) : undefined,
+        weight: input.weight ? parseFloat(input.weight) : undefined
       });
       onRecordUpdate([rec], 'update');
       setSavedIds(prev => new Set(prev).add(studentId));
@@ -228,7 +271,15 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
                 val = input.value ? parseFloat(input.value) : null;
             }
             if (val === null || isNaN(val)) return null;
-            return { studentId: s.id, school, item: batchRecordItem, value: val, date: format(batchRecordDate, 'yyyy-MM-dd') };
+            return { 
+                studentId: s.id, 
+                school, 
+                item: batchRecordItem, 
+                value: val, 
+                date: format(batchRecordDate, 'yyyy-MM-dd'),
+                height: input.height ? parseFloat(input.height) : undefined,
+                weight: input.weight ? parseFloat(input.weight) : undefined
+            };
         }).filter((r): r is any => r !== null);
 
         if (toSave.length > 0) {
@@ -461,7 +512,15 @@ export default function RecordInput({ allStudents, allItems, allRecords, onRecor
                             try {
                                 let val = selectedItemForSingle?.isCompound ? parseFloat(calculateBmi(batchRecords[selectedStudent.id]?.height, batchRecords[selectedStudent.id]?.weight)) : parseFloat(recordValue);
                                 if (isNaN(val)) throw new Error("Invalid value");
-                                const rec = await addOrUpdateRecord({ studentId: selectedStudent.id, school, item: selectedItemName, date: format(recordDate, 'yyyy-MM-dd'), value: val });
+                                const rec = await addOrUpdateRecord({ 
+                                    studentId: selectedStudent.id, 
+                                    school, 
+                                    item: selectedItemName, 
+                                    date: format(recordDate, 'yyyy-MM-dd'), 
+                                    value: val,
+                                    height: selectedItemForSingle?.isCompound ? parseFloat(batchRecords[selectedStudent.id]?.height || '') : undefined,
+                                    weight: selectedItemForSingle?.isCompound ? parseFloat(batchRecords[selectedStudent.id]?.weight || '') : undefined
+                                });
                                 onRecordUpdate([rec], 'update');
                                 toast({ title: "기록 저장 완료" });
                                 setRecordValue('');

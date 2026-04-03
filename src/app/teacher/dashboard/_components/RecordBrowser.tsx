@@ -483,7 +483,6 @@ export default function RecordBrowser({
         '번호': s.studentNum,
         '이름': s.name,
         '최근 측정일': (s as any).latestDate || '-',
-        '기록': (s as any).value !== undefined ? `${(s as any).value}${itemInfo?.unit || ''}` : '-',
       };
 
       if (itemInfo?.isCompound) {
@@ -491,6 +490,8 @@ export default function RecordBrowser({
         row['몸무게(kg)'] = (s as any).weight || '-';
       }
 
+      const recordLabel = itemInfo?.name === '체질량지수(BMI)' ? 'BMI' : '기록';
+      row[recordLabel] = (s as any).value !== undefined ? `${(s as any).value}${itemInfo?.unit || ''}` : '-';
       row['등급'] = (s as any).recordGrade ? `${(s as any).recordGrade}등급` : '-';
       row['순위'] = (s as any).rank ? `${(s as any).rank}등` : '-';
       
@@ -504,55 +505,6 @@ export default function RecordBrowser({
     });
   };
 
-  const handleItemDownloadCsv = () => {
-    if (sortedItemData.length === 0) {
-      toast({
-        variant: 'destructive',
-        title: '다운로드 실패',
-        description: '다운로드할 데이터가 없습니다.',
-      });
-      return;
-    }
-
-    // CSV fallback if needed, but since we're migrating to Excel, we might want to keep it or remove it.
-    // Let's keep it but also ensure it doesn't cause issues.
-    const { exportToCsv } = require('@/lib/store');
-    
-    if (selectedItem === 'theory-exam') {
-      const dataToExport = sortedItemData.map(s => ({
-        '학년': s.grade,
-        '반': s.classNum,
-        '번호': s.studentNum,
-        '이름': s.name,
-        '평가 제목': (s as any).quizTitle || '-',
-        '점수': (s as any).score || '-',
-        '통합 여부': (s as any).passed ? '통과' : '미통과',
-        '응시일': (s as any).latestDate || '-',
-      }));
-      const fileName = `이론평가_현황_${new Date().toISOString().split('T')[0]}.csv`;
-      exportToCsv(fileName, dataToExport);
-      toast({ title: '다운로드 시작', description: '이론 평가 현황을 CSV 파일로 다운로드합니다.' });
-      return;
-    }
-
-    const itemInfo = allItems.find(i => i.name === selectedItem);
-    const dataToExport = sortedItemData.map(s => ({
-      '학년': s.grade,
-      '반': s.classNum,
-      '번호': s.studentNum,
-      '이름': s.name,
-      '최근 측정일': (s as any).latestDate || '-',
-      '기록': (s as any).value !== undefined ? `${(s as any).value}${itemInfo?.unit || ''}` : '-',
-      '등급': (s as any).recordGrade ? `${(s as any).recordGrade}등급` : '-',
-      '순위': (s as any).rank ? `${(s as any).rank}등` : '-',
-    }));
-    const fileName = `${selectedItem}_기록 현황_${new Date().toISOString().split('T')[0]}.csv`;
-    exportToCsv(fileName, dataToExport);
-    toast({
-      title: '다운로드 시작',
-      description: `${selectedItem} 기록을 CSV 파일로 다운로드합니다.`,
-    });
-  };
 
   useEffect(() => {
     setClassNumFilter('all');

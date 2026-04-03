@@ -71,12 +71,7 @@ export const initializeData = async (schoolName: string, password?: string) => {
 };
 
 export const exportToExcel = (filename: string, rows: object[]) => {
-  exportToExcelUtil(filename, rows);
-}
-
-export const exportToCsv = (filename: string, rows: object[]) => {
-  const { exportToCsv: exportToCsvUtil } = require('./utils');
-  exportToCsvUtil(filename, rows);
+  exportToExcelUtil(filename.endsWith('.xlsx') ? filename : `${filename}.xlsx`, rows);
 }
 
 export const getSchools = async (): Promise<School[]> => {

@@ -225,7 +225,7 @@ export function DatabaseManagement({ students, records, items, onUpdate }: { stu
         <div className="border-b pb-6 space-y-4">
           <h3 className="text-lg font-semibold">기록 등록 및 다운로드</h3>
           <p className="text-sm text-muted-foreground">
-            CSV 파일을 사용하여 여러 학생의 기록을 한 번에 등록하거나, 특정 학생/전체 기록을 엑셀로 백업합니다.
+            엑셀 파일을 사용하여 여러 학생의 기록을 한 번에 등록하거나, 특정 학생/전체 기록을 엑셀로 백업합니다.
           </p>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => document.getElementById("record-upload")?.click()} disabled={isUploading}>
