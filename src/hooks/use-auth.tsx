@@ -8,6 +8,7 @@ import {
   useEffect,
   ReactNode,
   useCallback,
+  Suspense,
 } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Student } from '@/lib/types';
@@ -29,19 +30,53 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// useRouter/usePathname은 Suspense 경계 안에서만 사용해야 합니다 (Next.js 16+ cacheComponents 요구사항).
+// 리다이렉션 로직을 별도의 내부 컴포넌트로 분리합니다.
+function AuthRedirector({ role, isLoading }: { role: Role; isLoading: boolean }) {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    const isAuthPage = pathname === '/' || pathname === '/student-login';
+
+    if (role && isAuthPage) {
+      if (role === 'teacher') {
+        router.replace('/teacher/dashboard');
+      } else if (role === 'student') {
+        router.replace('/student/dashboard');
+      }
+      return;
+    }
+
+    if (!role && !isAuthPage && !pathname.startsWith('/admin')) {
+      router.replace('/');
+      return;
+    }
+
+    if (role === 'teacher' && pathname.startsWith('/student')) {
+      router.replace('/teacher/dashboard');
+    }
+    if (role === 'student' && pathname.startsWith('/teacher')) {
+      router.replace('/student/dashboard');
+    }
+  }, [role, pathname, router, isLoading]);
+
+  return null;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<Role | null>(null);
   const [school, setSchool] = useState<string | null>(null);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const router = useRouter();
-  const pathname = usePathname();
 
   useEffect(() => {
     if (!auth) {
-        setIsLoading(false);
-        return;
+      setIsLoading(false);
+      return;
     }
 
     const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
@@ -79,44 +114,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    if (isLoading) return; 
-
-    const isAuthPage = pathname === '/' || pathname === '/student-login';
-    
-    if (role && isAuthPage) {
-        if (role === 'teacher') {
-            router.replace('/teacher/dashboard');
-        } else if (role === 'student') {
-            router.replace('/student/dashboard');
-        }
-        return;
-    }
-    
-    if (!role && !isAuthPage && !pathname.startsWith('/admin')) {
-        router.replace('/');
-        return;
-    }
-
-    if (role === 'teacher' && pathname.startsWith('/student')) {
-      router.replace('/teacher/dashboard');
-    }
-    if (role === 'student' && pathname.startsWith('/teacher')) {
-      router.replace('/student/dashboard');
-    }
-
-  }, [role, pathname, router, isLoading]);
-
-
   const login = useCallback((role: 'teacher' | 'student', userData: Omit<User, 'school'> & { school: string }) => {
     try {
-        localStorage.setItem('userRole', role);
-        localStorage.setItem('userSchool', userData.school);
-        if (role === 'student') {
-          localStorage.setItem('loggedInStudent', JSON.stringify(userData));
-        }
+      localStorage.setItem('userRole', role);
+      localStorage.setItem('userSchool', userData.school);
+      if (role === 'student') {
+        localStorage.setItem('loggedInStudent', JSON.stringify(userData));
+      }
     } catch (e) {
-        console.warn("Storage write failed (Safari Private Mode):", e);
+      console.warn("Storage write failed (Safari Private Mode):", e);
     }
     setRole(role);
     setSchool(userData.school);
@@ -126,16 +132,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     const currentRole = localStorage.getItem('userRole');
     try {
-        localStorage.removeItem('userRole');
-        localStorage.removeItem('loggedInStudent');
-        localStorage.removeItem('userSchool');
-        sessionStorage.removeItem('welcomeShown');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('loggedInStudent');
+      localStorage.removeItem('userSchool');
+      sessionStorage.removeItem('welcomeShown');
     } catch (e) {}
-    
+
     setRole(null);
     setSchool(null);
     setUser(null);
-    
+
     if (currentRole === 'student') {
       window.location.href = '/student-login';
     } else {
@@ -153,7 +159,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading,
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {/* AuthRedirector는 Suspense로 감싸서 useRouter/usePathname이 안전하게 실행되도록 합니다 */}
+      <Suspense fallback={null}>
+        <AuthRedirector role={role} isLoading={isLoading} />
+      </Suspense>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export const useAuth = () => {
