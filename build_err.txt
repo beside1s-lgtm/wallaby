@@ -1,0 +1,14 @@
+
+> nextn@0.1.0 build
+> next build
+
+⚠ `experimental.cacheComponents` has been moved to `cacheComponents`. Please update your next.config.ts file accordingly.
+
+> Build error occurred
+Error: EPERM: operation not permitted, unlink 'C:\Users\KOREAN\OneDrive - 서울송정초등학교\앱\perecord\.next\static\kyJFea34yf0VhQ2AIn39h'
+    at ignore-listed frames {
+  errno: -4048,
+  code: 'EPERM',
+  syscall: 'unlink',
+  path: 'C:\\Users\\KOREAN\\OneDrive - 서울송정초등학교\\앱\\perecord\\.next\\static\\kyJFea34yf0VhQ2AIn39h'
+}

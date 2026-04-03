@@ -1,0 +1,72 @@
+﻿
+> nextn@0.1.0 build
+> next build
+
+node.exe : ??`eslint` confi
+guration in next.config.ts 
+is no longer supported. See
+ more info here: https://ne
+xtjs.org/docs/app/api-refer
+ence/cli/next#next-lint-opt
+ions
+위치 줄:1 문자:1
++ & "C:\Program Files\nodej
+s/node.exe" "C:\Program Fil
+es\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
+    + CategoryInfo         
+     : NotSpecified: (??`  
+  eslint` conf...xt-lint   
+ -options:String) [], R    
+emoteException
+    + FullyQualifiedErrorI 
+   d : NativeCommandError
+ 
+??Invalid next.config.ts op
+tions detected: 
+??    Unrecognized key(s) i
+n object: 'eslint'
+??See more info here: https
+://nextjs.org/docs/messages
+/invalid-next-config
+??Next.js 16.2.2 (Turbopack)
+- Environments: .env.local, .env
+- Cache Components enabled
+
+  Creating an optimized production build ...
+
+> Build error occurred
+Error: Turbopack build fail
+ed with 1 errors:
+./src/app/teacher/match/[sp
+ort]/[matchId]/layout.tsx:1
+:14
+Route segment config "dynam
+ic" is not compatible with 
+`nextConfig.cacheComponents
+`. Please remove it.
+[31m[1m>[0m [90m1 |[0m
+ [36mexport[0m [36mconst
+[0m dynamic = [32m'force-
+dynamic'[0m;
+  [90m  |[0m             
+ [31m[1m^^^^^^^[0m
+  [90m2 |[0m
+  [90m3 |[0m [36mexport
+[0m [36mdefault[0m [36mf
+unction[0m [33mLayout[0m
+({ children }: { children: 
+[33mReact[0m.[33mReactNo
+de[0m }) {
+  [90m4 |[0m   [36mretur
+n[0m <>{children}</>;
+
+Ecmascript file had an erro
+r
+
+
+    at <unknown> (./src/app
+/teacher/match/[sport]/[mat
+chId]/layout.tsx:1:14)
